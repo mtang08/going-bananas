@@ -1,9 +1,11 @@
 # Analytics MVP implementation plan
 
+User update (2026-11-10): lifting is tracked in Strong, not Garmin. Strong CSV is a future separate source; no export/parser now. Strength totals are recorded sessions with incomplete coverage, never evidence of skipped lifting. See `backlog.md`.
+
 Updated 2026-11-10. Authoritative scope after the user's clarification: build the
 data, analytics, visualization, and persistent feedback core first. Research
 arrives later as a local `running_coach_kb/`; no runtime LLM is required for this
-release. All tasks below are planned, not implemented or verified.
+release. This is the design baseline. The analytics implementation is now delivered; see `release-checklist.md` and `handoff.md` for actual verification and remaining limitations.
 
 ## Product outcome
 

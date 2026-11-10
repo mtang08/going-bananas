@@ -1,5 +1,7 @@
 # Data, analytics, and interaction contracts
 
+User update (2026-11-10): lifting is tracked in Strong, not Garmin. Strong CSV is a future separate source; no export/parser now. Strength totals are recorded sessions with incomplete coverage, never evidence of skipped lifting. See `backlog.md`.
+
 Implementation specification, not a claim that schema/routes already exist.
 Read with `implementation-plan.md`. Prefer explicit typed columns for core fields;
 JSONB is for provenance/raw references and versioned summary payloads, not a

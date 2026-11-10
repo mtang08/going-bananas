@@ -1,0 +1,63 @@
+# Analytics MVP release verification
+
+Verified locally on 2026-11-10. Scope: local analytics, visualization, feedback,
+manual planning, Garmin ingestion and operations. Research/adaptive coaching and
+Strong integration remain deferred. No synthetic feedback or plan was written
+to the real workspace.
+
+## Executed checks
+
+| Check | Result |
+| --- | --- |
+| `make check` | Backend Ruff and mypy (20 source files), 16 domain/ingestion/config tests; frontend lint/types, 4 component tests and production build pass |
+| `make test-integration` | 12 PostgreSQL tests pass, including import replay, conflicts, manual/import strength in both orders, feedback, privacy, plan constraints, concurrent enqueue, persistent retry limit, and partial recovery |
+| `make test-e2e` | 3 Chrome tests pass: navigation and check-in; mobile layout; manual draft/accept/actual link/unlink. Demo mode is asserted before mutations; synthetic profile setup is explicit |
+| API acceptance | `scripts/verify-demo.py`: check-in replay/edit/stale-version/null rejection, context note exclusion, manual strength totals, weekly snapshot persistence, valid/invalid cycle plans pass |
+| Clean migrations | Fresh `garmin_migration_test` upgraded through `0003_app_state`; `alembic check` reports no new operations. Initial schema is frozen rather than imported from mutable ORM models |
+| Real source comparison | 28-date import window; all 12 activities checked against preserved source IDs/timestamps/distance/moving/elapsed fields. Unique identities and independent rolling-14 sum match |
+| Real re-import | Same window repeated: zero changed activities/recovery values and zero duplicate canonical records; valid recovery observations retained |
+| Recovery availability | 82 valid observations. One sleep summary lacks its owner identifier; it is retained as rejected source data and sleep is explicitly partial. Other datasets complete their requested queries |
+| Backup/restore | Final private archive restored into a new database/directory; seven table counts match and all 94 referenced raw objects exist with matching SHA256. Original database unchanged |
+| Production read-only smoke | All 13 API reads pass; foreign-origin mutation rejected. Real-data browser views load, Strong warning is visible, mobile has no horizontal overflow, no page/server errors |
+| Daily operation | Local launchd schedule registered for 08:30; standalone command starts the existing project database if needed. Startup catch-up and worker job coordination are implemented/tested |
+| Privacy | Real raw/profile/credentials/backups/screenshots ignored; no remote or deployment configured. Configured secret-value and private-path scan of staged source passed before commit |
+
+The full V01–V28 matrix remains the design reference. The evidence above records
+what actually ran; it does not claim exhaustive provider behavior, every future
+export format, every crash timing, or every wearable statistic has been tested.
+
+## Independent review and corrections
+
+A separate Sol-medium review identified and drove fixes for invalid UI run-kind
+values, missing duplicate candidate creation, resumed retry limits, missing
+startup catch-up, and partial-plan supersession. Follow-up fixes added exact
+replacement boundaries, selective context coverage, manual-strength reconciliation,
+and pagination. The lead also checked DST arithmetic, metric enums, validation,
+protected mode separation, credential handling, connection-pinned advisory locks,
+and clean migrations.
+
+## Current limitations and intentional boundaries
+
+- Strong lifting history is not connected. Recorded sessions are incomplete;
+  missing Garmin strength records never establish skipped lifting. No Strong
+  parser exists until an actual export is inspected.
+- Garmin export parsing, full stream/GPS views, coaching, and phone/private hosting
+  are not active. Garmin API is the real ingestion path.
+- No real schedule anchor or rotating strength mapping was invented. Configure
+  these when ready to use accepted manual plans. No actual symptom check-in was
+  fabricated for acceptance testing; that workflow was verified in demo mode.
+- Garmin's maximum history/rate limits, pricing, and precise source-date boundary
+  semantics are not fully documented/verified. Bounded requests, conservative
+  status reporting, overlap re-fetching, and manual historical windows are used.
+- Replacing an accepted plan requires its exact date range; partial overlaps
+  return an explanatory validation error. This prevents silent loss of sessions.
+- Build emits a non-blocking large-bundle warning (charts included); tests emit
+  an upstream Starlette/httpx deprecation warning. Both complete successfully.
+- Backups are private plaintext archives, not encrypted cloud storage. Credentials
+  are excluded. Restore into a new target and verify before selecting it.
+
+## Runtime/tool evidence
+
+Python 3.12.13, Node 22.23.4, PostgreSQL 17.11, uv 0.13.7 were available for this
+run. Package versions are captured in committed lockfiles. The official Garmin
+Python client is 1.0.0. See `garmin-capabilities.md` for inspected provider docs.

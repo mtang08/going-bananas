@@ -24,7 +24,7 @@ settings = {
     'DATABASE_URL': f'postgresql+psycopg://garmin:{password}@127.0.0.1:55432/garmin_demo',
     'TEST_DATABASE_URL': f'postgresql+psycopg://garmin:{password}@127.0.0.1:55432/garmin_test',
     'APP_MODE': 'demo',
-    'PRIVATE_DIR': str(private),
+    'PRIVATE_DIR': str(private/'demo'),
 }
 with env_file.open('a') as f:
     if content and not content.endswith('\n'):

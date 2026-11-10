@@ -1,0 +1,104 @@
+import { expect, test } from '../frontend/node_modules/@playwright/test'
+
+test.beforeAll(async ({ request }) => {
+  const response = await request.get('http://127.0.0.1:5173/api/v1/profile')
+  const envelope = await response.json()
+  expect(envelope.mode).toBe('demo')
+  const p = envelope.data
+  const configured = await request.put('http://127.0.0.1:5173/api/v1/profile', {
+    headers: { 'X-Local-Request': '1' },
+    data: { ...p, expected_version: p.version, timezone: 'America/New_York',
+      cycle_anchor: '2026-11-02', anchor_confirmed: true,
+      strength_days_confirmed: true, scheduled_strength_days: [0, 4] },
+  })
+  expect(configured.ok()).toBe(true)
+})
+
+test.beforeEach(async ({request}) => {
+  const response=await request.get('http://127.0.0.1:5173/api/v1/health/live')
+  expect(response.ok()).toBe(true)
+  expect((await response.json()).mode).toBe('demo')
+})
+
+test('demo API drives overview, history, cycle, settings and check-in', async ({page}) => {
+  const problems:string[]=[]
+  page.on('pageerror', e=>problems.push(e.message))
+  await page.goto('/')
+  await expect(page.getByText('DEMO DATA').first()).toBeVisible()
+  await expect(page.getByRole('heading',{name:'Your training, in context.'})).toBeVisible()
+  await expect(page.getByText('This week', {exact:true})).toBeVisible()
+  await page.getByRole('button',{name:'History'}).click()
+  await expect(page.getByRole('heading',{name:'Training history.'})).toBeVisible()
+  await page.getByRole('button',{name:'Cycle'}).click()
+  await expect(page.getByRole('heading',{name:'Keep the rhythm visible.'})).toBeVisible()
+  await page.getByRole('button',{name:'Data & settings'}).click()
+  await expect(page.getByRole('heading',{name:'Data & settings.'})).toBeVisible()
+  await page.getByRole('button',{name:'Record check-in'}).first().click()
+  await expect(page.getByRole('dialog',{name:'Record check-in'})).toBeVisible()
+  await page.getByRole('button',{name:/No issues; usual energy/}).click()
+  await expect(page.getByRole('dialog',{name:'Record check-in'})).toBeHidden()
+  expect(problems).toEqual([])
+})
+
+test('mobile view exposes navigation and quick check-in', async ({page}) => {
+  await page.setViewportSize({width:390,height:844})
+  await page.goto('/')
+  await expect(page.getByRole('heading',{name:'Your training, in context.'})).toBeVisible()
+  await page.getByRole('button',{name:'Open menu'}).click()
+  await page.getByRole('button',{name:'History'}).click()
+  await expect(page.getByRole('heading',{name:'Training history.'})).toBeVisible()
+  await page.getByRole('button',{name:'Record check-in'}).first().click()
+  await expect(page.getByRole('dialog',{name:'Record check-in'})).toBeVisible()
+})
+
+test('manual draft can be accepted and linked to a confirmed actual session', async ({page}) => {
+  const profileResponse=await page.request.get('http://127.0.0.1:5173/api/v1/profile')
+  const profile=(await profileResponse.json()).data
+  expect(profile.anchor_confirmed).toBe(true)
+  expect(profile.strength_days_confirmed).toBe(true)
+  const anchor=new Date(`${profile.cycle_anchor}T12:00:00`)
+  const today=new Date(); today.setHours(12,0,0,0)
+  const start=new Date(anchor)
+  while(start<today) start.setDate(start.getDate()+14)
+  const at=(offset:number)=>{const d=new Date(start);d.setDate(d.getDate()+offset);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+  const startDate=at(0),endDate=at(13)
+  await page.goto('/')
+  await page.getByRole('button',{name:'Cycle'}).click()
+  await page.getByRole('button',{name:'Draft plan'}).click()
+  const dialog=page.getByRole('dialog',{name:'Draft plan'})
+  await dialog.getByLabel('Plan start').fill(startDate)
+  await dialog.getByLabel('Plan end').fill(endDate)
+  for(const offset of [0,2,4,6,8,10,12]){
+    await dialog.getByLabel('Session date').fill(at(offset))
+    await dialog.getByLabel('Session',{exact:true}).selectOption('run')
+    await dialog.getByRole('button',{name:'Add session'}).click()
+  }
+  for(const offset of [0,4,7,11]){
+    await dialog.getByLabel('Session date').fill(at(offset))
+    await dialog.getByLabel('Session',{exact:true}).selectOption('strength')
+    await dialog.getByRole('button',{name:'Add session'}).click()
+  }
+  await dialog.getByRole('button',{name:'Save draft'}).click()
+  await expect(dialog).toBeHidden()
+  const newest=page.locator('.plan-row').first()
+  await expect(newest.getByText('draft',{exact:true})).toBeVisible()
+  await newest.getByRole('button',{name:'Accept'}).click()
+  await expect(newest.getByText('accepted',{exact:true})).toBeVisible()
+  const index=Math.round((start.getTime()-today.getTime())/86_400_000)
+  await page.locator('.day-card').nth(index).click()
+  const created=page.waitForResponse(response=>response.url().endsWith('/manual-sessions')&&response.request().method()==='POST')
+  await page.getByRole('dialog',{name:'Day editor'}).getByRole('button',{name:'Save session'}).click()
+  const actualId=(await (await created).json()).data.id
+  await expect(page.getByRole('dialog',{name:'Day editor'})).toBeHidden()
+  await page.locator('.day-card').nth(index).click()
+  const actual=page.getByRole('combobox',{name:'Actual for planned strength'})
+  await actual.selectOption(`manual:${actualId}`)
+  await expect(page.getByRole('dialog',{name:'Day editor'})).toBeHidden()
+  const plans=(await (await page.request.get(`http://127.0.0.1:5173/api/v1/plans?start_date=${startDate}&end_date=${endDate}`)).json()).data.items
+  expect(plans.some((p:{status:string;sessions:{kind:string;completion_manual_session_id:string|null}[]})=>p.status==='accepted'&&p.sessions.some(s=>s.kind==='strength'&&s.completion_manual_session_id))).toBe(true)
+  await page.locator('.day-card').nth(index).click()
+  await page.getByRole('button',{name:'Unlink actual session'}).click()
+  await expect(page.getByRole('dialog',{name:'Day editor'})).toBeHidden()
+  const after=(await (await page.request.get(`http://127.0.0.1:5173/api/v1/plans?start_date=${startDate}&end_date=${endDate}`)).json()).data.items
+  expect(after.find((p:{status:string})=>p.status==='accepted').sessions.some((s:{completion_manual_session_id:string|null})=>s.completion_manual_session_id)).toBe(false)
+})
