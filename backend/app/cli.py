@@ -10,14 +10,16 @@ import time
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db import SessionLocal, bump_data_revision
+from app.db import SessionLocal, bump_data_revision, engine
 from app.models import ProfileVersion
 from app.services.backup import BackupError, create_backup, restore_backup
-from app.services.sync import enqueue_catchup, enqueue_sync, import_activity_page, run_one_job
+from app.services.export_import import import_export
+from app.services.sync import ADVISORY_LOCK, enqueue_catchup, enqueue_sync, import_activity_page, run_one_job
 
 
 def _scope() -> str:
@@ -53,6 +55,9 @@ def _parse() -> argparse.Namespace:
     sync.add_argument("--start", type=date.fromisoformat)
     sync.add_argument("--end", type=date.fromisoformat)
     sub.add_parser("worker")
+    export_import = sub.add_parser("import-export")
+    export_import.add_argument("archive", type=Path)
+    export_import.add_argument("--apply", action="store_true")
     backup = sub.add_parser("backup")
     backup.add_argument("output", type=Path)
     restore = sub.add_parser("restore")
@@ -113,6 +118,19 @@ def main() -> int:
         elif args.command == "backup":
             manifest = create_backup(settings.database_url, settings.private_dir, args.output)
             print(json.dumps({"created_at": manifest["created_at"], "file_count": len(manifest["files"])}))
+        elif args.command == "import-export":
+            if settings.app_mode != "real":
+                raise ValueError("real_mode_required")
+            if args.apply:
+                with engine.begin() as connection:
+                    connection.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": ADVISORY_LOCK})
+                    with Session(bind=connection) as session:
+                        export_result = import_export(session, settings.private_dir, args.archive, apply=True)
+                        session.flush()
+            else:
+                with SessionLocal() as session:
+                    export_result = import_export(session, settings.private_dir, args.archive)
+            print(json.dumps(export_result, sort_keys=True))
         elif args.command == "restore":
             if not args.target_database_name.replace("_", "").isalnum():
                 raise ValueError("invalid_target_database_name")

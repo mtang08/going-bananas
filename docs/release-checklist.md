@@ -9,9 +9,9 @@ to the real workspace.
 
 | Check | Result |
 | --- | --- |
-| `make check` | Backend Ruff and mypy (20 source files), 16 domain/ingestion/config tests; frontend lint/types, 4 component tests and production build pass |
-| `make test-integration` | 12 PostgreSQL tests pass, including import replay, conflicts, manual/import strength in both orders, feedback, privacy, plan constraints, concurrent enqueue, persistent retry limit, and partial recovery |
-| `make test-e2e` | 3 Chrome tests pass: navigation and check-in; mobile layout; manual draft/accept/actual link/unlink. Demo mode is asserted before mutations; synthetic profile setup is explicit |
+| `make check` | Backend Ruff and mypy (23 source files), 27 domain/ingestion/config/export tests; frontend lint/types, 7 component tests and production build pass |
+| `make test-integration` | 16 PostgreSQL tests pass, including import replay, conflicts, manual/import strength in both orders, feedback, privacy, plan constraints, concurrent enqueue, persistent retry limit, and partial recovery |
+| `make test-e2e` | 4 Chrome tests pass: navigation and check-in; mobile layout; historical date windows; manual draft/accept/actual link/unlink. Demo mode is asserted before mutations; synthetic profile setup is explicit |
 | API acceptance | `scripts/verify-demo.py`: check-in replay/edit/stale-version/null rejection, context note exclusion, manual strength totals, weekly snapshot persistence, valid/invalid cycle plans pass |
 | Clean migrations | Fresh `garmin_migration_test` upgraded through `0003_app_state`; `alembic check` reports no new operations. Initial schema is frozen rather than imported from mutable ORM models |
 | Real source comparison | 28-date import window; all 12 activities checked against preserved source IDs/timestamps/distance/moving/elapsed fields. Unique identities and independent rolling-14 sum match |
@@ -41,8 +41,9 @@ and clean migrations.
 - Strong lifting history is not connected. Recorded sessions are incomplete;
   missing Garmin strength records never establish skipped lifting. No Strong
   parser exists until an actual export is inspected.
-- Garmin export parsing, full stream/GPS views, coaching, and phone/private hosting
-  are not active. Garmin API is the real ingestion path.
+- The inspected Garmin account export and API are validated ingestion paths.
+  Full stream/GPS views, coaching, and phone/private hosting remain deferred.
+  Unrecognized archive categories remain in the preserved original ZIP.
 - No real schedule anchor or rotating strength mapping was invented. Configure
   these when ready to use accepted manual plans. No actual symptom check-in was
   fabricated for acceptance testing; that workflow was verified in demo mode.
@@ -61,3 +62,26 @@ and clean migrations.
 Python 3.12.13, Node 22.23.4, PostgreSQL 17.11, uv 0.13.7 were available for this
 run. Package versions are captured in committed lockfiles. The official Garmin
 Python client is 1.0.0. See `garmin-capabilities.md` for inspected provider docs.
+
+## Historical export acceptance (2026-11-10)
+
+- Imported 179 activities: 167 new, 12 API overlaps unchanged; 163 runs. Activity
+  dates span September 4, 2025 through November 8, 2026.
+- Imported 429 sleep, 416 HRV, and 434 resting-HR source observations. Canonical
+  history now contains 1,282 recovery observations, including prior API data.
+- All activity units/timestamps and every recovery value were independently
+  compared with original sources by `scripts/verify-export.py`. Run-volume sum
+  matches; profile/check-in/plan counts and existing API fields are unchanged.
+- Sleep uses GMT window minus awake seconds; HRV uses the typed HRV metric.
+  Each recovery mapping matched all 27 overlapping API dates per metric.
+- Six incomplete sleep rows and 43 missing resting-HR rows remain gaps. Another
+  1,664 unsupported health metrics remain preserved without normalization.
+  Observed date coverage is partial, not a guarantee of full account coverage.
+- Identical archive replay produced zero new revisions and zero canonical changes.
+  All 1,572 raw-object checksums pass, including the untouched original ZIP.
+- Synthetic tests cover both recovery source orders, API activity precedence,
+  malformed/unsafe archives, source-byte preservation, and replay coverage dedupe.
+- Real read-only Chrome smoke verifies historical activity display, import
+  coverage/status and mobile layout. Screenshots remain private.
+- Post-import backup contains 1,574 files; restore into a new isolated target
+  verifies seven table counts and all 1,572 raw references/checksums.

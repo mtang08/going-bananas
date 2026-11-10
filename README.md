@@ -2,7 +2,7 @@
 
 A private, single-user Garmin dashboard built with React/TypeScript, FastAPI,
 Python, and PostgreSQL. Running and recovery data come from Garmin's official
-Personal API. Lifting stays in Strong; its history is **not connected**, so the
+Personal API and a validated historical Garmin account export. Lifting stays in Strong; its history is **not connected**, so the
 app reports recorded strength sessions without treating missing records as
 missed lifting. A future Strong CSV adapter is in [the backlog](docs/backlog.md).
 
@@ -95,9 +95,22 @@ secret-free template pointing to `scripts/launchd-sync.sh`; see
 through an LLM. Official integration details and remaining provider uncertainties
 are documented in [the capability inventory](docs/garmin-capabilities.md).
 
-A historical Garmin export parser and Strong CSV parser are intentionally not
-implemented before inspecting actual exports. The official API is the current
-validated data path; arbitrary ZIP/CSV files are not accepted.
+The local CLI also accepts the inspected Garmin account-export format. It checks
+archive safety, account identity, and overlap with existing activities before
+writing. The first command is a read-only preflight; `--apply` commits the import:
+
+```sh
+./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli import-export /absolute/path/to/export.zip'
+./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli import-export /absolute/path/to/export.zip --apply'
+```
+
+The original ZIP and parsed source bytes are preserved in the private raw store.
+The export adds historical observations without replacing newer API summaries.
+Observed export dates are marked as partial coverage, since an account snapshot
+does not prove complete watch wear or provider history. Repeating the import is
+safe: the verified replay created no new source revisions or canonical changes.
+This parser is specific to the inspected Garmin export schema; the browser does
+not accept arbitrary ZIPs, and Strong CSV import remains future work.
 
 ## Feedback and planning
 

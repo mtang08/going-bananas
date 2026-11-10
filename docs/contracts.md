@@ -2,7 +2,7 @@
 
 User update (2026-11-10): lifting is tracked in Strong, not Garmin. Strong CSV is a future separate source; no export/parser now. Strength totals are recorded sessions with incomplete coverage, never evidence of skipped lifting. See `backlog.md`.
 
-Implementation specification, not a claim that schema/routes already exist.
+Implementation specification; the Garmin export path described below is now implemented.
 Read with `implementation-plan.md`. Prefer explicit typed columns for core fields;
 JSONB is for provenance/raw references and versioned summary payloads, not a
 replacement for validation. All server inputs have bounds and typed validation.
@@ -57,6 +57,20 @@ in MVP. Oversized or unsafe archives fail before extraction: reject traversal,
 absolute paths, symlinks and decompression bombs; document configurable limits
 (initially 10,000 entries, 5 GiB expanded, 1 GiB per file; preserve original).
 Local CLI selects import paths; browser routes cannot read arbitrary paths.
+
+The implemented `import-export` CLI supports the inspected Garmin account ZIP
+schema. Its default preflight is read-only; `--apply` validates the account and
+archive, then stores the exact ZIP and selected member bytes privately before
+committing source revisions. It uses the same Garmin activity ID and account
+identity as the API, and the API remains preferred when revisions differ.
+Export activity distance is centimeters and elapsed/moving duration is
+milliseconds; both are converted to SI units. Export cadence is left unmapped.
+Main sleep duration uses sleep window minus awake seconds; HRV maps the verified
+nightly value, and resting heart rate maps the daily value. Unsupported metrics
+remain in the original archive. Archive observations create partial coverage
+intervals with `fully_enumerated=false`; a snapshot does not prove absence on
+other dates. The observed real import and replay are recorded in the release
+checklist. Strong CSV remains a separate future source.
 
 Identity precedence:
 

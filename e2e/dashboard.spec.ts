@@ -51,6 +51,24 @@ test('mobile view exposes navigation and quick check-in', async ({page}) => {
   await expect(page.getByRole('dialog',{name:'Record check-in'})).toBeVisible()
 })
 
+test('history can browse a prior year with bounded date windows', async ({page}) => {
+  await page.goto('/')
+  await page.getByRole('button',{name:'History'}).click()
+  await page.getByLabel('Start date').fill('2020-01-01')
+  await page.getByLabel('End date').fill('2020-12-31')
+  const first=page.waitForResponse(response=>response.url().includes('/api/v1/activities?')&&response.url().includes('start_date=2020-01-01')&&response.url().includes('end_date=2020-12-31'))
+  await page.getByRole('button',{name:'Show dates'}).click()
+  expect((await first).ok()).toBe(true)
+  await expect(page.getByText('Jan 1, 2020 – Dec 31, 2020')).toBeVisible()
+  const prior=page.waitForResponse(response=>response.url().includes('/api/v1/activities?')&&response.url().includes('end_date=2019-12-31'))
+  await page.getByRole('button',{name:'Previous date window'}).click()
+  expect((await prior).ok()).toBe(true)
+  await page.getByLabel('Start date').fill('2019-01-01')
+  await page.getByLabel('End date').fill('2020-12-31')
+  await expect(page.getByText('Choose a window of 366 dates or fewer.')).toBeVisible()
+  await expect(page.getByRole('button',{name:'Show dates'})).toBeDisabled()
+})
+
 test('manual draft can be accepted and linked to a confirmed actual session', async ({page}) => {
   const profileResponse=await page.request.get('http://127.0.0.1:5173/api/v1/profile')
   const profile=(await profileResponse.json()).data

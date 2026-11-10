@@ -80,6 +80,7 @@ def _sport(record: dict[str, Any]) -> tuple[str, str | None]:
     key = key.strip().lower()
     mapping = {
         "running": "running", "trail_running": "trail_running", "treadmill_running": "treadmill_running",
+        "track_running": "running", "indoor_rowing": "rowing", "rowing": "rowing",
         "run": "running", "strength_training": "strength", "strength": "strength",
         "walking": "walking", "walk": "walking", "hiking": "hiking", "hike": "hiking",
         "cycling": "cycling", "indoor_cycling": "cycling", "elliptical": "elliptical",

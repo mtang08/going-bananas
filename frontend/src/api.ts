@@ -17,6 +17,18 @@ export interface SyncDataset { dataset: string; status?: string; last_attempt_at
 export interface SyncJob { id: string; dataset: string; status: 'queued' | 'running' | 'retry_wait' | 'succeeded' | 'failed'; error_code?: string | null }
 export interface SyncStatus { datasets?: SyncDataset[]; active_jobs?: SyncJob[] }
 export interface Conflict { id: string; kind: string; status: string; activity_ids: string[]; manual_session_id: string | null; details: Record<string, unknown> }
+export interface ImportRecord { id: string; source_kind: string; status: string; started_at: string; finished_at?: string | null; adapter_version?: string | null; counters?: { activities?: ImportCount; recovery?: Partial<Record<'sleep' | 'hrv' | 'resting_hr', ImportCount>>; datasets?: Record<string, {first_date?: string; last_date?: string; count?: number; fully_enumerated?: boolean}>; preserved_only?: Record<string, number>; [key: string]: unknown } }
+export interface ImportCount { seen?: number; new_revisions?: number; changed?: number; rejected?: number }
+
+export function validDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day
+}
+export function windowDays(start: string, end: string): number {
+  return Math.round((Date.parse(`${end}T12:00:00Z`) - Date.parse(`${start}T12:00:00Z`)) / 86400000) + 1
+}
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public retryable = false) { super(message) }

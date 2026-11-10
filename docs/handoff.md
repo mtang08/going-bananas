@@ -10,6 +10,11 @@ No remote repository or deployment has been created.
 - Real Garmin Personal API activity/sleep/HRV/resting HR ingestion is configured
   privately. Initial 28-date import and repeated import verified. No secrets in
   source or frontend; raw files remain private and immutable.
+- The inspected Garmin account ZIP is imported: 179 activities (163 runs),
+  1,282 recovery observations, history beginning September 2025. Original ZIP
+  and selected source bytes are preserved privately. API overlap wins; replay
+  creates no changes. History supports custom date windows and Settings shows
+  import counts and observed coverage. Unsupported archive categories stay raw.
 - Overview/history/recovery charts, quick editable check-ins, temporal symptom
   associations, manual sessions, cycle drafts/acceptance/completion, conflict
   review, manual sync, and factual weekly summaries are implemented.
@@ -29,8 +34,8 @@ No remote repository or deployment has been created.
 
 ## Verification
 
-16 domain/config/ingestion tests, 12 PostgreSQL integration tests, 4 frontend
-component tests, and 3 Chrome E2E tests pass. Lint, type checks, production build,
+27 domain/config/ingestion tests, 16 PostgreSQL integration tests, 7 frontend
+component tests, and 4 Chrome E2E tests pass. Lint, type checks, production build,
 clean migrations, source comparisons, read-only real browser smoke, and backup
 checks passed. A separate Sol-medium review led to corrections before release.
 Check the release checklist rather than inferring all planned V cases were run.

@@ -3,9 +3,9 @@
 Checked 2026-11-10. This app uses Garmin's **official Personal API** for the
 owner's own account, through Garmin's official Python client version **1.0.0**.
 An authorized schema-only probe of one personal account on 2026-11-10 confirmed
-field names and types without printing values or saving a response fixture. No
-export or rate-limit headers were available. Values and aggregates still need
-private source comparison before real-data acceptance.
+field names and types without saving a response fixture. A supplied Garmin
+account export was subsequently inspected locally, imported, and replayed.
+No numeric rate-limit headers were available.
 
 ## Sources checked
 
@@ -18,7 +18,7 @@ private source comparison before real-data acceptance.
 
 | Dataset | Official Python wrapper / endpoint | Mapping and limits |
 | --- | --- | --- |
-| Activities | `search_activities(start, limit, start_date, end_date)` / `GET /activitylist-service/activities/search/activities` | Offset paging, 20/page default in official CLI example; this app requests bounded pages. Live summary fields include `activityId`, `ownerId`, `startTimeGMT`, `startTimeLocal`, `activityType.typeKey`, `distance`, `duration`, `elapsedDuration`, `movingDuration`, `averageHR`, `averageRunningCadenceInStepsPerMinute`. SI units require private source comparison. End-date inclusivity remains unverified. Do not assume one page is complete history. |
+| Activities | `search_activities(start, limit, start_date, end_date)` / `GET /activitylist-service/activities/search/activities` | Offset paging, 20/page default in official CLI example; this app requests bounded pages. Live summary fields include `activityId`, `ownerId`, `startTimeGMT`, `startTimeLocal`, `activityType.typeKey`, `distance`, `duration`, `elapsedDuration`, `movingDuration`, `averageHR`, `averageRunningCadenceInStepsPerMinute`. End-date inclusivity remains unverified. Do not assume one page is complete history. |
 | Activity detail | `get_activity(id)` / `GET /activity-service/activity/{id}` | Available if a summary lacks required fields. This release avoids stream/FIT downloads. Detail response shape requires live confirmation. |
 | Sleep | `get_daily_sleep_summaries(start_date,end_date)` | Live rows include `userProfilePK`, `calendarDate`, `sleepTimeSeconds`, separate `napTimeSeconds`. Import main sleep seconds only; source date semantics beyond the named field remain to verify. |
 | HRV | `get_daily_hrv_summaries(start_date,end_date)` | Live envelope has `userProfilePk` and `hrvSummaries`; rows include `calendarDate`, `lastNightAvg`, `weeklyAvg`, `lastNight5MinHigh`. Import nightly average as milliseconds, separately from weekly average. |
@@ -44,8 +44,30 @@ per-dataset status, and explicit incomplete coverage. Engineering defaults are
 cannot change. Business Starter is push-only with no historical data; this app
 does not use it.
 
-No export adapter is implemented because no actual Garmin export was supplied
-to inspect. Unsupported archives are rejected; no archive path or JSON schema
-is guessed. The immutable raw-object store can preserve an inspected future
-format after it is specified. Multisport parent summaries are excluded from run
-volume until child semantics are verified.
+## Inspected account export
+
+The local `import-export` CLI supports the observed Garmin ZIP structure only.
+It validates member paths, sizes, compression ratios, CRCs, account identity,
+and activity overlap before applying. The original ZIP and selected JSON member
+bytes are preserved privately with SHA-256 provenance. Browser uploads and
+arbitrary ZIP/CSV imports are unsupported.
+
+The export contained 179 activity summaries, 429 usable main sleep durations,
+416 nightly HRV averages, and 434 daily resting-heart-rate observations. The
+activity `userProfileId` matched the API account. All 12 overlapping API
+activities agreed across 60 comparable time/measurement fields. Export
+distance is centimeters (converted to meters), and elapsed/moving durations
+are milliseconds (converted to seconds). Export cadence is omitted because its
+semantics differ from the API steps-per-minute field. Track running retains its
+running subtype. Sleep duration uses the verified sleep-window-minus-awake
+formula; HRV maps only the verified nightly statistic.
+
+The applied import added 167 activities while leaving 12 existing API records
+canonical; 163 of the 179 export activities are runs. It added 1,198 recovery
+observations among 1,282 parsed observations. Six incomplete sleep rows and 43
+rows without resting heart rate were skipped; 1,664 other Health Status metrics
+remain only in the preserved source. Observed export ranges are partial
+coverage, not proof of complete history. A replay created zero source revisions
+and zero canonical changes; 1,572 private raw-object checksums were verified.
+Multisport parent summaries remain excluded from run volume until child
+semantics are verified.

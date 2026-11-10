@@ -26,14 +26,16 @@ and uncertainty. Research stays separate from dated athlete profile and current
 observations. Use a simple local file index initially. No runtime coach, automatic
 prescriptions, rigid policy engine, or model calls are active in the MVP.
 
-## Historical Garmin export
+## Historical Garmin export follow-up
 
-Implement a parser only after the real export arrives and its formats/identities
-are inspected. The official Personal API is the validated real ingestion path.
-Do not infer export paths or claim arbitrary ZIP/CSV compatibility.
+The inspected Garmin account export is imported and replay-safe for activity
+summaries, main sleep duration, nightly HRV, and resting heart rate. Export
+coverage remains partial. Future export shapes and additional Health Status
+metrics require their own schema and API comparison before mapping. Do not
+claim arbitrary ZIP/CSV compatibility or infer completeness from a snapshot.
 
 ## Later product work
 
 Private phone access/hosting with authentication, detailed activity streams/maps,
-workout publishing, broader history bootstrap beyond manually selected windows,
+workout publishing, broader API history verification beyond the imported snapshot,
 and optional agent recommendation evaluation follow the local analytics core.

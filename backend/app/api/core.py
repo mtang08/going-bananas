@@ -35,6 +35,7 @@ from app.models import (
     CompletionLink,
     Conflict,
     CoverageInterval,
+    ImportBatch,
     ManualSession,
     PlannedSession,
     PlanVersion,
@@ -182,6 +183,20 @@ class ProfileInput(BaseModel):
         if len(value) != len(set(value)) or any(d not in range(7) for d in value):
             raise ValueError('Weekdays must be unique integers 0..6')
         return value
+
+
+@router.get('/imports')
+def get_imports(session: Session = Depends(get_session)) -> dict:
+    rows = session.scalars(select(ImportBatch).where(ImportBatch.source_kind == 'garmin_export')
+                           .order_by(desc(ImportBatch.started_at)).limit(20)).all()
+    public_keys = {'archive_sha256', 'activities', 'recovery', 'datasets', 'preserved_only',
+                   'seen', 'new_revisions', 'changed', 'rejected', 'replayed'}
+    return envelope(session, {'items': [
+        {'id': row.id, 'source_kind': row.source_kind, 'status': row.status,
+         'started_at': row.started_at, 'finished_at': row.finished_at,
+         'adapter_version': row.adapter_version,
+         'counters': {key: value for key, value in (row.counters or {}).items() if key in public_keys}}
+        for row in rows]})
 
 
 @router.get('/profile')

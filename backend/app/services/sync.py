@@ -94,7 +94,8 @@ def _rank(source: SourceRecord) -> tuple[datetime, int, datetime, str]:
     # export. The first persisted observation time remains stable on replay.
     return (source.source_modified_at or datetime.min.replace(tzinfo=UTC),
             2 if source.source_kind == "garmin_api" else 1,
-            source.fetched_at, source.payload_hash)
+            source.fetched_at if source.source_kind == "garmin_api" else datetime.min.replace(tzinfo=UTC),
+            source.payload_hash)
 
 
 CANONICAL_FIELDS = (
@@ -226,8 +227,14 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
                          *, account_scope: str, source_kind: str = "garmin_api",
                          timezone: str = "America/New_York",
                          fetched_at: datetime | None = None,
-                         batch: ImportBatch | None = None) -> dict[str, int]:
+                         batch: ImportBatch | None = None,
+                         raw_records: list[dict[str, Any]] | None = None,
+                         source_metadata: list[dict[str, Any]] | None = None) -> dict[str, int]:
     """Import one page. Caller commits page, coverage and checkpoint together."""
+    if raw_records is not None and len(raw_records) != len(records):
+        raise ValueError("raw_record_count_mismatch")
+    if source_metadata is not None and len(source_metadata) != len(records):
+        raise ValueError("source_metadata_count_mismatch")
     if not account_scope or len(account_scope) > 256:
         raise ValueError("invalid_account_scope")
     if not records:
@@ -243,10 +250,10 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
     account = _account(session, "garmin" if source_kind.startswith("garmin") else source_kind, account_scope)
     now = fetched_at or datetime.now(UTC)
     counts = {"seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
-    for item in records:
+    for index, item in enumerate(records):
         counts["seen"] += 1
         try:
-            raw = _payload(item)
+            raw = _payload(raw_records[index] if raw_records is not None else item)
         except (TypeError, ValueError):
             counts["rejected"] += 1
             continue
@@ -284,9 +291,17 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
                 "source_workout_label": canonical.workout_label,
                 "field_paths": canonical.field_paths,
             }
+        if source_metadata is not None:
+            metadata = source_metadata[index]
+            fields["export_provenance"] = metadata
+            if canonical:
+                for key in ("field_paths", "original_start", "source_timezone"):
+                    if key in metadata:
+                        fields[key] = metadata[key]
         source = SourceRecord(source_account_id=account.id, import_batch_id=batch.id if batch else None,
                               raw_object_id=raw_obj.id, source_identity=source_identity,
-                              payload_hash=digest, fetched_at=now, parser_version=PARSER_VERSION,
+                              payload_hash=digest, fetched_at=now,
+                              parser_version="garmin-export-v1" if source_kind == "garmin_export" else PARSER_VERSION,
                               source_kind=source_kind, fields=fields, rejected_reason=rejected_reason)
         session.add(source)
         session.flush()
@@ -299,17 +314,26 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
 def import_recovery_page(session: Session, private_dir: Path, dataset: str,
                          records: list[dict[str, Any]], *,
                          batch: ImportBatch | None = None,
-                         fetched_at: datetime | None = None) -> dict[str, int]:
-    """Store observed daily values; empty days remain absent, never zero."""
+                         fetched_at: datetime | None = None,
+                         source_kind: str = "garmin_api",
+                         raw_records: list[dict[str, Any]] | None = None,
+                         source_metadata: list[dict[str, Any]] | None = None) -> dict[str, int]:
+    """Persist source observations, choosing API over export without erasing gaps."""
     if dataset not in {"sleep", "hrv", "resting_hr"}:
         raise ValueError("unsupported_dataset")
+    if source_kind not in {"garmin_api", "garmin_export"}:
+        raise ValueError("unsupported_recovery_source")
+    if raw_records is not None and len(raw_records) != len(records):
+        raise ValueError("raw_record_count_mismatch")
+    if source_metadata is not None and len(source_metadata) != len(records):
+        raise ValueError("source_metadata_count_mismatch")
     counts = {"seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
     owners = {item.get("userProfilePK", item.get("userProfilePk")) for item in records
               if isinstance(item, dict) and type(item.get("userProfilePK", item.get("userProfilePk"))) is int}
     if len(owners) > 1:
         raise ValueError("mixed_source_account")
     page_owner = next(iter(owners)) if owners else None
-    for item in records:
+    for index, item in enumerate(records):
         counts["seen"] += 1
         try:
             if not isinstance(item, dict):
@@ -327,11 +351,10 @@ def import_recovery_page(session: Session, private_dir: Path, dataset: str,
                 "resting_hr": ("restingHeartRate", "bpm", "daily_resting", "garmin_heart_rate_calendar_date"),
             }[dataset]
             value = item.get(field)
-            if value is not None:
-                if (isinstance(value, bool) or not isinstance(value, (int, float))
-                        or not (0 <= float(value) < float("inf"))):
-                    raise ValueError("invalid_recovery_value")
-            raw = _payload(item)
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                     or not (0 <= float(value) < float("inf"))):
+                raise ValueError("invalid_recovery_value")
+            raw = _payload(raw_records[index] if raw_records is not None else item)
         except (TypeError, KeyError, ValueError):
             counts["rejected"] += 1
             continue
@@ -349,12 +372,17 @@ def import_recovery_page(session: Session, private_dir: Path, dataset: str,
             SourceRecord.source_identity == identity,
             SourceRecord.payload_hash == digest))
         if source is None:
+            fields = {"metric": dataset, "source_date": source_date.isoformat(),
+                      "value": value, "unit": unit, "statistic": statistic, "source_field": field}
+            if source_metadata is not None:
+                fields["export_provenance"] = source_metadata[index]
+                fields["source_field"] = source_metadata[index].get("source_field", field)
             source = SourceRecord(source_account_id=account.id,
                 import_batch_id=batch.id if batch else None, raw_object_id=raw_obj.id,
                 source_identity=identity, payload_hash=digest,
-                fetched_at=fetched_at or datetime.now(UTC), parser_version=PARSER_VERSION,
-                source_kind="garmin_api", fields={"metric": dataset, "source_date": source_date.isoformat(),
-                    "value": value, "unit": unit, "statistic": statistic, "source_field": field},
+                fetched_at=fetched_at or datetime.now(UTC),
+                parser_version="garmin-export-v1" if source_kind == "garmin_export" else PARSER_VERSION,
+                source_kind=source_kind, fields=fields,
                 rejected_reason="missing_recovery_owner" if missing_owner else None)
             session.add(source)
             session.flush()
@@ -362,23 +390,30 @@ def import_recovery_page(session: Session, private_dir: Path, dataset: str,
         if missing_owner:
             counts["rejected"] += 1
             continue
-        if value is None:
+        candidates = session.scalars(select(SourceRecord).where(
+            SourceRecord.source_account_id == account.id,
+            SourceRecord.source_identity == identity,
+            SourceRecord.rejected_reason.is_(None))).all()
+        valid = [candidate for candidate in candidates if candidate.fields.get("value") is not None]
+        if not valid:
             continue
+        selected = max(valid, key=_rank)
+        selected_value = float(selected.fields["value"])
         observation = session.scalar(select(RecoveryObservation).where(
             RecoveryObservation.source_account_id == account.id,
             RecoveryObservation.metric == dataset,
             RecoveryObservation.source_date == source_date,
             RecoveryObservation.statistic == statistic))
         if observation is None:
-            session.add(RecoveryObservation(source_account_id=account.id, source_record_id=source.id,
+            session.add(RecoveryObservation(source_account_id=account.id, source_record_id=selected.id,
                 metric=dataset, source_date=source_date, time_semantics=semantics,
-                value=float(value), unit=unit, statistic=statistic, source_revision=digest))
+                value=selected_value, unit=unit, statistic=statistic, source_revision=selected.payload_hash))
             bump_data_revision(session)
             counts["changed"] += 1
-        elif observation.source_revision != digest and observation.value != float(value):
-            observation.value = float(value)
-            observation.source_revision = digest
-            observation.source_record_id = source.id
+        elif observation.source_record_id != selected.id or observation.value != selected_value:
+            observation.value = selected_value
+            observation.source_revision = selected.payload_hash
+            observation.source_record_id = selected.id
             bump_data_revision(session)
             counts["changed"] += 1
     return counts
