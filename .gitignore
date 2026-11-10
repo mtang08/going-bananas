@@ -1,0 +1,22 @@
+# Private athlete context, exports, credentials, and local runtime state
+/private/
+/data/
+/running_coach_kb/
+.env
+.env.*
+!.env.example
+*.log
+.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+dist/
+.DS_Store
+
+# Local tool and browser test output
+.mypy_cache/
+.ruff_cache/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
