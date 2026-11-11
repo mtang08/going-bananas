@@ -1,6 +1,6 @@
 # Data, analytics, and interaction contracts
 
-User update (2026-11-10): lifting is tracked in Strong, not Garmin. Strong CSV is a future separate source; no export/parser now. Strength totals are recorded sessions with incomplete coverage, never evidence of skipped lifting. See `backlog.md`.
+Current release: lifting remains tracked in Strong. The inspected CSV is an imported, separate source. Strength totals are recorded sessions with snapshot coverage, never evidence of skipped lifting. See `backlog.md`.
 
 Implementation specification; the Garmin export path described below is now implemented.
 Read with `implementation-plan.md`. Prefer explicit typed columns for core fields;
@@ -37,8 +37,12 @@ America/New_York; travel/source dates remain inspectable.
 | `weekly_snapshots` | local date range, schema/metric version, data/profile/plan revisions, generated_at, deterministic summary |
 | `app_state` | data revision updated in same transaction as canonical/manual changes |
 
-Store no KB contents or coach-output tables yet. Add those in the later phase
-when actual artifact and workflow needs are known.
+Reviewed KB files remain versioned on disk, with private originals and athlete
+context excluded from Git. `coach_recommendations` persist an input snapshot,
+knowledge version, selected payload, and source references. `coach_outcomes`
+retain the latest status; append-only `coach_outcome_events` preserve chronology.
+Selection time distinguishes a newly selected cached recommendation from an old
+previously generated one. No external model call or silent plan mutation occurs.
 
 Validation: reject NaN/infinity, negative distance/duration, malformed timestamps,
 invalid enum values, invalid source paths, and inverted date ranges. Flag unusual
@@ -70,7 +74,9 @@ nightly value, and resting heart rate maps the daily value. Unsupported metrics
 remain in the original archive. Archive observations create partial coverage
 intervals with `fully_enumerated=false`; a snapshot does not prove absence on
 other dates. The observed real import and replay are recorded in the release
-checklist. Strong CSV remains a separate future source.
+checklist. The inspected Strong CSV is imported through a separate adapter,
+with immutable original bytes, stable source identities, and revision conflicts
+that require review. Source-local timestamps and weight units are unverified.
 
 Identity precedence:
 

@@ -1,6 +1,7 @@
 # Analytics MVP release verification
 
-Verified locally on 2026-11-10. Scope: local analytics, visualization, feedback,
+This section records the earlier analytics release. The Strong/coaching extension
+is documented below. Verified locally on 2026-11-10. Scope: local analytics, visualization, feedback,
 manual planning, Garmin ingestion and operations. Research/adaptive coaching and
 Strong integration remain deferred. No synthetic feedback or plan was written
 to the real workspace.
@@ -85,3 +86,35 @@ Python client is 1.0.0. See `garmin-capabilities.md` for inspected provider docs
   coverage/status and mobile layout. Screenshots remain private.
 - Post-import backup contains 1,574 files; restore into a new isolated target
   verifies seven table counts and all 1,572 raw references/checksums.
+
+
+# Strong and local coaching extension — November 10, 2026
+
+The active runtime is an explicit local evidence-guided rule flow. It offers
+conservative daily options and weekly proposals from current inputs and selected
+research prose. It makes no external model call, exact dose progression,
+diagnosis, clinical clearance, or automatic plan change. The supplied 15
+behavioral cases remain a design/evaluation set; this release has targeted tests,
+**not all 15 cases exercised end to end**.
+
+| Check | Executed result |
+| --- | --- |
+| Research integrity | 20 original manifest hashes verified; four standalone files byte-identical to archive copies. Reviewed, generalized corpus hash-checked at load time; private athlete snapshot and originals are ignored. |
+| Strong source comparison | 512 workouts and 8,168 sets match the original CSV by identity, payload, start, duration and recorded set text; preserved CSV bytes match. June 7, 2021–November 9, 2026. 118 overlong timers have unknown normalized duration. |
+| Running context boundary | November 10, 2026 minus 18 calendar months is May 10, 2025; 143 Strong sessions enter context. Older sessions remain in history. No weight-unit or dumbbell convention inference. |
+| Database migration | Test, demo, and real upgraded through `0007_coaching_selection`; `alembic check` found no pending operations. Outcome events are append-only; cached selection time is persisted. |
+| `make check` | Ruff and mypy pass (32 backend source files); 45 backend tests pass; frontend lint/types, 15 component tests, and production build pass. |
+| `make test-integration` | 22 PostgreSQL tests pass, including five coaching endpoint and one Strong import test. |
+| Demo browser | Six Playwright tests pass on synthetic demo data, including Coach generation/stale/feedback and Strength detail/mobile flows. |
+| Real API/browser | 18 read-only API GET checks plus rejected foreign-origin mutation pass. Production browser smoke shows Coach and connected Strong on desktop/mobile without overflow; screenshots remain private. No real symptom, plan, or outcome was invented. |
+| Existing real data | Pre-change backup restored in isolation; exact row-content digests unchanged for two profiles, 179 Garmin activities, 1,282 recovery observations, and zero check-ins/manual sessions/plans. |
+| Post-change backup | Private archive created at 03:39:25 UTC with 1,581 files and restored to a new isolated test DB/directory. Eleven table counts, complete Strong/coaching table row digests, 1,573 raw checksums, and six research original files match; source DB untouched. |
+| Privacy | Candidate tracked files checked for raw CSV, private snapshot, key material and local secrets before commit. Private backups/screenshots remain ignored. |
+
+Supported targeted behavior includes unknown inputs, worsening symptoms/illness
+precedence, source/plan staleness, conservative alternatives, append-only outcome
+feedback, and no automatic plan mutation. Still unsupported: exact personalized
+run/strength dose and placement, calibrated favorable progression, full delayed
+multi-day symptom assessment, previous-period trend comparison, and the complete
+15-case behavioral suite. Missing symptoms and an unconfirmed real cycle are
+user inputs for better advice, not development blockers.

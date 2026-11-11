@@ -1,0 +1,311 @@
+{
+  "schema_version": "1.0",
+  "package_name": "running_coach_kb",
+  "package_version": "1.0.0+privacy1",
+  "created_on": "2026-11-10",
+  "searched_through": "2026-11-10",
+  "athlete_context_date": "2026-11-10",
+  "completion_status": "complete_with_explicit_gaps",
+  "scope_note": "Local researched coaching knowledge base and reusable workflows; no application, installed skill, medical diagnosis, live Garmin integration, or activated training prescription.",
+  "counts": {
+    "files": 19,
+    "sources": 56,
+    "evidence_findings": 43,
+    "policy_candidates": 18,
+    "evaluation_cases": 15,
+    "topic_guides": 8
+  },
+  "validation": {
+    "all_required_files_present": true,
+    "all_non_manifest_files_nonempty": true,
+    "json_valid": true,
+    "policy_fields_complete": true,
+    "all_policy_evidence_ids_resolve": true,
+    "all_policy_source_ids_resolve": true,
+    "all_markdown_evidence_and_source_ids_resolve": true,
+    "coaching_guide_word_count": 740,
+    "coaching_guide_target_words": "600-900"
+  },
+  "routing": {
+    "daily_recommendation": [
+      "COACHING_GUIDE.md",
+      "workflows/daily_recommendation.md",
+      "athlete_context.md (fallback only)",
+      "relevant topics/*",
+      "matching policies"
+    ],
+    "weekly_review": [
+      "COACHING_GUIDE.md",
+      "workflows/weekly_review.md",
+      "topics/aerobic_progression.md",
+      "relevant topics/*",
+      "matching policies"
+    ],
+    "poor_sleep_or_fatigue": [
+      "topics/recovery_and_daily_adaptation.md",
+      "policies P001-P003 and P015"
+    ],
+    "long_run_tenderness_or_progression": [
+      "topics/ptt_and_load_tolerance.md",
+      "topics/aerobic_progression.md",
+      "policies P005-P008"
+    ],
+    "strength_run_scheduling": [
+      "topics/hybrid_strength_and_scheduling.md",
+      "policies P009, P011-P012"
+    ],
+    "quality_method_selection": [
+      "topics/intensity_and_workout_methods.md",
+      "references/method_comparison.md",
+      "policies P009 and P014"
+    ],
+    "wearable_metric_question": [
+      "topics/wearables_and_metric_interpretation.md",
+      "policies P001, P010, P015"
+    ],
+    "fueling_question": [
+      "topics/fueling_and_energy_availability.md",
+      "policy P017"
+    ],
+    "deep_evidence_audit": [
+      "references/evidence_matrix.md",
+      "references/source_registry.json",
+      "research/running_evidence_review.md"
+    ],
+    "evaluation": [
+      "evaluation/coaching_cases.md"
+    ]
+  },
+  "known_gaps": [
+    "No actual Garmin running export was supplied; current mileage and recent progression remain unverified.",
+    "PTT diagnosis, clinical stage, rehab instructions, and validated return-to-running criteria are unknown.",
+    "Age, sex, medication, max HR, thresholds, terrain, and exact strength/hypertrophy goals are unconfirmed.",
+    "Several sources were abstract-only; access levels are recorded in the source registry.",
+    "Wearable validation is device/firmware specific and often uses models other than the Forerunner 265."
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "status": "complete",
+      "bytes": 7883,
+      "sha256": "c32e288622adc2238c0b26fe4c8c69be1c8b4703db56ed0b524a07cdc45cf384"
+    },
+    {
+      "path": "COACHING_GUIDE.md",
+      "status": "complete",
+      "bytes": 5577,
+      "sha256": "0c87073c9f4c10a762ed0584622d87ada8e21f870e313b77a4c2ab8fb59a3f8d"
+    },
+    {
+      "path": "workflows/daily_recommendation.md",
+      "status": "complete",
+      "bytes": 6542,
+      "sha256": "7d31981dda2afb5f6295efc486c2c8bb893faecae4087195090f746dc1794d6f"
+    },
+    {
+      "path": "workflows/weekly_review.md",
+      "status": "complete",
+      "bytes": 6508,
+      "sha256": "ec791b290722433fe4ffd22f326b9941ffd8b44b28f354be5dc2c5682f0174f3"
+    },
+    {
+      "path": "topics/aerobic_progression.md",
+      "status": "complete",
+      "bytes": 11229,
+      "sha256": "a70607bba0cb5e322a57ad9b2eda0a5fc1331af7e894c39d8732f3351165631c"
+    },
+    {
+      "path": "topics/intensity_and_workout_methods.md",
+      "status": "complete",
+      "bytes": 12301,
+      "sha256": "e7bdbe0d115126a3fec75782f11d2136f2f710f7d056c88961b10ba1af6aacfa"
+    },
+    {
+      "path": "topics/long_runs_and_race_development.md",
+      "status": "complete",
+      "bytes": 10638,
+      "sha256": "b6ee02215147b920346b4322ab0867aef87a49d2b0a2f3ae2572a5c4ceb228c5"
+    },
+    {
+      "path": "topics/hybrid_strength_and_scheduling.md",
+      "status": "complete",
+      "bytes": 12115,
+      "sha256": "361b254017fde94a5363b6f86d0e957ab7907cfb7e4a5de3c7fdcc5b6e894674"
+    },
+    {
+      "path": "topics/ptt_and_load_tolerance.md",
+      "status": "complete",
+      "bytes": 10990,
+      "sha256": "a2d85d0e4e89266661f1831f2ca5fb29851e416bfe4de7135f010d11c36ff03c"
+    },
+    {
+      "path": "topics/recovery_and_daily_adaptation.md",
+      "status": "complete",
+      "bytes": 9289,
+      "sha256": "3146c57496fe6cd31c28914abf8c2b54628196cbf7270239120852fe0927c9c8"
+    },
+    {
+      "path": "topics/wearables_and_metric_interpretation.md",
+      "status": "complete",
+      "bytes": 9156,
+      "sha256": "868bf5a150f171edcd04cacd496c01310f99e825ffb0990b2cc0a7e1fbe614e2"
+    },
+    {
+      "path": "topics/fueling_and_energy_availability.md",
+      "status": "complete",
+      "bytes": 8300,
+      "sha256": "340d5a2b00e5374b395c40b7c332f345f23574f45cf9c2abf042b38588d3eac4"
+    },
+    {
+      "path": "references/source_registry.json",
+      "status": "complete",
+      "bytes": 49608,
+      "sha256": "692b8b632952b4b3fd2fcdea125a958be1eb1bc0883eca3f8b34a4f045025e44"
+    },
+    {
+      "path": "references/evidence_matrix.md",
+      "status": "complete",
+      "bytes": 20758,
+      "sha256": "347bf46a99c2df9f92968550f9485b72166130532843bd0cac84f0507fdbe64e"
+    },
+    {
+      "path": "references/method_comparison.md",
+      "status": "complete",
+      "bytes": 24679,
+      "sha256": "ec853493c3e8c7a5c4f53628cd6913a26b30b24a14e7214c69279bd114e7e1ee"
+    },
+    {
+      "path": "policies/coaching_policy_candidates.json",
+      "status": "complete",
+      "bytes": 55323,
+      "sha256": "76546a753a42a9721bf5785742d0db78186340e367a6bec791bc7b780498d5fe"
+    },
+    {
+      "path": "evaluation/coaching_cases.md",
+      "status": "complete",
+      "bytes": 10448,
+      "sha256": "61058f7fa0b1613da5a89f883b59f56573bca0aaf87e8052adda93f3cd53128b"
+    },
+    {
+      "path": "research/search_log_and_gaps.md",
+      "status": "complete",
+      "bytes": 11761,
+      "sha256": "907558078228c51798f67e87f265510684b48b10a22c2d3ef88697eaa3dbe410"
+    },
+    {
+      "path": "research/running_evidence_review.md",
+      "status": "complete",
+      "bytes": 54603,
+      "sha256": "986b9bd1e058eb67bd564c3b20e1b9b8ede0640d6e00c0c6591017e3289b5584"
+    }
+  ],
+  "import_provenance": {
+    "original_archive_sha256": "2f5e92592d956e55676289f1fcd4da7a916ddfdad6bf37deae52961e4868aa87",
+    "original_manifest_sha256": "82eabae513a8ab9bbc50ed5af88d3c20c8771c30232a1062c8ec664a624d591a",
+    "original_package_version": "1.0.0",
+    "transform": "Dated athlete snapshot moved private; personal athlete claims generalized to conditional guidance; research findings and source records retained.",
+    "changed_files": [
+      {
+        "path": "README.md",
+        "action": "sanitized",
+        "original_sha256": "1c3a8818a4e8b27fc851f78d258396c504e616594eeb618f8caf36f3e749a601",
+        "imported_sha256": "c32e288622adc2238c0b26fe4c8c69be1c8b4703db56ed0b524a07cdc45cf384"
+      },
+      {
+        "path": "COACHING_GUIDE.md",
+        "action": "sanitized",
+        "original_sha256": "6f53a00f156cafa60ba784bded164548cff4bfc5392686c7e5a1d0a833dbebdf",
+        "imported_sha256": "0c87073c9f4c10a762ed0584622d87ada8e21f870e313b77a4c2ab8fb59a3f8d"
+      },
+      {
+        "path": "athlete_context.md",
+        "action": "private_only",
+        "original_sha256": "11f0d79e08e7a234d2693091ac444559255d3aa50ac5c0550ea290677fa629db"
+      },
+      {
+        "path": "workflows/daily_recommendation.md",
+        "action": "sanitized",
+        "original_sha256": "4a182206c57e6fcd57a91d77257b0e5011ab3f281eecdd1190ed101d6f62b124",
+        "imported_sha256": "7d31981dda2afb5f6295efc486c2c8bb893faecae4087195090f746dc1794d6f"
+      },
+      {
+        "path": "workflows/weekly_review.md",
+        "action": "sanitized",
+        "original_sha256": "e6c90bf67b8a33d5c070f1075502243da5c75a9b51d92ad37fb42be6d2bc3cb6",
+        "imported_sha256": "ec791b290722433fe4ffd22f326b9941ffd8b44b28f354be5dc2c5682f0174f3"
+      },
+      {
+        "path": "topics/aerobic_progression.md",
+        "action": "sanitized",
+        "original_sha256": "fc744f1c96b9f91ebfcdb51999354dba8cab860a32d90ad7c53d5d862b3fd43b",
+        "imported_sha256": "a70607bba0cb5e322a57ad9b2eda0a5fc1331af7e894c39d8732f3351165631c"
+      },
+      {
+        "path": "topics/intensity_and_workout_methods.md",
+        "action": "sanitized",
+        "original_sha256": "24f863b68c343a471df12e7a91d60d2e5673f1ac10cd5b0c95ffad048b9a514f",
+        "imported_sha256": "e7bdbe0d115126a3fec75782f11d2136f2f710f7d056c88961b10ba1af6aacfa"
+      },
+      {
+        "path": "topics/long_runs_and_race_development.md",
+        "action": "sanitized",
+        "original_sha256": "8686b52f3e9e3e642803506345921fc42a5dd8622536902cccfa0828932b861d",
+        "imported_sha256": "b6ee02215147b920346b4322ab0867aef87a49d2b0a2f3ae2572a5c4ceb228c5"
+      },
+      {
+        "path": "topics/hybrid_strength_and_scheduling.md",
+        "action": "sanitized",
+        "original_sha256": "f74a931aff5ec6fcbb7825f54aef4aff7c470a53b99e13d6a8c70ad8a2bf621f",
+        "imported_sha256": "361b254017fde94a5363b6f86d0e957ab7907cfb7e4a5de3c7fdcc5b6e894674"
+      },
+      {
+        "path": "topics/ptt_and_load_tolerance.md",
+        "action": "sanitized",
+        "original_sha256": "3f671baf31ee8f4a0aedc4c4ceccd70a991bc7cb548b41e7fc9b1aa20294c8fa",
+        "imported_sha256": "a2d85d0e4e89266661f1831f2ca5fb29851e416bfe4de7135f010d11c36ff03c"
+      },
+      {
+        "path": "topics/wearables_and_metric_interpretation.md",
+        "action": "sanitized",
+        "original_sha256": "4673a2b8087158966f46dfed5610c9b20b3a741779b9130da913bd108a577890",
+        "imported_sha256": "868bf5a150f171edcd04cacd496c01310f99e825ffb0990b2cc0a7e1fbe614e2"
+      },
+      {
+        "path": "references/evidence_matrix.md",
+        "action": "sanitized",
+        "original_sha256": "509437dcfddef7ff49bf8fc4c95b419a0ef5bfeac40ff7b40be71361cccc67b8",
+        "imported_sha256": "347bf46a99c2df9f92968550f9485b72166130532843bd0cac84f0507fdbe64e"
+      },
+      {
+        "path": "references/method_comparison.md",
+        "action": "sanitized",
+        "original_sha256": "3caa8bc69459696379069c98178814c579cf4de22ffdef8589dc81ecdc05ab93",
+        "imported_sha256": "ec853493c3e8c7a5c4f53628cd6913a26b30b24a14e7214c69279bd114e7e1ee"
+      },
+      {
+        "path": "policies/coaching_policy_candidates.json",
+        "action": "sanitized",
+        "original_sha256": "30346fbaabaaa50db9ae036ba25b10e7aa24500d673b7892989ec973edbd40f8",
+        "imported_sha256": "76546a753a42a9721bf5785742d0db78186340e367a6bec791bc7b780498d5fe"
+      },
+      {
+        "path": "evaluation/coaching_cases.md",
+        "action": "sanitized",
+        "original_sha256": "7a5cbbc00470ef0803bf6ec46ea4138afbc658d48be3ee1b59d698d3eaf03a02",
+        "imported_sha256": "61058f7fa0b1613da5a89f883b59f56573bca0aaf87e8052adda93f3cd53128b"
+      },
+      {
+        "path": "research/search_log_and_gaps.md",
+        "action": "sanitized",
+        "original_sha256": "540f0ca0c5b5ece3d3f5cfaca2e5d431f2854efee080b321923a07a5dad23ff0",
+        "imported_sha256": "907558078228c51798f67e87f265510684b48b10a22c2d3ef88697eaa3dbe410"
+      },
+      {
+        "path": "research/running_evidence_review.md",
+        "action": "sanitized",
+        "original_sha256": "fae2e74ee89846ff67390b5736c1b0dea1cacd6c19f6ed61efa81420ab59c8b1",
+        "imported_sha256": "986b9bd1e058eb67bd564c3b20e1b9b8ede0640d6e00c0c6591017e3289b5584"
+      }
+    ]
+  }
+}

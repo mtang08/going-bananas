@@ -8,7 +8,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import text
 
+from app.api.coaching import router as coaching_router
 from app.api.core import router as core_router
+from app.api.strength import router as strength_router
 from app.api.sync import router as sync_router
 from app.config import settings
 from app.db import SessionLocal, get_revision
@@ -80,7 +82,7 @@ def ready():
             session.execute(text('SELECT 1'))
             revision = get_revision(session)
             db_version = session.execute(text('SELECT version_num FROM alembic_version')).scalar_one_or_none()
-            if db_version != '0003_app_state':
+            if db_version != '0007_coaching_selection':
                 raise RuntimeError('migration pending')
     except Exception:
         return JSONResponse(status_code=503, content={'schema_version':'v1','mode':settings.app_mode,
@@ -91,6 +93,8 @@ def ready():
 
 app.include_router(core_router, prefix='/api/v1')
 app.include_router(sync_router, prefix='/api/v1')
+app.include_router(coaching_router, prefix='/api/v1')
+app.include_router(strength_router, prefix='/api/v1')
 
 
 @app.get('/{path:path}', include_in_schema=False)

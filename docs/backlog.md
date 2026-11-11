@@ -1,41 +1,38 @@
-# Deferred work
+# Follow-up work
 
-## Strong strength history (confirmed 2026-11-10)
+## Coaching depth and evaluation
 
-The athlete records lifting in Strong and intends to keep that workflow. Treat
-Strong as a future independent source, potentially a CSV import. No export is
-available and no parser or integration is authorized for the current MVP.
+The current Coach runtime is an explicit local evidence-guided rule flow. It
+supports conservative daily options and weekly proposals with uncertainty,
+research references, current check-in context, accepted-plan context, and
+outcome recording. It does not use an external model or automatically change a
+plan. The research corpus contains 15 behavioral cases; the release checklist
+records which behaviors have actually been verified. Do not claim all 15 are
+implemented or that a favorable trend yields a calibrated progression.
 
-Current strength coverage is incomplete. Count imported/manual sessions as
-**recorded** sessions only. Missing Garmin strength recordings cannot establish
-that lifting was skipped. The twice-weekly strength preference remains meaningful
-and should be preserved in manual planning and later coaching.
+Follow-ups: exercise each supplied case through the actual API/UI; add 28-day and
+previous-14-day comparisons; account for delayed symptom timing and event history
+in weekly review; evaluate useful progression and strength placement with the
+athlete's confirmed schedule; calibrate recommendations against real outcomes
+without inventing a numeric injury threshold. Review policy applicability and
+source updates before adding new rules. An optional model-based flow would need
+privacy, cost, evaluation, and user-approval design first.
 
-When an export is available: inspect its actual schema locally; preserve original
-bytes; map source identities, dates/timezones, exercises and sets only after
-verification; retain provenance; reconcile overlapping manual/Garmin entries
-without silent merging. Source adapters feed the same canonical history; do not
-make Garmin the owner of all strength records. No invented strength targets or
-calorie logging requirement.
+## Strong source evolution
 
-## Local research knowledge base
+The inspected Strong CSV is imported and replay-safe. Future CSV shapes need
+schema inspection before mapping. Resolve the unknown dumbbell recording
+transition only with an explicit user-provided date/convention; do not infer a
+factor from weights. Add user-reviewed cross-source reconciliation for ambiguous
+same-day strength candidates. Historical source-local times have no verified
+zone or weight unit. Keep older than 18 months in history, outside current
+running recommendations.
 
-Integrate the future `running_coach_kb/` by loading guide → requested workflow →
-relevant topic sections/policies. Preserve explanatory prose, sources, conflicts,
-and uncertainty. Research stays separate from dated athlete profile and current
-observations. Use a simple local file index initially. No runtime coach, automatic
-prescriptions, rigid policy engine, or model calls are active in the MVP.
+## Garmin and product work
 
-## Historical Garmin export follow-up
-
-The inspected Garmin account export is imported and replay-safe for activity
-summaries, main sleep duration, nightly HRV, and resting heart rate. Export
-coverage remains partial. Future export shapes and additional Health Status
-metrics require their own schema and API comparison before mapping. Do not
-claim arbitrary ZIP/CSV compatibility or infer completeness from a snapshot.
-
-## Later product work
-
-Private phone access/hosting with authentication, detailed activity streams/maps,
-workout publishing, broader API history verification beyond the imported snapshot,
-and optional agent recommendation evaluation follow the local analytics core.
+The inspected Garmin export is imported for supported activity and recovery
+fields. Export coverage remains partial. Future export shapes and additional
+Health Status metrics require schema/API comparison before mapping. Private
+phone access or hosting needs authentication. Detailed streams/maps, workout
+publishing, broader provider-history verification, and optional agent evaluation
+remain separate projects. No calorie logging is required.

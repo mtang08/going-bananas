@@ -10,7 +10,9 @@ parser.add_argument('--mode',choices=['demo','test','real'],required=True)
 args=parser.parse_args()
 if not args.base_url.startswith(('http://127.0.0.1:', 'http://localhost:')):
     raise SystemExit('Only a local server may be smoke tested')
-paths=['health/live','health/ready','profile','activities','summary','recovery','checkins','manual-sessions','plans','conflicts','sync/status','weekly-summary','context']
+paths=['health/live','health/ready','profile','activities','summary','recovery','checkins','manual-sessions','plans','conflicts','sync/status','weekly-summary','context','coach/daily','coach/weekly',
+       'coach/context?workflow=daily','strength/years',
+       'strength/history?start_date=2026-01-01&end_date=2026-11-10']
 for path in paths:
     with urlopen(args.base_url+'/api/v1/'+path,timeout=15) as response:
         assert response.status==200,path

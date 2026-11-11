@@ -69,6 +69,53 @@ test('history can browse a prior year with bounded date windows', async ({page})
   await expect(page.getByRole('button',{name:'Show dates'})).toBeDisabled()
 })
 
+test('demo Coach generates explicit daily and weekly guidance without changing plans', async ({page}) => {
+  const plansBefore=await (await page.request.get('http://127.0.0.1:5173/api/v1/plans')).json()
+  await page.goto('/')
+  await page.getByRole('button',{name:'Coach',exact:true}).click()
+  await expect(page.getByRole('heading',{name:'Train with context.'})).toBeVisible()
+  await expect(page.getByRole('button',{name:'Generate daily guidance'})).toBeVisible()
+  await page.getByLabel('Illness').selectOption('none')
+  const generated=page.waitForResponse(response=>response.url().endsWith('/api/v1/coach/daily')&&response.request().method()==='POST')
+  await page.getByRole('button',{name:'Generate daily guidance'}).click()
+  expect((await generated).ok()).toBe(true)
+  await expect(page.getByText('Suggested session')).toBeVisible()
+  await page.getByRole('button',{name:'Tomorrow preview'}).click()
+  await expect(page.getByText(/Tomorrow’s preview is provisional/)).toBeVisible()
+  const preview=page.waitForResponse(response=>response.url().endsWith('/api/v1/coach/daily')&&response.request().method()==='POST')
+  await page.getByRole('button',{name:'Generate daily guidance'}).click()
+  expect((await preview).ok()).toBe(true)
+  await expect(page.getByRole('button',{name:'Accept suggestion'})).toBeDisabled()
+  await expect(page.getByRole('button',{name:'Decline'})).toBeDisabled()
+  await page.getByRole('button',{name:'Weekly review'}).click()
+  const weekly=page.waitForResponse(response=>response.url().endsWith('/api/v1/coach/weekly')&&response.request().method()==='POST')
+  await page.getByRole('button',{name:'Generate weekly review'}).click()
+  expect((await weekly).ok()).toBe(true)
+  await expect(page.getByText('Next cycle proposal')).toBeVisible()
+  const plansAfter=await (await page.request.get('http://127.0.0.1:5173/api/v1/plans')).json()
+  expect(plansAfter.data.items).toEqual(plansBefore.data.items)
+})
+
+test('demo Strength browses imported years and recorded sets on mobile', async ({page}) => {
+  await page.setViewportSize({width:390,height:844})
+  await page.goto('/')
+  await page.getByRole('button',{name:'Open menu'}).click()
+  await page.getByRole('button',{name:'Strength'}).click()
+  await expect(page.getByRole('heading',{name:'Strength history.'})).toBeVisible()
+  const years=(await (await page.request.get('http://127.0.0.1:5173/api/v1/strength/years')).json()).data.years
+  if(years.length){
+    const year=String(years[0].year)
+    await page.getByLabel('Year').selectOption(year)
+    await expect(page.getByText(new RegExp(`recorded workouts in ${year}`))).toBeVisible()
+    const workout=page.locator('table tbody .table-link').first()
+    if(await workout.count()){
+      await workout.click()
+      await expect(page.getByText(/Recorded set values · units unconfirmed/)).toBeVisible()
+    }
+  }
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth)).toBe(false)
+})
+
 test('manual draft can be accepted and linked to a confirmed actual session', async ({page}) => {
   const profileResponse=await page.request.get('http://127.0.0.1:5173/api/v1/profile')
   const profile=(await profileResponse.json()).data

@@ -1,15 +1,36 @@
 # Going Bananas — local training analytics
 
-A private, single-user Garmin dashboard built with React/TypeScript, FastAPI,
-Python, and PostgreSQL. Running and recovery data come from Garmin's official
-Personal API and a validated historical Garmin account export. Lifting stays in Strong; its history is **not connected**, so the
-app reports recorded strength sessions without treating missing records as
-missed lifting. A future Strong CSV adapter is in [the backlog](docs/backlog.md).
+A private, single-user local training dashboard built with React/TypeScript,
+FastAPI, and PostgreSQL. It combines Garmin activity/recovery history with an
+imported Strong lifting snapshot and a reviewed running research library. Strong
+remains the lifting workflow; the app reads its CSV export and does not write
+workouts back to Strong.
 
-The app provides weekly/rolling volume, recent activities and provenance,
-recovery trends, quick editable check-ins, delayed symptom context, and a manual
-continuing two-week plan/completion view. Metrics and weekly recaps are factual.
-No model, research KB, or adaptive training prescription is active.
+The Coach tab offers explicit daily guidance and a weekly proposal from a
+**local evidence-guided rule flow**. It uses current check-ins, recorded training,
+plan state, and selected research prose. It is not an external model, diagnosis,
+exact training-dose prescription, or automated plan change. Unknown symptoms or
+schedule details remain unknown and make guidance provisional.
+
+## Use it for tomorrow
+
+1. Open **http://127.0.0.1:8000** and record a current check-in. Report any
+   illness, tendon/function change, or clinician restriction accurately in Coach.
+2. Confirm your run-cycle anchor and strength schedule in Cycle setup if you
+   know them. The app will not infer them from old activities; you can still
+   generate provisional guidance without them.
+3. In Coach, choose **Tomorrow**, review the inputs, and generate guidance.
+   Check again on the day of training because conditions may change.
+4. Review the proposed session, alternative, uncertainty, and cited evidence.
+   Accept or decline explicitly; acceptance does not modify your manual plan.
+   Record completed/partial/skipped feedback afterward so the next review has
+   your response.
+
+Historical Strong sessions and exact recorded sets are in Strength. The app
+uses only the preceding **18 calendar months** of Strong sessions for current
+running context; older workouts remain browsable. The export has no verified
+weight unit or dumbbell convention-change date, so the app does not compare
+weights or derive PR targets across that change.
 
 ## Run on this Mac
 
@@ -110,7 +131,24 @@ Observed export dates are marked as partial coverage, since an account snapshot
 does not prove complete watch wear or provider history. Repeating the import is
 safe: the verified replay created no new source revisions or canonical changes.
 This parser is specific to the inspected Garmin export schema; the browser does
-not accept arbitrary ZIPs, and Strong CSV import remains future work.
+not accept arbitrary ZIPs.
+
+## Strong import
+
+The inspected Strong CSV has already been imported into the real workspace.
+For a later export, preview first and apply only after checking the source and
+backup. Repeating identical bytes is idempotent:
+
+```sh
+./scripts/with-mode real bash -c 'cd backend && uv run python -m app.services.strong_import /absolute/path/to/strong_workouts.csv'
+./scripts/with-mode real bash -c 'cd backend && uv run python -m app.services.strong_import /absolute/path/to/strong_workouts.csv --apply'
+```
+
+The original CSV and source rows are preserved privately. Source-local timestamps
+have no timezone; duration timers over 24 hours remain visible as source text
+but have unknown normalized duration. Same-day Garmin/manual strength candidates
+are reported as ambiguous rather than silently counted twice. This importer
+supports the inspected Strong format, not arbitrary CSVs.
 
 ## Feedback and planning
 
@@ -152,15 +190,16 @@ read-only except for an intentionally rejected foreign-origin request.
 Release outcomes and limitations are in [the release checklist](docs/release-checklist.md).
 Never run tests with real data substituted for synthetic fixtures.
 
-## Backups and later coaching
+## Backups and coaching scope
 
 `make backup` writes a private PostgreSQL/raw/profile archive with checksums,
 excluding credentials. `make context` writes a local privacy-filtered
 `coach_context.v1` snapshot; nothing is submitted to a model. Restore only into a
 new target; commands are in [operations](docs/operations.md).
 
-The later `running_coach_kb/` integration will selectively load the coaching
-guide, daily/weekly workflow, and relevant topic sections/policies. Research prose
-and uncertainty remain separate from dated athlete facts and live training data.
-See [contracts](docs/contracts.md), [implementation plan](docs/implementation-plan.md),
-[verification cases](docs/verification.md), and [handoff](docs/handoff.md).
+The reviewed `running_coach_kb/` loads selectively: guide, the requested
+workflow, and relevant topic prose/policies. The current local flow provides
+conservative options and uncertainty; it does not calibrate exact mileage,
+intensity, rehabilitation dose, or favorable progression to your response yet.
+See [research scope](docs/research-integration.md), [contracts](docs/contracts.md),
+[release evidence](docs/release-checklist.md), and [handoff](docs/handoff.md).

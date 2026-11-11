@@ -1,7 +1,7 @@
 # Private athlete context, exports, credentials, and local runtime state
 /private/
 /data/
-/running_coach_kb/
+/running_coach_kb/athlete_context.md
 .env
 .env.*
 !.env.example

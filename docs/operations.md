@@ -29,6 +29,9 @@ Explicit real-mode backup and restore (replace the archive path and new target):
 ./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli restore "$PRIVATE_DIR/backups/my-backup.tar.gz" --target-database-name garmin_restored_real --target-private-dir ../private/restored-real'
 ```
 
+For this release, `scripts/verify-restore.py --database NEW_NAME_test --private-dir
+NEW_PRIVATE_DIR` compares source and restored table counts, Strong/coaching row
+contents, raw checksums, and private research originals. Run it in real mode.
 The restore refuses existing database/directory targets and verifies archive
 paths/checksums before use. It derives database connection credentials from the
 current protected environment, never arguments. Select a restored database only
@@ -76,6 +79,11 @@ inspect the app's dataset status and coverage.
 - Partial dataset: inspect the safe reason and coverage; valid records remain.
 - Same sync requested twice: use the existing job. Rate limits use bounded retries
   and delayed retry timestamps. Failed jobs can be explicitly re-requested.
-- Missing lifting: Strong history is not connected. It does not mean no lifting.
+- Missing lifting: inspect the Strong import date/coverage and unresolved overlaps.
+  A snapshot gap does not establish skipped lifting.
 - Unknown real cycle: configure a confirmed anchor and strength schedule before
-  accepting a dated plan. No fitness/race/rehab assumptions are filled in.
+  accepting a dated plan. Coach can still show provisional options. No
+  fitness/race/rehab assumptions are filled in.
+- Coach advice appears stale: generate again after check-in, plan, source, or
+  research changes; tomorrow previews need a fresh day-of review. Recording an
+  outcome does not alter the accepted manual plan.

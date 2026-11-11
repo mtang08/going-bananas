@@ -1,0 +1,1259 @@
+{
+  "schema_version": "1.0",
+  "searched_through": "2026-11-10",
+  "athlete_context_date": "2026-11-10",
+  "status": "reviewable_candidates_not_activated_rules_or_medical_instructions",
+  "policies": [
+    {
+      "policy_id": "P001",
+      "title": "Work with missing or stale data",
+      "decision_question": "Can the coach make a useful decision when one or more expected inputs are absent?",
+      "trigger": [
+        "A planned daily or weekly decision is due and an expected Garmin, derived, or subjective field is null, stale, or implausible."
+      ],
+      "required_inputs": [
+        "planned_session",
+        "last_completed_session_timestamp",
+        "current_symptoms_or_null",
+        "illness_red_flags_or_null",
+        "data_timestamp_and_quality_flags"
+      ],
+      "suggested_action": [
+        "Do not infer that a missing observation is normal.",
+        "Use the most recent trustworthy plan and symptom information to offer a conservative proceed/modify choice.",
+        "State which missing field limits confidence and ask one blocking clarification only when safety or session classification cannot otherwise be resolved."
+      ],
+      "alternatives": [
+        "Use a lower-impact or shorter alternative that preserves the plan intent.",
+        "Defer optimization while keeping the agreed run frequency unchanged."
+      ],
+      "do_not_apply_when": [
+        "A medical red flag is present; use clinical escalation policy instead."
+      ],
+      "rationale": "No readiness algorithm is reliable enough to require every wearable field. Transparent handling of missingness is safer than silent imputation.",
+      "evidence_ids": [
+        "E-REC-04",
+        "E-WEAR-05"
+      ],
+      "source_ids": [
+        "S043",
+        "S048"
+      ],
+      "evidence_certainty": "Low-moderate",
+      "athlete_applicability": "High for a dashboard/agent workflow",
+      "threshold_basis": "No numeric threshold; workflow rule",
+      "calibration_needed": "Calibrate staleness windows to each field and the import cadence.",
+      "uncertainty": "The best conservative fallback depends on the planned session and the missing field.",
+      "review_triggers": [
+        "Repeated import failures",
+        "Conflicting timestamps",
+        "Missing symptom data before a demanding session"
+      ]
+    },
+    {
+      "policy_id": "P002",
+      "title": "Do not overreact to one poor night",
+      "decision_question": "Should one suboptimal night of sleep change today’s training?",
+      "trigger": [
+        "One night is worse than the athlete’s usual sleep or the consumer sleep score is low, while illness, tendon symptoms, and perceived fatigue are normal and recent recovery has otherwise been stable."
+      ],
+      "required_inputs": [
+        "planned_session",
+        "subjective_fatigue",
+        "illness_symptoms",
+        "PTT_symptom_trend",
+        "recent_sleep_trend",
+        "recent_training_and_strength_soreness"
+      ],
+      "suggested_action": [
+        "For an easy or routine session, generally proceed and reduce ambition rather than cancel automatically.",
+        "For a demanding session, retain an easy fallback and decide from warm-up response, coordination, effort, and symptoms.",
+        "Record the observation for trend review."
+      ],
+      "alternatives": [
+        "Shorten duration",
+        "Remove optional fast elements",
+        "Swap with the nearest easy session without adding a make-up session"
+      ],
+      "do_not_apply_when": [
+        "Several poor-recovery days have accumulated.",
+        "Illness, unusual fatigue, coordination problems, worsening pain, or clinician restrictions are present."
+      ],
+      "rationale": "Severe sleep loss impairs performance on average, but evidence is weaker for one ordinary poor night; consumer sleep scores are noisy.",
+      "evidence_ids": [
+        "E-REC-01",
+        "E-WEAR-02",
+        "E-WEAR-05"
+      ],
+      "source_ids": [
+        "S037",
+        "S038",
+        "S045",
+        "S048"
+      ],
+      "evidence_certainty": "Moderate for severe sleep loss; low for a single ordinary night",
+      "athlete_applicability": "High, because the desired coaching behavior is adherence without ignoring deterioration",
+      "threshold_basis": "Trend- and symptom-based heuristic; no universal score cutoff",
+      "calibration_needed": "Learn the athlete’s response to isolated poor nights and distinguish bedtime duration from device stage estimates.",
+      "uncertainty": "An apparently normal subjective state can still miss impairment; use warm-up response and avoid maximal testing.",
+      "review_triggers": [
+        "Poor sleep repeats",
+        "RPE is unexpectedly high",
+        "New illness symptoms",
+        "Pain worsens during or after training"
+      ]
+    },
+    {
+      "policy_id": "P003",
+      "title": "Escalate accumulated recovery deterioration",
+      "decision_question": "Should training be reduced when several recovery signals worsen together?",
+      "trigger": [
+        "Multiple consecutive days show worsening fatigue, sleep, resting physiology, soreness, mood, or performance, especially when subjective and objective signals agree."
+      ],
+      "required_inputs": [
+        "multi_day_subjective_fatigue",
+        "sleep_duration_trend",
+        "resting_HR_trend",
+        "HRV_trend_if_available",
+        "illness_symptoms",
+        "PTT_symptoms",
+        "recent_run_and_strength_load",
+        "performance_or_RPE_change"
+      ],
+      "suggested_action": [
+        "Modify the next demanding exposure first rather than rewriting the entire plan from one score.",
+        "Favor easy running, rest, or low-impact aerobic work according to symptoms and the athlete’s preference.",
+        "Investigate illness, accumulated training, life stress, and fueling as competing explanations."
+      ],
+      "alternatives": [
+        "Keep duration but remove intensity when mechanical tolerance is good",
+        "Keep frequency but reduce session size",
+        "Take a rest day when systemic symptoms or marked fatigue make training unproductive"
+      ],
+      "do_not_apply_when": [
+        "The pattern is explained by a known transient factor and the athlete feels normal during a controlled warm-up; still document uncertainty."
+      ],
+      "rationale": "Readiness evidence favors combining subjective and objective signals; HRV-guided superiority is inconsistent and protocols differ from Garmin scores.",
+      "evidence_ids": [
+        "E-REC-02",
+        "E-REC-03",
+        "E-REC-04",
+        "E-FUEL-01"
+      ],
+      "source_ids": [
+        "S039",
+        "S040",
+        "S041",
+        "S042",
+        "S043",
+        "S052"
+      ],
+      "evidence_certainty": "Low-moderate",
+      "athlete_applicability": "High",
+      "threshold_basis": "Individual trend heuristic; no universal HRV/RHR/readiness cutoff",
+      "calibration_needed": "Establish the athlete’s own normal ranges and define “consecutive” only after enough clean data.",
+      "uncertainty": "Fatigue has many causes and the dashboard cannot diagnose them.",
+      "review_triggers": [
+        "Deterioration persists despite reduced load",
+        "Fever, chest pain, fainting, unusual breathlessness, or systemic illness appears",
+        "Performance/RPE remains abnormal",
+        "Nutrition or weight concerns emerge"
+      ]
+    },
+    {
+      "policy_id": "P004",
+      "title": "Stage return after respiratory illness",
+      "decision_question": "How should running resume after an illness interruption?",
+      "trigger": [
+        "Recent acute respiratory illness has interrupted training and symptoms are now very mild or resolved without cardiopulmonary or systemic red flags."
+      ],
+      "required_inputs": [
+        "illness_onset_and_course",
+        "current_symptoms",
+        "red_flags",
+        "time_since_last_run",
+        "pre_illness_training",
+        "planned_session",
+        "clinician_instructions_if_any"
+      ],
+      "suggested_action": [
+        "Begin with a controlled, easy exercise challenge rather than restoring the prior quality or long run immediately.",
+        "Monitor during, immediately after, and through the following day before progressing.",
+        "Rebuild session duration and demanding work in stages; do not make up missed sessions."
+      ],
+      "alternatives": [
+        "Walk-run or shorter easy run",
+        "Low-impact aerobic work",
+        "Additional rest when symptoms are not clearly improving"
+      ],
+      "do_not_apply_when": [
+        "Chest pain, syncope, palpitations, unusual dyspnea, fever/systemic illness, or clinician restriction is present.",
+        "The illness was moderate/severe or involved complications; obtain appropriate clinical guidance."
+      ],
+      "rationale": "IOC guidance supports a symptom-led exercise challenge in selected mild cases, while cohort data distinguish first training from full training and full performance.",
+      "evidence_ids": [
+        "E-AER-05",
+        "E-AER-06"
+      ],
+      "source_ids": [
+        "S006",
+        "S007",
+        "S008"
+      ],
+      "evidence_certainty": "Moderate clinical guidance; low-moderate cohort evidence",
+      "athlete_applicability": "High for uncomplicated respiratory illness; lower for any uncharacterized illness",
+      "threshold_basis": "Consensus-supported exercise challenge; exact progression requires calibration",
+      "calibration_needed": "The IOC example of 10–20 minutes around 60–70% of normal intensity is a consensus example, not an automatic prescription.",
+      "uncertainty": "Illness type and severity are unknown unless supplied; return-to-performance timelines vary widely.",
+      "review_triggers": [
+        "Symptoms recur during or after challenge",
+        "Resting symptoms worsen",
+        "Abnormal cardiopulmonary response",
+        "Repeated failed returns"
+      ]
+    },
+    {
+      "policy_id": "P005",
+      "title": "Symptoms outrank favorable Garmin scores",
+      "decision_question": "Can a favorable readiness score justify training through worsening tendon symptoms?",
+      "trigger": [
+        "PTT-region symptoms are worse, function is reduced, or the delayed response is deteriorating even though Garmin readiness, HRV, sleep, or load metrics look favorable."
+      ],
+      "required_inputs": [
+        "symptom_location_and_trend",
+        "walking_and_daily_function",
+        "run_related_response",
+        "delayed_response",
+        "planned_session",
+        "Garmin_components_and_quality",
+        "clinician_instructions"
+      ],
+      "suggested_action": [
+        "Let the symptom/function trend drive modification.",
+        "Avoid using a proprietary composite score as clearance for the planned run.",
+        "Choose rest, a lower-impact alternative, or a reduced run only within previously tolerated bounds and any clinician guidance."
+      ],
+      "alternatives": [
+        "Preserve upper-body or otherwise nonprovocative strength work",
+        "Use low-impact aerobic work if tolerated",
+        "Seek clinical assessment when the pattern is progressive or unclear"
+      ],
+      "do_not_apply_when": [
+        "The symptom report is stale or refers to a different body region; clarify first."
+      ],
+      "rationale": "Wearable readiness has no validated injury-clearance threshold, and PTT-specific return-to-running criteria are not established.",
+      "evidence_ids": [
+        "E-PTT-02",
+        "E-PTT-04",
+        "E-REC-04",
+        "E-WEAR-05"
+      ],
+      "source_ids": [
+        "S028",
+        "S029",
+        "S030",
+        "S032",
+        "S043",
+        "S048"
+      ],
+      "evidence_certainty": "Low for PTT treatment thresholds; high for avoiding diagnostic overreach",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Clinical-safety principle; no numeric pain cutoff",
+      "calibration_needed": "Calibrate tolerated activity only from repeated athlete responses and clinician input.",
+      "uncertainty": "The app cannot distinguish tendinopathy, dysfunction/PCFD, or another cause of medial ankle pain.",
+      "review_triggers": [
+        "Symptoms worsen despite modification",
+        "Walking becomes painful",
+        "Swelling, weakness, deformity concern, or loss of function appears",
+        "Symptoms fail to settle between exposures"
+      ]
+    },
+    {
+      "policy_id": "P006",
+      "title": "Use delayed tendon response before progression",
+      "decision_question": "Did the previous run demonstrate tolerance sufficient to progress?",
+      "trigger": [
+        "A run—especially a long or novel run—was followed by symptoms later the same day or over a later follow-up window, or the delayed response is unknown."
+      ],
+      "required_inputs": [
+        "session_duration_distance_intensity",
+        "surface_and_hills",
+        "symptoms_during_run",
+        "symptoms_after_run",
+        "next_day_and_later_response",
+        "walking_function",
+        "recent_longest_run",
+        "strength_or_plyometric_load"
+      ],
+      "suggested_action": [
+        "Link the delayed response to the provoking session in the audit trail.",
+        "Hold or reduce the next comparable mechanical exposure until the response is understood rather than progressing automatically.",
+        "Progress only one primary load dimension after a repeatable, acceptable response."
+      ],
+      "alternatives": [
+        "Keep an easy shorter run if daily function and symptoms are stable within the athlete’s established tolerance",
+        "Substitute low-impact aerobic work",
+        "Retain nonprovocative strength work"
+      ],
+      "do_not_apply_when": [
+        "A clinician has provided different monitoring criteria.",
+        "Acute trauma or red-flag symptoms require assessment rather than routine load management."
+      ],
+      "rationale": "PTT trials do not validate a return-to-run cutoff; Achilles pain-monitoring evidence supports the concept of tracked response but its numbers do not transfer.",
+      "evidence_ids": [
+        "E-AER-03",
+        "E-PTT-02",
+        "E-PTT-06"
+      ],
+      "source_ids": [
+        "S003",
+        "S028",
+        "S029",
+        "S030",
+        "S034"
+      ],
+      "evidence_certainty": "Low for PTT-specific criteria; moderate for single-session association",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Athlete-calibrated symptom/function trend; all imported tendon numeric cutoffs remain null",
+      "calibration_needed": "Define an acceptable response with a clinician or repeated athlete-specific observations; store delayed checks as timestamped observations.",
+      "uncertainty": "Attribution is imperfect when running, lifting, footwear, and daily activity cluster.",
+      "review_triggers": [
+        "Delayed tenderness grows across cycles",
+        "Symptoms persist longer than usual",
+        "Function declines",
+        "The same load produces progressively worse response"
+      ]
+    },
+    {
+      "policy_id": "P007",
+      "title": "Progress one primary running-load dimension",
+      "decision_question": "How should running load advance during a tendon-limited rebuild?",
+      "trigger": [
+        "The recent cycle was completed with stable symptoms, acceptable recovery, and no illness, and the next cycle is being proposed."
+      ],
+      "required_inputs": [
+        "planned_and_completed_14_day_cycle",
+        "run_frequency",
+        "individual_run_durations",
+        "recent_longest_run",
+        "quality_content",
+        "PTT_delayed_responses",
+        "strength_schedule",
+        "recovery_trend"
+      ],
+      "suggested_action": [
+        "Preserve the currently agreed run frequency unless the user changes it.",
+        "Choose one primary progression target—such as easy-run duration, long-run duration, or quality dose—while keeping the others broadly stable.",
+        "Use a consolidation cycle when tolerance is uncertain rather than forcing a fixed increase."
+      ],
+      "alternatives": [
+        "Repeat the prior cycle",
+        "Redistribute duration across easy runs without increasing total",
+        "Use cross-training for additional aerobic work without claiming one-for-one running load"
+      ],
+      "do_not_apply_when": [
+        "The previous cycle was not tolerated, illness is active/recent, or the athlete is adding a new high-impact stimulus."
+      ],
+      "rationale": "No universal safe percentage is supported; simultaneous changes make cause and tolerance harder to interpret.",
+      "evidence_ids": [
+        "E-AER-01",
+        "E-AER-02",
+        "E-AER-03",
+        "E-LONG-02"
+      ],
+      "source_ids": [
+        "S001",
+        "S002",
+        "S003",
+        "S020"
+      ],
+      "evidence_certainty": "Moderate for rejecting a universal rule; low for exact progression",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Coaching heuristic grounded in uncertainty and observability; numeric increase null",
+      "calibration_needed": "Calibrate the size and duration of each progression from repeated 14-day tolerance and goals.",
+      "uncertainty": "Holding other variables stable is not always possible; life stress and strength work remain confounders.",
+      "review_triggers": [
+        "Any worsening delayed tendon response",
+        "Unexpected RPE or recovery cost",
+        "A new surface, hill, shoe, speed, or plyometric stimulus is introduced"
+      ]
+    },
+    {
+      "policy_id": "P008",
+      "title": "Flag novel single-run load without declaring a safe boundary",
+      "decision_question": "Should a run longer than recent history be modified?",
+      "trigger": [
+        "The planned run is materially longer than the recent longest comparable run or falls into a dashboard-defined novelty band."
+      ],
+      "required_inputs": [
+        "planned_distance_or_duration",
+        "recent_longest_comparable_run",
+        "lookback_window",
+        "terrain_surface",
+        "intensity_goal",
+        "PTT_history",
+        "delayed_response_history"
+      ],
+      "suggested_action": [
+        "Surface the novelty explicitly and offer a shorter, flatter, easier, or split alternative.",
+        "Treat any percentage as an observational flag, not a clearance line.",
+        "Require delayed-response follow-up before using the new distance as the next baseline."
+      ],
+      "alternatives": [
+        "Repeat the recent longest tolerated run",
+        "Add low-impact aerobic time after a shorter run",
+        "Move some duration to another easy run in the cycle without increasing frequency"
+      ],
+      "do_not_apply_when": [
+        "Recent history is incomplete or includes noncomparable terrain/intensity; label the comparison unreliable."
+      ],
+      "rationale": "A large Garmin cohort associated single-session distance spikes with injury, but observational cut points do not establish causality or a PTT-specific threshold.",
+      "evidence_ids": [
+        "E-AER-03",
+        "E-LONG-02"
+      ],
+      "source_ids": [
+        "S003",
+        "S020"
+      ],
+      "evidence_certainty": "Moderate for association; low for causal cutoff",
+      "athlete_applicability": "High as a warning, not as a gate",
+      "threshold_basis": "Study-derived association used as a descriptive flag; exact dashboard bands require calibration",
+      "calibration_needed": "Choose lookback and comparison logic with enough data; consider duration as well as distance for hills or heat.",
+      "uncertainty": "The cohort outcome and distance categories may not match this athlete or tendon.",
+      "review_triggers": [
+        "Incomplete data",
+        "The novel run also adds pace, hills, or surface change",
+        "Symptoms emerge later"
+      ]
+    },
+    {
+      "policy_id": "P009",
+      "title": "Limit demanding exposure during the rebuild",
+      "decision_question": "Does the current two-week plan contain too much demanding load?",
+      "trigger": [
+        "A proposed 14-day segment contains quality work, a mechanically substantial long run, hard strength sessions, hills/strides/plyometrics, or other demanding exposures close together."
+      ],
+      "required_inputs": [
+        "14_day_calendar",
+        "session_goals",
+        "run_time_in_intensity_or_RPE",
+        "long_run_duration_and_effort",
+        "strength_lower_body_stress",
+        "PTT_response",
+        "recovery_trend"
+      ],
+      "suggested_action": [
+        "Count demanding exposures by physiological and mechanical demand, not labels alone.",
+        "During the tendon-limited rebuild, keep one formal quality run and one long run per week only when the long run remains controlled and both are tolerated; otherwise modify one exposure.",
+        "Do not add a second formal quality day merely to satisfy a distribution model."
+      ],
+      "alternatives": [
+        "Make the long run shorter/easier",
+        "Replace the quality session with controlled strides only after tolerance is established",
+        "Use an easy aerobic or low-impact session"
+      ],
+      "do_not_apply_when": [
+        "The athlete’s phase, diagnosis, and tolerance have changed and a revised plan has been agreed."
+      ],
+      "rationale": "No intensity distribution is universally superior, and a long run can be demanding despite low intensity. Low run frequency makes session-count ratios especially misleading.",
+      "evidence_ids": [
+        "E-INT-01",
+        "E-INT-02",
+        "E-INT-04",
+        "E-INT-08",
+        "E-LONG-01"
+      ],
+      "source_ids": [
+        "S009",
+        "S010",
+        "S012",
+        "S013",
+        "S017",
+        "S019",
+        "S020"
+      ],
+      "evidence_certainty": "Moderate for distribution uncertainty; insufficient for a universal exposure cap",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Phase-specific coaching heuristic; no fixed count beyond preserving the current agreed pattern",
+      "calibration_needed": "Calibrate what counts as demanding using RPE, duration, terrain, symptoms, and strength proximity.",
+      "uncertainty": "The same session can have different cost as fitness and tendon tolerance change.",
+      "review_triggers": [
+        "Long run stops being easy/controlled",
+        "Quality RPE rises unexpectedly",
+        "Strength soreness overlaps",
+        "PTT response worsens"
+      ]
+    },
+    {
+      "policy_id": "P010",
+      "title": "Do not classify a fast long run from pace alone",
+      "decision_question": "Was a long run easy, steady, or demanding?",
+      "trigger": [
+        "A long-run pace appears fast relative to recent race performance, but effort, terrain, weather, heart-rate quality, and RPE are missing or uncertain."
+      ],
+      "required_inputs": [
+        "pace_and_splits",
+        "duration_distance",
+        "route_elevation_surface",
+        "weather",
+        "heart_rate_quality",
+        "session_RPE_or_talk_test",
+        "fueling",
+        "fatigue_and_symptoms"
+      ],
+      "suggested_action": [
+        "Label effort classification unknown rather than calling the pace easy or hard.",
+        "Use it as a completed mechanical exposure and request the smallest missing context needed for future classification.",
+        "Avoid using it to reset easy-pace targets or justify progression."
+      ],
+      "alternatives": [
+        "Compare later against a standardized route/conditions",
+        "Use RPE and talk-test next time",
+        "Treat it conservatively in weekly load review"
+      ],
+      "do_not_apply_when": [
+        "Reliable RPE, HR, route, and conditions already establish the intended and actual effort."
+      ],
+      "rationale": "Pace/HR and decoupling are condition-dependent; a single pace cannot define intensity.",
+      "evidence_ids": [
+        "E-INT-04",
+        "E-DATA-01",
+        "E-DATA-02"
+      ],
+      "source_ids": [
+        "S012",
+        "S013",
+        "S049",
+        "S050",
+        "S051"
+      ],
+      "evidence_certainty": "Moderate for measurement limitations",
+      "athlete_applicability": "Very high for the known reported long run",
+      "threshold_basis": "Measurement rule; no pace threshold",
+      "calibration_needed": "Build athlete-specific comparisons from repeated, comparable runs.",
+      "uncertainty": "RPE is also imperfect and HR can be affected by heat, hills, illness, caffeine, and sensor error.",
+      "review_triggers": [
+        "Repeated mismatch between pace, HR, and RPE",
+        "Implausible HR trace",
+        "New symptoms after the run"
+      ]
+    },
+    {
+      "policy_id": "P011",
+      "title": "Schedule strength as a coequal goal",
+      "decision_question": "How should twice-weekly full-body strength coexist with quality and long running?",
+      "trigger": [
+        "A run or lifting session must be placed or moved within the 14-day cycle."
+      ],
+      "required_inputs": [
+        "current_14_day_plan",
+        "strength_goal_and_exercises",
+        "lower_body_volume_and_proximity_to_failure",
+        "run_quality_and_long_run_dates",
+        "soreness_history",
+        "PTT_response",
+        "available_days"
+      ],
+      "suggested_action": [
+        "Preserve two meaningful full-body strength sessions unless the user changes that goal.",
+        "Avoid placing unfamiliar, high-soreness lower-body work immediately before a key run.",
+        "When same-day consolidation is useful, separate sessions when practical and order the higher-priority adaptation first; do not assume one universal order."
+      ],
+      "alternatives": [
+        "Preferred strength days with key runs arranged around observed soreness",
+        "alternate strength days rotation when it better separates demanding lower-body work",
+        "Same-day easy run plus strength to preserve recovery days"
+      ],
+      "do_not_apply_when": [
+        "Acute injury, clinician restriction, or a short race-specific taper temporarily changes priorities."
+      ],
+      "rationale": "Concurrent training generally preserves maximal strength and hypertrophy, while explosive outcomes and same-session interference require more care.",
+      "evidence_ids": [
+        "E-HYB-01",
+        "E-HYB-02",
+        "E-HYB-04"
+      ],
+      "source_ids": [
+        "S024",
+        "S025"
+      ],
+      "evidence_certainty": "Moderate",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Evidence-informed scheduling principle; no universal separation-hour rule",
+      "calibration_needed": "Calibrate around actual soreness, exercise selection, and which goal is prioritized in the current phase.",
+      "uncertainty": "Meta-analyses do not identify one best weekly arrangement for this athlete.",
+      "review_triggers": [
+        "Persistent interference with run quality or strength progression",
+        "Soreness changes gait",
+        "Explosive-strength goal becomes primary",
+        "PTT loading from calf work or plyometrics increases"
+      ]
+    },
+    {
+      "policy_id": "P012",
+      "title": "Modify for interfering strength soreness",
+      "decision_question": "What should happen when lower-body soreness is near a quality or long run?",
+      "trigger": [
+        "Lower-body soreness, stiffness, or fatigue from strength training is likely to alter gait, coordination, or target quality."
+      ],
+      "required_inputs": [
+        "soreness_location_and_severity",
+        "movement_quality",
+        "planned_run",
+        "strength_session_details",
+        "PTT_symptoms",
+        "recent_recovery"
+      ],
+      "suggested_action": [
+        "Use warm-up movement and easy running to determine whether the planned quality is intact.",
+        "If mechanics or effort are meaningfully altered, convert the run to easy, shorten it, or reschedule without adding an extra session.",
+        "Review strength placement, volume, novelty, and proximity to failure."
+      ],
+      "alternatives": [
+        "Low-impact aerobic work",
+        "Upper-body/emphasis-adjusted lifting",
+        "Keep the run easy and retain the next planned recovery day"
+      ],
+      "do_not_apply_when": [
+        "Soreness is focal, sharp, worsening, associated with swelling/weakness, or indistinguishable from injury; use symptom/clinical policies."
+      ],
+      "rationale": "The practical issue is not soreness itself but whether it degrades the higher-priority session or compounds mechanical load.",
+      "evidence_ids": [
+        "E-HYB-01",
+        "E-HYB-04",
+        "E-REC-04"
+      ],
+      "source_ids": [
+        "S024",
+        "S043"
+      ],
+      "evidence_certainty": "Moderate for concurrent-training interaction; heuristic for daily choice",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Athlete-calibrated functional heuristic; no numeric soreness cutoff",
+      "calibration_needed": "Record which exercises and doses reliably produce interfering soreness.",
+      "uncertainty": "DOMS and injury are not reliably distinguished by a score alone.",
+      "review_triggers": [
+        "Repeated rescheduling",
+        "Gait changes",
+        "PTT symptoms appear",
+        "Strength performance also deteriorates"
+      ]
+    },
+    {
+      "policy_id": "P013",
+      "title": "Do not make up missed sessions",
+      "decision_question": "Should missed runs or lifts be compressed into the remaining days?",
+      "trigger": [
+        "One or more planned sessions were missed because of illness, schedule, fatigue, or symptoms."
+      ],
+      "required_inputs": [
+        "reason_for_miss",
+        "remaining_14_day_calendar",
+        "current_symptoms",
+        "recent_completed_load",
+        "next_key_session",
+        "strength_plan"
+      ],
+      "suggested_action": [
+        "Resume from the current state rather than compressing all missed work.",
+        "Keep the agreed frequency and prioritize continuity: easy/base work, then one key stimulus if tolerated.",
+        "Treat the miss as lost training, not debt."
+      ],
+      "alternatives": [
+        "Drop optional volume",
+        "Move one key session while preserving recovery",
+        "Repeat a prior tolerated cycle segment"
+      ],
+      "do_not_apply_when": [
+        "A coach/user has intentionally rescheduled a single session with adequate recovery and no load compression."
+      ],
+      "rationale": "Illness return is staged, and single-session novelty may matter more than satisfying a planned weekly total.",
+      "evidence_ids": [
+        "E-AER-03",
+        "E-AER-05",
+        "E-AER-06"
+      ],
+      "source_ids": [
+        "S003",
+        "S006",
+        "S007",
+        "S008"
+      ],
+      "evidence_certainty": "Moderate clinical/observational support; strong coaching rationale",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Coaching convention supported by load-management logic; no numeric rule",
+      "calibration_needed": "Learn which sessions are highest priority for the current phase.",
+      "uncertainty": "There is little direct trial evidence comparing make-up strategies.",
+      "review_triggers": [
+        "Multiple misses suggest the plan is unrealistic",
+        "Illness or symptoms persist",
+        "Compression would place demanding exposures back-to-back"
+      ]
+    },
+    {
+      "policy_id": "P014",
+      "title": "Avoid simultaneous volume and intensity escalation",
+      "decision_question": "Should the next cycle increase both running volume and workout intensity?",
+      "trigger": [
+        "The proposed segment increases total running, longest run, and/or intensity dose at the same time, especially with new hills, strides, plyometrics, or strength loading."
+      ],
+      "required_inputs": [
+        "current_and_proposed_14_day_load",
+        "individual_run_changes",
+        "intensity_content",
+        "terrain_surface",
+        "strength_changes",
+        "PTT_response",
+        "recovery_trend"
+      ],
+      "suggested_action": [
+        "Choose the primary adaptation target and hold the other major variables broadly stable.",
+        "When both changes are unavoidable, reduce their magnitude, mark the cycle as a higher-uncertainty trial, and add delayed-response review."
+      ],
+      "alternatives": [
+        "Increase easy duration while maintaining quality dose",
+        "Progress quality while consolidating total and long-run duration",
+        "Progress strength while holding running load"
+      ],
+      "do_not_apply_when": [
+        "A supervised plan deliberately uses a combined change and the athlete has demonstrated tolerance."
+      ],
+      "rationale": "No universal safe progression exists; changing multiple stimuli simultaneously reduces attribution and may increase cumulative cost.",
+      "evidence_ids": [
+        "E-AER-02",
+        "E-AER-03",
+        "E-INT-07",
+        "E-HYB-01"
+      ],
+      "source_ids": [
+        "S002",
+        "S003",
+        "S017",
+        "S018",
+        "S019",
+        "S024"
+      ],
+      "evidence_certainty": "Moderate for uncertainty; heuristic for attribution",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Coaching heuristic; no numeric combined-load threshold",
+      "calibration_needed": "Calibrate by phase and repeated response.",
+      "uncertainty": "Some training adaptations require mixed stimuli; this policy manages uncertainty rather than claiming causation.",
+      "review_triggers": [
+        "Unexpected symptoms or fatigue",
+        "New stimulus proves more costly than expected",
+        "Key sessions lose quality"
+      ]
+    },
+    {
+      "policy_id": "P015",
+      "title": "Control environmental and sensor confounding",
+      "decision_question": "Is a dashboard trend real enough to change training?",
+      "trigger": [
+        "Pace, heart rate, decoupling, sleep, HRV, VO2max, or readiness changes materially, but weather, hills, surface, device fit, firmware, or signal quality also changed."
+      ],
+      "required_inputs": [
+        "metric_value_and_timestamp",
+        "route_elevation_surface",
+        "temperature_humidity_wind",
+        "sensor_quality_flags",
+        "device_and_firmware",
+        "RPE",
+        "illness_fatigue",
+        "comparison_run_conditions"
+      ],
+      "suggested_action": [
+        "Do not interpret the metric as fitness loss or readiness failure until comparable observations accumulate.",
+        "Annotate confounders and use standardized comparisons where possible.",
+        "Prefer symptoms, RPE, and repeat observations over a single noisy value."
+      ],
+      "alternatives": [
+        "Use duration/RPE instead of pace in heat or hills",
+        "Exclude implausible HR segments",
+        "Use a chest strap for interval precision if the athlete chooses"
+      ],
+      "do_not_apply_when": [
+        "A clinically concerning symptom is present; do not dismiss it as sensor error."
+      ],
+      "rationale": "Wearable and pace/HR measures have condition-specific error; proprietary composites add no validated coaching cutoff.",
+      "evidence_ids": [
+        "E-WEAR-01",
+        "E-WEAR-02",
+        "E-WEAR-03",
+        "E-WEAR-04",
+        "E-WEAR-05",
+        "E-DATA-02"
+      ],
+      "source_ids": [
+        "S044",
+        "S045",
+        "S046",
+        "S047",
+        "S048",
+        "S050",
+        "S051"
+      ],
+      "evidence_certainty": "Low-moderate for device-specific validity; high for confounding principle",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Measurement-quality rule; thresholds device- and athlete-specific",
+      "calibration_needed": "Define comparable-route tags and automated plausibility checks after inspecting the actual export.",
+      "uncertainty": "A real physiological change and a measurement artifact can coexist.",
+      "review_triggers": [
+        "Trend persists under standardized conditions",
+        "Multiple independent signals agree",
+        "Symptoms emerge"
+      ]
+    },
+    {
+      "policy_id": "P016",
+      "title": "Use cross-training as support, not a running equivalent",
+      "decision_question": "Should aerobic work be shifted to cycling or another low-impact mode?",
+      "trigger": [
+        "Running load is constrained by PTT symptoms, illness return, schedule, or mechanical tolerance while general aerobic work remains appropriate."
+      ],
+      "required_inputs": [
+        "reason_running_is_constrained",
+        "mode_available",
+        "mode_experience",
+        "symptoms_during_mode",
+        "planned_aerobic_goal",
+        "strength_schedule",
+        "recovery_state"
+      ],
+      "suggested_action": [
+        "Use a tolerated low-impact mode to preserve or add aerobic stimulus without claiming it replaces running durability one-for-one.",
+        "Start from mode-specific effort/duration experience and monitor symptoms.",
+        "Keep some tolerated running exposure when appropriate so running-specific tissue adaptation is not assumed to transfer."
+      ],
+      "alternatives": [
+        "Rest",
+        "Shorter run plus low-impact work",
+        "Pool running/elliptical/cycling selected by symptom response and access"
+      ],
+      "do_not_apply_when": [
+        "The mode provokes symptoms, illness guidance calls for rest, or the athlete lacks safe familiarity/equipment."
+      ],
+      "rationale": "Small trials and a recent meta-analysis support some aerobic maintenance, but transfer and optimal substitution ratios are uncertain.",
+      "evidence_ids": [
+        "E-LONG-03"
+      ],
+      "source_ids": [
+        "S022",
+        "S023"
+      ],
+      "evidence_certainty": "Low-moderate",
+      "athlete_applicability": "High when running is mechanically constrained",
+      "threshold_basis": "Mode-specific calibration; no one-for-one conversion",
+      "calibration_needed": "Learn RPE/HR response and recovery for each mode.",
+      "uncertainty": "Evidence is short-term and heterogeneous; tissue loading differs.",
+      "review_triggers": [
+        "Symptoms during or after cross-training",
+        "Running-specific fitness declines despite maintained aerobic metrics",
+        "Cross-training interferes with strength recovery"
+      ]
+    },
+    {
+      "policy_id": "P017",
+      "title": "Check fueling before labeling fatigue as overtraining",
+      "decision_question": "Could inadequate fueling contribute to poor recovery or a weak session?",
+      "trigger": [
+        "Fatigue, poor recovery, declining performance, irritability, or repeated low-energy sessions occur, particularly around quality, long runs, or combined run-lift days."
+      ],
+      "required_inputs": [
+        "recent_training_demand",
+        "pre_during_post_session_fueling_context",
+        "appetite_or_GI_issues",
+        "sleep_and_illness",
+        "subjective_energy",
+        "weight_or_health_concerns_only_if_volunteered",
+        "Garmin_calorie_data_quality"
+      ],
+      "suggested_action": [
+        "Ask a brief, nonjudgmental preparedness question rather than infer nutrition status.",
+        "Encourage carbohydrate availability around demanding/long sessions and regular protein-containing meals using flexible food-based options.",
+        "Do not diagnose REDs or prescribe calorie tracking from Garmin estimates."
+      ],
+      "alternatives": [
+        "Simplify the session",
+        "Move demanding work until adequately prepared",
+        "Refer to a sports dietitian/clinician when persistent concerns or health signs exist"
+      ],
+      "do_not_apply_when": [
+        "The athlete has clinician-directed nutrition care that should govern the decision.",
+        "The fatigue is explained by acute illness or another urgent condition; address that first."
+      ],
+      "rationale": "Energy availability is clinically multifactorial; carbohydrate supports higher-demand work and protein supports resistance adaptation, but exact needs are individual.",
+      "evidence_ids": [
+        "E-FUEL-01",
+        "E-FUEL-02",
+        "E-FUEL-03"
+      ],
+      "source_ids": [
+        "S052",
+        "S053",
+        "S054",
+        "S055"
+      ],
+      "evidence_certainty": "Moderate for general principles; low for individual diagnosis",
+      "athlete_applicability": "High for hybrid training; low for diagnosing status",
+      "threshold_basis": "Consensus/position-statement guidance; individual gram/calorie thresholds null unless user/clinician supplies them",
+      "calibration_needed": "Calibrate simple prompts to session duration, GI tolerance, preferences, and goals.",
+      "uncertainty": "The dashboard cannot infer intake, absorption, energy availability, or REDs from wearable expenditure.",
+      "review_triggers": [
+        "Persistent fatigue despite load reduction",
+        "Recurrent illness or injury",
+        "Menstrual/endocrine, bone, weight, or eating concerns if disclosed",
+        "Desire for performance nutrition planning"
+      ]
+    },
+    {
+      "policy_id": "P018",
+      "title": "Escalate when self-directed load adjustment is insufficient",
+      "decision_question": "When should the coach stop optimizing and recommend clinical input?",
+      "trigger": [
+        "Symptoms are progressive, recurrent, function-limiting, diagnostically unclear, or not settling with reasonable load modification; or a red flag appears."
+      ],
+      "required_inputs": [
+        "symptom_course",
+        "walking_and_single_leg_function_if_known",
+        "swelling_or_deformity_concern",
+        "trauma",
+        "neurologic_or_systemic_signs",
+        "clinician_history",
+        "response_to_modification"
+      ],
+      "suggested_action": [
+        "State that the app cannot diagnose the condition.",
+        "Recommend assessment by an appropriate clinician while avoiding an invented diagnosis or rehab protocol.",
+        "Until assessed, avoid repeatedly testing the same provoking exposure and preserve only clearly tolerated activity."
+      ],
+      "alternatives": [
+        "Use nonprovocative training",
+        "Document symptom timeline and training context for the clinician",
+        "Pause impact loading when function is deteriorating"
+      ],
+      "do_not_apply_when": [
+        "Minor, clearly improving soreness with normal function and a known benign cause may be monitored; still use uncertainty language."
+      ],
+      "rationale": "PTT symptoms span conditions from local tendinopathy to dysfunction/PCFD and other diagnoses; trials do not supply a universal self-management boundary.",
+      "evidence_ids": [
+        "E-PTT-01",
+        "E-PTT-02",
+        "E-PTT-04"
+      ],
+      "source_ids": [
+        "S028",
+        "S029",
+        "S030",
+        "S032"
+      ],
+      "evidence_certainty": "High for diagnostic boundary; low for exact escalation timing",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Clinical-safety principle; no numeric cutoff",
+      "calibration_needed": "A clinician may define individualized pain/function criteria and loading.",
+      "uncertainty": "The package cannot list every red flag or replace examination.",
+      "review_triggers": [
+        "Worsening walking tolerance",
+        "New weakness, swelling, shape change, or acute trauma",
+        "Night/rest pain or systemic symptoms",
+        "Repeated inability to progress"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "S001",
+      "title": "No effect of a graded training program on the number of running-related injuries in novice runners",
+      "year": 2008,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/17940147/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S002",
+      "title": "The Association Between Running Injuries and Training Parameters: A Systematic Review",
+      "year": 2022,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/34478518/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S003",
+      "title": "How much running is too much? Identifying high-risk running sessions in a 5200-person cohort study",
+      "year": 2025,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/40623829/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S006",
+      "title": "International Olympic Committee consensus statement on acute respiratory illness in athletes part 1: acute respiratory infections",
+      "year": 2022,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/35863871/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S007",
+      "title": "Acute respiratory illness and return to sport: a systematic review and meta-analysis",
+      "year": 2022,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/34789459/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S008",
+      "title": "Factors associated with return-to-sport outcomes following pathogen-confirmed acute respiratory infections in athletes: AWARE X study",
+      "year": 2026,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42321006/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S009",
+      "title": "Does polarized training improve performance in recreational runners?",
+      "year": 2014,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/23752040/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S010",
+      "title": "Which Training Intensity Distribution Intervention will Produce the Greatest Improvements in Maximal Oxygen Uptake and Time-Trial Performance in Endurance Athletes?",
+      "year": 2025,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/39888556/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S012",
+      "title": "Quantifying training intensity distribution in elite endurance athletes: is there evidence for an optimal distribution?",
+      "year": 2006,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/16430681/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S013",
+      "title": "Quantifying the Training-Intensity Distribution in Middle-Distance Runners: The Influence of Different Methods of Training-Intensity Quantification",
+      "year": 2019,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/31188692/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S017",
+      "title": "Effects of Two High-intensity Interval Training Concepts in Recreational Runners",
+      "year": 2019,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/31378863/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S018",
+      "title": "Effects of three different high-intensity interval training protocols on VO2max and 3000-m performance",
+      "year": 2023,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36314990/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S019",
+      "title": "Comparative effects of high-intensity, sprint-interval, and repeated-sprint training on VO2max",
+      "year": 2025,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/40605061/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S020",
+      "title": "Training for a (half-)marathon: Training volume and longest endurance run related to performance and running injuries",
+      "year": 2020,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/32421886/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S022",
+      "title": "Effectiveness of cycle cross-training between competitive seasons in female distance runners",
+      "year": 2003,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/12741870/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S023",
+      "title": "Cross-training between running and cycling: effects on VO2max and running performance—a systematic review and meta-analysis",
+      "year": 2026,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42267259/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S024",
+      "title": "Compatibility of Concurrent Aerobic and Strength Training for Skeletal Muscle Size and Function",
+      "year": 2022,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/34757594/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S025",
+      "title": "Effect of Strength Training Programs in Middle- and Long-Distance Runners' Economy at Different Running Speeds",
+      "year": 2024,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38165636/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S028",
+      "title": "Exercise for posterior tibial tendon dysfunction",
+      "year": 2018,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/30271611/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S029",
+      "title": "Nonsurgical management of posterior tibial tendon dysfunction with orthoses and resistive exercise",
+      "year": 2009,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/19022863/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S030",
+      "title": "Randomized Controlled Trial Comparing Orthosis Augmented by Either Stretching or Stretching and Strengthening for Stage II Tibialis Posterior Tendon Dysfunction",
+      "year": 2015,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/25857939/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S032",
+      "title": "Classification and Nomenclature: Progressive Collapsing Foot Deformity",
+      "year": 2020,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/32856474/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S034",
+      "title": "Continued sports activity, using a pain-monitoring model, during rehabilitation in patients with Achilles tendinopathy",
+      "year": 2007,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/17307888/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S037",
+      "title": "Sleep and the athlete: narrative review and 2021 expert consensus recommendations",
+      "year": 2021,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/33144349/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S038",
+      "title": "Effects of acute sleep loss on physical performance",
+      "year": 2022,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36472094/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S039",
+      "title": "Heart Rate Variability-Guided Training for Enhancing Cardiac-Vagal Modulation, Aerobic Fitness, and Endurance Performance",
+      "year": 2021,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/34639599/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S040",
+      "title": "Individual Endurance Training Prescription with Heart Rate Variability",
+      "year": 2016,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/26909534/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S041",
+      "title": "Individually guided training prescription by heart rate variability and self-reported measure of stress tolerance in recreational runners",
+      "year": 2022,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36940300/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S042",
+      "title": "Performance and Physiological Effects of Race Pace-Based Versus Heart Rate Variability-Guided Training Prescription in Runners",
+      "year": 2025,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/39935030/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S043",
+      "title": "Readiness for Training in Athletes: A Systematic Review",
+      "year": 2026,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42926133/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S044",
+      "title": "Validity of the Garmin Forerunner 265 to predict VO2max and race performance times",
+      "year": 2026,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42822520/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S045",
+      "title": "A Validation of Six Wearable Devices for Estimating Sleep, Heart Rate and Heart Rate Variability in Healthy Adults",
+      "year": 2022,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36016077/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S046",
+      "title": "Validation of nocturnal resting heart rate and heart rate variability in consumer wearables",
+      "year": 2025,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/40834291/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S047",
+      "title": "Accuracy of the Garmin Forerunner 235 for the assessment of heart rate during rest and activity",
+      "year": 2019,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/30326780/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S048",
+      "title": "Garmin Training Readiness support documentation",
+      "year": 2026,
+      "url": "https://support.garmin.com/en-US/?faq=hsKqNlQksk0Q6ZfQJvWzH7",
+      "access_level": "manufacturer documentation; feature description only"
+    },
+    {
+      "source_id": "S049",
+      "title": "Session-RPE Method for Training Load Monitoring: Validity, Ecological Usefulness, and Influencing Factors",
+      "year": 2017,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/29163016/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S050",
+      "title": "Internal-external workload decoupling and recreational marathon performance",
+      "year": 2022,
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9388405/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S051",
+      "title": "Effects of environmental heat and humidity on physiological response and endurance performance",
+      "year": 2023,
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10103870/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S052",
+      "title": "2023 International Olympic Committee consensus statement on Relative Energy Deficiency in Sport",
+      "year": 2023,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/37752011/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S053",
+      "title": "Nutrition and Athletic Performance",
+      "year": 2016,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/26891166/",
+      "access_level": "abstract verified"
+    },
+    {
+      "source_id": "S054",
+      "title": "Protein supplementation and resistance training-induced gains in muscle mass and strength",
+      "year": 2018,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/28698222/",
+      "access_level": "full text verified"
+    },
+    {
+      "source_id": "S055",
+      "title": "Low Energy Availability and Relative Energy Deficiency in Sport: A Systematic Review and Meta-analysis",
+      "year": 2024,
+      "url": "https://pubmed.ncbi.nlm.nih.gov/39485653/",
+      "access_level": "abstract verified"
+    }
+  ]
+}

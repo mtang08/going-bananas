@@ -12,7 +12,7 @@ try {
   await page.goto('http://127.0.0.1:8000')
   await page.getByText('REAL DATA', { exact: true }).first().waitFor()
   await page.getByRole('heading', { name: 'Your training, in context.' }).waitFor()
-  await page.getByText(/Strong history is not connected|Strong history not connected|Strong not connected/i).first().waitFor()
+  await page.getByText(/Strong export connected|Strong export is included/i).first().waitFor()
   await mkdir(resolve('private/real'), { recursive: true })
   await page.screenshot({ path: resolve('private/real/dashboard.png'), fullPage: true })
   for (const name of ['History', 'Cycle', 'Data & settings']) {
@@ -20,6 +20,14 @@ try {
     await page.waitForTimeout(250)
     console.log(`${name}: real-data view loaded`)
   }
+  await page.locator('nav').getByRole('button', { name: 'Coach', exact: true }).click()
+  await page.getByRole('heading', { name: 'Train with context.' }).waitFor()
+  await page.getByRole('button', { name: 'Generate daily guidance' }).waitFor()
+  await page.screenshot({ path: resolve('private/real/coach-readonly.png'), fullPage: true })
+  await page.locator('nav').getByRole('button', { name: 'Strength', exact: true }).click()
+  await page.getByRole('heading', { name: 'Strength history.' }).waitFor()
+  await page.getByText(/recorded workouts in/).first().waitFor()
+  await page.screenshot({ path: resolve('private/real/strength-readonly.png'), fullPage: true })
   if (process.argv.includes('--export')) {
     await page.getByRole('heading', { name: 'Historical imports' }).waitFor()
     await page.getByText('Garmin export', { exact: true }).first().waitFor()
@@ -36,8 +44,17 @@ try {
     console.log('Imported prior-year history and import coverage rendered successfully')
   }
   await page.setViewportSize({ width: 390, height: 844 })
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
-  if (overflow) throw new Error('Mobile horizontal overflow')
+  for (const name of ['Strength', 'Coach']) {
+    if(name==='Coach'){
+      await page.getByRole('button', { name: 'Open menu' }).click()
+      await page.locator('nav').getByRole('button', { name, exact: true }).click()
+      await page.getByRole('heading', { name: 'Train with context.' }).waitFor()
+      await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector('.sidebar')).left) <= -230)
+    }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
+    if (overflow) throw new Error(`${name} mobile horizontal overflow`)
+    await page.screenshot({ path: resolve(`private/real/${name.toLowerCase()}-mobile-readonly.png`), fullPage: true })
+  }
   if (errors.length) throw new Error(`Browser errors: ${errors.length}`)
   console.log('Production real-data browser smoke passed; no personal data was changed.')
 } finally {

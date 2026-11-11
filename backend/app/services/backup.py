@@ -42,7 +42,7 @@ def _run(argv: list[str], env: dict[str, str]) -> None:
 
 def _safe_files(private_dir: Path) -> list[Path]:
     files: list[Path] = []
-    for root_name in ("raw", "profile", "config"):
+    for root_name in ("raw", "profile", "config", "research-imports"):
         root = private_dir / root_name
         if not root.exists():
             continue

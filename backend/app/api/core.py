@@ -43,7 +43,9 @@ from app.models import (
     RecoveryObservation,
     WeeklySnapshot,
 )
+from app.services.strength_history import recent_strong_context, strong_history
 from app.services.sync import detect_import_conflicts_for_manual
+from app.strong_models import StrongWorkoutRow
 
 router = APIRouter()
 
@@ -101,6 +103,15 @@ def strength_coverage(session: Session, start: date, end: date) -> dict:
     imported_count = session.scalar(select(func.count()).select_from(Activity).where(
         Activity.sport == 'strength', Activity.start_at >= lo, Activity.start_at < hi,
         Activity.resolution_state == 'resolved')) or 0
+    strong = strong_history(session, start, end)
+    latest_strong = session.scalar(select(func.max(StrongWorkoutRow.local_date)))
+    if latest_strong is not None:
+        return {'source': 'strong', 'status': 'partial', 'reason': 'strong_export_snapshot',
+                'complete': False, 'observed_manual_count': manual_count,
+                'observed_imported_count': imported_count + strong['session_count'],
+                'observed_strong_count': strong['session_count'],
+                'latest_observation': latest_strong,
+                'message': 'Strong export connected; later workouts require another CSV import. Missing recordings do not mean missed lifting.'}
     if source == 'strong':
         return {'source': 'strong', 'status': 'unavailable', 'reason': 'strong_not_connected',
                 'complete': False, 'observed_manual_count': manual_count,
@@ -148,6 +159,11 @@ def facts(session: Session, start: date, end: date) -> list[ActivityFact]:
         start_at = datetime.combine(m.date, m.time or datetime.min.time(), zone).astimezone(UTC)
         result.append(ActivityFact(id=str(m.id), local_date=m.date, start_at=start_at, sport=m.kind,
                                    elapsed_s=m.duration_s))
+    for item in strong_history(session, start, end)['sessions']:
+        local_start = datetime.fromisoformat(item['local_start']).replace(tzinfo=zone)
+        result.append(ActivityFact(id=item['id'], local_date=date.fromisoformat(item['date']),
+                                   start_at=local_start.astimezone(UTC), sport='strength',
+                                   elapsed_s=item['duration_s']))
     return result
 
 
@@ -851,18 +867,28 @@ def get_context(as_of: date | None = None, include_notes: bool = False,
                               'workout_label': 'unknown', 'resolution_state': 'resolved', 'source': 'manual',
                               'linked_activity_id': m.linked_activity_id}
                              for m in manual_rows if m.linked_activity_id is None)
+    recent_activities.extend({'id': item['id'], 'local_date': item['date'],
+                              'start_at': datetime.fromisoformat(item['local_start']).replace(tzinfo=ZoneInfo(tz(session))),
+                              'sport': 'strength', 'distance_m': None, 'elapsed_s': item['duration_s'],
+                              'moving_s': None, 'workout_label': 'unknown', 'resolution_state': 'resolved',
+                              'source': 'strong_csv', 'timestamp_quality': 'timezone_assumed_from_profile'}
+                             for item in strong_history(session, today-timedelta(days=13), today)['sessions'])
+    prior_plans = session.scalars(select(PlanVersion).where(PlanVersion.status == 'accepted',
+                     PlanVersion.end_date >= today-timedelta(days=13), PlanVersion.start_date <= today)).all()
     out = {'context_version': 'coach_context.v1', 'generated_at': datetime.now(UTC),
            'as_of': today, 'timezone': tz(session), 'data_revision': get_revision(session),
            'profile_version': profile.version if profile else 0,
            'plan_version': latest_plan.version if latest_plan else 0,
            'profile': profile_data(profile), 'last_14_days': summary(recent, today, 14),
            'strength_coverage': strength_coverage(session, today-timedelta(days=13), today),
+           'strength_history': recent_strong_context(session, today),
            'prior_12_weeks': weeks,
            'recent_activities': recent_activities,
            'recent_manual_sessions': [manual_data(m) for m in manual_rows],
            'recovery': recovery_data,
            'recent_checkins': [checkin_data(session, c) for c in checkins],
            'next_14_days_plan': [plan_data(session, p) for p in accepted],
+           'recent_14_days_plan': [plan_data(session, p) for p in prior_plans],
            'conflicts': [{'id': c.id, 'kind': c.kind, 'status': c.status} for c in
                          session.scalars(select(Conflict).where(Conflict.status == 'open').limit(100)).all()],
            'omitted': ['coordinates','raw_payloads','credentials'], 'metric_version': 'analytics.v1'}

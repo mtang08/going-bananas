@@ -1,63 +1,58 @@
-# Current handoff
+# Current handoff — Strong and local coaching MVP
 
-Updated 2026-11-10. The local analytics MVP is implemented. Use README.md for
-operation and `release-checklist.md` for executed evidence and limitations.
-No remote repository or deployment has been created.
+Updated November 10, 2026 (November 11 UTC). The local release is implemented
+and verified; see [release checklist](release-checklist.md) for executed evidence
+and [README](../README.md) for tomorrow's user flow. No remote or deployment is
+configured.
 
 ## State
 
-- React/TypeScript/Vite frontend; Python/FastAPI; PostgreSQL only.
-- Real Garmin Personal API activity/sleep/HRV/resting HR ingestion is configured
-  privately. Initial 28-date import and repeated import verified. No secrets in
-  source or frontend; raw files remain private and immutable.
-- The inspected Garmin account ZIP is imported: 179 activities (163 runs),
-  1,282 recovery observations, history beginning September 2025. Original ZIP
-  and selected source bytes are preserved privately. API overlap wins; replay
-  creates no changes. History supports custom date windows and Settings shows
-  import counts and observed coverage. Unsupported archive categories stay raw.
-- Overview/history/recovery charts, quick editable check-ins, temporal symptom
-  associations, manual sessions, cycle drafts/acceptance/completion, conflict
-  review, manual sync, and factual weekly summaries are implemented.
-- Real calendar anchor and alternate strength mapping are unconfirmed. Keep
-  real dates unscheduled until confirmed; never import synthetic profile setup.
-- Lifting is tracked in Strong (confirmed 2026-11-10). Future separate CSV source,
-  no parser/export now. All strength totals represent recorded sessions with
-  incomplete history; absence does not mean missed lifting.
-- Context export is local, versioned, and privacy-filtered. No runtime agent,
-  research-derived prescriptions, readiness rule engine, or model calls.
-- Demo/test/real databases and private directories are separated. E2E mutates
-  demo only; integration tests require `_test` database targets.
-- Sync has persistent checkpoints, independent dataset state, bounded retries,
-  dedicated-connection locking, startup catch-up, and a local daily 08:30 schedule.
-- Backup/restore verified into a new target. Latest local private release backup
-  is under `private/real/backups/`; do not commit or print its contents.
+- React/TypeScript/Vite frontend, FastAPI/Python 3.12, PostgreSQL 17. Local
+  real app runs on 127.0.0.1:8000. Test/demo/real databases and private roots
+  are separate. Migrations are at `0007_coaching_selection`.
+- Garmin API plus inspected account export provide 179 activities (163 runs)
+  and 1,282 recovery observations. Export coverage is partial; unsupported
+  fields remain raw. Existing profile/Garmin/user rows matched the pre-change
+  backup exactly after this extension.
+- The inspected Strong CSV is imported: 512 workouts, 8,168 sets, 118 unknown
+  normalized durations. Original bytes/source rows are preserved privately.
+  Historical sets remain exact. Source timezone, weight unit, and dumbbell
+  convention transition are unknown. The past 18 calendar months only enter
+  running context; older workouts remain browsable. Same-day cross-source
+  candidates are withheld from combined counts pending review.
+- The reviewed research corpus is tracked under `running_coach_kb/`; private
+  originals and dated athlete context stay under `private/real/research-imports/`.
+  Loader checks hashes and selects guide → workflow → topic prose/policies.
+- Coach explicitly generates daily or weekly local evidence-guided options,
+  stores input snapshots and source references, marks stale advice, and records
+  append-only outcome events. No external model call or plan mutation. The
+  flow has conservative branches and known depth gaps; read the release
+  checklist and `research-integration.md` before extending its claims.
+- The real run-cycle anchor and alternate strength mapping are unconfirmed.
+  No symptom check-in, plan, or outcome was fabricated in real data. The user
+  can check in, confirm schedule when known, generate tomorrow's option, and
+  record their response.
 
-## Verification
+## Verification and operations
 
-27 domain/config/ingestion tests, 16 PostgreSQL integration tests, 7 frontend
-component tests, and 4 Chrome E2E tests pass. Lint, type checks, production build,
-clean migrations, source comparisons, read-only real browser smoke, and backup
-checks passed. A separate Sol-medium review led to corrections before release.
-Check the release checklist rather than inferring all planned V cases were run.
+`make check`, `make test-integration`, and six demo browser tests pass. The
+production real app passed 18 read-only API GETs, foreign-origin rejection,
+and desktop/mobile Coach/Strength browser smoke. A post-change backup was
+restored to a new isolated target; eleven table counts, new table row content,
+raw checksums, and research original files match. The previous backup was
+restored separately to prove old user/Garmin rows unchanged. Backups and
+screenshots are ignored/private. Local daily Garmin sync remains at 08:30.
 
-One Garmin sleep record lacks an owner ID and is retained/reported partial.
-Do not hide that status or replace missing values with zeros. Provider history
-limits, rate quotas, pricing, and exact date boundary semantics remain qualified
-in the capability inventory. Future source parser work requires actual samples.
+Run `make doctor`, `make db-start`, `make migrate`, `make build`, `make start`
+from repo root to restart. `make start` uses the protected `.env`. Do not print
+keys, import synthetic demo state into real, or overwrite an existing restore
+DB. See [operations](operations.md) for mode/restore details.
 
-## Next phase
+## Next work
 
-The user will inspect the MVP. Address observed issues without expanding into
-coaching. Later integrate `running_coach_kb/` by guide → relevant workflow →
-relevant topic sections/policies. Preserve research prose, applicability,
-uncertainty, and source context separately from dated profile and live data.
-Use the KB's evaluation cases before activating substantive recommendations.
-Keep meaningful twice-weekly strength alongside running, without invented lifting
-or calorie targets. See `backlog.md` for deferred sources and product work.
-
-## Collaboration
-
-The user authorized Sol medium subagents, parallel implementation with coordinated
-interfaces, sparse independent reviews, and direct commits to main. No additional
-athlete input is needed for reversible development. Never request or print key
-contents. Do not alter their Strong workflow or silently fill scheduling unknowns.
+Exercise all 15 supplied behavioral cases through runtime, improve delayed
+symptom and previous-period metrics, and calibrate progression/strength
+placement only with current user responses and confirmed scheduling. Keep
+Strong as the workout workflow, every-other-day running intent, and meaningful
+twice-weekly full-body strength. No invented lifting equivalence or calorie
+logging target. See [backlog](backlog.md).
