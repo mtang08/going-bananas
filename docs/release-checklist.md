@@ -118,3 +118,30 @@ run/strength dose and placement, calibrated favorable progression, full delayed
 multi-day symptom assessment, previous-period trend comparison, and the complete
 15-case behavioral suite. Missing symptoms and an unconfirmed real cycle are
 user inputs for better advice, not development blockers.
+
+# Recurring schedule and historical run labels — November 11, 2026
+
+This extension keeps Coach as a **local rule flow**. Recurrence and historical
+run labels are deterministic and use no model tokens. A future daily skill
+invocation and weekly recap/next-one-to-two-week planning agent would need
+separate implementation, evaluation, privacy, and cost controls; that agent
+architecture is not active in this release.
+
+| Check | Executed result |
+| --- | --- |
+| Migration | `0008_strength_schedule` applied to test, demo, and real; `alembic check` found no pending operations in each. Existing profile versions received safe default fields; no run anchor inferred. |
+| Backend/frontend | `make check` passes Ruff, mypy on 33 source files, 58 backend tests, frontend lint/types, 17 component tests, and production build. `make test-integration` passes 24 PostgreSQL tests, including recurrence and classifier API behavior. |
+| Demo browser | Eight Playwright tests pass, including Week A/B recurrence across January 2027, required/optional mobility, Coach weekly dates, unknown classifier detail, and dated plan behavior. |
+| Real profile | User-confirmed pattern saved via optimistic API from version 2 to 3. Week A Monday reference is Nov 9, 2026: strength Mon/Fri, required gym mobility Wed. Week B: strength Tue/Sat, required gym mobility Thu. Sunday mobility is optional both weeks. Weekend long-run preference `[5,6]` saved. Existing facts, preferences, unknown run anchor, and other fields preserved. No real check-in, plan, or feedback invented. |
+| Real projection | `/plans`, analytics context, and Coach context agree on Week A/B dated slots. Projection begins at profile effective date; past dates incur no completion debt. Accepted dated plans suppress recurring slots over their covered range. |
+| Run labels | Read-only real aggregate over 164 runs: 51 easy, 12 quality, 30 weekend-long, 71 unknown. Manual labels outrank source labels and heuristics. Classifier uses only preceding 12-week summaries, with no HR-zone, intrarun drift, interval, route, or weather inference. |
+| Current source counts | 180 Garmin activities, 164 runs, 1,282 recovery observations. One run arrived through the existing scheduled sync after the prior release; no manual reimport was performed. |
+| Real smoke | Production API readiness and 18 GET endpoints pass; foreign-origin mutation rejected. Read-only browser verified saved settings, recurring calendar, classifier detail, Coach/Strength, and mobile overflow; screenshots private. |
+| Backup/restore | Pre-configuration private backup saved. Post-configuration archive at 05:20:21 UTC contains 1,585 files; a NEW isolated database/private directory restore matches 11 table counts, full profile and Strong/coaching table contents, 1,577 raw checksums, and six original research files. |
+| Privacy | Candidate tracked files scanned for raw athlete exports/snapshot, private artifacts, and configured secret values before commit. |
+
+The classifier suggests historical labels; it does not establish intended
+workout type or physiological intensity. Future run placement in Coach remains
+conditional on a user-confirmed run-cycle anchor and current symptoms. The
+running anchor is still unknown. The 15 research behavioral cases remain
+partially exercised, as described in the previous release section.

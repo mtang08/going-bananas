@@ -30,7 +30,7 @@ Explicit real-mode backup and restore (replace the archive path and new target):
 ```
 
 For this release, `scripts/verify-restore.py --database NEW_NAME_test --private-dir
-NEW_PRIVATE_DIR` compares source and restored table counts, Strong/coaching row
+NEW_PRIVATE_DIR` compares source and restored table counts, full profile/Strong/coaching row
 contents, raw checksums, and private research originals. Run it in real mode.
 The restore refuses existing database/directory targets and verifies archive
 paths/checksums before use. It derives database connection credentials from the
@@ -81,9 +81,15 @@ inspect the app's dataset status and coverage.
   and delayed retry timestamps. Failed jobs can be explicitly re-requested.
 - Missing lifting: inspect the Strong import date/coverage and unresolved overlaps.
   A snapshot gap does not establish skipped lifting.
-- Unknown real cycle: configure a confirmed anchor and strength schedule before
-  accepting a dated plan. Coach can still show provisional options. No
-  fitness/race/rehab assumptions are filled in.
+- Recurring strength setup: enter the weekly pair or Week A/B rotation once in
+  Data & settings. Confirm the Week A Monday reference, required mobility, and
+  optional mobility separately. The app uses this dated pattern for calendar
+  and Coach context. Accepted dated plans override recurrence on covered dates.
+- Unknown run cycle: confirm the anchor when known. Coach can still show
+  provisional options without it; no fitness/race/rehab assumptions are filled in.
+- Historical run label seems wrong: open the activity detail and save a
+  manual label. The relative suggestion is provisional; missing data remains
+  unknown. No per-activity model call is used.
 - Coach advice appears stale: generate again after check-in, plan, source, or
   research changes; tomorrow previews need a fresh day-of review. Recording an
   outcome does not alter the accepted manual plan.

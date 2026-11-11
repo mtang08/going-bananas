@@ -57,14 +57,22 @@ def _current_checkin(context: dict, as_of: date) -> tuple[dict | None, bool]:
     return row, bool(row and _instant(row["observed_at"]).astimezone(zone).date() == as_of)
 
 
-def _planned(context: dict, as_of: date) -> dict | None:
+def _planned_sessions(context: dict, as_of: date) -> list[dict]:
     plans = context.get("next_14_days_plan", [])
     plans = sorted(plans, key=lambda p: (str(p.get("decided_at") or ""), p.get("version", 0)), reverse=True)
     for plan in plans:
-        for session in plan.get("sessions", []):
-            if _date(session["date"]) == as_of:
-                return session
-    return None
+        dates = [_date(s["date"]) for s in plan.get("sessions", [])]
+        first = _date(plan["start_date"]) if plan.get("start_date") else min(dates, default=None)
+        last = _date(plan["end_date"]) if plan.get("end_date") else max(dates, default=None)
+        if first is not None and last is not None and first <= as_of <= last:
+            return [{**session, "source": "accepted_plan", "optional": False}
+                    for session in plan.get("sessions", []) if _date(session["date"]) == as_of]
+    slots = [s for s in context.get("recurring_sessions", []) if _date(s["date"]) == as_of]
+    if _run_day(context, as_of):
+        intent = run_intent(context, as_of)
+        slots.insert(0, {"date": as_of.isoformat(), "kind": "run", "source": "run_cycle", "optional": False,
+                         "intent": intent, "conditional": intent in {"quality", "long"}})
+    return slots
 
 
 def _run_day(context: dict, as_of: date) -> bool | None:
@@ -72,6 +80,29 @@ def _run_day(context: dict, as_of: date) -> bool | None:
     if not profile.get("anchor_confirmed") or not profile.get("cycle_anchor"):
         return None
     return (as_of - _date(profile["cycle_anchor"])).days % 2 == 0
+
+
+def run_intent(context: dict, day: date) -> str:
+    """Place candidates on the continuous run cycle; no training dose or clearance."""
+    profile = context.get("profile", {})
+    preferred_long_days = profile.get("preferences", {}).get("long_run_weekdays", [5, 6])
+    if not isinstance(preferred_long_days, (list, tuple)) or not preferred_long_days or any(
+        not isinstance(value, int) or value not in {5, 6} for value in preferred_long_days
+    ):
+        preferred_long_days = [5, 6]
+    if day.weekday() in preferred_long_days and day.weekday() in {5, 6}:
+        return "long"
+    monday = day - timedelta(days=day.weekday())
+    mode = profile.get("strength_schedule_mode", "weekly")
+    if mode == "alternating" and profile.get("strength_week_a_start"):
+        week_a = _date(profile["strength_week_a_start"])
+        week_number = (monday - week_a).days // 7
+        strength_days = profile.get("strength_week_a_days" if week_number % 2 == 0 else "strength_week_b_days", [])
+    else:
+        strength_days = profile.get("scheduled_strength_days", [])
+    candidates = [monday + timedelta(days=d) for d in (2, 3, 1)
+                  if d not in strength_days and _run_day(context, monday + timedelta(days=d))]
+    return "quality" if candidates and day == candidates[0] else "easy"
 
 
 def _session(mode: str, purpose: str, structure: str, intensity: str, terrain: str | None = None) -> dict:
@@ -98,14 +129,21 @@ def daily(context: dict, as_of: date, supplemental: dict, *, today: date) -> dic
             and a.get("sport") in {"running", "trail_running", "treadmill_running", "strength"}
         ):
             same_day = False
-    planned = _planned(context, as_of)
+    planned_sessions = _planned_sessions(context, as_of)
+    planned = next((s for s in planned_sessions if s["kind"] == "run"), None)
+    if planned is None:
+        planned = next((s for s in planned_sessions if s["kind"] == "strength"), None)
+    if planned is None:
+        planned = next((s for s in planned_sessions if not s.get("optional")), None)
+    if planned is None:
+        planned = planned_sessions[0] if planned_sessions else None
     run_day = _run_day(context, as_of)
     kind = (
         planned["kind"]
         if planned
-        else ("run" if run_day else "strength_or_mobility" if run_day is False else "unscheduled")
+        else "unscheduled"
     )
-    target = planned.get("target") or {} if planned else {}
+    target = (planned.get("target") or {"intent": planned.get("intent")}) if planned else {}
     intent = str(
         target.get("intent") or target.get("workout_label") or target.get("type") or ("easy" if kind == "run" else kind)
     ).lower()
@@ -137,17 +175,28 @@ def daily(context: dict, as_of: date, supplemental: dict, *, today: date) -> dic
     if not context.get("recovery", {}).get("series", {}).get("hrv"):
         missing.append("HRV unavailable; no recovery state inferred from it.")
     if not planned:
-        missing.append("No accepted session for this date; session is provisional.")
+        missing.append("No confirmed recurring or accepted session for this date; session is provisional.")
+    elif planned.get("source") == "run_cycle":
+        missing.append("Run-cycle opportunity has no dated workout details; use only a familiar, previously tolerated structure.")
     ids: list[str] = ["P001"] if missing else []
     decision = "proceed"
     reason = "Keep the planned exposure familiar and check effort and symptoms during warm-up."
     change_plan = "None; no plan edit is made."
     if kind == "run":
+        if intent == "quality":
+            structure = "Use a familiar, previously tolerated quality structure; do not add new intervals or pace targets."
+            intensity = "Controlled familiar effort, with normal movement quality; stop if symptoms worsen."
+        elif intent == "long":
+            structure = "Use a familiar, previously tolerated long-run duration; do not extend it based on this suggestion."
+            intensity = "Conversational easy effort; use perceived effort rather than a derived pace or heart-rate zone."
+        else:
+            structure = "Use the accepted plan structure if present; otherwise choose a familiar, previously tolerated easy duration."
+            intensity = "Conversational easy effort; use perceived effort rather than a derived pace or heart-rate zone."
         proposed = _session(
             "run",
             f"{intent} aerobic session",
-            "Use the accepted plan structure if present; otherwise choose a familiar, previously tolerated easy duration.",
-            "Conversational easy effort; use perceived effort rather than a derived pace or heart-rate zone.",
+            structure,
+            intensity,
             "Familiar, even terrain",
         )
         fallback = _session(
@@ -263,10 +312,12 @@ def daily(context: dict, as_of: date, supplemental: dict, *, today: date) -> dic
             proposed = _session("easy_or_rest", "Preserve movement quality", "Short familiar easy run only if gait normalizes; otherwise rest or tolerated low-impact work.", "Easy, no pace target.")
         else:
             proposed = _session("rest", "Preserve movement quality", "Rest and reassess before choosing any activity.", "No exercise target.")
-    elif kind == "run" and intent in {"quality", "long"} and (feeling == "tired" or symptoms == "mild" or not same_day):
+    elif kind == "run" and intent in {"quality", "long"} and (
+        feeling == "tired" or symptoms == "mild" or not same_day
+    ):
         decision, reason, ids = (
             "modify",
-            "A demanding run needs a current symptom and fatigue check; use an easy fallback today.",
+            "A demanding run needs reassuring current symptoms and fatigue; use an easy fallback today.",
             ["P001"],
         )
         proposed = _session(
@@ -328,6 +379,19 @@ def daily(context: dict, as_of: date, supplemental: dict, *, today: date) -> dic
             "Check current symptoms, walking, illness, and restrictions first; then use the familiar planned session or rest.",
             "Comfortable, symptom-limited effort.",
         )
+    additional_guidance = []
+    for commitment in planned_sessions:
+        if commitment is planned:
+            continue
+        if decision == "seek_clinical_input":
+            advice = "Defer this commitment until current symptoms and restrictions are clarified."
+        elif commitment.get("optional"):
+            advice = "Optional mobility may be skipped; use only comfortable, non-provocative movement."
+        elif decision == "modify":
+            advice = "Keep this commitment only if the current check and warm-up are reassuring; otherwise defer or use a comfortable modification."
+        else:
+            advice = "Use the familiar session at comfortable effort; monitor movement and symptoms."
+        additional_guidance.append({"kind": commitment["kind"], "optional": bool(commitment.get("optional")), "guidance": advice})
     ids = list(dict.fromkeys(ids))
     return {
         "decision": decision,
@@ -335,8 +399,10 @@ def daily(context: dict, as_of: date, supplemental: dict, *, today: date) -> dic
             "kind": kind,
             "intent": intent,
             "target": target,
-            "id": str(planned["id"]) if planned else None,
+            "id": str(planned["id"]) if planned and planned.get("id") else None,
         },
+        "planned_sessions": planned_sessions,
+        "additional_session_guidance": additional_guidance,
         "proposed_session": proposed,
         "alternative": fallback,
         "change_from_plan": change_plan if decision == "proceed" else reason,
@@ -362,6 +428,14 @@ def daily(context: dict, as_of: date, supplemental: dict, *, today: date) -> dic
 
 def weekly(context: dict, as_of: date) -> dict:
     start = as_of - timedelta(days=13)
+    dated_sessions = [
+        {"date": day.isoformat(), "kind": slot["kind"], "source": slot.get("source", "accepted_plan"),
+         "optional": bool(slot.get("optional")), "intent": slot.get("intent") or (slot.get("target") or {}).get("intent"),
+         "conditional": bool(slot.get("conditional"))}
+        for offset in range(14)
+        for day in [as_of + timedelta(days=offset)]
+        for slot in _planned_sessions(context, day)
+    ]
     rows = [a for a in context.get("recent_activities", []) if start <= _date(a["local_date"]) <= as_of]
     runs = [a for a in rows if a.get("sport") in {"running", "trail_running", "treadmill_running"}]
     strengths = [a for a in rows if a.get("sport") == "strength"]
@@ -463,6 +537,7 @@ def weekly(context: dict, as_of: date) -> dict:
         or ["No explicit recommendation outcome was recorded in this period."],
         "next_cycle_proposal": {
             "primary_target": target,
+            "dated_sessions": dated_sessions,
             "sessions_or_placement_principles": [
                 "Keep every-other-day running on the continuous cycle; confirm its anchor before assigning exact dates.",
                 "Keep one quality and one long-run intent weekly only when symptoms and recovery support them.",

@@ -16,15 +16,25 @@ schedule details remain unknown and make guidance provisional.
 
 1. Open **http://127.0.0.1:8000** and record a current check-in. Report any
    illness, tendon/function change, or clinician restriction accurately in Coach.
-2. Confirm your run-cycle anchor and strength schedule in Cycle setup if you
-   know them. The app will not infer them from old activities; you can still
-   generate provisional guidance without them.
+2. Review the saved alternating strength and mobility pattern in Data &
+   settings. Week A starts Monday, November 9, 2026; it repeats with Week B
+   automatically. Confirm the run-cycle anchor when you know it. Guidance can
+   remain provisional while that anchor or current symptoms are unknown.
 3. In Coach, choose **Tomorrow**, review the inputs, and generate guidance.
    Check again on the day of training because conditions may change.
 4. Review the proposed session, alternative, uncertainty, and cited evidence.
    Accept or decline explicitly; acceptance does not modify your manual plan.
    Record completed/partial/skipped feedback afterward so the next review has
    your response.
+
+Historical runs receive a **programmatic, provisional** easy/quality/long
+suggestion only when enough earlier comparable runs support it. The rule uses
+relative whole-run distance, time, moving pace, and average heart rate over the
+preceding 12 weeks. A heuristic long suggestion is limited to weekends. Missing
+or conflicting data stays unknown; manual correction always wins. The app
+spends no model tokens on individual activity labels. The activity detail shows
+its short reason and limitations, including unmeasured route/weather and the
+absence of heart-rate series or interval analysis.
 
 Historical Strong sessions and exact recorded sets are in Strength. The app
 uses only the preceding **18 calendar months** of Strong sessions for current
@@ -157,13 +167,20 @@ feeling. Unreported days remain unknown. Detailed check-ins support corrections,
 effort, and notes. Associations show preceding sessions and elapsed time; they do
 not establish what caused symptoms.
 
-The real run-cycle anchor and alternate strength schedule remain unconfirmed.
-The UI therefore leaves the real calendar unassigned until you configure them.
-Manual drafts preserve every-other-day running and twice-weekly strength;
-acceptance is explicit. Actual off-cycle activities remain observations. Optional
-manual strength entries are available, but duplicate entry from Strong is not
-required. Replacing an accepted plan requires matching its entire date range;
-partial overlaps are rejected to preserve other accepted sessions.
+The alternating strength and mobility pattern is confirmed in the real
+profile: Week A full-body strength Monday/Friday and required gym mobility
+Wednesday; Week B full-body strength Tuesday/Saturday and required gym mobility
+Thursday. Sunday mobility is optional in both weeks. Week A begins Monday,
+November 9, 2026. Projection starts from the saved profile date, without
+creating retrospective completion debt. The run-cycle anchor remains unknown.
+The recurring pattern generates dated calendar context automatically; no new
+weekly plan entry is needed. An explicitly accepted dated plan takes precedence on its covered dates
+and serves as an exception to recurrence. Manual drafts remain available for
+those exceptions; acceptance is explicit. Actual off-cycle activities remain
+observations. Optional manual strength entries are available, but duplicate
+entry from Strong is not required. Replacing an accepted plan requires matching
+its entire date range; partial overlaps are rejected to preserve other accepted
+sessions.
 
 ## Verification
 

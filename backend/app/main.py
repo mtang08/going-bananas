@@ -82,7 +82,7 @@ def ready():
             session.execute(text('SELECT 1'))
             revision = get_revision(session)
             db_version = session.execute(text('SELECT version_num FROM alembic_version')).scalar_one_or_none()
-            if db_version != '0007_coaching_selection':
+            if db_version != '0008_strength_schedule':
                 raise RuntimeError('migration pending')
     except Exception:
         return JSONResponse(status_code=503, content={'schema_version':'v1','mode':settings.app_mode,

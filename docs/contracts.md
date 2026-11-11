@@ -129,7 +129,7 @@ readiness, training-load, or “safe progression” score.
 | Run count | Count canonical run sessions, including ones with missing distance; identify withheld duplicates separately |
 | Longest run | Maximum known elapsed duration among runs in selected window; show missing elapsed count and moving duration separately; no moving-time substitution |
 | Average pace per activity | moving seconds / (meters / 1000), if both positive and known; label moving pace; no arithmetic average of individual paces for aggregate pace |
-| Workout distribution | Manual label first, explicit verified source label second, otherwise unknown; counts and distance for easy/quality/long/other/unknown; label is not inferred intensity |
+| Workout distribution | Manual label first, explicit verified source label second, then a provisional programmatic historical suggestion if enough prior comparable runs support it; otherwise unknown. Counts for easy/quality/long/other/unknown; a suggestion is not confirmed intent or measured intensity |
 | Strength | Session count, known duration sum, unknown-duration count; no invented sets, tonnage, or equivalence to running miles |
 | Low-impact aerobic | Separate activity count/duration by verified/manual sport label; no conversion to run mileage |
 | Sleep | Source-defined main sleep duration assigned to documented sleep date; don't double-count naps; unavailable semantics remain unknown |
@@ -143,6 +143,26 @@ local dates, never assume every day has 24 hours. Recovery uses documented sourc
 calendar dates rather than blindly timezone-shifting a date-only field. Historical
 profile changes preserve the zone used for saved summaries. Calendar heatmaps
 distinguish zero, partial coverage, and no import.
+
+## Historical run-label suggestions
+
+`historical_relative_v1` is a read-only deterministic classifier. It uses only
+resolved earlier runs in the preceding 12 weeks; future sessions never enter a
+past baseline. It compares whole-run duration, distance, moving pace, and
+average heart rate with personal medians. At least six earlier runs are needed;
+HR and pace suggestions need their own comparable samples. A long suggestion
+requires weekend placement and substantially longer time and distance; average
+HR is a separate effort signal, not a long-run definition. An easy/quality
+suggestion requires agreeing relative HR and pace patterns. Missing or conflicting
+evidence stays `unknown`; the classifier does not invent `other` intent. Manual
+annotations outrank explicit source labels, which outrank suggestions. All
+suggestions have method, confidence, reasons, and metrics exposed in the activity
+API and can be corrected with the existing annotation endpoint.
+
+No model call is made per activity. Whole-run averages cannot measure HR drift,
+interval structure, HR zones, or purpose. Route, weather, effort, and sensor
+quality are unavailable; suggestions are provisional, not physiological
+readiness or a training prescription.
 
 ## Feedback and scheduling
 
@@ -164,6 +184,20 @@ duration. Display all plausible preceding runs and strength sessions; do not
 attribute a symptom to the most recent one. Support manually viewing/linking
 older sessions; never discard out-of-window feedback. Recompute on timestamp
 correction/re-import and mark saved summaries with older data revisions stale.
+
+Recurring strength setup is a versioned profile preference, entered once and
+reused for calendar and Coach context. It supports the same two full-body
+weekdays each week or alternating Week A/Week B pairs with a confirmed Week A
+Monday reference date. Required gym mobility and optional mobility have separate
+weekday fields; optional entries are suggestions, not completion obligations.
+Weeks change by local calendar Monday, independent of the run-cycle anchor.
+A recurrence slot is planned context, not an accepted dated plan or observed
+workout. An explicitly accepted dated plan takes precedence on every date it
+covers, including days where the recurring pattern would otherwise create a
+session. Coach and calendar should not double count recurrence and accepted
+exceptions. Profile edits create new versions and make prior advice stale;
+older facts and accepted plan history remain auditable. No schedule, weekday,
+run anchor, or completed workout is inferred from imported activities.
 
 For local date d and anchor a, run opportunity iff `(d-a).days % 2 == 0`.
 Fortnight index = floor((d-a).days / 14), slot = ((d-a).days mod 14) / 2 for

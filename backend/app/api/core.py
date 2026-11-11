@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from datetime import date as DateType
 from datetime import time as TimeType
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import bump_data_revision, get_revision, get_session
 from app.domain.analytics import (
+    RUN_SPORTS,
     ActivityFact,
     aggregate,
     pace_s_per_km,
@@ -25,7 +27,7 @@ from app.domain.analytics import (
     week_start,
 )
 from app.domain.associations import preceding_sessions
-from app.domain.cycle import opportunities, validate_acceptance
+from app.domain.cycle import opportunities, recurring_sessions, validate_acceptance
 from app.models import (
     Activity,
     ActivityAnnotation,
@@ -43,6 +45,8 @@ from app.models import (
     RecoveryObservation,
     WeeklySnapshot,
 )
+from app.services.coaching import run_intent
+from app.services.run_classification import RunObservation, classify_history
 from app.services.strength_history import recent_strong_context, strong_history
 from app.services.sync import detect_import_conflicts_for_manual
 from app.strong_models import StrongWorkoutRow
@@ -66,9 +70,15 @@ def profile_data(profile: ProfileVersion | None) -> dict:
     if profile is None:
         return {'version': 0, 'timezone': 'America/New_York', 'cycle_anchor': None,
                 'anchor_confirmed': False, 'strength_days_confirmed': False,
-                'scheduled_strength_days': [], 'facts': {}, 'preferences': {}, 'unknowns': []}
+                'scheduled_strength_days': [], 'strength_schedule_mode': 'weekly',
+                'strength_week_a_start': None, 'strength_week_a_days': [], 'strength_week_b_days': [],
+                'mobility_week_a_days': [], 'mobility_week_b_days': [], 'mobility_optional_days': [],
+                'facts': {}, 'preferences': {}, 'unknowns': []}
     return {key: getattr(profile, key) for key in ('version', 'timezone', 'cycle_anchor', 'anchor_confirmed',
-            'strength_days_confirmed', 'scheduled_strength_days', 'facts', 'preferences', 'unknowns')}
+            'strength_days_confirmed', 'scheduled_strength_days', 'strength_schedule_mode',
+            'strength_week_a_start', 'strength_week_a_days', 'strength_week_b_days',
+            'mobility_week_a_days', 'mobility_week_b_days', 'mobility_optional_days',
+            'facts', 'preferences', 'unknowns')}
 
 
 def tz(session: Session) -> str:
@@ -126,14 +136,44 @@ def annotation(session: Session, activity_id: uuid.UUID) -> ActivityAnnotation |
                           .order_by(desc(ActivityAnnotation.version)).limit(1))
 
 
-def activity_data(session: Session, a: Activity, detail: bool = False) -> dict:
+def run_classifications(session: Session, rows: Sequence[Activity]) -> dict[str, dict]:
+    targets = [a for a in rows if a.sport in RUN_SPORTS]
+    if not targets:
+        return {}
+    first = min(a.start_at for a in targets) - timedelta(days=84)
+    last = max(a.start_at for a in targets)
+    history = session.scalars(select(Activity).where(Activity.start_at >= first, Activity.start_at <= last,
+                              Activity.sport.in_(RUN_SPORTS)).order_by(Activity.start_at)).all()
+    zone = ZoneInfo(tz(session))
+    observations = []
+    for a in history:
+        ann = annotation(session, a.id)
+        observations.append(RunObservation(
+            id=str(a.id), local_date=a.start_at.astimezone(zone).date(), start_at=a.start_at,
+            sport=a.sport, distance_m=a.distance_m, elapsed_s=a.elapsed_s, moving_s=a.moving_s,
+            avg_hr_bpm=a.avg_hr_bpm, manual_label=ann.workout_label if ann else None,
+            source_label=a.source_workout_label, excluded=ann.excluded if ann else False,
+            resolution_state=a.resolution_state,
+        ))
+    profile = current_profile(session)
+    preference = (profile.preferences or {}).get('long_run_weekdays', [5, 6]) if profile else [5, 6]
+    long_days = tuple(preference) if isinstance(preference, list) and preference and all(
+        isinstance(day, int) and day in range(7) for day in preference) else (5, 6)
+    return classify_history(observations, long_run_weekdays=long_days)
+
+
+def activity_data(session: Session, a: Activity, detail: bool = False,
+                  classifications: dict[str, dict] | None = None) -> dict:
     ann = annotation(session, a.id)
-    label = ann.workout_label if ann and ann.workout_label else a.source_workout_label
+    classification = (classifications if classifications is not None else run_classifications(session, [a])).get(str(a.id))
+    label = classification['effective_label'] if classification else (
+        ann.workout_label if ann and ann.workout_label else a.source_workout_label)
     result = {'id': a.id, 'start_at': a.start_at, 'original_start': a.original_start,
               'local_date': a.start_at.astimezone(ZoneInfo(tz(session))).date(), 'source_local_date': a.local_date, 'sport': a.sport, 'subtype': a.subtype,
               'distance_m': a.distance_m, 'elapsed_s': a.elapsed_s, 'moving_s': a.moving_s,
               'moving_pace_s_per_km': pace_s_per_km(a.distance_m, a.moving_s),
               'workout_label': label or 'unknown', 'resolution_state': a.resolution_state,
+              'classification': classification,
               'source': 'garmin' if a.garmin_id else 'import', 'provenance': a.field_provenance,
               'annotations': {'version': ann.version if ann else 0, 'workout_label': ann.workout_label if ann else None,
                               'notes': ann.notes if ann else None, 'excluded': ann.excluded if ann else False}}
@@ -147,10 +187,12 @@ def activity_data(session: Session, a: Activity, detail: bool = False) -> dict:
 def facts(session: Session, start: date, end: date) -> list[ActivityFact]:
     lo, hi = utc_date_bounds(start, end, tz(session))
     rows = session.scalars(select(Activity).where(Activity.start_at >= lo, Activity.start_at < hi)).all()
+    classifications = run_classifications(session, rows)
     zone = ZoneInfo(tz(session))
     result = [ActivityFact(id=str(a.id), local_date=a.start_at.astimezone(zone).date(), start_at=a.start_at, sport=a.sport,
             distance_m=a.distance_m, elapsed_s=a.elapsed_s, moving_s=a.moving_s,
-            workout_label=(ann.workout_label if ann and ann.workout_label else a.source_workout_label),
+            workout_label=(classifications[str(a.id)]['effective_label'] if str(a.id) in classifications
+                           else ann.workout_label if ann and ann.workout_label else a.source_workout_label),
             excluded=ann.excluded if ann else False, resolution_state=a.resolution_state)
             for a in rows for ann in [annotation(session, a.id)]]
     manuals = session.scalars(select(ManualSession).where(ManualSession.date >= start, ManualSession.date <= end,
@@ -174,6 +216,13 @@ class ProfileInput(BaseModel):
     anchor_confirmed: bool = False
     strength_days_confirmed: bool = False
     scheduled_strength_days: list[int] = Field(default_factory=list)
+    strength_schedule_mode: Literal['weekly', 'alternating'] = 'weekly'
+    strength_week_a_start: date | None = None
+    strength_week_a_days: list[int] = Field(default_factory=list)
+    strength_week_b_days: list[int] = Field(default_factory=list)
+    mobility_week_a_days: list[int] = Field(default_factory=list)
+    mobility_week_b_days: list[int] = Field(default_factory=list)
+    mobility_optional_days: list[int] = Field(default_factory=list)
     facts: dict[str, Any] = Field(default_factory=dict)
     preferences: dict[str, Any] = Field(default_factory=dict)
     unknowns: list[str] = Field(default_factory=list)
@@ -182,6 +231,15 @@ class ProfileInput(BaseModel):
     def confirmed_anchor_has_date(self) -> ProfileInput:
         if self.anchor_confirmed and self.cycle_anchor is None:
             raise ValueError('Confirmed cycle anchor requires a date')
+        if self.strength_schedule_mode == 'alternating':
+            if self.strength_week_a_start is not None and self.strength_week_a_start.weekday() != 0:
+                raise ValueError('Week A start must be a Monday')
+            if self.strength_days_confirmed and (
+                self.strength_week_a_start is None
+                or len(self.strength_week_a_days) != 2
+                or len(self.strength_week_b_days) != 2
+            ):
+                raise ValueError('Confirmed alternating strength requires a Monday Week A start and two days in each week')
         return self
 
     @field_validator('timezone')
@@ -193,7 +251,8 @@ class ProfileInput(BaseModel):
             raise ValueError('Unknown timezone') from exc
         return value
 
-    @field_validator('scheduled_strength_days')
+    @field_validator('scheduled_strength_days', 'strength_week_a_days', 'strength_week_b_days',
+                     'mobility_week_a_days', 'mobility_week_b_days', 'mobility_optional_days')
     @classmethod
     def valid_days(cls, value: list[int]) -> list[int]:
         if len(value) != len(set(value)) or any(d not in range(7) for d in value):
@@ -254,7 +313,8 @@ def get_activities(start_date: date | None = None, end_date: date | None = None,
         q = q.where((Activity.start_at < cd) | ((Activity.start_at == cd) & (Activity.id < cid)))
     rows = session.scalars(q.order_by(desc(Activity.start_at), desc(Activity.id)).limit(limit+1)).all()
     next_cursor = f'{rows[limit-1].start_at.isoformat()}|{rows[limit-1].id}' if len(rows) > limit else None
-    return envelope(session, {'items': [activity_data(session, a) for a in rows[:limit]],
+    classifications = run_classifications(session, rows[:limit])
+    return envelope(session, {'items': [activity_data(session, a, classifications=classifications) for a in rows[:limit]],
                               'next_cursor': next_cursor, 'timezone': tz(session), 'coverage': coverage(session, start, end)})
 
 
@@ -304,7 +364,8 @@ def get_summary(as_of: date | None = None, days: int = Query(28, ge=1, le=366),
     runs = [a for a in session.scalars(select(Activity).where(Activity.start_at >= recent_lower,
                           Activity.start_at < recent_upper, Activity.sport.in_(('running','trail_running','treadmill_running')))
                           .order_by(desc(Activity.start_at)).limit(10)).all()]
-    output['recent_runs'] = [activity_data(session, a) for a in runs]
+    classifications = run_classifications(session, runs)
+    output['recent_runs'] = [activity_data(session, a, classifications=classifications) for a in runs]
     return envelope(session, output)
 
 
@@ -571,8 +632,19 @@ def get_plans(start_date: date | None = None, end_date: date | None = None,
     plans = session.scalars(select(PlanVersion).where(PlanVersion.end_date >= start,
                             PlanVersion.start_date <= end).order_by(desc(PlanVersion.created_at)).limit(100)).all()
     anchor = profile.cycle_anchor if profile and profile.anchor_confirmed else None
+    accepted_ranges = [(p.start_date, p.end_date) for p in plans if p.status == 'accepted']
+    run_opportunities = [slot for slot in opportunities(start, end, anchor)
+                         if not any(first <= date.fromisoformat(slot['date']) <= last
+                                    for first, last in accepted_ranges)]
+    for slot in run_opportunities:
+        intent = run_intent({'profile': profile_data(profile)}, date.fromisoformat(slot['date']))
+        slot.update({'kind': 'run', 'source': 'run_cycle', 'intent': intent,
+                     'conditional': intent in {'quality', 'long'}, 'optional': False})
     return envelope(session, {'items': [plan_data(session, p) for p in plans],
-                              'opportunities': opportunities(start, end, anchor), 'unscheduled': anchor is None,
+                              'opportunities': run_opportunities, 'unscheduled': anchor is None,
+                              'recurring_sessions': recurring_sessions(
+                                  start, end, profile, accepted_ranges,
+                              ),
                               'timezone': tz(session)})
 
 
@@ -856,12 +928,17 @@ def get_context(as_of: date | None = None, include_notes: bool = False,
                   .order_by(desc(Checkin.observed_at)).limit(100)).all()
     accepted = session.scalars(select(PlanVersion).where(PlanVersion.status == 'accepted',
                      PlanVersion.end_date >= today, PlanVersion.start_date <= today+timedelta(days=13))).all()
+    recurring = recurring_sessions(
+        today, today+timedelta(days=13), profile,
+        [(p.start_date, p.end_date) for p in accepted],
+    )
     latest_plan = session.scalar(select(PlanVersion).where(PlanVersion.status == 'accepted')
                                  .order_by(desc(PlanVersion.decided_at)).limit(1))
     recovery_data = get_recovery(start_date=today-timedelta(days=13), end_date=today, session=session)['data']
     manual_rows = session.scalars(select(ManualSession).where(ManualSession.date >= today-timedelta(days=13),
                   ManualSession.date <= today).order_by(desc(ManualSession.date)).limit(100)).all()
-    recent_activities = [activity_data(session, a) for a in activities]
+    classifications = run_classifications(session, activities)
+    recent_activities = [activity_data(session, a, classifications=classifications) for a in activities]
     recent_activities.extend({'id': m.id, 'local_date': m.date, 'start_at': None, 'sport': m.kind,
                               'distance_m': None, 'elapsed_s': m.duration_s, 'moving_s': None,
                               'workout_label': 'unknown', 'resolution_state': 'resolved', 'source': 'manual',
@@ -888,6 +965,7 @@ def get_context(as_of: date | None = None, include_notes: bool = False,
            'recovery': recovery_data,
            'recent_checkins': [checkin_data(session, c) for c in checkins],
            'next_14_days_plan': [plan_data(session, p) for p in accepted],
+           'recurring_sessions': recurring,
            'recent_14_days_plan': [plan_data(session, p) for p in prior_plans],
            'conflicts': [{'id': c.id, 'kind': c.kind, 'status': c.status} for c in
                          session.scalars(select(Conflict).where(Conflict.status == 'open').limit(100)).all()],

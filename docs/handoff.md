@@ -1,6 +1,6 @@
 # Current handoff — Strong and local coaching MVP
 
-Updated November 10, 2026 (November 11 UTC). The local release is implemented
+Updated November 11, 2026. The local release is implemented
 and verified; see [release checklist](release-checklist.md) for executed evidence
 and [README](../README.md) for tomorrow's user flow. No remote or deployment is
 configured.
@@ -9,11 +9,13 @@ configured.
 
 - React/TypeScript/Vite frontend, FastAPI/Python 3.12, PostgreSQL 17. Local
   real app runs on 127.0.0.1:8000. Test/demo/real databases and private roots
-  are separate. Migrations are at `0007_coaching_selection`.
-- Garmin API plus inspected account export provide 179 activities (163 runs)
-  and 1,282 recovery observations. Export coverage is partial; unsupported
-  fields remain raw. Existing profile/Garmin/user rows matched the pre-change
-  backup exactly after this extension.
+  are separate. Migrations are at `0008_strength_schedule`.
+- Garmin API plus inspected account export currently provide 180 activities
+  (164 runs) and 1,282 recovery observations. The additional run arrived through
+  normal scheduled sync after the previous release. Export coverage is partial;
+  unsupported fields remain raw. The earlier source baseline comparison is
+  recorded in the prior release checklist; this release intentionally adds a
+  profile version.
 - The inspected Strong CSV is imported: 512 workouts, 8,168 sets, 118 unknown
   normalized durations. Original bytes/source rows are preserved privately.
   Historical sets remain exact. Source timezone, weight unit, and dumbbell
@@ -28,19 +30,30 @@ configured.
   append-only outcome events. No external model call or plan mutation. The
   flow has conservative branches and known depth gaps; read the release
   checklist and `research-integration.md` before extending its claims.
-- The real run-cycle anchor and alternate strength mapping are unconfirmed.
-  No symptom check-in, plan, or outcome was fabricated in real data. The user
-  can check in, confirm schedule when known, generate tomorrow's option, and
-  record their response.
+- The real profile now holds the user-confirmed alternating pattern, saved as
+  version 3: Week A reference Monday November 9, full-body strength Mon/Fri,
+  required gym mobility Wed; Week B full-body strength Tue/Sat, required gym
+  mobility Thu; optional Sunday mobility in both weeks. New projections begin
+  at profile effective date, with no retrospective completion debt. Explicit
+  accepted dated plans override recurrence where covered. The run-cycle anchor
+  remains unconfirmed; its previous value was preserved. No symptom check-in,
+  manual plan, or outcome was fabricated.
+- Historical run labels come from deterministic 12-week relative heuristics
+  when enough prior data exist; manual/source labels take precedence. Current
+  aggregate: 51 easy, 12 quality, 30 weekend-long suggestions, 71 unknown
+  among 164 runs. This uses no per-activity model tokens and no HR zones or
+  intrarun drift/interval claims.
 
 ## Verification and operations
 
-`make check`, `make test-integration`, and six demo browser tests pass. The
-production real app passed 18 read-only API GETs, foreign-origin rejection,
-and desktop/mobile Coach/Strength browser smoke. A post-change backup was
-restored to a new isolated target; eleven table counts, new table row content,
-raw checksums, and research original files match. The previous backup was
-restored separately to prove old user/Garmin rows unchanged. Backups and
+`make check` passes 58 backend and 17 frontend tests, lint, types, and build.
+`make test-integration` passes 24 PostgreSQL tests; eight demo browser tests
+pass. The production real app passed read-only API checks and desktop/mobile
+browser smoke. A post-configuration backup was restored to a new isolated
+target; eleven table counts, full profile/new-table row content, 1,577 raw
+checksums, and six research original files match. A pre-configuration backup
+was saved before the real profile update. Earlier isolated comparison proved
+original user/Garmin rows unchanged before this new version was added. Backups and
 screenshots are ignored/private. Local daily Garmin sync remains at 08:30.
 
 Run `make doctor`, `make db-start`, `make migrate`, `make build`, `make start`
@@ -51,8 +64,8 @@ DB. See [operations](operations.md) for mode/restore details.
 ## Next work
 
 Exercise all 15 supplied behavioral cases through runtime, improve delayed
-symptom and previous-period metrics, and calibrate progression/strength
-placement only with current user responses and confirmed scheduling. Keep
-Strong as the workout workflow, every-other-day running intent, and meaningful
+symptom and previous-period metrics, and calibrate progression only with current user responses and confirmed
+scheduling. Future daily skill invocation and weekly recap/planning are design
+work; the active Coach remains a local rule flow. Keep Strong as the workout workflow, every-other-day running intent, and meaningful
 twice-weekly full-body strength. No invented lifting equivalence or calorie
 logging target. See [backlog](backlog.md).

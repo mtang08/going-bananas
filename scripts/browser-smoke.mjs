@@ -20,6 +20,25 @@ try {
     await page.waitForTimeout(250)
     console.log(`${name}: real-data view loaded`)
   }
+  if (await page.getByLabel('Strength schedule').inputValue() !== 'alternating') throw new Error('Alternating schedule not shown')
+  if (await page.getByLabel('Week A Monday').inputValue() !== '2026-11-09') throw new Error('Week A reference not shown')
+  await page.screenshot({ path: resolve('private/real/schedule-settings-readonly.png'), fullPage: true })
+  await page.locator('nav').getByRole('button', { name: 'Cycle', exact: true }).click()
+  await page.getByText('Full-body strength · repeating').first().waitFor()
+  await page.getByText('Gym mobility · repeating').first().waitFor()
+  await page.getByText('Mobility · optional · repeating').first().waitFor()
+  await page.screenshot({ path: resolve('private/real/recurring-cycle-readonly.png'), fullPage: true })
+  await page.locator('nav').getByRole('button', { name: 'History', exact: true }).click()
+  await page.getByLabel('Start date').fill('2025-09-01')
+  await page.getByLabel('End date').fill('2025-12-31')
+  await page.getByRole('button', { name: 'Show dates' }).click()
+  const runRow = page.locator('.activity-table tbody tr').filter({ hasText: 'running' }).first()
+  await runRow.waitFor()
+  await runRow.getByRole('button').click()
+  const activityDialog = page.getByRole('dialog', { name: 'Activity detail' })
+  await activityDialog.locator('details summary').filter({ hasText: /Auto:|Manual:|Source:|Run type unknown/ }).waitFor()
+  await page.screenshot({ path: resolve('private/real/run-classification-readonly.png'), fullPage: true })
+  await activityDialog.getByRole('button', { name: 'Close' }).click()
   await page.locator('nav').getByRole('button', { name: 'Coach', exact: true }).click()
   await page.getByRole('heading', { name: 'Train with context.' }).waitFor()
   await page.getByRole('button', { name: 'Generate daily guidance' }).waitFor()
@@ -29,6 +48,7 @@ try {
   await page.getByText(/recorded workouts in/).first().waitFor()
   await page.screenshot({ path: resolve('private/real/strength-readonly.png'), fullPage: true })
   if (process.argv.includes('--export')) {
+    await page.locator('nav').getByRole('button', { name: 'Data & settings', exact: true }).click()
     await page.getByRole('heading', { name: 'Historical imports' }).waitFor()
     await page.getByText('Garmin export', { exact: true }).first().waitFor()
     await page.getByText(/Observed dates only; completeness unverified/).first().waitFor()
@@ -44,11 +64,11 @@ try {
     console.log('Imported prior-year history and import coverage rendered successfully')
   }
   await page.setViewportSize({ width: 390, height: 844 })
-  for (const name of ['Strength', 'Coach']) {
-    if(name==='Coach'){
+  for (const name of ['Strength', 'Cycle', 'Coach']) {
+    if(name!=='Strength'){
       await page.getByRole('button', { name: 'Open menu' }).click()
       await page.locator('nav').getByRole('button', { name, exact: true }).click()
-      await page.getByRole('heading', { name: 'Train with context.' }).waitFor()
+      await page.getByRole('heading', { name: name==='Coach'?'Train with context.':'Keep the rhythm visible.' }).waitFor()
       await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector('.sidebar')).left) <= -230)
     }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)

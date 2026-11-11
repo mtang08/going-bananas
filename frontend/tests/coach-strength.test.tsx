@@ -6,8 +6,8 @@ import { Strength } from '../src/Strength'
 import { addDays, localDate } from '../src/api'
 
 const today=localDate()
-const dailyPayload={decision:'proceed_conditional',proposed_session:{mode:'run',purpose:'easy movement',duration_or_structure:'20 min',intensity_instruction:'Keep it easy'},alternative:{mode:'mobility',purpose:'gentle option',duration_or_structure:'10 min',intensity_instruction:'Stop if symptoms worsen'},change_from_plan:'No confirmed plan',short_rationale:'Review current signals',confidence:{evidence:'moderate',athlete_applicability:'limited',decision:'conditional'},missing_or_stale_inputs:['Current symptoms not reported'],follow_up_observation:{what:'Check symptoms afterward',when:'Tomorrow'},references:{policy_ids:['P001'],evidence_ids:['E001'],sources:[]}}
-const weeklyPayload={period_reviewed:{start:addDays(today,-13),end:today},actual_vs_planned:{summary:'Recorded work only',key_differences:[]},adaptation_signals:[],tolerance_signals:{favorable:[],concerning:[],delayed_symptom_findings:[]},strength_running_interactions:['Keep full-body lifting twice weekly'],next_cycle_proposal:{primary_target:'Preserve rhythm',sessions_or_placement_principles:['Run every other day'],changes_from_current_plan:[],preserved_commitments:[]},tradeoffs:[],uncertainties:['Unlinked plans are unknown'],what_would_change_the_recommendation:[],prior_advice_outcomes:['Accepted then completed'],references:{policy_ids:[],evidence_ids:[],sources:[]}}
+const dailyPayload={decision:'proceed_conditional',proposed_session:{mode:'run',purpose:'easy movement',duration_or_structure:'20 min',intensity_instruction:'Keep it easy'},alternative:{mode:'mobility',purpose:'gentle option',duration_or_structure:'10 min',intensity_instruction:'Stop if symptoms worsen'},planned_sessions:[{date:today,kind:'run',source:'run_cycle',optional:false},{date:today,kind:'strength',source:'recurring_schedule',optional:false}],additional_session_guidance:[{kind:'strength',optional:false,guidance:'Separate the full-body session if fatigue is high.'}],change_from_plan:'No confirmed plan',short_rationale:'Review current signals',confidence:{evidence:'moderate',athlete_applicability:'limited',decision:'conditional'},missing_or_stale_inputs:['Current symptoms not reported'],follow_up_observation:{what:'Check symptoms afterward',when:'Tomorrow'},references:{policy_ids:['P001'],evidence_ids:['E001'],sources:[]}}
+const weeklyPayload={period_reviewed:{start:addDays(today,-13),end:today},actual_vs_planned:{summary:'Recorded work only',key_differences:[]},adaptation_signals:[],tolerance_signals:{favorable:[],concerning:[],delayed_symptom_findings:[]},strength_running_interactions:['Keep full-body lifting twice weekly'],next_cycle_proposal:{primary_target:'Preserve rhythm',sessions_or_placement_principles:['Run every other day'],changes_from_current_plan:[],preserved_commitments:[],dated_sessions:[{date:addDays(today,1),kind:'strength',source:'recurring_schedule',optional:false},{date:addDays(today,1),kind:'mobility',source:'recurring_schedule',optional:true}]},tradeoffs:[],uncertainties:['Unlinked plans are unknown'],what_would_change_the_recommendation:[],prior_advice_outcomes:['Accepted then completed'],references:{policy_ids:[],evidence_ids:[],sources:[]}}
 const item=(kind:'daily'|'weekly',asOf=today,stale=false,supplemental_inputs={illness:'unknown',lower_body_soreness:'unknown',clinician_restriction:'unknown'})=>({id:`${kind}-${asOf}`,kind,as_of:asOf,generated_at:new Date().toISOString(),stale,stale_reasons:stale?['new check-in']:[],engine:'local_rules',knowledge_version:'1',supplemental_inputs,payload:kind==='daily'?dailyPayload:weeklyPayload,outcome:null as {status:string;effect?:string}|null})
 const envelope=(data:unknown)=>({schema_version:'v1',data_revision:1,mode:'demo',data})
 const calls:{url:string;method:string;body:unknown}[]=[]
@@ -46,6 +46,9 @@ describe('Coach guidance',()=>{
     expect(calls.filter(c=>c.method==='POST')).toHaveLength(0)
     fireEvent.click(screen.getByRole('button',{name:'Generate daily guidance'}))
     await screen.findByText('Review current signals')
+    expect(screen.getByText(/Run opportunity · repeating rhythm/)).toBeInTheDocument()
+    expect(screen.getByText(/Full-body strength · repeating rhythm/)).toBeInTheDocument()
+    expect(screen.getByText(/Separate the full-body session/)).toBeInTheDocument()
     expect(calls.find(c=>c.method==='POST')?.body).toMatchObject({as_of:today,illness:'unknown',lower_body_soreness:'unknown',clinician_restriction:'unknown'})
     expect(screen.getByText('Current symptoms not reported')).toBeInTheDocument()
     expect(calls.some(c=>c.url.includes('/plans'))).toBe(false)
@@ -88,6 +91,7 @@ describe('Coach guidance',()=>{
     fireEvent.click(screen.getByRole('button',{name:'Generate weekly review'}))
     await screen.findByText('Preserve rhythm')
     expect(screen.getByText('Keep full-body lifting twice weekly')).toBeInTheDocument()
+    expect(screen.getByText(/Optional mobility/)).toBeInTheDocument()
     fireEvent.click(screen.getByText('Previous advice and outcomes'))
     expect(screen.getByText('Accepted then completed')).toBeInTheDocument()
   })

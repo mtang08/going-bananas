@@ -22,7 +22,7 @@ build:
 start:
 	$(RUN) python3 scripts/serve.py
 check:
-	$(RUN) bash -c 'cd backend && uv run ruff check . && uv run mypy app --ignore-missing-imports && uv run pytest tests/unit tests/test_ingestion.py tests/test_export_adapter.py tests/test_export_recovery.py tests/test_knowledge.py tests/test_coaching.py'
+	$(RUN) bash -c 'cd backend && uv run ruff check . && uv run mypy app --ignore-missing-imports && uv run pytest tests/unit tests/test_ingestion.py tests/test_export_adapter.py tests/test_export_recovery.py tests/test_knowledge.py tests/test_coaching.py tests/test_recurring_schedule.py tests/test_run_classification.py'
 	$(RUN) bash -c 'cd frontend && npm run lint && npm run typecheck && npm test && npm run build'
 test-integration:
 	./scripts/with-mode test bash -c 'cd backend && uv run alembic upgrade head && uv run pytest tests/integration tests/test_ingestion_integration.py'

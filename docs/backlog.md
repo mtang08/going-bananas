@@ -12,11 +12,22 @@ implemented or that a favorable trend yields a calibrated progression.
 
 Follow-ups: exercise each supplied case through the actual API/UI; add 28-day and
 previous-14-day comparisons; account for delayed symptom timing and event history
-in weekly review; evaluate useful progression and strength placement with the
-athlete's confirmed schedule; calibrate recommendations against real outcomes
+in weekly review; evaluate useful progression with the
+athlete's confirmed recurring strength schedule; calibrate recommendations against real outcomes
 without inventing a numeric injury threshold. Review policy applicability and
 source updates before adding new rules. An optional model-based flow would need
 privacy, cost, evaluation, and user-approval design first.
+
+## Historical run labels
+
+The deterministic classifier is deliberately bounded to whole-run summary
+fields. A future evaluation should compare suggestions with user-corrected labels
+and test weather/route and sensor confounding. Intrarun HR streams, drift, and
+interval analysis are unsupported by the current canonical fields. Do not
+introduce per-activity model calls to label history. Future model token use, if
+implemented and evaluated, belongs to explicit daily coaching skill invocation
+and weekly recap/next-one-to-two-week planning, with cost and privacy controls.
+The current Coach runtime remains local rules, without that skill architecture.
 
 ## Strong source evolution
 

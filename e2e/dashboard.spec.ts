@@ -116,6 +116,54 @@ test('demo Strength browses imported years and recorded sets on mobile', async (
   expect(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth)).toBe(false)
 })
 
+test('demo Week A/B settings project full-body and mobility without weekly drafts', async ({page}) => {
+  const response=await page.request.get('http://127.0.0.1:5173/api/v1/profile')
+  const profile=(await response.json()).data
+  const saved=await page.request.put('http://127.0.0.1:5173/api/v1/profile',{
+    headers:{'X-Local-Request':'1'},
+    data:{...profile,expected_version:profile.version,strength_schedule_mode:'alternating',strength_week_a_start:'2026-11-09',strength_week_a_days:[0,4],strength_week_b_days:[1,5],mobility_week_a_days:[2],mobility_week_b_days:[3],mobility_optional_days:[6],strength_days_confirmed:true},
+  })
+  expect(saved.ok()).toBe(true)
+  const planResponse=await page.request.get('http://127.0.0.1:5173/api/v1/plans?start_date=2027-01-04&end_date=2027-01-17')
+  expect(planResponse.ok()).toBe(true)
+  const slots=(await planResponse.json()).data.recurring_sessions as {date:string;kind:string;optional:boolean}[]
+  expect(slots.filter(s=>s.kind==='strength').map(s=>s.date)).toEqual(['2027-01-04','2027-01-08','2027-01-12','2027-01-16'])
+  expect(slots.filter(s=>s.kind==='mobility'&&!s.optional).map(s=>s.date)).toEqual(['2027-01-06','2027-01-14'])
+  expect(slots.filter(s=>s.kind==='mobility'&&s.optional).map(s=>s.date)).toEqual(['2027-01-10','2027-01-17'])
+  await page.goto('/')
+  await page.getByRole('button',{name:'Data & settings'}).click()
+  await expect(page.getByLabel('Strength schedule')).toHaveValue('alternating')
+  await expect(page.getByLabel('Week A Monday')).toHaveValue('2026-11-09')
+  await page.getByRole('button',{name:'Cycle'}).click()
+  await expect(page.getByRole('button',{name:'Optional dated plan'})).toBeVisible()
+  for(let i=0;i<4;i++)await page.getByRole('button',{name:'Next fortnight'}).click()
+  const gymMobility=page.getByRole('button',{name:/Wednesday, January 6/})
+  await expect(gymMobility.getByText('Gym mobility · repeating')).toBeVisible()
+  const fullBody=page.getByRole('button',{name:/Friday, January 8/})
+  await expect(fullBody.getByText('Full-body strength · repeating')).toBeVisible()
+  await expect(page.getByRole('button',{name:/Sunday, January 10/}).getByText('Mobility · optional · repeating')).toBeVisible()
+  await page.getByRole('button',{name:'Coach'}).click()
+  const generated=page.waitForResponse(r=>r.url().endsWith('/api/v1/coach/weekly')&&r.request().method()==='POST')
+  await page.getByRole('button',{name:'Weekly review'}).click()
+  await page.getByRole('button',{name:'Generate weekly review'}).click()
+  expect((await generated).ok()).toBe(true)
+  await expect(page.getByText('Projected dates · next 14 days')).toBeVisible()
+  await expect(page.getByText(/Full-body strength/).first()).toBeVisible()
+})
+
+test('demo run history keeps insufficient classification explicit with optional details', async ({page}) => {
+  await page.goto('/')
+  await page.getByRole('button',{name:'History'}).click()
+  const runRow=page.locator('.activity-table tbody tr').filter({has:page.locator('.activity-name', {hasText:'running'})}).first()
+  await expect(runRow).toBeVisible()
+  await runRow.getByRole('button').click()
+  const dialog=page.getByRole('dialog',{name:'Activity detail'})
+  await expect(dialog.getByText('Run type unknown · details')).toBeVisible()
+  await dialog.getByText('Run type unknown · details').click()
+  await expect(dialog.getByText(/insufficient confidence/)).toBeVisible()
+  await expect(dialog.getByLabel('Workout label')).toBeVisible()
+})
+
 test('manual draft can be accepted and linked to a confirmed actual session', async ({page}) => {
   const profileResponse=await page.request.get('http://127.0.0.1:5173/api/v1/profile')
   const profile=(await profileResponse.json()).data
@@ -129,7 +177,7 @@ test('manual draft can be accepted and linked to a confirmed actual session', as
   const startDate=at(0),endDate=at(13)
   await page.goto('/')
   await page.getByRole('button',{name:'Cycle'}).click()
-  await page.getByRole('button',{name:'Draft plan'}).click()
+  await page.getByRole('button',{name:'Optional dated plan'}).click()
   const dialog=page.getByRole('dialog',{name:'Draft plan'})
   await dialog.getByLabel('Plan start').fill(startDate)
   await dialog.getByLabel('Plan end').fill(endDate)

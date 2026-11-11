@@ -47,7 +47,7 @@ with SessionLocal() as source, Session(engine) as restored:
         expected = source.scalar(select(func.count()).select_from(model))
         actual = restored.scalar(select(func.count()).select_from(model))
         assert expected == actual, model.__tablename__
-    for model in (StrongWorkoutRow, CoachRecommendation, CoachOutcome, CoachOutcomeEvent):
+    for model in (ProfileVersion, StrongWorkoutRow, CoachRecommendation, CoachOutcome, CoachOutcomeEvent):
         columns = [column.key for column in model.__table__.columns]
         def digest(session):
             rows = []
@@ -74,4 +74,4 @@ with SessionLocal() as source, Session(engine) as restored:
         assert hashlib.sha256(original.read_bytes()).digest() == hashlib.sha256(copy.read_bytes()).digest(), relative
 
 print(f'Restore verified: {len(models)} table counts match, {len(raws)} raw references and checksums intact, '
-      f'{len(original_files)} research original files match; new table contents match; source database unchanged.')
+      f'{len(original_files)} research original files match; profile and new table contents match; source database unchanged.')
