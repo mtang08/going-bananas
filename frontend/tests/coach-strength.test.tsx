@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Coach } from '../src/Coach'
-import { Strength } from '../src/Strength'
+import { Coach } from '../src/pages/Coach'
+import { Strength } from '../src/pages/Strength'
 import { addDays, localDate } from '../src/api'
 
 const today=localDate()

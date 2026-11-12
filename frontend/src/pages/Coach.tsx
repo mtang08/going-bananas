@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, BookOpen, Check, RefreshCw } from 'lucide-react'
-import { api, post, addDays, localDate, dateLabel } from './api'
-import { AgentPlanHistory } from './PlanViews'
+import { api, post, addDays, localDate, dateLabel } from '../api'
+import { AgentPlanHistory } from '../PlanViews'
 
 type SessionOption = {mode: string; purpose: string; duration_or_structure: string | null; intensity_instruction: string; terrain_or_equipment?: string | null}
 type References = {policy_ids: string[]; evidence_ids: string[]; sources?: {id: string; title: string; url?: string}[]}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, dateLabel, duration, localDate, query } from './api'
+import { api, dateLabel, duration, localDate, query } from '../api'
 
 type Workout = {id: string; date: string; local_start: string; duration_s: number | null; exercise_count: number}
 type History = {session_count: number; known_duration_s: number; unknown_duration_count: number; latest_imported_workout_date: string | null; imported_at: string | null; ambiguous_overlap_count: number; next_offset: number | null; sessions: Workout[]}
