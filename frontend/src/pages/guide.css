@@ -1,0 +1,60 @@
+@layer components {
+  .guide-page {
+    max-width: 1100px;
+  }
+  .guide-intro,
+  .guide-section-body {
+    max-width: 75ch;
+    line-height: 1.65;
+  }
+  .guide-topics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 20px 0;
+  }
+  .guide-topics button {
+    white-space: normal;
+    text-align: left;
+  }
+  .guide-section {
+    margin-bottom: 12px;
+    scroll-margin-top: 24px;
+  }
+  .guide-section > summary {
+    cursor: pointer;
+  }
+  .guide-section > summary h2 {
+    display: inline;
+    font-size: 1.15rem;
+  }
+  .guide-section-body {
+    padding-top: 12px;
+  }
+  .guide-section-body li {
+    margin: 8px 0;
+  }
+  .guide-prompt {
+    background: #f0f3e9;
+    border-left: 3px solid #6e805a;
+    border-radius: 0 8px 8px 0;
+    margin: 16px 0;
+    padding: 14px 18px;
+  }
+  .guide-prompt blockquote {
+    margin: 0 0 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .guide-prompt p {
+    font-size: 0.8rem;
+    margin-bottom: 0;
+  }
+  .guide-page code {
+    overflow-wrap: anywhere;
+    font-size: 0.9em;
+  }
+  .guide-page a {
+    overflow-wrap: anywhere;
+  }
+}

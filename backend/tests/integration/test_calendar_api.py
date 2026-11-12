@@ -83,6 +83,35 @@ def _bootstrap(client):
     return response.json()['data']
 
 
+def test_recorded_runs_before_plan_are_visible_without_creating_completions(calendar_fixture):
+    client, connection, _ = calendar_fixture
+    _bootstrap(client)
+    earlier, same_day, linked = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        for uid, day in ((earlier, 10), (same_day, 16), (linked, 18)):
+            session.add(Activity(id=uid, start_at=datetime(2026, 11, day, 13, tzinfo=UTC),
+                original_start=f'2026-11-{day}T13:00:00Z', local_date=date(2026, 11, day),
+                sport='running', distance_m=6740, timer_s=2400,
+                canonical_revision=1, resolution_state='resolved', field_provenance={}))
+        session.commit()
+    planned = client.get('/api/v1/calendar?start=2026-11-10&end=2026-11-18').json()['data']
+    uid = next(row['session_uid'] for row in planned['sessions']
+               if row['kind'] == 'run' and row['local_date'] == '2026-11-18')
+    response = client.put(f'/api/v1/calendar/completions/{uid}',
+        json={'activity_id': str(linked)}, headers=_headers())
+    assert response.status_code == 200, response.text
+    result = client.get('/api/v1/calendar?start=2026-11-10&end=2026-11-18').json()['data']
+    runs = {row['activity_id']: row for row in result['recorded_runs']}
+    assert runs[str(earlier)] == {'activity_id': str(earlier), 'local_date': '2026-11-10',
+                                 'distance_m': 6740, 'timer_s': 2400}
+    assert str(same_day) in runs  # Awaiting a match also remains visible.
+    assert str(linked) not in runs  # Already displayed through its completion.
+    assert len(result['completions']) == 1 and result['head'] == 1
+    bounded = client.get('/api/v1/calendar?start=2026-11-11&end=2026-11-15').json()['data']
+    assert not any(row['activity_id'] in {str(earlier), str(same_day), str(linked)}
+                   for row in bounded['recorded_runs'])
+
+
 def test_bootstrap_move_old_view_stale_head_and_diff(calendar_fixture):
     client, connection, _ = calendar_fixture
     empty = client.get('/api/v1/calendar?start=2026-11-16&end=2026-11-29').json()['data']

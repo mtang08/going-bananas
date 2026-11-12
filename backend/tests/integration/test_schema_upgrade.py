@@ -26,7 +26,7 @@ from app.config import settings
 from app.db import get_session
 from app.main import app
 
-HEAD = '0015_coach_v2'
+HEAD = '0017_single_open_proposal'
 STAMP = datetime(2026, 11, 12, tzinfo=UTC)
 HEADERS = {'X-Local-Request': '1', 'Origin': 'http://testserver'}
 
@@ -221,6 +221,8 @@ def test_empty_round_trip_and_each_nonempty_downgrade_guard(isolated_schema):
         assert response.json()['data']['planning_authority'] == 'legacy'
     finally:
         app.dependency_overrides.pop(get_session, None)
+    _migration(connection, '0015_coach_v2', down=True)
+    connection.commit()
     guard_cases = [
         ('0015_coach_v2', '0014_anchors_metrics_prompts', 'daily_guidance',
          dict(local_date=STAMP.date(), engine='local_rules.v2', decision='proceed',
@@ -379,3 +381,71 @@ def test_database_subject_uniqueness_ranges_and_late_foreign_keys(isolated_schem
              dependency_hash,timezone)
              VALUES (:id,'fixture','v1','activity',:subject,'available','{}','{}','{}','{}',:config,:at,:dependency,'America/New_York')""",
         constraint='uq_metric_results_current', id=uuid.uuid4(), subject=str(activity), config='a'*64, dependency='c'*64, at=STAMP)
+
+
+def test_proposal_revision_upgrade_preserves_saved_proposals(isolated_schema):
+    connection = isolated_schema
+    _migration(connection, '0015_coach_v2')
+    snapshot_id = _insert(connection, 'coach_snapshots', operation='review_rolling_plan', as_of=STAMP.date(),
+        generated_at=STAMP, calendar_version_number=0, data_revision=0, payload='{}', source_fingerprint='a'*64,
+        source_versions='{}', kb_digest='b'*64, payload_sha256='c'*64, kb_package_version='test', kb_routes='[]', approx_tokens=0)
+    for index, status in enumerate(['pending', 'accepted', 'rejected', 'stale']):
+        _insert(connection, 'coach_proposals', operation='review_rolling_plan', snapshot_id=snapshot_id,
+            base_calendar_version=0, status=status, submitted_at=STAMP, summary='Saved proposal',
+            rationale='Saved rationale', confidence='{}', payload=json.dumps({'summary': 'Saved proposal', 'changes': []}),
+            skill_version='running-coach.v1', input_hash=str(index)*64)
+    connection.commit()
+    before, projection = _legacy_snapshot(connection)
+    _migration(connection, '0016_proposal_revisions')
+    connection.commit()
+    after, _ = _legacy_snapshot(connection, projection)
+    assert before == after
+    history = connection.execute(text('''SELECT p.revision, r.revision, r.payload = p.payload, r.saved_at = p.submitted_at
+        FROM coach_proposals p JOIN coach_proposal_revisions r ON p.id=r.proposal_id''')).all()
+    assert history == [(1, 1, True, True)] * 4
+    with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
+        _migration(connection, '0015_coach_v2', down=True)
+    connection.rollback()
+
+
+def test_single_open_upgrade_archives_older_drafts_and_preserves_history(isolated_schema):
+    from datetime import timedelta
+
+    connection = isolated_schema
+    _migration(connection, '0016_proposal_revisions')
+    snapshot_id = _insert(connection, 'coach_snapshots', operation='review_rolling_plan', as_of=STAMP.date(),
+        generated_at=STAMP, calendar_version_number=0, data_revision=0, payload='{}', source_fingerprint='a'*64,
+        source_versions='{}', kb_digest='b'*64, payload_sha256='c'*64, kb_package_version='test', kb_routes='[]', approx_tokens=0)
+    proposal_values = dict(operation='review_rolling_plan', snapshot_id=snapshot_id, base_calendar_version=0,
+        summary='Saved proposal', rationale='Saved rationale', confidence='{}', payload='{"changes":[]}',
+        skill_version='running-coach.v1')
+    ids = []
+    for index, status in enumerate(['pending', 'stale', 'invalid', 'accepted', 'rejected']):
+        uid = _insert(connection, 'coach_proposals', **proposal_values, status=status,
+            submitted_at=STAMP+timedelta(minutes=index), input_hash=str(index)*64)
+        ids.append(uid)
+        connection.execute(text('''INSERT INTO coach_proposal_revisions
+            (proposal_id, revision, saved_at, reason, payload, changed_change_ids, changed_fields)
+            VALUES (:id, 1, :saved, 'Original proposal', '{"changes":[]}', '{}', '{}')'''),
+            {'id':uid,'saved':STAMP+timedelta(minutes=10 if index==0 else index)})
+    connection.commit()
+    _, projection = _legacy_snapshot(connection)
+    projection['coach_proposals'].remove('status')
+    before, _ = _legacy_snapshot(connection, projection)
+    _migration(connection, HEAD)
+    connection.commit()
+    after, _ = _legacy_snapshot(connection, projection)
+    assert after == before
+    rows = {row.id:row for row in connection.execute(text('SELECT id,status,discarded_at FROM coach_proposals'))}
+    assert rows[ids[0]].status == 'pending'
+    assert [rows[uid].status for uid in ids[1:]] == ['discarded','discarded','accepted','rejected']
+    assert all(rows[uid].discarded_at is not None for uid in ids[1:3])
+    assert rows[ids[0]].discarded_at is None
+    for status in ['pending','stale','invalid']:
+        with pytest.raises(IntegrityError) as caught:
+            with connection.begin_nested():
+                _insert(connection, 'coach_proposals', **proposal_values, status=status, submitted_at=STAMP, input_hash='f'*64)
+        assert caught.value.orig.diag.constraint_name == 'uq_coach_proposals_one_open'
+    with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
+        _migration(connection, '0016_proposal_revisions', down=True)
+    connection.rollback()

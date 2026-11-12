@@ -177,7 +177,29 @@ def test_resubmit_same_file_idempotent(cli_db, tmp_path):
     assert code == 0 and first == second
     assert session.scalar(select(func.count()).select_from(CoachProposal)) == 1
     assert first['status'] == 'pending'
+    assert first['revision'] == 1
     assert session.get(AppState, 1, populate_existing=True).calendar_head_version == 1
+
+
+def test_revise_same_id_and_retry(cli_db, tmp_path):
+    run, session = cli_db
+    _, document = snapshot_doc(run, session)
+    code, first, error = run('submit','--file',write_doc(tmp_path,document))
+    assert code == 0, (first,error)
+    document['rationale'] = 'Updated coaching context'
+    path = write_doc(tmp_path, document)
+    command = ('revise',first['proposal_id'],'--expected-revision','1','--reason','Clarify context','--file',path)
+    code, second, error = run(*command)
+    assert code == 0, (second,error)
+    assert second['proposal_id'] == first['proposal_id'] and second['revision'] == 2
+    code, retry, error = run(*command)
+    assert code == 0 and retry == second, (retry,error)
+    assert session.scalar(select(func.count()).select_from(CoachProposal)) == 1
+    assert session.get(AppState, 1, populate_existing=True).calendar_head_version == 1
+    document['rationale'] = 'Different context'
+    code, conflict, error = run('revise',first['proposal_id'],'--expected-revision','1',
+        '--reason','Try older version','--file',write_doc(tmp_path,document))
+    assert code == 2 and conflict['error'] == 'proposal_revision_conflict', (conflict,error)
 
 
 def test_submit_invalid_exit_2_nothing_written(cli_db, tmp_path):

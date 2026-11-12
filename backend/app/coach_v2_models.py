@@ -10,11 +10,13 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -45,6 +47,7 @@ class CoachSnapshot(Base):
 class CoachProposal(Base):
     __tablename__ = 'coach_proposals'
     id: Mapped[uuid.UUID] = uuid_pk()
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default='1')
     operation: Mapped[str] = mapped_column(String(32), nullable=False)
     snapshot_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('coach_snapshots.id'), nullable=False)
     base_calendar_version: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -52,6 +55,7 @@ class CoachProposal(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     rationale: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
@@ -61,15 +65,27 @@ class CoachProposal(Base):
     follow_up: Mapped[str | None] = mapped_column(Text)
     escalation: Mapped[str | None] = mapped_column(String(32))
     block_change: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    anchor_changes: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    anchor_changes: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     decision_idempotency_key: Mapped[str | None] = mapped_column(String(100), unique=True)
     decision_hash: Mapped[str | None] = mapped_column(String(64))
     decision_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    validation_errors: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    validation_errors: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     skill_version: Mapped[str] = mapped_column(String(20), nullable=False)
     input_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    __table_args__ = (CheckConstraint("operation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change')", name='ck_coach_proposals_operation'), CheckConstraint("status IN ('pending','accepted','partially_accepted','rejected','stale','invalid')", name='ck_coach_proposals_status'), CheckConstraint("escalation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change')", name='ck_coach_proposals_escalation'))
+    __table_args__ = (CheckConstraint("operation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change')", name='ck_coach_proposals_operation'), CheckConstraint("status IN ('pending','accepted','partially_accepted','rejected','stale','invalid','discarded')", name='ck_coach_proposals_status'), CheckConstraint("escalation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change')", name='ck_coach_proposals_escalation'), Index('uq_coach_proposals_one_open', text('(true)'), unique=True, postgresql_where=text("status IN ('pending','stale','invalid')")))
+
+class CoachProposalRevision(Base):
+    __tablename__ = 'coach_proposal_revisions'
+    proposal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('coach_proposals.id', ondelete='CASCADE'), primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, primary_key=True)
+    saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    changed_change_ids: Mapped[list[Any]] = mapped_column(ARRAY(Text), nullable=False)
+    changed_fields: Mapped[list[Any]] = mapped_column(ARRAY(Text), nullable=False)
+    request_hash: Mapped[str | None] = mapped_column(String(64))
+
 
 class CoachProposalChange(Base):
     __tablename__ = 'coach_proposal_changes'

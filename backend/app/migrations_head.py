@@ -1,1 +1,1 @@
-EXPECTED_HEAD = '0015_coach_v2'
+EXPECTED_HEAD = '0017_single_open_proposal'

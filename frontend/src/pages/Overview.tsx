@@ -1,7 +1,32 @@
+import {
+  Badge,
+  Button,
+  Card,
+  Disclosure,
+  Input,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../components/ui'
 import { useState } from 'react'
 import { CalendarDays, ChartNoAxesColumn, Footprints, HeartPulse, Plus } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { addDays, dateLabel, distance, duration, localDate, query, validDate, type Checkin, type Coverage, type Recovery, type Summary } from '../api'
+import {
+  addDays,
+  dateLabel,
+  distance,
+  duration,
+  localDate,
+  query,
+  validDate,
+  type Checkin,
+  type Coverage,
+  type Recovery,
+  type Summary,
+} from '../api'
 import { ActivityTable } from '../components/ActivityTable'
 import { CoverageStrip } from '../components/CoverageStrip'
 import { Empty } from '../components/Empty'
@@ -9,29 +34,361 @@ import { QueryState } from '../components/QueryState'
 import { RecoveryPanel } from '../components/RecoveryPanel'
 import { isPartial, useServer, type Unit } from '../components/shared'
 import { Stat } from '../components/Stat'
-
 export function Overview({ unit, onCheckin }: { unit: Unit; onCheckin: () => void }) {
   const [days, setDays] = useState<28 | 84 | 365>(28)
   const [asOf, setAsOf] = useState('')
-  const end = asOf || localDate(), start = addDays(end, 1 - days)
-  const summary = useServer<Summary>(['summary', days, asOf], `/summary${query({ days, as_of: asOf })}`)
-  const recoveryStart = summary.data?.data.window.start_date || start, recoveryEnd = summary.data?.data.window.end_date || end
-  const recovery = useServer<Recovery>(['recovery', recoveryStart, recoveryEnd], `/recovery${query({ start_date: recoveryStart, end_date: recoveryEnd })}`)
-  const recap = useServer<{week_start:string;week_end:string;summary:Summary['selected'];checkins:Checkin[];questions:string[];coverage:Coverage[]}>(['weekly-recap'],'/weekly-summary')
+  const end = asOf || localDate(),
+    start = addDays(end, 1 - days)
+  const summary = useServer<Summary>(
+    ['summary', days, asOf],
+    `/summary${query({ days, as_of: asOf })}`,
+  )
+  const recoveryStart = summary.data?.data.window.start_date || start,
+    recoveryEnd = summary.data?.data.window.end_date || end
+  const recovery = useServer<Recovery>(
+    ['recovery', recoveryStart, recoveryEnd],
+    `/recovery${query({ start_date: recoveryStart, end_date: recoveryEnd })}`,
+  )
+  const recap = useServer<{
+    week_start: string
+    week_end: string
+    summary: Summary['selected']
+    checkins: Checkin[]
+    questions: string[]
+    coverage: Coverage[]
+  }>(['weekly-recap'], '/weekly-summary')
   const s = summary.data?.data
   const week = s?.weekly || []
-  return <section className="page-content">
-    <div className="page-heading"><div><div className="eyebrow">TRAINING JOURNAL</div><h1>Your training, in context.</h1><p>What happened on the roads, in the gym, and between sessions.</p></div><button className="button primary" onClick={onCheckin}><Plus size={18}/> Record check-in</button></div>
-    <div className="toolbar"><div className="segmented" aria-label="Overview range"><button className={days === 28 ? 'active' : ''} onClick={() => setDays(28)}>4 weeks</button><button className={days === 84 ? 'active' : ''} onClick={() => setDays(84)}>12 weeks</button><button className={days === 365 ? 'active' : ''} onClick={() => setDays(365)}>1 year</button></div><label className="select-label" htmlFor="overview-as-of">Through date <input id="overview-as-of" type="date" value={asOf} max={localDate()} onChange={e => { if (!e.target.value || (validDate(e.target.value) && e.target.value <= localDate())) setAsOf(e.target.value) }}/></label><span className="toolbar-note">{s ? `${dateLabel(s.window.start_date,{month:'short',day:'numeric',year:'numeric'})} – ${dateLabel(s.window.end_date,{month:'short',day:'numeric',year:'numeric'})} · ${s.timezone}` : 'Local calendar dates'}</span></div>
-    <QueryState loading={summary.isPending} error={summary.error} stale={!!summary.data} retry={() => summary.refetch()}>{s && <>
-      {isPartial(s.coverage) && <div className="notice warning">Some source windows are incomplete. Totals describe observed records and may be understated.</div>}
-      {s.strength_coverage && !s.strength_coverage.complete && <div className="notice muted">{s.strength_coverage.reason==='strong_export_snapshot'?'Strong export connected. Import a new CSV to include later lifting sessions.':'Strong history is not connected.'} Recorded strength sessions may be incomplete; missing recordings do not mean missed lifting.</div>}
-      <div className="stats-grid"><Stat label={asOf ? 'Week through selected date' : 'This week'} value={distance(s.current_week.distance_m, unit)} sub={`${s.current_week.run_count} runs · week to date`} icon={Footprints}/><Stat label="Last 7 days" value={distance(s.rolling_7.distance_m, unit)} sub={`${s.rolling_7.run_count} runs · rolling dates`} icon={ChartNoAxesColumn}/><Stat label="Last 14 days" value={distance(s.rolling_14.distance_m, unit)} sub={`${s.rolling_14.run_count} runs · rolling dates`} icon={CalendarDays}/><Stat label="Recorded strength sessions" value={String(s.selected.strength_count)} sub={`${duration(s.selected.strength_duration_s)} known time · ${s.selected.strength_unknown_duration_count} unknown`} icon={HeartPulse}/></div>
-      <div className="grid two-thirds"><div className="panel"><div className="panel-head"><div><h2>Running by week</h2><p>Calendar weeks · observed distance</p></div><span className="unit-pill">{unit}</span></div>{week.length ? <><div className="chart" role="img" aria-label="Weekly running distance bar chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={week} margin={{ top: 12, right: 12, bottom: 0, left: -12 }}><CartesianGrid vertical={false} stroke="#e9e7df"/><XAxis dataKey="start_date" tickFormatter={x => dateLabel(x)} tickLine={false} axisLine={false} fontSize={11}/><YAxis tickLine={false} axisLine={false} fontSize={11} tickFormatter={x => `${Math.round(x / (unit === 'mi' ? 1609.344 : 1000))}`}/><Tooltip formatter={value => distance(Number(value), unit)} labelFormatter={x => `Week of ${dateLabel(String(x))}`}/><Bar dataKey="distance_m" fill="#899b69" radius={[5,5,0,0]} maxBarSize={38} isAnimationActive={false}/></BarChart></ResponsiveContainer></div><details className="chart-table"><summary>View weekly data table</summary><div className="table-scroll"><table><thead><tr><th>Week</th><th>Distance</th><th>Runs</th><th>Strength</th></tr></thead><tbody>{week.map(w => <tr key={w.start_date}><td>{dateLabel(w.start_date)}–{dateLabel(w.end_date)}</td><td>{distance(w.distance_m,unit)}</td><td>{w.run_count}{w.missing_distance_count ? ` (${w.missing_distance_count} unknown distance)` : ''}</td><td>{w.strength_count}</td></tr>)}</tbody></table></div></details></> : <Empty title="No weekly totals yet" text="Import activities to see observed training here."/>}</div>
-      <div className="panel warm"><div className="panel-head"><div><h2>Session mix</h2><p>Manual or verified workout labels</p></div></div><div className="mix-list">{Object.entries(s.selected.workout_distribution).map(([key, count]) => <div className="mix-row" key={key}><span className="mix-name"><span className={`mix-mark ${key}`}/>{key}</span><strong>{count}</strong></div>)}</div><div className="panel-divider"/><div className="mini-stats"><div><small>Longest run · elapsed</small><strong>{duration(s.selected.longest_elapsed_s)}</strong></div><div><small>Low-impact sessions</small><strong>{s.selected.low_impact_count}</strong></div></div><p className="fineprint">Unknown labels remain unknown. No intensity is inferred from pace.</p></div></div>
-      <div className="grid halves"><div className="panel"><div className="panel-head"><div><h2>Recent runs</h2><p>From the same summary window</p></div></div>{s.recent_runs.length ? <ActivityTable items={s.recent_runs.slice(0, 5)} unit={unit} compact/> : <Empty title="No runs recorded" text="No resolved runs were found in this window."/>}</div><div className="panel"><div className="panel-head"><div><h2>Recovery observations</h2><p>Recorded values only · gaps are not zero</p></div></div><QueryState loading={recovery.isPending} error={recovery.error} stale={!!recovery.data} retry={() => recovery.refetch()}>{recovery.data && <RecoveryPanel data={recovery.data.data}/>}</QueryState></div></div>
-      <div className="panel recap-panel"><div className="panel-head"><div><h2>This week, factually</h2><p>Observed sessions and check-ins · no training verdict</p></div></div><QueryState loading={recap.isPending} error={recap.error} stale={!!recap.data} retry={()=>recap.refetch()}>{recap.data&&<div className="recap-body"><>{s.strength_coverage && !s.strength_coverage.complete && <div className="notice muted">{s.strength_coverage.reason==='strong_export_snapshot'?'Strong export is included.':'Strong history is not connected.'} This recap includes only recorded strength sessions.</div>}<div className="recap-facts"><div><strong>{recap.data.data.summary.run_count}</strong><span>runs recorded</span></div><div><strong>{distance(recap.data.data.summary.distance_m,unit)}</strong><span>observed run distance</span></div><div><strong>{recap.data.data.summary.strength_count}</strong><span>recorded strength sessions</span></div><div><strong>{recap.data.data.checkins.length}</strong><span>check-ins</span></div></div>{recap.data.data.questions.length>0&&<p className="fineprint">Still unknown: {recap.data.data.questions.join(' · ')}</p>}</></div>}</QueryState></div>
-      <div className="panel coverage-panel"><div className="panel-head"><div><h2>Source coverage</h2><p>Each dataset has its own freshness</p></div></div><CoverageStrip items={s.coverage}/></div>
-    </>}</QueryState>
-  </section>
+  return (
+    <section className="page-content">
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">TRAINING JOURNAL</div>
+          <h1>Your training, in context.</h1>
+          <p>What happened on the roads, in the gym, and between sessions.</p>
+        </div>
+        <Button onClick={onCheckin}>
+          <Plus size={18} /> Record check-in
+        </Button>
+      </div>
+      <div className="toolbar">
+        <div className="segmented" aria-label="Overview range">
+          <Button
+            variant="ghost"
+            className={
+              days === 28 ? 'active bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+            }
+            onClick={() => setDays(28)}
+          >
+            4 weeks
+          </Button>
+          <Button
+            variant="ghost"
+            className={
+              days === 84 ? 'active bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+            }
+            onClick={() => setDays(84)}
+          >
+            12 weeks
+          </Button>
+          <Button
+            variant="ghost"
+            className={
+              days === 365 ? 'active bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+            }
+            onClick={() => setDays(365)}
+          >
+            1 year
+          </Button>
+        </div>
+        <label className="select-label" htmlFor="overview-as-of">
+          Through date{' '}
+          <Input
+            id="overview-as-of"
+            type="date"
+            value={asOf}
+            max={localDate()}
+            onChange={(e) => {
+              if (!e.target.value || (validDate(e.target.value) && e.target.value <= localDate()))
+                setAsOf(e.target.value)
+            }}
+          />
+        </label>
+        <span className="toolbar-note">
+          {s
+            ? `${dateLabel(s.window.start_date, { month: 'short', day: 'numeric', year: 'numeric' })} – ${dateLabel(s.window.end_date, { month: 'short', day: 'numeric', year: 'numeric' })} · ${s.timezone}`
+            : 'Local calendar dates'}
+        </span>
+      </div>
+      <QueryState
+        loading={summary.isPending}
+        error={summary.error}
+        stale={!!summary.data}
+        retry={() => summary.refetch()}
+      >
+        {s && (
+          <>
+            {isPartial(s.coverage) && (
+              <div className="notice warning">
+                Some source windows are incomplete. Totals describe observed records and may be
+                understated.
+              </div>
+            )}
+            {s.strength_coverage && !s.strength_coverage.complete && (
+              <div className="notice muted">
+                {s.strength_coverage.reason === 'strong_export_snapshot'
+                  ? 'Strong export connected. Import a new CSV to include later lifting sessions.'
+                  : 'Strong history is not connected.'}{' '}
+                Recorded strength sessions may be incomplete; missing recordings do not mean missed
+                lifting.
+              </div>
+            )}
+            <div className="stats-grid">
+              <Stat
+                label={asOf ? 'Week through selected date' : 'This week'}
+                value={distance(s.current_week.distance_m, unit)}
+                sub={`${s.current_week.run_count} runs · week to date`}
+                icon={Footprints}
+              />
+              <Stat
+                label="Last 7 days"
+                value={distance(s.rolling_7.distance_m, unit)}
+                sub={`${s.rolling_7.run_count} runs · rolling dates`}
+                icon={ChartNoAxesColumn}
+              />
+              <Stat
+                label="Last 14 days"
+                value={distance(s.rolling_14.distance_m, unit)}
+                sub={`${s.rolling_14.run_count} runs · rolling dates`}
+                icon={CalendarDays}
+              />
+              <Stat
+                label="Recorded strength sessions"
+                value={String(s.selected.strength_count)}
+                sub={`${duration(s.selected.strength_duration_s)} known time · ${s.selected.strength_unknown_duration_count} unknown`}
+                icon={HeartPulse}
+              />
+            </div>
+            <div className="grid two-thirds">
+              <Card>
+                <div className="panel-head">
+                  <div>
+                    <h2>Running by week</h2>
+                    <p>Calendar weeks · observed distance</p>
+                  </div>
+                  <Badge className="unit-pill">{unit}</Badge>
+                </div>
+                {week.length ? (
+                  <>
+                    <div
+                      className="chart"
+                      role="img"
+                      aria-label="Weekly running distance bar chart"
+                    >
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={week} margin={{ top: 12, right: 12, bottom: 0, left: -12 }}>
+                          <CartesianGrid vertical={false} stroke="#e9e7df" />
+                          <XAxis
+                            dataKey="start_date"
+                            tickFormatter={(x) => dateLabel(x)}
+                            tickLine={false}
+                            axisLine={false}
+                            fontSize={11}
+                          />
+                          <YAxis
+                            tickLine={false}
+                            axisLine={false}
+                            fontSize={11}
+                            tickFormatter={(x) =>
+                              `${Math.round(x / (unit === 'mi' ? 1609.344 : 1000))}`
+                            }
+                          />
+                          <Tooltip
+                            formatter={(value) => distance(Number(value), unit)}
+                            labelFormatter={(x) => `Week of ${dateLabel(String(x))}`}
+                          />
+                          <Bar
+                            dataKey="distance_m"
+                            fill="#899b69"
+                            radius={[5, 5, 0, 0]}
+                            maxBarSize={38}
+                            isAnimationActive={false}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <Disclosure className="chart-table">
+                      <summary>View weekly data table</summary>
+                      <div className="table-scroll">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Week</TableHead>
+                              <TableHead>Distance</TableHead>
+                              <TableHead>Runs</TableHead>
+                              <TableHead>Strength</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {week.map((w) => (
+                              <TableRow key={w.start_date}>
+                                <TableCell>
+                                  {dateLabel(w.start_date)}–{dateLabel(w.end_date)}
+                                </TableCell>
+                                <TableCell>{distance(w.distance_m, unit)}</TableCell>
+                                <TableCell>
+                                  {w.run_count}
+                                  {w.missing_distance_count
+                                    ? ` (${w.missing_distance_count} unknown distance)`
+                                    : ''}
+                                </TableCell>
+                                <TableCell>{w.strength_count}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </Disclosure>
+                  </>
+                ) : (
+                  <Empty
+                    title="No weekly totals yet"
+                    text="Import activities to see observed training here."
+                  />
+                )}
+              </Card>
+              <Card className="bg-muted">
+                <div className="panel-head">
+                  <div>
+                    <h2>Session mix</h2>
+                    <p>Manual or verified workout labels</p>
+                  </div>
+                </div>
+                <div className="mix-list">
+                  {Object.entries(s.selected.workout_distribution).map(([key, count]) => (
+                    <div className="mix-row" key={key}>
+                      <span className="mix-name">
+                        <span className={`mix-mark ${key}`} />
+                        {key}
+                      </span>
+                      <strong>{count}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="panel-divider" />
+                <div className="mini-stats">
+                  <div>
+                    <small>Longest run · elapsed</small>
+                    <strong>{duration(s.selected.longest_elapsed_s)}</strong>
+                  </div>
+                  <div>
+                    <small>Low-impact sessions</small>
+                    <strong>{s.selected.low_impact_count}</strong>
+                  </div>
+                </div>
+                <p className="fineprint">
+                  Unknown labels remain unknown. No intensity is inferred from pace.
+                </p>
+              </Card>
+            </div>
+            <div className="grid halves">
+              <Card>
+                <div className="panel-head">
+                  <div>
+                    <h2>Recent runs</h2>
+                    <p>From the same summary window</p>
+                  </div>
+                </div>
+                {s.recent_runs.length ? (
+                  <ActivityTable items={s.recent_runs.slice(0, 5)} unit={unit} compact />
+                ) : (
+                  <Empty
+                    title="No runs recorded"
+                    text="No resolved runs were found in this window."
+                  />
+                )}
+              </Card>
+              <Card>
+                <div className="panel-head">
+                  <div>
+                    <h2>Recovery observations</h2>
+                    <p>Recorded values only · gaps are not zero</p>
+                  </div>
+                </div>
+                <QueryState
+                  loading={recovery.isPending}
+                  error={recovery.error}
+                  stale={!!recovery.data}
+                  retry={() => recovery.refetch()}
+                >
+                  {recovery.data && <RecoveryPanel data={recovery.data.data} />}
+                </QueryState>
+              </Card>
+            </div>
+            <Card className="recap-panel">
+              <div className="panel-head">
+                <div>
+                  <h2>This week, factually</h2>
+                  <p>Observed sessions and check-ins · no training verdict</p>
+                </div>
+              </div>
+              <QueryState
+                loading={recap.isPending}
+                error={recap.error}
+                stale={!!recap.data}
+                retry={() => recap.refetch()}
+              >
+                {recap.data && (
+                  <div className="recap-body">
+                    <>
+                      {s.strength_coverage && !s.strength_coverage.complete && (
+                        <div className="notice muted">
+                          {s.strength_coverage.reason === 'strong_export_snapshot'
+                            ? 'Strong export is included.'
+                            : 'Strong history is not connected.'}{' '}
+                          This recap includes only recorded strength sessions.
+                        </div>
+                      )}
+                      <div className="recap-facts">
+                        <div>
+                          <strong>{recap.data.data.summary.run_count}</strong>
+                          <span>runs recorded</span>
+                        </div>
+                        <div>
+                          <strong>{distance(recap.data.data.summary.distance_m, unit)}</strong>
+                          <span>observed run distance</span>
+                        </div>
+                        <div>
+                          <strong>{recap.data.data.summary.strength_count}</strong>
+                          <span>recorded strength sessions</span>
+                        </div>
+                        <div>
+                          <strong>{recap.data.data.checkins.length}</strong>
+                          <span>check-ins</span>
+                        </div>
+                      </div>
+                      {recap.data.data.questions.length > 0 && (
+                        <p className="fineprint">
+                          Still unknown: {recap.data.data.questions.join(' · ')}
+                        </p>
+                      )}
+                    </>
+                  </div>
+                )}
+              </QueryState>
+            </Card>
+            <Card className="coverage-panel">
+              <div className="panel-head">
+                <div>
+                  <h2>Source coverage</h2>
+                  <p>Each dataset has its own freshness</p>
+                </div>
+              </div>
+              <CoverageStrip items={s.coverage} />
+            </Card>
+          </>
+        )}
+      </QueryState>
+    </section>
+  )
 }

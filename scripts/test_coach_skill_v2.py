@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -12,7 +13,7 @@ from unittest.mock import Mock, patch
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / '.codex/skills/going-bananas-coach'
+PACKAGE = Path(os.environ.get('GB_COACH_SKILL_TEST_PACKAGE', ROOT / '.codex/skills/going-bananas-coach'))
 spec = importlib.util.spec_from_file_location('coach_helper_v2', PACKAGE/'scripts/coach_app.py')
 helper = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(helper)
@@ -21,6 +22,46 @@ UID = '00000000-0000-4000-8000-000000000042'
 
 
 class HelperTests(unittest.TestCase):
+    def test_read_only_refuses_submit_and_undo_before_access(self):
+        commands = [['submit', '--file', 'unused.json'],
+                    ['revise', UID, '--expected-revision', '1', '--reason', 'Update', '--file', 'unused.json'],
+                    ['undo', '--expected-head', '2', '--target-version', '1', '--reason', 'test']]
+        for command in commands:
+            with self.subTest(command=command), patch.object(helper, 'run_cli') as cli, \
+                 patch.object(helper.Client, 'request') as request, \
+                 patch('sys.stderr', new_callable=io.StringIO) as output:
+                self.assertEqual(helper.main(['--mode', 'real', '--read-only', *command]), 2)
+                self.assertEqual(json.loads(output.getvalue())['error'], 'read_only_command_required')
+                cli.assert_not_called()
+                request.assert_not_called()
+
+    def test_saved_response_is_complete_private_and_never_overwritten(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = {'snapshot_id': UID, 'payload': {'long_text': 'evidence' * 10000}}
+            first = helper.save_response(root, 'real', 'snapshot', result)
+            second = helper.save_response(root, 'real', 'snapshot', result)
+            self.assertNotEqual(first['response_file'], second['response_file'])
+            self.assertNotIn('payload', first)
+            self.assertEqual(first['snapshot_id'], UID)
+            for saved in (first, second):
+                path = Path(saved['response_file'])
+                self.assertEqual(path.parent, root / 'private/real/coach/responses')
+                self.assertEqual(json.loads(path.read_text()), result)
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_read_only_snapshot_can_save_full_response(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = {'snapshot_id': UID, 'payload': {'snapshot_meta': {'source_fingerprint': 'a' * 64}}}
+            with patch.object(helper, 'repo_root', return_value=root), \
+                 patch.object(helper, 'run_cli', side_effect=[(0, SCHEMA), (0, result)]), \
+                 patch('sys.stdout', new_callable=io.StringIO) as output:
+                self.assertEqual(helper.main(['--mode', 'real', '--read-only', 'snapshot',
+                    '--operation', 'review_rolling_plan', '--save-response']), 0)
+            summary = json.loads(output.getvalue())
+            self.assertEqual(json.loads(Path(summary['response_file']).read_text()), result)
+
     def test_loopback_only_and_modes(self):
         for url in ['https://localhost', 'http://example.com', 'http://localhost@evil.test',
                     'http://localhost/path', 'http://localhost?x=1', 'http://localhost#x']:
@@ -64,7 +105,7 @@ class HelperTests(unittest.TestCase):
             source = root/'draft.json'
             source.write_text(json.dumps(document))
             with patch.object(helper, 'repo_root', return_value=root), \
-                 patch.object(helper, 'run_cli', side_effect=[(0,SCHEMA),(0,{'proposal_id':UID,'status':'pending','errors':[]})]) as run, \
+                 patch.object(helper, 'run_cli', side_effect=[(0,SCHEMA),(0,{'proposal_id':UID,'revision':1,'status':'pending','errors':[]})]) as run, \
                  patch('sys.stdout', new_callable=io.StringIO) as output:
                 self.assertEqual(helper.main(['--mode','real','submit','--file',str(source)]), 0)
             saved = Path(run.call_args.args[2][-1])
@@ -74,6 +115,7 @@ class HelperTests(unittest.TestCase):
             result = json.loads(output.getvalue())
             self.assertEqual(result['message'], 'Pending your review; nothing applied.')
             self.assertTrue(result['review_url'].endswith('#proposal/'+UID))
+            self.assertEqual(result['revision'], 1)
             self.assertFalse(any('decision' in str(call) for call in run.call_args_list))
 
     def test_stale_response_is_not_automatically_retried(self):
@@ -86,6 +128,43 @@ class HelperTests(unittest.TestCase):
                  patch('sys.stdout', new_callable=io.StringIO):
                 self.assertEqual(helper.main(['--mode','real','submit','--file',str(source)]), 3)
             self.assertEqual(run.call_count, 2)
+
+    def test_revision_uses_same_review_link_and_private_copy(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root/'draft.json'
+            document = {'schema_version':'coach_proposal.v1','snapshot_id':UID}
+            source.write_text(json.dumps(document))
+            response = {'proposal_id':UID,'revision':2,'status':'pending','errors':[]}
+            with patch.object(helper, 'repo_root', return_value=root), \
+                 patch.object(helper, 'run_cli', side_effect=[(0,SCHEMA),(0,response)]) as run, \
+                 patch('sys.stdout', new_callable=io.StringIO) as output:
+                self.assertEqual(helper.main(['--mode','real','revise',UID,'--expected-revision','1',
+                    '--reason','Adjust timing','--file',str(source)]), 0)
+            args = run.call_args.args[2]
+            self.assertEqual(args[:6], ['revise',UID,'--expected-revision','1','--reason','Adjust timing'])
+            self.assertEqual(json.loads(Path(args[-1]).read_text()), document)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result['revision'], 2)
+            self.assertTrue(result['review_url'].endswith('#proposal/'+UID))
+
+    def test_proposal_document_routes(self):
+        for extra, endpoint in [([],f'/coach/proposals/{UID}'),
+                                (['--document'],f'/coach/proposals/{UID}/document'),
+                                (['--document','--revision','2'],f'/coach/proposals/{UID}/revisions/2')]:
+            with self.subTest(extra=extra), patch.object(helper.Client, 'request',
+                    return_value={'mode':'real','data':{}}) as request, \
+                 patch('sys.stdout', new_callable=io.StringIO):
+                self.assertEqual(helper.main(['--mode','real','--read-only','proposal',UID,*extra]), 0)
+            self.assertEqual(request.call_args.args, ('GET',endpoint))
+
+    def test_active_proposal_is_read_only_get(self):
+        envelope = {'mode':'real','data':{'proposal':None}}
+        with patch.object(helper.Client, 'request', return_value=envelope) as request, \
+             patch('sys.stdout', new_callable=io.StringIO) as output:
+            self.assertEqual(helper.main(['--mode','real','--read-only','active-proposal']), 0)
+        request.assert_called_once_with('GET','/coach/proposals/active')
+        self.assertEqual(json.loads(output.getvalue()), envelope)
 
     def test_snapshot_requires_source_linkage(self):
         for payload, expected in [({'snapshot_id':UID,'payload':{}},1),

@@ -1,0 +1,205 @@
+@layer components {
+  .plan-overview,
+  .plan-week {
+    min-width: 0;
+  }
+  .plan-week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .plan-day,
+  .calendar-page .calendar-day {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--border, #dce2dc);
+    border-radius: 12px;
+    background: var(--surface, #fff);
+  }
+  .plan-day h3,
+  .calendar-page .calendar-day h3 {
+    font-size: 0.85rem;
+    margin: 0 0 10px;
+  }
+  .plan-day h3 small {
+    display: block;
+    color: var(--primary, #426e42);
+  }
+  .plan-day.is-today {
+    outline: 2px solid var(--primary, #426e42);
+  }
+  .plan-session {
+    border-left: 3px solid #658c61;
+    background: #f3f6f1;
+    border-radius: 6px;
+    padding: 9px;
+    margin-bottom: 8px;
+    overflow-wrap: anywhere;
+    font-size: 0.85rem;
+  }
+  .plan-session > strong,
+  .plan-session-type {
+    display: block;
+  }
+  .plan-session-type {
+    font-size: 0.75rem;
+    color: #4c5c53;
+    margin-top: 4px;
+  }
+  .plan-session.kind-strength {
+    border-color: #9464ad;
+    background: #f6f1f8;
+  }
+  .plan-session.kind-cross {
+    border-color: #368d9a;
+    background: #eff7f8;
+  }
+  .plan-session.kind-rest,
+  .plan-session.kind-mobility {
+    border-color: #9a895a;
+    background: #f8f6ef;
+  }
+  .plan-session-amounts,
+  .plan-session-status {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-top: 7px;
+  }
+  .plan-session-status {
+    font-size: 0.72rem;
+  }
+  .plan-session-details {
+    margin-top: 10px;
+  }
+  .plan-session-details summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .plan-session-notes {
+    white-space: pre-line;
+  }
+  .plan-session .compact-workout {
+    padding-left: 16px;
+  }
+  .calendar-page .calendar-week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .calendar-page .session-row {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  .calendar-page .coach-actions {
+    flex-wrap: wrap;
+  }
+  .calendar-history > summary {
+    cursor: pointer;
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+  .mileage-track {
+    display: flex;
+    height: 12px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: #e7ebe5;
+    margin: 16px 0;
+  }
+  .mileage-recorded {
+    background: #49794d;
+  }
+  .mileage-remaining {
+    background: #afc99d;
+  }
+  .mileage-legend {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    margin-right: 5px;
+  }
+  .weekly-mileage-parts > span:first-child:before {
+    content: '';
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    background: #49794d;
+    margin-right: 5px;
+  }
+  .weekly-mileage-parts > span:last-child:before {
+    content: '';
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    background: #afc99d;
+    margin-right: 5px;
+  }
+  @media (max-width: 1000px) {
+    .plan-week-grid,
+    .calendar-page .calendar-week-grid {
+      grid-template-columns: 1fr;
+    }
+    .plan-day {
+      display: grid;
+      grid-template-columns: 80px minmax(0, 1fr);
+      gap: 8px;
+    }
+    .plan-day h3 {
+      grid-row: 1 / span 8;
+    }
+    .calendar-page .calendar-day {
+      padding: 12px;
+    }
+    .plan-session {
+      margin-bottom: 5px;
+    }
+  }
+  /* An opened prescription occupies the whole week, keeping its exact steps readable. */
+  .plan-week-grid > .plan-day:has(.plan-session-details[open]),
+  .calendar-week-grid > .calendar-day:has(.plan-session-details[open]) {
+    grid-column: 1 / -1;
+    display: block;
+  }
+  .plan-day:has(.plan-session-details[open]) .plan-session,
+  .calendar-day:has(.plan-session-details[open]) .plan-session {
+    max-width: none;
+  }
+  .plan-session-details[open] {
+    padding: 12px;
+    background: #fff;
+    border-radius: 8px;
+  }
+  .plan-session-details[open] .compact-workout {
+    max-width: 70ch;
+  }
+  .plan-session-details summary:focus-visible {
+    outline: 2px solid #426e42;
+    outline-offset: 4px;
+  }
+  .today-card .plan-session-details[open] {
+    padding: 8px 0;
+  }
+
+  .calendar-page .calendar-day.is-today {
+    outline: 2px solid var(--primary, #426e42);
+  }
+  .home-quiet-state {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 5px 0;
+    color: #647260;
+    font-size: 0.85rem;
+  }
+  .home-quiet-state h2 {
+    font: inherit;
+    font-weight: 600;
+    margin: 0;
+  }
+  .home-quiet-state p {
+    margin: 0;
+  }
+}

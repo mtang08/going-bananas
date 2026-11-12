@@ -183,7 +183,7 @@ def pending(session):
 
 
 def decision(head, *, accept=None, reject=None, key='api-decision-key'):
-    return {'expected_head': head, 'idempotency_key': key, 'accept_change_ids': accept or [],
+    return {'expected_head': head, 'expected_revision': 1, 'idempotency_key': key, 'accept_change_ids': accept or [],
             'reject_change_ids': reject or []}
 
 
@@ -200,6 +200,29 @@ def test_detail_includes_current_and_flags(api):
     items = client.get('/api/v1/coach/proposals?status=pending').json()['data']['items']
     assert items[0]['id'] == str(proposal_id) and items[0]['change_count'] == 1
     assert client.get(f'/api/v1/coach/proposals/{uuid.uuid4()}').status_code == 404
+
+
+def test_active_and_discard_api(api):
+    client, session = api
+    base = '/api/v1/coach/proposals'
+    assert client.get(f'{base}/active').json()['data']['proposal'] is None
+    proposal_id, _, head = pending(session)
+    assert client.get(f'{base}/active').json()['data']['proposal']['id'] == str(proposal_id)
+    assert client.get(f'{base}?status=open').json()['data']['items'][0]['id'] == str(proposal_id)
+    assert client.delete(f'{base}/{proposal_id}').status_code == 422
+    assert client.delete(f'{base}/{proposal_id}?expected_revision=2').status_code == 409
+    response = client.delete(f'{base}/{proposal_id}?expected_revision=1')
+    assert response.status_code == 200, response.text
+    assert response.json()['data'] == {'proposal_id': str(proposal_id), 'revision': 1, 'status': 'discarded'}
+    assert client.delete(f'{base}/{proposal_id}?expected_revision=1').json()['data'] == response.json()['data']
+    assert client.get(f'{base}/active').json()['data']['proposal'] is None
+    assert client.get(base).json()['data']['items'] == []
+    assert client.get(f'{base}?status=discarded').json()['data']['items'][0]['discarded_at'] is not None
+    assert client.get(f'{base}/{proposal_id}').json()['data']['discarded_at'] is not None
+    assert session.get(AppState, 1).calendar_head_version == head
+    decision_response = client.post(f'{base}/{proposal_id}/decision', json=decision(head, accept=['c1']))
+    assert decision_response.status_code == 409
+    assert decision_response.json()['error']['code'] == 'proposal_discarded'
 
 
 def test_accept_replay_and_changed_selection(api):
@@ -334,3 +357,46 @@ def test_subset_invalid_422(api):
     assert response.status_code == 422, response.text
     assert response.json()['error']['code'] == 'proposal_invalid_subset'
     assert session.get(AppState,1).calendar_head_version == snapshot.calendar_version_number
+
+
+def test_revision_api_preserves_link_and_requires_reviewed_revision(api):
+    client, session = api
+    proposal_id, uid, head = pending(session)
+    base = f'/api/v1/coach/proposals/{proposal_id}'
+    draft = client.get(base+'/document').json()['data']
+    assert draft['revision'] == 1 and draft['is_current']
+    draft['document']['changes'][0]['after']['planned_duration_s'] = 2100
+    request = {'expected_revision': 1, 'reason': 'Shorter run', 'document': draft['document']}
+    revised = client.post(base+'/revise', json=request)
+    assert revised.status_code == 200, revised.text
+    assert revised.json()['data']['proposal_id'] == str(proposal_id)
+    assert revised.json()['data']['revision'] == 2
+    assert client.post(base+'/revise', json=request).json()['data'] == revised.json()['data']
+    detail = client.get(base).json()['data']
+    assert detail['revision'] == 2
+    assert [r['revision'] for r in detail['revisions']] == [2, 1]
+    assert detail['revisions'][0]['changed_change_ids'] == ['c1']
+    old = client.get(base+'/revisions/1').json()['data']
+    assert old['document']['changes'][0]['after']['planned_duration_s'] == 2400
+    assert client.get(base+'/revisions/99').status_code == 404
+    stale = client.post(base+'/decision', json=decision(head, accept=['c1']))
+    assert stale.status_code == 409 and stale.json()['error']['code'] == 'proposal_revision_conflict'
+    missing_revision = decision(head, accept=['c1'])
+    del missing_revision['expected_revision']
+    assert client.post(base+'/decision', json=missing_revision).status_code == 422
+    accepted = client.post(base+'/decision', json={**decision(head, accept=['c1']), 'expected_revision': 2})
+    assert accepted.status_code == 200
+    assert client.post(base+'/revise', json={**request, 'expected_revision': 2}).status_code == 409
+
+
+def test_invalid_revision_api_preserves_current_draft(api):
+    client, session = api
+    proposal_id, _, _ = pending(session)
+    base = f'/api/v1/coach/proposals/{proposal_id}'
+    document = client.get(base+'/document').json()['data']['document']
+    document['changes'][0]['after']['local_date'] = '2027-01-01'
+    response = client.post(base+'/revise', json={'expected_revision': 1, 'reason': 'Outside horizon', 'document': document})
+    assert response.status_code == 422
+    current = client.get(base).json()['data']
+    assert current['revision'] == 1 and current['status'] == 'pending'
+    assert current['changes'][0]['after'] == {'planned_duration_s': 2400}

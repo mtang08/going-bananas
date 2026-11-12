@@ -182,6 +182,15 @@ def calendar_view(session: Session, start: date, end: date, version: int | None 
         local_date = _completion_date(session, row, planned)
         if local_date is not None and start <= local_date <= end:
             completions.append(completion_data(session, row, requested))
+    # Actual history also exists before planning starts, and while a match is
+    # awaiting confirmation. Display it without inventing a plan/completion.
+    represented = {row['activity_id'] for row in completions if row['activity_id']}
+    recorded_runs = [
+        {'activity_id': run.activity_id, 'local_date': run.local_date,
+         'distance_m': run.distance_m, 'timer_s': run.timer_s}
+        for run in load_runs(session, start, end + timedelta(days=1))
+        if run.activity_id not in represented
+    ]
     undo = None
     if head:
         changed_number = session.scalar(select(func.max(CalendarSessionRevision.calendar_version_number))
@@ -198,7 +207,7 @@ def calendar_view(session: Session, start: date, end: date, version: int | None 
     return {'today': _today(session), 'timezone': profile.timezone if profile else 'America/New_York',
         'start': start, 'end': end, 'version': requested, 'head': head,
         'last_planned_date': max((item['local_date'] for item in all_head), default=None),
-        'sessions': in_range, 'completions': completions,
+        'sessions': in_range, 'completions': completions, 'recorded_runs': recorded_runs,
         'versions': [{'number': row.number, 'kind': row.kind, 'actor': row.actor,
                       'created_at': row.created_at} for row in versions], 'undo': undo}
 

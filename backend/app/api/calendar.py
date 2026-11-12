@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.api.core import envelope
 from app.calendar_models import CalendarVersion
 from app.db import get_session
-from app.services import calendar
+from app.services import calendar, weekly_projection
 
 router = APIRouter()
 
@@ -74,6 +74,11 @@ def get_calendar(start: date | None = None, end: date | None = None,
     today = calendar._today(session)
     return envelope(session, calendar.calendar_view(session,
         start or today - timedelta(days=7), end or today + timedelta(days=13), version))
+
+
+@router.get('/calendar/weekly-projection')
+def get_weekly_projection(session: Session = Depends(get_session)) -> dict:
+    return envelope(session, weekly_projection.weekly_projection(session))
 
 
 @router.get('/calendar/versions')

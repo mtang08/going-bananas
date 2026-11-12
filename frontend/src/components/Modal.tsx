@@ -1,5 +1,44 @@
-import type { ReactNode } from 'react'
-import { X } from 'lucide-react'
-export function Modal({ label, className, close, children }: { label: string; className?: string; close: () => void; children: ReactNode }) {
-  return <div className="modal-backdrop" onMouseDown={close}><div className={className ? `modal ${className}` : 'modal'} role="dialog" aria-modal="true" aria-label={label} onMouseDown={e => e.stopPropagation()}><button className="icon-button close" aria-label="Close" onClick={close}><X/></button>{children}</div></div>
+import { useRef, type ReactNode } from 'react'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from './ui'
+import { cn } from '../lib/utils'
+
+/** Controlled Radix dialog; preserves the app's existing label/close interface. */
+export function Modal({
+  label,
+  description,
+  className,
+  close,
+  children,
+}: {
+  label: string
+  description?: string
+  className?: string
+  close: () => void
+  children: ReactNode
+}) {
+  // These callers mount the dialog conditionally rather than using DialogTrigger.
+  const returnFocus = useRef(
+    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  )
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) close()
+      }}
+    >
+      <DialogContent
+        className={cn('modal', className)}
+        {...(!description ? { 'aria-describedby': undefined } : {})}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          returnFocus.current?.focus()
+        }}
+      >
+        <DialogTitle className="sr-only">{label}</DialogTitle>
+        {description && <DialogDescription>{description}</DialogDescription>}
+        {children}
+      </DialogContent>
+    </Dialog>
+  )
 }

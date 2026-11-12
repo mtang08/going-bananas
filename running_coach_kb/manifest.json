@@ -1,9 +1,9 @@
 {
   "schema_version": "1.1",
   "package_name": "running_coach_kb",
-  "package_version": "1.1.0+privacy1",
+  "package_version": "1.1.1+privacy1",
   "created_on": "2026-11-10",
-  "updated_on": "2026-11-11",
+  "updated_on": "2026-11-12",
   "searched_through": "2026-11-11",
   "completion_status": "complete_incremental_extension_with_explicit_gaps",
   "scope_note": "Public generalizable running-coach knowledge base. No public athlete snapshot, application implementation, live Garmin integration, medical diagnosis, activated policy, or personalized training calendar.",
@@ -376,8 +376,8 @@
     {
       "path": "README.md",
       "status": "changed",
-      "bytes": 9549,
-      "sha256": "4bf07db11e5d8cee42cab4e01db9ec0d26406e9525a4dfc60fba47b9347b8d07"
+      "bytes": 9944,
+      "sha256": "6b6c1e1ad57bb18f1b4469b70641dfa8d445b2cf0b2de85a3642cb284391b4d9"
     },
     {
       "path": "evaluation/coaching_cases.md",
@@ -534,6 +534,12 @@
       "status": "unchanged_from_1.0.0+privacy1",
       "bytes": 6508,
       "sha256": "ec791b290722433fe4ffd22f326b9941ffd8b44b28f354be5dc2c5682f0174f3"
+    },
+    {
+      "path": "research/coaching_web_intake.md",
+      "status": "added",
+      "bytes": 2820,
+      "sha256": "6503989953542aecd09f88f540b7e6f447fb5c70cb17191843d7bb7e0b8bbe20"
     }
   ],
   "manifest_self": {
@@ -661,5 +667,12 @@
     "verified_unchanged_baseline_files": 16,
     "payload_transform": "None; all 28 public payload files exactly match the supplied incremental manifest. Original privacy import provenance retained as historical provenance.",
     "privacy_review": "No athlete snapshot imported; new evaluation athletes are explicitly fictitious. Current private athlete/app state remains authoritative."
-  }
+  },
+  "local_updates": [
+    {
+      "date": "2026-11-12",
+      "version": "1.1.1+privacy1",
+      "scope": "KB-first workflow and outside-research intake audit. No new verified physiological evidence or activated policies; searched_through remains unchanged."
+    }
+  ]
 }

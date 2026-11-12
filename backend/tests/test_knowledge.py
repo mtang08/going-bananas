@@ -14,7 +14,7 @@ def test_selective_context_order_and_metadata():
         "daily", topics=["ptt_and_load_tolerance"], policy_ids=["P005"], source_ids=["S028"]
     )
     assert context.integrity_ok
-    assert context.package_version == "1.1.0+privacy1"
+    assert context.package_version == "1.1.1+privacy1"
     assert context.selected_files == (
         "COACHING_GUIDE.md",
         "workflows/daily_recommendation.md",
@@ -157,9 +157,15 @@ def tmp_kb(tmp_path):
 def test_overlay_matches_manifest():
     manifest = load_manifest()
     assert manifest["schema_version"] == "1.1"
-    assert manifest["package_version"] == "1.1.0+privacy1"
-    assert len(manifest["files"]) == 28
+    assert manifest["package_version"] == "1.1.1+privacy1"
+    assert len(manifest["files"]) == 29
     assert manifest["baseline_revision"]["public_privacy_transform_preserved"] is True
+
+
+def test_research_intake_is_not_runtime_evidence():
+    for operation in SUPPORTED_OPERATIONS:
+        bundle = load_route(operation)
+        assert all(entry.path != 'research/coaching_web_intake.md' for entry in bundle.excerpts)
 
 
 def test_extract_section_bounds():

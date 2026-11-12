@@ -170,7 +170,11 @@ describe('Trends', () => {
     }) }
     mount()
     expect(await screen.findByTestId('intensity-hr')).toHaveTextContent(
-      'Heart rate: Easy 1h 30m · Moderate 10m · High 0m · Unknown 1m · Coverage 95%')
+      'Heart rate · Coverage 95%')
+    expect(screen.getByRole('img', {name:'Heart rate intensity time distribution; durations listed below'})).toBeInTheDocument()
+    expect(screen.queryByRole('img', {name:'Pace intensity time distribution; durations listed below'})).not.toBeInTheDocument()
+    expect(screen.getByText('Unknown · 1m')).toBeInTheDocument()
+    expect(screen.getByText('High · 0m')).toBeInTheDocument()
   })
   it('shows sRPE, long-run context and spacing', async () => {
     mount()
@@ -184,6 +188,7 @@ describe('Trends', () => {
   it('preserves missing recovery nights and null chart gaps', async () => {
     mount()
     await waitFor(() => expect(screen.getAllByTestId('recovery-night')).toHaveLength(2))
+    fireEvent.click(screen.getByText('Nightly details (2 nights)'))
     const missingRow = document.querySelector('[data-testid="recovery-night"][data-date="2026-11-07"]') as HTMLElement
     expect(missingRow).toHaveClass('missing')
     expect(within(missingRow).getAllByText('missing')).toHaveLength(3)
@@ -209,4 +214,19 @@ describe('Trends', () => {
     expect(await screen.findByText('Could not load this view')).toBeInTheDocument()
     expect(screen.getByText('Metrics unavailable')).toBeInTheDocument()
   })
+})
+
+it('sorts recovery charts chronologically and keeps the latest summary visible when details are collapsed', async () => {
+  recoveryData = { ...recovery, nights: [night('2026-11-08', true), night('2026-11-07', false)] }
+  mount()
+  const summary = await screen.findByLabelText('Latest recovery night')
+  expect(within(summary).getByText('Latest night · Nov 8')).toBeVisible()
+  expect(within(summary).getAllByText('missing')).toHaveLength(3)
+  const disclosure = screen.getByText('Nightly details (2 nights)').closest('details')!
+  expect(disclosure).not.toHaveAttribute('open')
+  expect(screen.getByTestId('recovery-chart')).toHaveAttribute('data-series', JSON.stringify([
+    { date: '2026-11-07', hrv: 60, rhr: 52 }, { date: '2026-11-08', hrv: null, rhr: null },
+  ]))
+  fireEvent.click(screen.getByText('Nightly details (2 nights)'))
+  expect(screen.getByRole('table', {name:'Recovery nights'})).toBeVisible()
 })

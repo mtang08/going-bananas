@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
-from uuid import UUID
+from uuid import UUID, uuid4
 
 UTC = timezone.utc
 
@@ -115,10 +115,27 @@ def save_proposal(root: Path, mode: str, source: Path) -> Path:
     return path
 
 
+def save_response(root: Path, mode: str, command: str, result: dict) -> dict:
+    """Save a complete response without arbitrary output paths or overwrites."""
+    directory = root / 'private' / mode / 'coach/responses'
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    directory.chmod(0o700)
+    path = directory / f'{command}-{uuid4()}.json'
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+        json.dump(result, stream, default=str, ensure_ascii=False, allow_nan=False)
+    summary = {'response_file': str(path), 'mode': mode, 'command': command}
+    for key in ('snapshot_id', 'proposal_id', 'revision', 'status', 'message', 'review_url'):
+        if key in result:
+            summary[key] = result[key]
+    return summary
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', choices=MODES, required=True)
     parser.add_argument('--repo', type=Path)
+    parser.add_argument('--read-only', action='store_true', help='Allow inspection only; refuse submit, revise, and undo')
     parser.add_argument('--base-url', default='http://127.0.0.1:8000')
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('schema')
@@ -131,22 +148,43 @@ def main(argv=None):
         query.add_argument('--' + flag)
     submit = sub.add_parser('submit')
     submit.add_argument('--file', type=Path, required=True)
+    revise = sub.add_parser('revise')
+    revise.add_argument('id', type=UUID)
+    revise.add_argument('--expected-revision', type=int, required=True)
+    revise.add_argument('--reason', required=True)
+    revise.add_argument('--file', type=Path, required=True)
     sub.add_parser('history')
+    sub.add_parser('active-proposal')
     proposal = sub.add_parser('proposal')
     proposal.add_argument('id', type=UUID)
+    proposal.add_argument('--document', action='store_true')
+    proposal.add_argument('--revision', type=int)
     undo = sub.add_parser('undo')
     undo.add_argument('--expected-head', type=int, required=True)
     undo.add_argument('--target-version', type=int, required=True)
     undo.add_argument('--reason', required=True)
+    for command_parser in sub.choices.values():
+        command_parser.add_argument('--save-response', action='store_true',
+            help='Save full JSON privately and print its path instead of a large payload')
     args = parser.parse_args(argv)
     try:
+        if args.read_only and args.command in {'submit', 'revise', 'undo'}:
+            raise HelperError('read_only_command_required', 2)
+        if args.command == 'proposal' and args.revision is not None and (not args.document or args.revision < 1):
+            raise HelperError('invalid_revision_request', 2)
+        if args.command == 'revise' and (args.expected_revision < 1 or not args.reason.strip() or len(args.reason) > 500):
+            raise HelperError('invalid_revision_request', 2)
         # Validate configured origin even for commands using the local CLI.
         client = Client(args.base_url, args.mode)
-        if args.command in {'history', 'proposal', 'undo'}:
+        if args.command in {'history', 'proposal', 'active-proposal', 'undo'}:
             if args.command == 'history':
                 result = client.request('GET', '/calendar/versions')
             elif args.command == 'proposal':
-                result = client.request('GET', f'/coach/proposals/{args.id}')
+                path = (f'/coach/proposals/{args.id}/revisions/{args.revision}' if args.revision is not None
+                    else f'/coach/proposals/{args.id}/document' if args.document else f'/coach/proposals/{args.id}')
+                result = client.request('GET', path)
+            elif args.command == 'active-proposal':
+                result = client.request('GET', '/coach/proposals/active')
             else:
                 result = client.undo(args.expected_head, args.target_version, args.reason)
             code = 0
@@ -167,20 +205,25 @@ def main(argv=None):
                         value = getattr(args, name)
                         if value is not None:
                             arguments += ['--' + name.replace('_', '-'), value]
-                else:
+                elif args.command in {'submit', 'revise'}:
                     saved = save_proposal(root, args.mode, args.file)
+                    if args.command == 'revise':
+                        arguments += [str(args.id), '--expected-revision', str(args.expected_revision),
+                                      '--reason', args.reason]
                     arguments += ['--file', str(saved)]
                 code, result = run_cli(root, args.mode, arguments)
                 if args.command == 'snapshot' and code == 0:
                     meta = result.get('payload', {}).get('snapshot_meta', {})
                     if not result.get('snapshot_id') or not meta.get('source_fingerprint'):
                         raise HelperError('invalid_snapshot_response')
-                if args.command == 'submit' and code == 0:
-                    if result.get('status') != 'pending' or not result.get('proposal_id'):
+                if args.command in {'submit', 'revise'} and code == 0:
+                    if result.get('status') != 'pending' or not result.get('proposal_id') or not result.get('revision'):
                         raise HelperError('invalid_submission_response')
                     uid = str(UUID(result['proposal_id']))
                     result = {**result, 'message': 'Pending your review; nothing applied.',
                               'review_url': f'{client.base}/#proposal/{uid}'}
+        if args.save_response and code == 0:
+            result = save_response(repo_root(args.repo), args.mode, args.command, result)
         print(json.dumps(result, default=str, ensure_ascii=False))
         return code
     except HelperError as exc:

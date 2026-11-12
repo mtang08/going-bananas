@@ -1,80 +1,731 @@
+import { Badge, Button, Card, Disclosure, NativeSelect, Textarea } from '../components/ui'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, BookOpen, Check, RefreshCw } from 'lucide-react'
 import { api, post, addDays, localDate, dateLabel } from '../api'
 import { AgentPlanHistory } from '../PlanViews'
-
-type SessionOption = {mode: string; purpose: string; duration_or_structure: string | null; intensity_instruction: string; terrain_or_equipment?: string | null}
-type References = {policy_ids: string[]; evidence_ids: string[]; sources?: {id: string; title: string; url?: string}[]}
-type DatedSession = {date:string;kind:'run'|'strength'|'mobility';source:string;optional?:boolean;intent?:'easy'|'quality'|'long'|null;conditional?:boolean}
-type Daily = {decision: string; proposed_session: SessionOption; alternative: SessionOption; planned_sessions?:DatedSession[]; additional_session_guidance?:{kind:string;optional:boolean;guidance:string}[]; change_from_plan: string; short_rationale: string; confidence: {evidence: string; athlete_applicability: string; decision: string}; missing_or_stale_inputs: string[]; follow_up_observation: {what: string; when: string}; references: References}
-type Weekly = {period_reviewed: {start: string; end: string}; actual_vs_planned: {summary: string; key_differences: string[]}; adaptation_signals: string[]; tolerance_signals: {favorable: string[]; concerning: string[]; delayed_symptom_findings: string[]}; strength_running_interactions: string[]; next_cycle_proposal: {primary_target: string; sessions_or_placement_principles: string[]; changes_from_current_plan: string[]; preserved_commitments: string[]; dated_sessions?:DatedSession[]}; tradeoffs: string[]; uncertainties: string[]; what_would_change_the_recommendation: string[]; prior_advice_outcomes: string[]; references: References}
-type SupplementalInputs = {illness: string; lower_body_soreness: string; clinician_restriction: string}
-type Recommendation = {id: string; kind: string; as_of: string; generated_at: string; stale: boolean; stale_reasons: string[]; engine: string; knowledge_version: string; supplemental_inputs?: SupplementalInputs; payload: Daily | Weekly; outcome: {status: string; effect?: string; note?: string} | null}
-type CoachResponse = {item: Recommendation | null; knowledge: {available: boolean; version?: string; searched_through?: string}}
+type SessionOption = {
+  mode: string
+  purpose: string
+  duration_or_structure: string | null
+  intensity_instruction: string
+  terrain_or_equipment?: string | null
+}
+type References = {
+  policy_ids: string[]
+  evidence_ids: string[]
+  sources?: {
+    id: string
+    title: string
+    url?: string
+  }[]
+}
+type DatedSession = {
+  date: string
+  kind: 'run' | 'strength' | 'mobility'
+  source: string
+  optional?: boolean
+  intent?: 'easy' | 'quality' | 'long' | null
+  conditional?: boolean
+}
+type Daily = {
+  decision: string
+  proposed_session: SessionOption
+  alternative: SessionOption
+  planned_sessions?: DatedSession[]
+  additional_session_guidance?: {
+    kind: string
+    optional: boolean
+    guidance: string
+  }[]
+  change_from_plan: string
+  short_rationale: string
+  confidence: {
+    evidence: string
+    athlete_applicability: string
+    decision: string
+  }
+  missing_or_stale_inputs: string[]
+  follow_up_observation: {
+    what: string
+    when: string
+  }
+  references: References
+}
+type Weekly = {
+  period_reviewed: {
+    start: string
+    end: string
+  }
+  actual_vs_planned: {
+    summary: string
+    key_differences: string[]
+  }
+  adaptation_signals: string[]
+  tolerance_signals: {
+    favorable: string[]
+    concerning: string[]
+    delayed_symptom_findings: string[]
+  }
+  strength_running_interactions: string[]
+  next_cycle_proposal: {
+    primary_target: string
+    sessions_or_placement_principles: string[]
+    changes_from_current_plan: string[]
+    preserved_commitments: string[]
+    dated_sessions?: DatedSession[]
+  }
+  tradeoffs: string[]
+  uncertainties: string[]
+  what_would_change_the_recommendation: string[]
+  prior_advice_outcomes: string[]
+  references: References
+}
+type SupplementalInputs = {
+  illness: string
+  lower_body_soreness: string
+  clinician_restriction: string
+}
+type Recommendation = {
+  id: string
+  kind: string
+  as_of: string
+  generated_at: string
+  stale: boolean
+  stale_reasons: string[]
+  engine: string
+  knowledge_version: string
+  supplemental_inputs?: SupplementalInputs
+  payload: Daily | Weekly
+  outcome: {
+    status: string
+    effect?: string
+    note?: string
+  } | null
+}
+type CoachResponse = {
+  item: Recommendation | null
+  knowledge: {
+    available: boolean
+    version?: string
+    searched_through?: string
+  }
+}
 const words = (value: string) => value.replaceAll('_', ' ')
-const slotLabel=(session:DatedSession)=>session.kind==='strength'?'Full-body strength':session.kind==='mobility'?(session.optional?'Optional mobility':'Gym mobility'):session.intent?`${words(session.intent)} run ${session.conditional?'candidate':'opportunity'}`:'Run opportunity'
-
-function Lines({items}: {items: string[]}) { return items.length ? <ul className="coach-lines">{items.map((item,index)=><li key={index}>{item}</li>)}</ul> : null }
-function Option({session, title}: {session: SessionOption; title: string}) {
-  return <div className="coach-session"><div className="eyebrow">{title}</div><h3>{words(session.mode)} · {session.purpose}</h3><p>{session.duration_or_structure}</p><p>{session.intensity_instruction}</p>{session.terrain_or_equipment&&<small>{session.terrain_or_equipment}</small>}</div>
+const slotLabel = (session: DatedSession) =>
+  session.kind === 'strength'
+    ? 'Full-body strength'
+    : session.kind === 'mobility'
+      ? session.optional
+        ? 'Optional mobility'
+        : 'Gym mobility'
+      : session.intent
+        ? `${words(session.intent)} run ${session.conditional ? 'candidate' : 'opportunity'}`
+        : 'Run opportunity'
+function Lines({ items }: { items: string[] }) {
+  return items.length ? (
+    <ul className="coach-lines">
+      {items.map((item, index) => (
+        <li key={index}>{item}</li>
+      ))}
+    </ul>
+  ) : null
 }
-function Evidence({references}: {references: References}) {
-  return <details className="coach-evidence"><summary><BookOpen size={16}/> Research behind this guidance</summary><p>Decision aids: {references.policy_ids.join(', ')}. Evidence records: {references.evidence_ids.join(', ')}.</p>{references.sources?.map(source=><p key={source.id}>{source.url&&/^https?:\/\//.test(source.url)?<a href={source.url} target="_blank" rel="noreferrer">{source.title}</a>:source.title}</p>)}<p className="fineprint">Research informs the suggestion; current symptoms, clinician instructions, and your choices determine how it applies.</p></details>
+function Option({ session, title }: { session: SessionOption; title: string }) {
+  return (
+    <div className="coach-session">
+      <div className="eyebrow">{title}</div>
+      <h3>
+        {words(session.mode)} · {session.purpose}
+      </h3>
+      <p>{session.duration_or_structure}</p>
+      <p>{session.intensity_instruction}</p>
+      {session.terrain_or_equipment && <small>{session.terrain_or_equipment}</small>}
+    </div>
+  )
 }
-function Outcome({item, inputsChanged}: {item: Recommendation; inputsChanged: boolean}) {
-  const qc=useQueryClient()
-  const [effect,setEffect]=useState('unknown'),[note,setNote]=useState('')
-  const save=useMutation({mutationFn:(status:string)=>post(`/coach/recommendations/${item.id}/outcome`,{status,effect,note:note||null}),onSuccess:()=>qc.invalidateQueries({queryKey:['coach']})})
-  const today=localDate(), canDecide=item.as_of===today&&!item.stale&&!inputsChanged, canFollowUp=item.as_of<=today
-  return <div className="coach-outcome"><h3>Your decision & follow-up</h3><p>Accepting advice records your choice. Your calendar plan stays under your control.</p>{item.outcome&&<p role="status">Recorded: {words(item.outcome.status)}{item.outcome.effect?` · ${words(item.outcome.effect)}`:''}</p>}{!canDecide&&<p className="fineprint">Accept or decline current guidance after reviewing today’s inputs. Tomorrow’s preview remains provisional.</p>}<div className="coach-actions"><button className="button" disabled={!canDecide||save.isPending} onClick={()=>save.mutate('accepted')}><Check size={15}/> Accept suggestion</button><button className="button ghost" disabled={!canDecide||save.isPending} onClick={()=>save.mutate('rejected')}>Decline</button></div><details><summary>Record what happened</summary><label className="field">How did it work?<select value={effect} onChange={e=>setEffect(e.target.value)}><option value="unknown">Not known yet</option><option value="helpful">Helpful</option><option value="neutral">No clear difference</option><option value="worse">Felt worse</option></select></label><label className="field">Follow-up note · optional<textarea value={note} maxLength={2000} onChange={e=>setNote(e.target.value)} rows={2}/></label><div className="coach-actions">{['completed','partly_completed','skipped'].map(status=><button key={status} className="button ghost" disabled={!canFollowUp||save.isPending} onClick={()=>save.mutate(status)}>{words(status)}</button>)}</div></details>{save.error&&<p role="alert" className="error-text">{save.error.message}</p>}</div>
+function Evidence({ references }: { references: References }) {
+  return (
+    <Disclosure className="coach-evidence">
+      <summary>
+        <BookOpen size={16} /> Research behind this guidance
+      </summary>
+      <p>
+        Decision aids: {references.policy_ids.join(', ')}. Evidence records:{' '}
+        {references.evidence_ids.join(', ')}.
+      </p>
+      {references.sources?.map((source) => (
+        <p key={source.id}>
+          {source.url && /^https?:\/\//.test(source.url) ? (
+            <a href={source.url} target="_blank" rel="noreferrer">
+              {source.title}
+            </a>
+          ) : (
+            source.title
+          )}
+        </p>
+      ))}
+      <p className="fineprint">
+        Research informs the suggestion; current symptoms, clinician instructions, and your choices
+        determine how it applies.
+      </p>
+    </Disclosure>
+  )
 }
-
-export function Coach({onCheckin,onSetup,readOnly=false}: {onCheckin:()=>void; onSetup:()=>void; readOnly?:boolean}) {
+function Outcome({ item, inputsChanged }: { item: Recommendation; inputsChanged: boolean }) {
+  const qc = useQueryClient()
+  const [effect, setEffect] = useState('unknown'),
+    [note, setNote] = useState('')
+  const save = useMutation({
+    mutationFn: (status: string) =>
+      post(`/coach/recommendations/${item.id}/outcome`, { status, effect, note: note || null }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['coach'] }),
+  })
+  const today = localDate(),
+    canDecide = item.as_of === today && !item.stale && !inputsChanged,
+    canFollowUp = item.as_of <= today
+  return (
+    <div className="coach-outcome">
+      <h3>Your decision & follow-up</h3>
+      <p>Accepting advice records your choice. Your calendar plan stays under your control.</p>
+      {item.outcome && (
+        <p role="status">
+          Recorded: {words(item.outcome.status)}
+          {item.outcome.effect ? ` · ${words(item.outcome.effect)}` : ''}
+        </p>
+      )}
+      {!canDecide && (
+        <p className="fineprint">
+          Accept or decline current guidance after reviewing today’s inputs. Tomorrow’s preview
+          remains provisional.
+        </p>
+      )}
+      <div className="coach-actions">
+        <Button disabled={!canDecide || save.isPending} onClick={() => save.mutate('accepted')}>
+          <Check size={15} /> Accept suggestion
+        </Button>
+        <Button
+          disabled={!canDecide || save.isPending}
+          onClick={() => save.mutate('rejected')}
+          variant="outline"
+        >
+          Decline
+        </Button>
+      </div>
+      <Disclosure>
+        <summary>Record what happened</summary>
+        <label className="field">
+          How did it work?
+          <NativeSelect value={effect} onChange={(e) => setEffect(e.target.value)}>
+            <option value="unknown">Not known yet</option>
+            <option value="helpful">Helpful</option>
+            <option value="neutral">No clear difference</option>
+            <option value="worse">Felt worse</option>
+          </NativeSelect>
+        </label>
+        <label className="field">
+          Follow-up note · optional
+          <Textarea
+            value={note}
+            maxLength={2000}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+          />
+        </label>
+        <div className="coach-actions">
+          {['completed', 'partly_completed', 'skipped'].map((status) => (
+            <Button
+              key={status}
+              disabled={!canFollowUp || save.isPending}
+              onClick={() => save.mutate(status)}
+              variant="outline"
+            >
+              {words(status)}
+            </Button>
+          ))}
+        </div>
+      </Disclosure>
+      {save.error && (
+        <p role="alert" className="error-text">
+          {save.error.message}
+        </p>
+      )}
+    </div>
+  )
+}
+export function Coach({
+  onCheckin,
+  onSetup,
+  readOnly = false,
+}: {
+  onCheckin: () => void
+  onSetup: () => void
+  readOnly?: boolean
+}) {
   const [showLegacy, setShowLegacy] = useState(false)
-  if (readOnly) return <section className="page-content coach-page">
-    <div className="page-heading"><div><div className="eyebrow">SAVED DECISIONS</div><h1>Coaching history</h1><p>Earlier plans and guidance remain available here.</p></div><a href="#calendar">Calendar</a></div>
-    <div className="panel"><h2>Review new changes before applying them</h2><p>Ask <code>$going-bananas-coach</code> for a review, then open the pending proposal on Home. Choose the changes to accept there.</p><a href="#home">Open Home</a><p>Use Calendar history to undo eligible changes made after the upgrade.</p></div>
-    <AgentPlanHistory readOnly/>
-    <details className="legacy-guidance" open={showLegacy}><summary onClick={event=>{event.preventDefault();setShowLegacy(!showLegacy)}}>Local rule guidance · legacy</summary>{showLegacy && <LocalGuidance onCheckin={onCheckin} onSetup={onSetup} readOnly/>}</details>
-  </section>
-  return <section className="page-content coach-page">
-    <div className="page-heading"><div><div className="eyebrow">RESEARCH COACH</div><h1>Plan, train, review.</h1><p>Your saved running plan and daily decisions, with the reasons behind them.</p></div><button className="button primary" onClick={onCheckin}>Record check-in <ArrowRight size={16}/></button></div>
-    <div className="panel coach-input"><h2>Invoke your coach in Codex</h2><p>Use the installed <code>$going-bananas-coach</code> skill for your weekly review or daily check-in.</p><p className="command">$going-bananas-coach Review my recent training and plan the next 14 days.</p><p className="command">$going-bananas-coach Check today’s plan against my latest recovery and check-in.</p><p>The coach reads your live training, active plan, feedback, and selected research. Validated proposals save directly to your calendar, with a recorded reason and revision history. Open Cycle to see each prescription and link an actual run.</p><p className="fineprint">Invocations are explicit. Refresh plans after the coach saves a decision.</p><button className="text-button" onClick={onSetup}>Check cycle setup</button></div>
-    <AgentPlanHistory/>
-    <details className="legacy-guidance" open={showLegacy}><summary onClick={event => {event.preventDefault(); setShowLegacy(!showLegacy)}}>Local rule guidance · legacy</summary>{showLegacy && <><p>These earlier rule-based cards are separate from the Codex research coach. Their feedback records stay with these cards; accepting a card records a choice without changing the calendar.</p><LocalGuidance onCheckin={onCheckin} onSetup={onSetup}/></>}</details>
-  </section>
+  if (readOnly)
+    return (
+      <section className="page-content coach-page">
+        <div className="page-heading">
+          <div>
+            <div className="eyebrow">SAVED DECISIONS</div>
+            <h1>Coaching history</h1>
+            <p>Earlier plans and guidance remain available here.</p>
+          </div>
+          <a href="#calendar">Calendar</a>
+        </div>
+        <Card>
+          <h2>Review new changes before applying them</h2>
+          <p>
+            Ask <code>$going-bananas-coach</code> for a review, then open the pending proposal on
+            Home. Choose the changes to accept there.
+          </p>
+          <a href="#home">Open Home</a>
+          <p>Use Calendar history to undo eligible changes made after the upgrade.</p>
+        </Card>
+        <AgentPlanHistory readOnly />
+        <Disclosure open={showLegacy} className="legacy-guidance">
+          <summary
+            onClick={(event) => {
+              event.preventDefault()
+              setShowLegacy(!showLegacy)
+            }}
+          >
+            Local rule guidance · legacy
+          </summary>
+          {showLegacy && <LocalGuidance onCheckin={onCheckin} onSetup={onSetup} readOnly />}
+        </Disclosure>
+      </section>
+    )
+  return (
+    <section className="page-content coach-page">
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">RESEARCH COACH</div>
+          <h1>Plan, train, review.</h1>
+          <p>Your saved running plan and daily decisions, with the reasons behind them.</p>
+        </div>
+        <Button onClick={onCheckin}>
+          Record check-in <ArrowRight size={16} />
+        </Button>
+      </div>
+      <Card className="coach-input">
+        <h2>Invoke your coach in Codex</h2>
+        <p>
+          Use the installed <code>$going-bananas-coach</code> skill for your weekly review or daily
+          check-in.
+        </p>
+        <p className="command">
+          $going-bananas-coach Review my recent training and plan the next 14 days.
+        </p>
+        <p className="command">
+          $going-bananas-coach Check today’s plan against my latest recovery and check-in.
+        </p>
+        <Disclosure>
+          <summary>How the coach uses your training</summary>
+          <p>
+            The coach reads your live training, active plan, feedback, and selected research.
+            Validated proposals save directly to your calendar, with a recorded reason and revision
+            history. Open Cycle to see each prescription and link an actual run.
+          </p>
+          <p className="fineprint">
+            Invocations are explicit. Refresh plans after the coach saves a decision.
+          </p>
+        </Disclosure>
+        <Button onClick={onSetup} variant="link">
+          Check cycle setup
+        </Button>
+      </Card>
+      <AgentPlanHistory />
+      <Disclosure open={showLegacy} className="legacy-guidance">
+        <summary
+          onClick={(event) => {
+            event.preventDefault()
+            setShowLegacy(!showLegacy)
+          }}
+        >
+          Local rule guidance · legacy
+        </summary>
+        {showLegacy && (
+          <>
+            <p>
+              These earlier rule-based cards are separate from the Codex research coach. Their
+              feedback records stay with these cards; accepting a card records a choice without
+              changing the calendar.
+            </p>
+            <LocalGuidance onCheckin={onCheckin} onSetup={onSetup} />
+          </>
+        )}
+      </Disclosure>
+    </section>
+  )
 }
-
-function LocalGuidance({onCheckin,onSetup,readOnly=false}: {onCheckin:()=>void; onSetup:()=>void; readOnly?:boolean}) {
-  const qc=useQueryClient()
-  const [kind,setKind]=useState<'daily'|'weekly'>('daily'),[tomorrow,setTomorrow]=useState(false)
-  const [illness,setIllness]=useState('unknown'),[soreness,setSoreness]=useState('unknown'),[restriction,setRestriction]=useState('unknown')
-  const asOf=addDays(localDate(),kind==='daily'&&tomorrow?1:0)
-  const result=useQuery({queryKey:['coach',kind,asOf],queryFn:()=>api<CoachResponse>(`/coach/${kind}?as_of=${asOf}`)})
-  const generate=useMutation({mutationFn:(input:{kind:'daily'|'weekly';asOf:string;illness:string;soreness:string;restriction:string})=>post<CoachResponse>(`/coach/${input.kind}`,{as_of:input.asOf,...(input.kind==='daily'?{illness:input.illness,lower_body_soreness:input.soreness,clinician_restriction:input.restriction}:{})}),onSuccess:(data,input)=>{qc.setQueryData(['coach',input.kind,input.asOf],data)}})
-  const item=result.data?.data.item
-  const knowledge=result.data?.data.knowledge
-  const daily=item?.kind==='daily'?item.payload as Daily:null
-  const weekly=item?.kind==='weekly'?item.payload as Weekly:null
-  const savedInputs=item?.supplemental_inputs
-  const inputsChanged=!readOnly&&kind==='daily'&&!!item&&(!savedInputs||savedInputs.illness!==illness||savedInputs.lower_body_soreness!==soreness||savedInputs.clinician_restriction!==restriction)
-  return <section className="page-content coach-page"><div className="page-heading"><div><div className="eyebrow">ONE SESSION AT A TIME</div><h1>Train with context.</h1><p>Your training, current feedback, and reviewed research.</p></div><button className="button primary" onClick={onCheckin}>Record check-in <ArrowRight size={16}/></button></div>
-    <div className="toolbar"><div className="segmented"><button className={kind==='daily'?'active':''} onClick={()=>setKind('daily')}>Daily guidance</button><button className={kind==='weekly'?'active':''} onClick={()=>setKind('weekly')}>Weekly review</button></div>{kind==='daily'&&<div className="segmented"><button className={!tomorrow?'active':''} onClick={()=>setTomorrow(false)}>Today</button><button className={tomorrow?'active':''} onClick={()=>setTomorrow(true)}>Tomorrow preview</button></div>}<span>{dateLabel(asOf,{weekday:'long',month:'short',day:'numeric'})}</span></div>
-    <div className="notice muted">{readOnly ? "Historical guidance is read-only. Ask Codex for a fresh review before changing your plan." : "Local research-guided recommendations. Saved suggestions are refreshed when you ask; new data and feedback can make earlier advice stale."}</div>
-    {tomorrow&&kind==='daily'&&<div className="notice warning">Tomorrow’s preview is provisional. Recheck symptoms, walking, and illness before training.</div>}
-    {!readOnly && <div className="panel coach-input"><div className="panel-head"><div><h2>{kind==='daily'?'Before you start':'Review the last fortnight'}</h2><p>{kind==='daily'?'Your latest saved symptom check-in is used with these current observations.':'Review actual training, delayed responses, and the next cycle’s priorities.'}</p></div></div>
-      {kind==='daily'&&<div className="coach-input-grid"><label className="field">Illness<select value={illness} onChange={e=>setIllness(e.target.value)}><option value="unknown">Not reported</option><option value="none">None</option><option value="mild">Mild / returning after illness</option><option value="systemic">Fever, chest or systemic symptoms</option></select></label><label className="field">Lower-body soreness<select value={soreness} onChange={e=>setSoreness(e.target.value)}><option value="unknown">Not reported</option><option value="none">None</option><option value="usual">Usual soreness</option><option value="affects_movement">Changes how I move</option></select></label><label className="field">Clinician restrictions<select value={restriction} onChange={e=>setRestriction(e.target.value)}><option value="unknown">Not reported</option><option value="none">None</option><option value="restricted">Restriction applies</option></select></label></div>}
-      <div className="coach-actions"><button className="button primary" onClick={()=>generate.mutate({kind,asOf,illness,soreness,restriction})} disabled={generate.isPending||knowledge?.available===false}><RefreshCw size={15}/>{generate.isPending?'Reviewing…':kind==='daily'?'Generate daily guidance':'Generate weekly review'}</button><button className="text-button" onClick={onSetup}>Check cycle setup</button></div>
-      {knowledge?.available===false&&<p role="alert" className="error-text">The research package is missing or failed validation. Recommendations are unavailable until it is restored.</p>}{generate.error&&<p role="alert" className="error-text">{generate.error.message}</p>}
-    </div>}
-    {result.error&&<p role="alert" className="error-text">{result.error.message}</p>}
-    {result.isPending&&<div className="state-card" role="status">Loading saved guidance…</div>}
-    {!item&&!result.isPending&&!result.error&&<div className="state-card"><h2>{readOnly ? "No saved guidance for this date." : "A clear next step."}</h2>{!readOnly && <p>Record a quick check-in, then generate guidance. Missing observations remain unknown.</p>}</div>}
-    {item&&<div className="panel coach-result">{item.stale&&<div className="notice warning" role="status">This guidance needs a fresh review: {item.stale_reasons.map(words).join(', ')}. {readOnly ? "Ask Codex for a fresh review." : "Generate again before acting."}</div>}{inputsChanged&&<div className="notice warning" role="status">The controls above differ from those used for this saved guidance. Match the saved inputs or generate again before deciding.</div>}{daily&&<div className="notice muted"><strong>Inputs used for saved guidance</strong><p>Illness: {words(savedInputs?.illness||'unknown')} · Lower-body soreness: {words(savedInputs?.lower_body_soreness||'unknown')} · Clinician restrictions: {words(savedInputs?.clinician_restriction||'unknown')}</p></div>}
-      {daily&&<><div className="coach-result-heading"><span className={`status-chip ${daily.decision}`}>{words(daily.decision)}</span><small>Decision confidence: {daily.confidence.decision}</small></div><h2>{daily.short_rationale}</h2>{daily.planned_sessions?.length?<div className="notice muted"><strong>Projected for this date</strong><Lines items={daily.planned_sessions.map(session=>`${slotLabel(session)} · ${session.source==='accepted_plan'?'dated plan':'repeating rhythm'}`)}/></div>:null}<Option title="Suggested session" session={daily.proposed_session}/>{daily.additional_session_guidance?.length?<div className="coach-session"><h3>Other same-day commitments</h3><Lines items={daily.additional_session_guidance.map(session=>`${session.kind==='strength'?'Full-body strength':session.kind==='mobility'?'Mobility':words(session.kind)}${session.optional?' · optional':''}: ${session.guidance}`)}/></div>:null}<details><summary>Alternative</summary><Option title="If the primary option does not fit" session={daily.alternative}/></details><p><strong>Change from plan:</strong> {daily.change_from_plan}</p>{daily.missing_or_stale_inputs.length>0&&<div className="notice muted"><strong>Still unknown or stale</strong><Lines items={daily.missing_or_stale_inputs}/></div>}<div className="coach-followup"><h3>Check the response</h3><p>{daily.follow_up_observation.what}</p><small>{daily.follow_up_observation.when}</small></div><Evidence references={daily.references}/></>}
-      {weekly&&<><div className="eyebrow">{dateLabel(weekly.period_reviewed.start)} – {dateLabel(weekly.period_reviewed.end)} · 14 DAYS</div><h2>{words(weekly.next_cycle_proposal.primary_target)}</h2><p>{weekly.actual_vs_planned.summary}</p><Lines items={weekly.actual_vs_planned.key_differences}/><div className="coach-session"><h3>Next cycle proposal</h3><Lines items={weekly.next_cycle_proposal.sessions_or_placement_principles}/><Lines items={weekly.next_cycle_proposal.changes_from_current_plan}/>{weekly.next_cycle_proposal.dated_sessions?.length?<><h3>Projected dates · next 14 days</h3><p className="fineprint">Run opportunities and the repeating full-body and mobility pattern. Quality and long run candidates depend on current feedback. Same-day sessions are shown separately.</p><ul className="coach-lines">{weekly.next_cycle_proposal.dated_sessions.map((session,index)=><li key={`${session.date}-${session.kind}-${index}`}>{dateLabel(session.date,{weekday:'short',month:'short',day:'numeric'})} · {slotLabel(session)}</li>)}</ul></>:null}</div><h3>What the observations support</h3><Lines items={[...weekly.adaptation_signals,...weekly.tolerance_signals.favorable,...weekly.tolerance_signals.concerning,...weekly.tolerance_signals.delayed_symptom_findings]}/><h3>Strength alongside running</h3><Lines items={weekly.strength_running_interactions}/><h3>Tradeoffs & unknowns</h3><Lines items={[...weekly.tradeoffs,...weekly.uncertainties]}/><h3>What would change the proposal</h3><Lines items={weekly.what_would_change_the_recommendation}/><details><summary>Previous advice and outcomes</summary><Lines items={weekly.prior_advice_outcomes}/></details><Evidence references={weekly.references}/></>}
-      {readOnly ? item.outcome && <p>Recorded: {words(item.outcome.status)}{item.outcome.effect ? ` · ${words(item.outcome.effect)}` : ""}</p> : <Outcome key={item.id} item={item} inputsChanged={inputsChanged}/>}<p className="fineprint">Saved {new Date(item.generated_at).toLocaleString()} · {words(item.engine)} · Research {item.knowledge_version}</p>
-    </div>}
-  </section>
+function LocalGuidance({
+  onCheckin,
+  onSetup,
+  readOnly = false,
+}: {
+  onCheckin: () => void
+  onSetup: () => void
+  readOnly?: boolean
+}) {
+  const qc = useQueryClient()
+  const [kind, setKind] = useState<'daily' | 'weekly'>('daily'),
+    [tomorrow, setTomorrow] = useState(false)
+  const [illness, setIllness] = useState('unknown'),
+    [soreness, setSoreness] = useState('unknown'),
+    [restriction, setRestriction] = useState('unknown')
+  const asOf = addDays(localDate(), kind === 'daily' && tomorrow ? 1 : 0)
+  const result = useQuery({
+    queryKey: ['coach', kind, asOf],
+    queryFn: () => api<CoachResponse>(`/coach/${kind}?as_of=${asOf}`),
+  })
+  const generate = useMutation({
+    mutationFn: (input: {
+      kind: 'daily' | 'weekly'
+      asOf: string
+      illness: string
+      soreness: string
+      restriction: string
+    }) =>
+      post<CoachResponse>(`/coach/${input.kind}`, {
+        as_of: input.asOf,
+        ...(input.kind === 'daily'
+          ? {
+              illness: input.illness,
+              lower_body_soreness: input.soreness,
+              clinician_restriction: input.restriction,
+            }
+          : {}),
+      }),
+    onSuccess: (data, input) => {
+      qc.setQueryData(['coach', input.kind, input.asOf], data)
+    },
+  })
+  const item = result.data?.data.item
+  const knowledge = result.data?.data.knowledge
+  const daily = item?.kind === 'daily' ? (item.payload as Daily) : null
+  const weekly = item?.kind === 'weekly' ? (item.payload as Weekly) : null
+  const savedInputs = item?.supplemental_inputs
+  const inputsChanged =
+    !readOnly &&
+    kind === 'daily' &&
+    !!item &&
+    (!savedInputs ||
+      savedInputs.illness !== illness ||
+      savedInputs.lower_body_soreness !== soreness ||
+      savedInputs.clinician_restriction !== restriction)
+  return (
+    <section className="page-content coach-page">
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">ONE SESSION AT A TIME</div>
+          <h1>Train with context.</h1>
+          <p>Your training, current feedback, and reviewed research.</p>
+        </div>
+        <Button onClick={onCheckin}>
+          Record check-in <ArrowRight size={16} />
+        </Button>
+      </div>
+      <div className="toolbar">
+        <div className="segmented">
+          <Button
+            variant="ghost"
+            className={
+              kind === 'daily'
+                ? 'active bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground'
+            }
+            onClick={() => setKind('daily')}
+          >
+            Daily guidance
+          </Button>
+          <Button
+            variant="ghost"
+            className={
+              kind === 'weekly'
+                ? 'active bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground'
+            }
+            onClick={() => setKind('weekly')}
+          >
+            Weekly review
+          </Button>
+        </div>
+        {kind === 'daily' && (
+          <div className="segmented">
+            <Button
+              variant="ghost"
+              className={
+                !tomorrow ? 'active bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              }
+              onClick={() => setTomorrow(false)}
+            >
+              Today
+            </Button>
+            <Button
+              variant="ghost"
+              className={
+                tomorrow ? 'active bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              }
+              onClick={() => setTomorrow(true)}
+            >
+              Tomorrow preview
+            </Button>
+          </div>
+        )}
+        <span>{dateLabel(asOf, { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+      </div>
+      <div className="notice muted">
+        {readOnly
+          ? 'Historical guidance is read-only. Ask Codex for a fresh review before changing your plan.'
+          : 'Local research-guided recommendations. Saved suggestions are refreshed when you ask; new data and feedback can make earlier advice stale.'}
+      </div>
+      {tomorrow && kind === 'daily' && (
+        <div className="notice warning">
+          Tomorrow’s preview is provisional. Recheck symptoms, walking, and illness before training.
+        </div>
+      )}
+      {!readOnly && (
+        <Card className="coach-input">
+          <div className="panel-head">
+            <div>
+              <h2>{kind === 'daily' ? 'Before you start' : 'Review the last fortnight'}</h2>
+              <p>
+                {kind === 'daily'
+                  ? 'Your latest saved symptom check-in is used with these current observations.'
+                  : 'Review actual training, delayed responses, and the next cycle’s priorities.'}
+              </p>
+            </div>
+          </div>
+          {kind === 'daily' && (
+            <div className="coach-input-grid">
+              <label className="field">
+                Illness
+                <NativeSelect value={illness} onChange={(e) => setIllness(e.target.value)}>
+                  <option value="unknown">Not reported</option>
+                  <option value="none">None</option>
+                  <option value="mild">Mild / returning after illness</option>
+                  <option value="systemic">Fever, chest or systemic symptoms</option>
+                </NativeSelect>
+              </label>
+              <label className="field">
+                Lower-body soreness
+                <NativeSelect value={soreness} onChange={(e) => setSoreness(e.target.value)}>
+                  <option value="unknown">Not reported</option>
+                  <option value="none">None</option>
+                  <option value="usual">Usual soreness</option>
+                  <option value="affects_movement">Changes how I move</option>
+                </NativeSelect>
+              </label>
+              <label className="field">
+                Clinician restrictions
+                <NativeSelect value={restriction} onChange={(e) => setRestriction(e.target.value)}>
+                  <option value="unknown">Not reported</option>
+                  <option value="none">None</option>
+                  <option value="restricted">Restriction applies</option>
+                </NativeSelect>
+              </label>
+            </div>
+          )}
+          <div className="coach-actions">
+            <Button
+              onClick={() => generate.mutate({ kind, asOf, illness, soreness, restriction })}
+              disabled={generate.isPending || knowledge?.available === false}
+            >
+              <RefreshCw size={15} />
+              {generate.isPending
+                ? 'Reviewing…'
+                : kind === 'daily'
+                  ? 'Generate daily guidance'
+                  : 'Generate weekly review'}
+            </Button>
+            <Button onClick={onSetup} variant="link">
+              Check cycle setup
+            </Button>
+          </div>
+          {knowledge?.available === false && (
+            <p role="alert" className="error-text">
+              The research package is missing or failed validation. Recommendations are unavailable
+              until it is restored.
+            </p>
+          )}
+          {generate.error && (
+            <p role="alert" className="error-text">
+              {generate.error.message}
+            </p>
+          )}
+        </Card>
+      )}
+      {result.error && (
+        <p role="alert" className="error-text">
+          {result.error.message}
+        </p>
+      )}
+      {result.isPending && (
+        <div className="state-card" role="status">
+          Loading saved guidance…
+        </div>
+      )}
+      {!item && !result.isPending && !result.error && (
+        <div className="state-card">
+          <h2>{readOnly ? 'No saved guidance for this date.' : 'A clear next step.'}</h2>
+          {!readOnly && (
+            <p>
+              Record a quick check-in, then generate guidance. Missing observations remain unknown.
+            </p>
+          )}
+        </div>
+      )}
+      {item && (
+        <Card className="coach-result">
+          {item.stale && (
+            <div className="notice warning" role="status">
+              This guidance needs a fresh review: {item.stale_reasons.map(words).join(', ')}.{' '}
+              {readOnly ? 'Ask Codex for a fresh review.' : 'Generate again before acting.'}
+            </div>
+          )}
+          {inputsChanged && (
+            <div className="notice warning" role="status">
+              The controls above differ from those used for this saved guidance. Match the saved
+              inputs or generate again before deciding.
+            </div>
+          )}
+          {daily && (
+            <div className="notice muted">
+              <strong>Inputs used for saved guidance</strong>
+              <p>
+                Illness: {words(savedInputs?.illness || 'unknown')} · Lower-body soreness:{' '}
+                {words(savedInputs?.lower_body_soreness || 'unknown')} · Clinician restrictions:{' '}
+                {words(savedInputs?.clinician_restriction || 'unknown')}
+              </p>
+            </div>
+          )}
+          {daily && (
+            <>
+              <div className="coach-result-heading">
+                <Badge className={`status-chip ${daily.decision}`}>{words(daily.decision)}</Badge>
+                <small>Decision confidence: {daily.confidence.decision}</small>
+              </div>
+              <h2>{daily.short_rationale}</h2>
+              {daily.planned_sessions?.length ? (
+                <div className="notice muted">
+                  <strong>Projected for this date</strong>
+                  <Lines
+                    items={daily.planned_sessions.map(
+                      (session) =>
+                        `${slotLabel(session)} · ${session.source === 'accepted_plan' ? 'dated plan' : 'repeating rhythm'}`,
+                    )}
+                  />
+                </div>
+              ) : null}
+              <Option title="Suggested session" session={daily.proposed_session} />
+              {daily.additional_session_guidance?.length ? (
+                <div className="coach-session">
+                  <h3>Other same-day commitments</h3>
+                  <Lines
+                    items={daily.additional_session_guidance.map(
+                      (session) =>
+                        `${session.kind === 'strength' ? 'Full-body strength' : session.kind === 'mobility' ? 'Mobility' : words(session.kind)}${session.optional ? ' · optional' : ''}: ${session.guidance}`,
+                    )}
+                  />
+                </div>
+              ) : null}
+              <Disclosure>
+                <summary>Alternative</summary>
+                <Option title="If the primary option does not fit" session={daily.alternative} />
+              </Disclosure>
+              <p>
+                <strong>Change from plan:</strong> {daily.change_from_plan}
+              </p>
+              {daily.missing_or_stale_inputs.length > 0 && (
+                <div className="notice muted">
+                  <strong>Still unknown or stale</strong>
+                  <Lines items={daily.missing_or_stale_inputs} />
+                </div>
+              )}
+              <div className="coach-followup">
+                <h3>Check the response</h3>
+                <p>{daily.follow_up_observation.what}</p>
+                <small>{daily.follow_up_observation.when}</small>
+              </div>
+              <Evidence references={daily.references} />
+            </>
+          )}
+          {weekly && (
+            <>
+              <div className="eyebrow">
+                {dateLabel(weekly.period_reviewed.start)} – {dateLabel(weekly.period_reviewed.end)}{' '}
+                · 14 DAYS
+              </div>
+              <h2>{words(weekly.next_cycle_proposal.primary_target)}</h2>
+              <p>{weekly.actual_vs_planned.summary}</p>
+              <Lines items={weekly.actual_vs_planned.key_differences} />
+              <div className="coach-session">
+                <h3>Next cycle proposal</h3>
+                <Lines items={weekly.next_cycle_proposal.sessions_or_placement_principles} />
+                <Lines items={weekly.next_cycle_proposal.changes_from_current_plan} />
+                {weekly.next_cycle_proposal.dated_sessions?.length ? (
+                  <>
+                    <h3>Projected dates · next 14 days</h3>
+                    <p className="fineprint">
+                      Run opportunities and the repeating full-body and mobility pattern. Quality
+                      and long run candidates depend on current feedback. Same-day sessions are
+                      shown separately.
+                    </p>
+                    <ul className="coach-lines">
+                      {weekly.next_cycle_proposal.dated_sessions.map((session, index) => (
+                        <li key={`${session.date}-${session.kind}-${index}`}>
+                          {dateLabel(session.date, {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                          })}{' '}
+                          · {slotLabel(session)}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+              </div>
+              <h3>What the observations support</h3>
+              <Lines
+                items={[
+                  ...weekly.adaptation_signals,
+                  ...weekly.tolerance_signals.favorable,
+                  ...weekly.tolerance_signals.concerning,
+                  ...weekly.tolerance_signals.delayed_symptom_findings,
+                ]}
+              />
+              <h3>Strength alongside running</h3>
+              <Lines items={weekly.strength_running_interactions} />
+              <h3>Tradeoffs & unknowns</h3>
+              <Lines items={[...weekly.tradeoffs, ...weekly.uncertainties]} />
+              <h3>What would change the proposal</h3>
+              <Lines items={weekly.what_would_change_the_recommendation} />
+              <Disclosure>
+                <summary>Previous advice and outcomes</summary>
+                <Lines items={weekly.prior_advice_outcomes} />
+              </Disclosure>
+              <Evidence references={weekly.references} />
+            </>
+          )}
+          {readOnly ? (
+            item.outcome && (
+              <p>
+                Recorded: {words(item.outcome.status)}
+                {item.outcome.effect ? ` · ${words(item.outcome.effect)}` : ''}
+              </p>
+            )
+          ) : (
+            <Outcome key={item.id} item={item} inputsChanged={inputsChanged} />
+          )}
+          <p className="fineprint">
+            Saved {new Date(item.generated_at).toLocaleString()} · {words(item.engine)} · Research{' '}
+            {item.knowledge_version}
+          </p>
+        </Card>
+      )}
+    </section>
+  )
 }

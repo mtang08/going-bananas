@@ -19,7 +19,21 @@ it('shows no active block without offering automatic changes',async()=>{
   block=null;mount();await screen.findByText('No active training block');expect(screen.queryByRole('button',{name:/Create/})).not.toBeInTheDocument()
 })
 it('shows objective, athlete-local week, constraints and lineage',async()=>{
-  mount();await screen.findByText('Week 2 of 6');expect(screen.getByRole('heading',{name:'Build consistency'})).toBeInTheDocument()
+  mount();await screen.findByText('11 days elapsed');expect(screen.getByRole('heading',{name:'Build consistency'})).toBeInTheDocument()
   expect(screen.getByText('Keep strength days')).toBeInTheDocument();expect(await screen.findByRole('link',{name:'View reviewed proposal'})).toHaveAttribute('href','#proposal/p1')
   expect(screen.getByText('Symptoms increase')).toBeInTheDocument()
+})
+
+it('shows an overdue review without claiming objective completion',async()=>{
+  block!.review_date='2026-11-10';mount();await screen.findByText('Review overdue · 2 days');
+  expect(screen.getByText('Review criteria; achievement has not been verified here.')).toBeInTheDocument();
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+})
+it('links the empty state to the review guide',async()=>{
+  block=null;mount();expect(await screen.findByRole('link',{name:'How to review with the coach'})).toHaveAttribute('href','#guide')
+})
+
+it('labels review due today without a completion percentage',async()=>{
+  block!.review_date='2026-11-12';mount();await screen.findByText('Review due today');
+  expect(screen.getByRole('list',{name:'Block elapsed time'})).toBeInTheDocument()
 })

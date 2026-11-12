@@ -100,6 +100,11 @@ def _parse() -> argparse.Namespace:
     query.add_argument('--result-id', type=uuid.UUID)
     submit = coach_sub.add_parser('submit')
     submit.add_argument('--file', type=Path, required=True)
+    revise = coach_sub.add_parser('revise')
+    revise.add_argument('id', type=uuid.UUID)
+    revise.add_argument('--expected-revision', type=int, required=True)
+    revise.add_argument('--reason', required=True)
+    revise.add_argument('--file', type=Path, required=True)
     cutover = sub.add_parser("planning-cutover")
     cutover_mode = cutover.add_mutually_exclusive_group()
     cutover_mode.add_argument("--dry-run", action="store_true")
@@ -109,6 +114,7 @@ def _parse() -> argparse.Namespace:
 
 def _coach(args) -> int:
     from fastapi import HTTPException
+    from pydantic import ValidationError
 
     from app.services import knowledge, proposals
     from app.services.decision_inputs import VerifiedKnowledge
@@ -124,7 +130,8 @@ def _coach(args) -> int:
         now = datetime.now(UTC)
         if args.coach_command == 'schema':
             output({'protocol': 'coach_proposal.v1', 'activation': 'manual', 'required_authority': 'calendar',
-                'proposal': proposals.ProposalDoc.model_json_schema()})
+                'proposal': proposals.ProposalDoc.model_json_schema(),
+                'revision': proposals.RevisionRequest.model_json_schema()})
             return 0
         if args.coach_command == 'snapshot':
             from app.services.snapshot import build_snapshot
@@ -132,19 +139,32 @@ def _coach(args) -> int:
                 result = build_snapshot(session, args.operation, args.as_of or local_date(now, athlete_tz(session)), now=now)
             output(result)
             return 0
-        if args.coach_command == 'submit':
+        if args.coach_command in {'submit', 'revise'}:
             try:
                 raw = json.loads(args.file.read_text(encoding='utf-8'))
                 if not isinstance(raw, dict):
                     raise ValueError('not_object')
             except (OSError, UnicodeError, ValueError):
-                output({'proposal_id': None, 'status': 'invalid', 'errors': [
+                output({'proposal_id': None, 'revision': None, 'status': 'invalid', 'errors': [
                     {'code': 'V1.schema', 'path': '', 'message': 'File is not a JSON object'}]})
                 return 2
+            if args.coach_command == 'revise':
+                try:
+                    request = proposals.RevisionRequest(expected_revision=args.expected_revision,
+                        reason=args.reason, document=raw)
+                except ValidationError:
+                    output({'proposal_id': str(args.id), 'revision': None, 'status': 'invalid',
+                        'error': 'invalid_revision_request', 'errors': [
+                            {'code': 'invalid_revision_request', 'path': '', 'message': 'Invalid revision request'}]})
+                    return 2
             with SessionLocal.begin() as session:
-                submitted = proposals.submit_proposal(session, raw, now=now, resolve_kb=resolve_kb)
+                if args.coach_command == 'submit':
+                    submitted = proposals.submit_proposal(session, raw, now=now, resolve_kb=resolve_kb)
+                else:
+                    submitted = proposals.revise_proposal(session, args.id, request, now=now, resolve_kb=resolve_kb)
             output({'proposal_id': str(submitted.proposal_id) if submitted.proposal_id else None,
-                'status': submitted.status, 'errors': [issue.to_json() for issue in submitted.issues]})
+                'revision': submitted.revision, 'status': submitted.status,
+                'errors': [issue.to_json() for issue in submitted.issues]})
             return {'pending': 0, 'stale': 3}.get(submitted.status, 2)
         required = {'activity_execution': ('activity_id',), 'long_run_history': ('start', 'end'),
             'recovery_nights': ('start', 'end'), 'calendar_diff': ('from_version', 'to_version'),
@@ -174,12 +194,14 @@ def _coach(args) -> int:
         output({'error': 'knowledge_unavailable'}, error=True)
         return 4
     except proposals.DecisionError as exc:
-        if args.coach_command == 'submit':
-            output({'proposal_id': None, 'status': 'invalid', 'errors': [issue.to_json() for issue in exc.fields]
+        if args.coach_command in {'submit', 'revise'}:
+            output({'proposal_id': str(args.id) if args.coach_command == 'revise' else None,
+                'revision': None, 'status': 'invalid', 'error': exc.code,
+                'errors': [issue.to_json() for issue in exc.fields]
                 or [{'code': exc.code, 'path': '', 'message': exc.message}]})
         else:
             output({'error': exc.code, 'message': exc.message}, error=True)
-        return 2
+        return 3 if exc.code == 'stale_evidence' else 2
     except HTTPException as exc:
         code = exc.detail.get('code', 'request_error') if isinstance(exc.detail, dict) else 'request_error'
         output({'error': code}, error=True)

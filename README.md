@@ -14,8 +14,15 @@ imports, metrics, and validation run locally without model calls.
 
 ## Daily and weekly use
 
+Frontend implementation conventions are in [the UI system guide](docs/ui-system.md).
+
+Open **User guide** in the app for copyable coaching prompts and the daily,
+Sunday, and training-block workflows. The same guide is maintained in
+[docs/user-guide.md](docs/user-guide.md) and can be downloaded from the app.
+
 1. Open **http://127.0.0.1:8000**. Home shows today's plan, open effort/response
-   prompts, and the next two weeks. Record check-ins and actual effort there.
+   prompts, projected weekly mileage, and the next two weeks. Record check-ins
+   and actual effort there.
 2. Ask Codex to use **`$going-bananas-coach`** for a weekly review, today's
    adjustment, a block review, calibration, or a race/goal change. If there is no
    training block yet, start with a block review.
@@ -29,6 +36,24 @@ imports, metrics, and validation run locally without model calls.
 5. Use Trends and activity details to inspect timer-based volume, effort load,
    long runs, intensity, interval execution, and recovery. Missing observations
    remain unknown and metric explanations retain the original evidence.
+
+Weekly mileage uses Monday–Sunday in your profile timezone: recorded running
+distance so far plus remaining accepted runs. Time-based runs use workout speed
+targets or median observed speed from the last 28 days and are marked as
+estimates. Missing data or incomplete plan coverage is labeled; past unrecorded
+runs are not added to the forecast. Pending proposals do not affect the total.
+
+Use Sunday evening as the normal weekly coaching review; initiate it in Codex.
+Extra reviews are for material changes, symptoms, or new goals. To adjust a
+pending proposal, tell the coach what to change and include its review link.
+The coach edits that draft under the same link, with a saved revision history.
+Refresh and review the latest revision before accepting; selections reset when
+the draft changes. Stale drafts need refreshed context, but keep their link.
+Accepted or rejected proposals stay fixed; later plan changes use a new proposal.
+Only one draft can be open at a time, including stale or invalid drafts. Use
+**Discard proposal** on its review page to clear it and start fresh. Discarding
+removes it from the open list and preserves its history; it does not change the
+calendar. The coach checks for the active draft before submitting a new one.
 
 Strength stays in Strong; import its CSV snapshot in the local app. Confirm the
 weekly or alternating strength/mobility schedule in Data & settings. Plans,

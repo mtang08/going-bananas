@@ -80,6 +80,8 @@ describe('training home', () => {
     mount()
     expect(await screen.findByText(/No guidance today/)).toBeInTheDocument()
     expect(await screen.findByText(/No active block/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Training guide' })).toHaveAttribute('href', '#guide')
+    expect(screen.getByText(/No guidance today/).closest('.home-quiet-state')).toBeInTheDocument()
   })
   it('shows guidance with coach review', async () => {
     guidance = { id: 'g1', created_at: '', input_hash: '', local_date: '2026-11-11', checkin_id: null,
@@ -115,7 +117,8 @@ describe('training home', () => {
     expect(screen.getByText('boom')).toBeInTheDocument()
     expect(await screen.findByText(/No guidance today/)).toBeInTheDocument()
   })
-  it('renders repeats interleaved and preserves imported prescription notes', async () => {
+  it('compacts repeats and preserves structured and imported prescription notes', async () => {
+    calendar.sessions[0].notes = 'Stop if form deteriorates'
     calendar.sessions[0].structure = [{ type: 'repeat', count: 2, steps: [
       { type: 'work', duration_type: 'time', duration_value: 60, target: null },
       { type: 'recovery', duration_type: 'time', duration_value: 30, target: null },
@@ -123,9 +126,16 @@ describe('training home', () => {
     calendar.sessions.push(session('legacy', '2026-11-11', { recipe_id: null, slot: 2, legacy_unstructured: true, notes: 'Original prescribed easy progression' }))
     mount()
     const card = await screen.findByTestId('today-card')
-    expect(within(card).getAllByRole('listitem').map(li => li.textContent)).toEqual([
-      'Work 1:00 · effort', 'Recovery 0:30 · effort', 'Work 1:00 · effort', 'Recovery 0:30 · effort',
-    ])
+    expect(within(card).getByText('2 ×')).toBeVisible()
+    expect(within(card).getByText('2 ×').closest('details')).toBeNull()
+    expect(within(card).getByText('Stop if form deteriorates').closest('details')).not.toHaveAttribute('open')
+    expect(within(card).queryByText('Session details')).not.toBeInTheDocument()
+    fireEvent.click(within(card).getByText('Session notes'))
+    expect(within(card).getByText('Stop if form deteriorates')).toBeVisible()
+    expect(within(card).getByText('Original prescribed easy progression')).toBeVisible()
+    expect(within(card).getByText('Work 1:00 · effort')).toBeInTheDocument()
+    expect(within(card).getByText('Recovery after every rep, including the final rep.')).toBeInTheDocument()
+    expect(within(card).getByText('Stop if form deteriorates')).toBeInTheDocument()
     expect(within(card).getByText('Original prescribed easy progression')).toBeInTheDocument()
     expect(within(card).getByText('Structured comparison unavailable')).toBeInTheDocument()
     expect(within(card).queryByText('Quality slot')).not.toBeInTheDocument()
@@ -135,11 +145,12 @@ describe('training home', () => {
 it('links pending proposals to explicit review without making a decision', async () => {
   const previous = globalThis.fetch
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input).includes('/coach/proposals?status=pending')) return {ok:true,status:200,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:{items:[{id:'p1',summary:'Keep tomorrow easy'}]}})}
+    if (String(input).includes('/coach/proposals?status=open')) return {ok:true,status:200,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:{items:[{id:'p1',status:'stale',summary:'Keep tomorrow easy'}]}})}
     return previous(input, init)
   }))
   mount()
   expect(await screen.findByRole('link',{name:'Review proposal'})).toHaveAttribute('href','#proposal/p1')
   expect(screen.getByText('Keep tomorrow easy')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Review proposal' }).compareDocumentPosition(screen.getByRole('heading', { name: 'This week' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(requests.every(request=>request.method==='GET')).toBe(true)
 })

@@ -20,7 +20,7 @@ from app.models import Checkin as LegacyCheckin
 from app.planning_models import Block, BlockDecision, BlockVersion, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
-from app.services.proposals import DecisionError, DecisionRequest, decide_proposal, submit_proposal
+from app.services.proposals import DecisionError, DecisionRequest, decide_proposal, discard_proposal, submit_proposal
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
@@ -160,7 +160,7 @@ def _doc(snapshot: CoachSnapshot, uid: uuid.UUID) -> dict:
 
 def _req(head: int, key: str, accepted: list[str] | None = None, rejected: list[str] | None = None) -> DecisionRequest:
     return DecisionRequest(
-        idempotency_key=key, expected_head=head, accept_change_ids=accepted or [], reject_change_ids=rejected or []
+        idempotency_key=key, expected_head=head, expected_revision=1, accept_change_ids=accepted or [], reject_change_ids=rejected or []
     )
 
 
@@ -293,14 +293,17 @@ def test_anchor_only_acceptance_stales_other_pending(proposal_session: Session) 
     ]
     first = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
     other = {**raw, "summary": "Another pending proposal"}
-    second = submit_proposal(session, other, now=NOW, resolve_kb=_resolve)
-    assert first.status == second.status == "pending"
+    with pytest.raises(DecisionError) as conflict:
+        submit_proposal(session, other, now=NOW, resolve_kb=_resolve)
+    assert conflict.value.code == "active_proposal_exists"
+    assert [(field.path, field.message) for field in conflict.value.fields] == [
+        ("active_proposal_id", str(first.proposal_id)), ("active_revision", "1")]
     result = decide_proposal(
         session,
         first.proposal_id,
         DecisionRequest(
             idempotency_key="decision-anchor",
-            expected_head=1,
+            expected_head=1, expected_revision=1,
             accept_change_ids=[],
             reject_change_ids=[],
             accept_anchor_changes=["hr_threshold_lower-2026-11-16"],
@@ -310,9 +313,7 @@ def test_anchor_only_acceptance_stales_other_pending(proposal_session: Session) 
     )
     assert result.status == "accepted" and result.calendar_version is None
     assert result.anchor_keys == ["hr_threshold_lower-2026-11-16"]
-    assert second.proposal_id in result.stale_proposals
-    stored = session.get(CoachProposal, second.proposal_id)
-    assert stored is not None and stored.status == "stale"
+    assert result.stale_proposals == []
     assert (session.scalar(select(func.count(IntensityAnchor.id))) or 0) >= 1
 
 
@@ -344,7 +345,7 @@ def test_block_same_state_acceptance_is_noop(proposal_session: Session) -> None:
         first.proposal_id,
         DecisionRequest(
             idempotency_key="decision-block1",
-            expected_head=1,
+            expected_head=1, expected_revision=1,
             accept_change_ids=[],
             reject_change_ids=[],
             accept_block_change=True,
@@ -367,7 +368,7 @@ def test_block_same_state_acceptance_is_noop(proposal_session: Session) -> None:
         second.proposal_id,
         DecisionRequest(
             idempotency_key="decision-block2",
-            expected_head=1,
+            expected_head=1, expected_revision=1,
             accept_change_ids=[],
             reject_change_ids=[],
             accept_block_change=True,
@@ -401,11 +402,14 @@ def test_head_drift_and_cross_proposal_key_conflict(proposal_session: Session) -
     snapshot, uid = _snapshot(session)
     raw = _doc(snapshot, uid)
     first = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
-    second = submit_proposal(session, {**raw, "summary": "Other choice"}, now=NOW, resolve_kb=_resolve)
+    with pytest.raises(DecisionError) as active:
+        submit_proposal(session, {**raw, "summary": "Other choice"}, now=NOW, resolve_kb=_resolve)
+    assert active.value.code == "active_proposal_exists"
     rejected = decide_proposal(
         session, first.proposal_id, _req(1, "shared-decision-key", [], ["c1"]), now=NOW, resolve_kb=_resolve
     )
     assert rejected.status == "rejected" and rejected.calendar_version is None
+    second = submit_proposal(session, {**raw, "summary": "Other choice"}, now=NOW, resolve_kb=_resolve)
     with pytest.raises(DecisionError) as conflict:
         decide_proposal(
             session, second.proposal_id, _req(1, "shared-decision-key", [], ["c1"]), now=NOW, resolve_kb=_resolve
@@ -421,6 +425,40 @@ def test_head_drift_and_cross_proposal_key_conflict(proposal_session: Session) -
             session, second.proposal_id, _req(2, "other-decision-key", [], ["c1"]), now=NOW, resolve_kb=_resolve
         )
     assert (moved.value.code, moved.value.commit) == ("proposal_stale", True)
+
+
+@pytest.mark.parametrize("status", ["pending", "stale", "invalid"])
+def test_discard_closes_open_proposal_without_calendar_change(proposal_session: Session, status: str) -> None:
+    session = proposal_session
+    snapshot, uid = _snapshot(session)
+    raw = _doc(snapshot, uid)
+    first = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    stored = session.get(CoachProposal, first.proposal_id)
+    stored.status = status
+    session.flush()
+    head = session.get(AppState, 1).calendar_head_version
+    discarded = discard_proposal(session, first.proposal_id, 1, now=NOW)
+    assert discarded.status == "discarded"
+    assert discard_proposal(session, first.proposal_id, 1, now=NOW) == discarded
+    assert stored.discarded_at == NOW
+    assert session.get(AppState, 1).calendar_head_version == head
+    assert submit_proposal(session, raw, now=NOW, resolve_kb=_resolve).status == "discarded"
+    assert submit_proposal(session, {**raw, "summary": "Replacement"}, now=NOW, resolve_kb=_resolve).status == "pending"
+    with pytest.raises(DecisionError, match="Discarded"):
+        decide_proposal(session, first.proposal_id, _req(head, "discarded-key", ["c1"], []), now=NOW, resolve_kb=_resolve)
+
+
+def test_discard_rejects_revision_race_and_decided_proposal(proposal_session: Session) -> None:
+    session = proposal_session
+    snapshot, uid = _snapshot(session)
+    first = submit_proposal(session, _doc(snapshot, uid), now=NOW, resolve_kb=_resolve)
+    with pytest.raises(DecisionError) as conflict:
+        discard_proposal(session, first.proposal_id, 2, now=NOW)
+    assert conflict.value.code == "proposal_revision_conflict"
+    decide_proposal(session, first.proposal_id, _req(1, "reject-before-discard", [], ["c1"]), now=NOW, resolve_kb=_resolve)
+    with pytest.raises(DecisionError) as decided:
+        discard_proposal(session, first.proposal_id, 1, now=NOW)
+    assert decided.value.code == "proposal_decided"
 
 
 def test_verified_knowledge_content_drift_is_stale_evidence(proposal_session: Session) -> None:
@@ -556,7 +594,7 @@ def test_failure_after_anchor_write_rolls_back_entire_decision(proposal_session:
                 proposal.proposal_id,
                 DecisionRequest(
                     idempotency_key="rollback-decision-key",
-                    expected_head=1,
+                    expected_head=1, expected_revision=1,
                     accept_change_ids=["c1"],
                     reject_change_ids=[],
                     accept_anchor_changes=["hr_threshold_lower-2026-11-16"],
@@ -616,3 +654,93 @@ def test_manual_session_rpe_changes_fingerprint(proposal_session: Session) -> No
     session.flush()
     after = collect_decision_inputs(session, "review_rolling_plan", TODAY, now=NOW, kb=KB)["source_fingerprint"]
     assert before != after
+
+
+def test_revise_preserves_identity_history_and_rejects_old_acceptance(proposal_session):
+    from copy import deepcopy
+
+    from app.coach_v2_models import CoachProposalRevision
+    from app.services.proposals import RevisionRequest, revise_proposal
+
+    session = proposal_session
+    snapshot, uid = _snapshot(session)
+    raw = _doc(snapshot, uid)
+    initial = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    state = session.get(AppState, 1)
+    baseline = (state.calendar_head_version, state.data_revision)
+    fingerprint = collect_decision_inputs(session, snapshot.operation, TODAY, now=NOW, kb=KB)['source_fingerprint']
+    edited = deepcopy(raw)
+    edited['changes'][0]['after']['planned_duration_s'] = 2100
+    edited['changes'][0]['reason'] = 'Use the shorter duration requested by the athlete'
+    edited['summary'] = 'Shorten the planned run'
+    request = RevisionRequest(expected_revision=1, reason='Shorter run requested', document=edited)
+    result = revise_proposal(session, initial.proposal_id, request, now=NOW, resolve_kb=_resolve)
+    assert result.proposal_id == initial.proposal_id and result.revision == 2
+    assert revise_proposal(session, initial.proposal_id, request, now=NOW, resolve_kb=_resolve) == result
+    assert submit_proposal(session, raw, now=NOW, resolve_kb=_resolve).proposal_id == result.proposal_id
+    assert session.scalar(select(func.count()).select_from(CoachProposal)) == 1
+    history = session.scalars(select(CoachProposalRevision).order_by(CoachProposalRevision.revision)).all()
+    assert len(history) == 2
+    assert history[0].payload['changes'][0]['after']['planned_duration_s'] == 2400
+    assert history[1].payload['changes'][0]['after']['planned_duration_s'] == 2100
+    assert history[1].changed_change_ids == ['c1'] and history[1].changed_fields == ['summary']
+    assert collect_decision_inputs(session, snapshot.operation, TODAY, now=NOW, kb=KB)['source_fingerprint'] == fingerprint
+    session.refresh(state)
+    assert (state.calendar_head_version, state.data_revision) == baseline
+    with pytest.raises(DecisionError) as conflict:
+        decide_proposal(session, result.proposal_id, _req(1, 'old-review-key', ['c1']), now=NOW, resolve_kb=_resolve)
+    assert conflict.value.code == 'proposal_revision_conflict'
+    accepted = decide_proposal(session, result.proposal_id,
+        _req(1, 'new-review-key', ['c1']).model_copy(update={'expected_revision': 2}), now=NOW, resolve_kb=_resolve)
+    assert accepted.status == 'accepted'
+    assert next(row for row in calendar.state_at(session, 2) if row['session_uid'] == uid)['planned_duration_s'] == 2100
+    with pytest.raises(DecisionError) as decided:
+        revise_proposal(session, result.proposal_id, request, now=NOW, resolve_kb=_resolve)
+    assert decided.value.code == 'proposal_decided'
+
+
+def test_invalid_or_conflicting_revision_does_not_replace_draft(proposal_session):
+    from copy import deepcopy
+
+    from app.coach_v2_models import CoachProposalRevision
+    from app.services.proposals import RevisionRequest, revise_proposal
+
+    session = proposal_session
+    snapshot, uid = _snapshot(session)
+    raw = _doc(snapshot, uid)
+    initial = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    invalid = deepcopy(raw)
+    invalid['changes'][0]['after']['local_date'] = '2027-01-01'
+    for document, expected, code in [(invalid, 1, 'invalid_proposal'), (raw, 9, 'proposal_revision_conflict')]:
+        with pytest.raises(DecisionError) as caught:
+            revise_proposal(session, initial.proposal_id,
+                RevisionRequest(expected_revision=expected, reason='Attempted edit', document=document), now=NOW, resolve_kb=_resolve)
+        assert caught.value.code == code
+    row = session.get(CoachProposal, initial.proposal_id)
+    assert row.revision == 1 and row.payload['changes'][0]['after'] == {'planned_duration_s': 2400}
+    assert session.scalar(select(func.count()).select_from(CoachProposalRevision)) == 1
+    same = revise_proposal(session, initial.proposal_id,
+        RevisionRequest(expected_revision=1, reason='No actual change', document=raw), now=NOW, resolve_kb=_resolve)
+    assert same.revision == 1
+
+
+def test_revise_stale_draft_requires_fresh_context_and_keeps_link(proposal_session):
+    from app.services.proposals import RevisionRequest, revise_proposal
+
+    session = proposal_session
+    snapshot, uid = _snapshot(session)
+    raw = _doc(snapshot, uid)
+    initial = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    calendar.apply_edits(session, 1, [{'op': 'modify', 'session_uid': uid, 'fields': {'intent': 'Updated schedule'}}], 'User edit')
+    with pytest.raises(DecisionError) as caught:
+        revise_proposal(session, initial.proposal_id,
+            RevisionRequest(expected_revision=1, reason='Refresh', document=raw), now=NOW, resolve_kb=_resolve)
+    assert caught.value.code == 'stale_evidence'
+    fresh, uid = _snapshot(session)
+    result = revise_proposal(session, initial.proposal_id,
+        RevisionRequest(expected_revision=1, reason='Use updated calendar', document=_doc(fresh, uid)), now=NOW, resolve_kb=_resolve)
+    assert result.proposal_id == initial.proposal_id and result.revision == 2 and result.status == 'pending'
+    row = session.get(CoachProposal, initial.proposal_id)
+    assert row.base_calendar_version == 2 and row.snapshot_id == fresh.id
+    change = session.scalar(select(CoachProposalChange).where(CoachProposalChange.proposal_id == row.id))
+    assert change.before['intent'] == 'Updated schedule'

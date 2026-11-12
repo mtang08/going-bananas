@@ -7,6 +7,9 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import pytest
+
+from app.services.calendar_structure import expand_structure
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, fingerprint
 from app.services.proposals import (
     ActiveBlock,
@@ -150,6 +153,50 @@ def test_valid_rolling_proposal_is_pending() -> None:
     doc = valid_doc()
     doc["changes"] = []
     assert outcome(doc) == ("pending", [])
+
+
+@pytest.mark.parametrize("structure", [
+    [],
+    [{"type": "work", "duration_type": "time", "duration_value": 180,
+      "target": {"modality": "effort", "low": 6, "high": 7, "effort_cue": "Controlled"}}],
+    [{"type": "repeat", "count": 5, "steps": [
+        {"type": "work", "duration_type": "time", "duration_value": 180,
+         "target": {"modality": "effort", "low": 6, "high": 7, "effort_cue": "Controlled"}}]}],
+    [{"type": "work", "duration_type": "time", "duration_value": 180,
+      "target": {"modality": "effort", "effort_cue": " "}}],
+    [{"type": "work", "duration_type": "time", "duration_value": 180,
+      "target": {"modality": "hr", "low": 160, "high": 150}}],
+    [{"type": "work", "duration_type": "time", "duration_value": float("inf")}],
+    [{"type": "repeat", "count": 101, "steps": [
+        {"type": "work", "duration_type": "time", "duration_value": 180}]}],
+])
+def test_invalid_workout_structure_rejected_on_submit_and_acceptance(structure: list) -> None:
+    doc = valid_doc()
+    doc["changes"][0]["after"]["structure"] = structure
+    result = validate_document(doc, context())
+    expected = [("V6.invalid_structure", "changes.0.after.structure")]
+    assert result.status == "invalid"
+    assert [(issue.code, issue.path) for issue in result.issues] == expected
+    # Older pending proposals must still parse, but cannot apply malformed steps.
+    assert result.doc is not None
+    assert [(issue.code, issue.path) for issue in validate_subset(result.doc, {"c1"}, False, set(), context())] == expected
+    assert validate_subset(result.doc, set(), False, set(), context()) == []
+
+
+def test_effort_intervals_use_cues_and_expand_for_calendar() -> None:
+    doc = valid_doc()
+    work = {"type": "work", "duration_type": "time", "duration_value": 180,
+            "target": {"modality": "effort", "effort_cue": "RPE 6-7, controlled"}}
+    recovery = {"type": "recovery", "duration_type": "time", "duration_value": 120,
+                "target": {"modality": "effort", "effort_cue": "RPE 2-3, easy"}}
+    doc["changes"][0]["after"]["structure"] = [
+        {"type": "repeat", "count": 4, "steps": [work, recovery]}, work]
+    result = validate_document(doc, context())
+    assert result.status == "pending"
+    structure = result.doc.changes[0].after.model_dump()["structure"]
+    expanded = expand_structure(structure)
+    assert len(expanded) == 9
+    assert sum(step["duration_value"] for step in expanded) == 23 * 60
 
 
 def test_v1_unknown_field_rejected() -> None:

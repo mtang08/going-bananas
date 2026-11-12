@@ -81,10 +81,10 @@ it('creates active goals through the actual GoalCreate contract', async () => {
   expect(writes()[0].body).not.toHaveProperty('status')
 })
 
-it('converts event distance in miles to metres', async () => {
-  mount(); await screen.findByLabelText('Event'); input('event-name', 'NYC Half'); input('event-date', '2027-03-15'); input('event-distance', '13.1'); input('event-priority', 'target'); input('event-status', 'registered')
+it('saves the selected standard race distance in exact metres', async () => {
+  mount(); await screen.findByLabelText('Event'); input('event-name', 'NYC Half'); input('event-date', '2027-03-15'); input('event-distance', '21097.5'); input('event-priority', 'target'); input('event-status', 'registered')
   fireEvent.click(screen.getByRole('button', { name: 'Add event' })); await screen.findByText('Event saved.')
-  expect(writes()[0].body).toEqual({ name: 'NYC Half', event_date: '2027-03-15', distance_m: 21082, priority: 'target', status: 'registered', result_s: null })
+  expect(writes()[0].body).toEqual({ name: 'NYC Half', event_date: '2027-03-15', distance_m: 21097.5, priority: 'target', status: 'registered', result_s: null })
 })
 
 it('preserves exact stored distance when editing other event fields', async () => {

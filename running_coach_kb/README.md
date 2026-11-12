@@ -1,6 +1,6 @@
 # Running Coach Knowledge Base
 
-**Package version:** `1.1.0+privacy1`  
+**Package version:** `1.1.1+privacy1`
 **Evidence searched through:** 2026-11-11  
 **Original athlete context snapshot:** stored privately; current application state is authoritative  
 **Status:** complete for the requested incremental scope, with explicit scientific, data, and product gaps
@@ -23,6 +23,12 @@ It does **not** install a skill, implement the application, prescribe a live per
 5. Open evidence files only for consequential, disputed, or novel choices.
 
 Routine coaching should not load the full corpus or perform fresh web research.
+
+If a concrete gap or verification requirement leads to outside research, record
+its disposition in [coaching web intake](research/coaching_web_intake.md).
+Deduplicate existing sources, keep unverified candidates separate from runtime
+evidence, and promote verified additions with updated provenance and manifest
+hashes. The 2026-11-12 intake audit changes the workflow, not physiological policy.
 
 ## Directory map
 

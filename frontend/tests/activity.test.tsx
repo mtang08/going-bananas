@@ -143,11 +143,11 @@ describe('Activity execution', () => {
     expect(screen.getByText('Watch steps')).toBeInTheDocument()
     const planned = screen.getByText('Planned steps').parentElement!
     const labels = within(planned).getAllByRole('listitem').map(item => item.textContent)
-    expect(labels).toHaveLength(10)
-    expect(labels.slice(1, 5)).toEqual([
-      'Work 800 m · 6:42 /mi–7:04 /mi', 'Recovery 2:00 · easy jog',
-      'Work 800 m · 6:42 /mi–7:04 /mi', 'Recovery 2:00 · easy jog',
-    ])
+    expect(labels).toHaveLength(5)
+    expect(within(planned).getByText('4 ×')).toBeInTheDocument()
+    expect(within(planned).getByText('Work 800 m · 6:42 /mi–7:04 /mi')).toBeInTheDocument()
+    expect(within(planned).getByText('Recovery 2:00 · easy jog')).toBeInTheDocument()
+    expect(within(planned).getByText('Recovery after every rep, including the final rep.')).toBeInTheDocument()
     expect(screen.getByText('Interval · 800 m')).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Reps' })).not.toBeInTheDocument()
   })

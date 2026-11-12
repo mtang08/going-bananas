@@ -6,12 +6,12 @@ from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.core import envelope, fail
-from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachSnapshot
+from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachProposalRevision, CoachSnapshot
 from app.db import get_session
 from app.models import AppState
 from app.services import calendar, knowledge, proposals
@@ -27,7 +27,7 @@ def resolve_kb(selection: tuple[dict, ...]) -> VerifiedKnowledge:
 
 def proposal_summary(proposal: CoachProposal) -> dict:
     return {**{key: getattr(proposal, key) for key in (
-        'id', 'operation', 'status', 'submitted_at', 'decided_at', 'summary', 'base_calendar_version')},
+        'id', 'revision', 'operation', 'status', 'submitted_at', 'decided_at', 'discarded_at', 'summary', 'base_calendar_version')},
         'change_count': len(proposal.payload.get('changes', []))}
 
 
@@ -56,10 +56,14 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
             # Saved proposals stay readable when their research package changes.
             is_current = False
     data = {key: getattr(proposal, key) for key in (
-        'id', 'operation', 'snapshot_id', 'status', 'submitted_at', 'decided_at', 'summary', 'rationale',
+        'id', 'revision', 'operation', 'snapshot_id', 'status', 'submitted_at', 'decided_at', 'discarded_at', 'summary', 'rationale',
         'confidence', 'evidence_ids', 'policy_ids', 'recipe_ids', 'follow_up', 'escalation',
         'base_calendar_version', 'base_block_version_id', 'block_change', 'validation_errors', 'skill_version')}
     data['decision_result'] = {'proposal_id': proposal.id, **proposal.decision_result} if proposal.decision_result else None
+    data['revisions'] = [{key: getattr(row, key) for key in (
+        'revision', 'saved_at', 'reason', 'changed_change_ids', 'changed_fields')}
+        for row in session.scalars(select(CoachProposalRevision)
+            .where(CoachProposalRevision.proposal_id == proposal.id).order_by(CoachProposalRevision.revision.desc()))]
     data['anchor_changes'] = [{**item, 'anchor_key': proposals.anchor_key(
         proposals.AnchorChange.model_validate(item), athlete_tz(session))} for item in cast(list[dict[str, Any]], proposal.anchor_changes or [])]
     stored = {item['change_id']: item for item in proposal.payload.get('changes', [])}
@@ -75,17 +79,42 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
 
 
 @router.get('/proposals')
-def get_proposals(status: Literal['pending', 'accepted', 'partially_accepted', 'rejected', 'stale', 'invalid'] | None = None,
+def get_proposals(status: Literal['open', 'pending', 'accepted', 'partially_accepted', 'rejected', 'stale', 'invalid', 'discarded'] | None = None,
                   session: Session = Depends(get_session)) -> dict:
     query = select(CoachProposal).order_by(CoachProposal.submitted_at.desc(), CoachProposal.id.desc()).limit(50)
-    if status:
+    if status == 'open':
+        query = query.where(CoachProposal.status.in_(('pending', 'stale', 'invalid')))
+    elif status:
         query = query.where(CoachProposal.status == status)
+    else:
+        query = query.where(CoachProposal.status != 'discarded')
     items = []
     for proposal in session.scalars(query):
         item = proposal_summary(proposal)
         item['change_count'] = len(proposal.payload.get('changes', []))
         items.append(item)
     return envelope(session, {'items': items})
+
+
+@router.get('/proposals/active')
+def get_active_proposal(session: Session = Depends(get_session)) -> dict:
+    proposal = session.scalar(select(CoachProposal).where(
+        CoachProposal.status.in_(('pending', 'stale', 'invalid')))
+        .order_by(CoachProposal.submitted_at.desc(), CoachProposal.id.desc()))
+    return envelope(session, {'proposal': proposal_summary(proposal) if proposal else None})
+
+
+@router.delete('/proposals/{proposal_id}')
+def delete_proposal(proposal_id: uuid.UUID, expected_revision: int = Query(..., gt=0),
+                    session: Session = Depends(get_session)) -> dict:
+    try:
+        result = proposals.discard_proposal(session, proposal_id, expected_revision, now=datetime.now(UTC))
+    except proposals.DecisionError as exc:
+        session.rollback()
+        raise HTTPException(exc.http_status, detail={'code': exc.code, 'message': exc.message,
+            'fields': [issue.to_json() for issue in exc.fields]}) from exc
+    session.commit()
+    return envelope(session, {'proposal_id': result.proposal_id, 'revision': result.revision, 'status': result.status})
 
 
 @router.get('/proposals/{proposal_id}')
@@ -114,3 +143,40 @@ def post_decision(proposal_id: uuid.UUID, body: proposals.DecisionRequest,
             'message': 'Research package changed; create a fresh coaching review'}) from exc
     session.commit()
     return envelope(session, asdict(result))
+
+
+@router.get('/proposals/{proposal_id}/document')
+def get_proposal_document(proposal_id: uuid.UUID, session: Session = Depends(get_session)) -> dict:
+    proposal = session.get(CoachProposal, proposal_id)
+    if proposal is None:
+        fail('proposal_not_found', 'Proposal not found', 404)
+    detail = proposal_detail(session, proposal)
+    return envelope(session, {'proposal_id': proposal.id, 'revision': proposal.revision,
+        'status': proposal.status, 'is_current': detail['is_current'], 'document': proposal.payload})
+
+
+@router.get('/proposals/{proposal_id}/revisions/{revision}')
+def get_proposal_revision(proposal_id: uuid.UUID, revision: int, session: Session = Depends(get_session)) -> dict:
+    row = session.get(CoachProposalRevision, (proposal_id, revision))
+    if row is None:
+        fail('proposal_revision_not_found', 'Proposal revision not found', 404)
+    return envelope(session, {'proposal_id': proposal_id, 'revision': revision,
+        'saved_at': row.saved_at, 'reason': row.reason, 'document': row.payload})
+
+
+@router.post('/proposals/{proposal_id}/revise')
+def post_revision(proposal_id: uuid.UUID, body: proposals.RevisionRequest,
+                  session: Session = Depends(get_session)) -> dict:
+    try:
+        result = proposals.revise_proposal(session, proposal_id, body, now=datetime.now(UTC), resolve_kb=resolve_kb)
+    except proposals.DecisionError as exc:
+        session.rollback()
+        raise HTTPException(exc.http_status, detail={'code': exc.code, 'message': exc.message,
+            'fields': [issue.to_json() for issue in exc.fields]}) from exc
+    except knowledge.KnowledgeIntegrityError as exc:
+        session.rollback()
+        raise HTTPException(409, detail={'code': 'knowledge_unavailable',
+            'message': 'Research package changed; refresh the coaching context before revising'}) from exc
+    session.commit()
+    return envelope(session, {'proposal_id': result.proposal_id, 'revision': result.revision,
+        'status': result.status, 'errors': [issue.to_json() for issue in result.issues]})

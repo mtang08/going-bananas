@@ -22,8 +22,8 @@ def test_single_chained_schema_head() -> None:
     script = ScriptDirectory.from_config(config)
     assert script.get_heads() == [EXPECTED_HEAD]
     revisions = [revision.revision for revision in script.walk_revisions()]
-    assert revisions[:6] == [
-        '0015_coach_v2', '0014_anchors_metrics_prompts', '0013_blocks_goals',
+    assert revisions[:8] == [
+        '0017_single_open_proposal', '0016_proposal_revisions', '0015_coach_v2', '0014_anchors_metrics_prompts', '0013_blocks_goals',
         '0012_calendar', '0011_checkins_v2', '0010_ingest_fit',
     ]
 
@@ -35,7 +35,7 @@ def test_required_tables_are_in_metadata() -> None:
         legacy_import_runs legacy_import_map legacy_undo_requests
         blocks block_versions block_decisions goals events strength_routine_slots
         intensity_anchors metric_configs metric_results prompts coach_snapshots
-        coach_proposals coach_proposal_changes coach_decision_keys daily_guidance'''.split()) <= set(Base.metadata.tables)
+        coach_proposals coach_proposal_revisions coach_proposal_changes coach_decision_keys daily_guidance'''.split()) <= set(Base.metadata.tables)
     assert Base.metadata.tables['activities'].c.fit_status.server_default.arg == 'not_fetched'
     assert Base.metadata.tables['app_state'].c.planning_authority.server_default.arg == 'legacy'
     assert Base.metadata.tables['app_state'].c.calendar_head_version.server_default.arg == '0'
