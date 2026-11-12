@@ -1,0 +1,4 @@
+interface:
+  display_name: "Going Bananas Coach"
+  short_description: "Check in, review progress, and discuss training goals"
+  default_prompt: "Use $going-bananas-coach to check my current training context and talk through today's session."

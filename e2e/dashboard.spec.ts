@@ -1,11 +1,11 @@
 import { expect, test } from '../frontend/node_modules/@playwright/test'
 
 test.beforeAll(async ({ request }) => {
-  const response = await request.get('http://127.0.0.1:5173/api/v1/profile')
+  const response = await request.get('/api/v1/profile')
   const envelope = await response.json()
   expect(envelope.mode).toBe('demo')
   const p = envelope.data
-  const configured = await request.put('http://127.0.0.1:5173/api/v1/profile', {
+  const configured = await request.put('/api/v1/profile', {
     headers: { 'X-Local-Request': '1' },
     data: { ...p, expected_version: p.version, timezone: 'America/New_York',
       cycle_anchor: '2026-11-02', anchor_confirmed: true,
@@ -15,7 +15,7 @@ test.beforeAll(async ({ request }) => {
 })
 
 test.beforeEach(async ({request}) => {
-  const response=await request.get('http://127.0.0.1:5173/api/v1/health/live')
+  const response=await request.get('/api/v1/health/live')
   expect(response.ok()).toBe(true)
   expect((await response.json()).mode).toBe('demo')
 })
@@ -70,10 +70,12 @@ test('history can browse a prior year with bounded date windows', async ({page})
 })
 
 test('demo Coach generates explicit daily and weekly guidance without changing plans', async ({page}) => {
-  const plansBefore=await (await page.request.get('http://127.0.0.1:5173/api/v1/plans')).json()
+  const plansBefore=await (await page.request.get('/api/v1/plans')).json()
   await page.goto('/')
   await page.getByRole('button',{name:'Coach',exact:true}).click()
-  await expect(page.getByRole('heading',{name:'Train with context.'})).toBeVisible()
+  await expect(page.getByRole('heading',{name:'Plan, train, review.'})).toBeVisible()
+  await expect(page.getByText(/Review my recent training and plan the next 14 days/)).toBeVisible()
+  await page.getByText('Local rule guidance · legacy', {exact:true}).click()
   await expect(page.getByRole('button',{name:'Generate daily guidance'})).toBeVisible()
   await page.getByLabel('Illness').selectOption('none')
   const generated=page.waitForResponse(response=>response.url().endsWith('/api/v1/coach/daily')&&response.request().method()==='POST')
@@ -92,7 +94,7 @@ test('demo Coach generates explicit daily and weekly guidance without changing p
   await page.getByRole('button',{name:'Generate weekly review'}).click()
   expect((await weekly).ok()).toBe(true)
   await expect(page.getByText('Next cycle proposal')).toBeVisible()
-  const plansAfter=await (await page.request.get('http://127.0.0.1:5173/api/v1/plans')).json()
+  const plansAfter=await (await page.request.get('/api/v1/plans')).json()
   expect(plansAfter.data.items).toEqual(plansBefore.data.items)
 })
 
@@ -102,7 +104,7 @@ test('demo Strength browses imported years and recorded sets on mobile', async (
   await page.getByRole('button',{name:'Open menu'}).click()
   await page.getByRole('button',{name:'Strength'}).click()
   await expect(page.getByRole('heading',{name:'Strength history.'})).toBeVisible()
-  const years=(await (await page.request.get('http://127.0.0.1:5173/api/v1/strength/years')).json()).data.years
+  const years=(await (await page.request.get('/api/v1/strength/years')).json()).data.years
   if(years.length){
     const year=String(years[0].year)
     await page.getByLabel('Year').selectOption(year)
@@ -117,14 +119,14 @@ test('demo Strength browses imported years and recorded sets on mobile', async (
 })
 
 test('demo Week A/B settings project full-body and mobility without weekly drafts', async ({page}) => {
-  const response=await page.request.get('http://127.0.0.1:5173/api/v1/profile')
+  const response=await page.request.get('/api/v1/profile')
   const profile=(await response.json()).data
-  const saved=await page.request.put('http://127.0.0.1:5173/api/v1/profile',{
+  const saved=await page.request.put('/api/v1/profile',{
     headers:{'X-Local-Request':'1'},
     data:{...profile,expected_version:profile.version,strength_schedule_mode:'alternating',strength_week_a_start:'2026-11-09',strength_week_a_days:[0,4],strength_week_b_days:[1,5],mobility_week_a_days:[2],mobility_week_b_days:[3],mobility_optional_days:[6],strength_days_confirmed:true},
   })
   expect(saved.ok()).toBe(true)
-  const planResponse=await page.request.get('http://127.0.0.1:5173/api/v1/plans?start_date=2027-01-04&end_date=2027-01-17')
+  const planResponse=await page.request.get('/api/v1/plans?start_date=2027-01-04&end_date=2027-01-17')
   expect(planResponse.ok()).toBe(true)
   const slots=(await planResponse.json()).data.recurring_sessions as {date:string;kind:string;optional:boolean}[]
   expect(slots.filter(s=>s.kind==='strength').map(s=>s.date)).toEqual(['2027-01-04','2027-01-08','2027-01-12','2027-01-16'])
@@ -143,6 +145,7 @@ test('demo Week A/B settings project full-body and mobility without weekly draft
   await expect(fullBody.getByText('Full-body strength · repeating')).toBeVisible()
   await expect(page.getByRole('button',{name:/Sunday, January 10/}).getByText('Mobility · optional · repeating')).toBeVisible()
   await page.getByRole('button',{name:'Coach'}).click()
+  await page.getByText('Local rule guidance · legacy', {exact:true}).click()
   const generated=page.waitForResponse(r=>r.url().endsWith('/api/v1/coach/weekly')&&r.request().method()==='POST')
   await page.getByRole('button',{name:'Weekly review'}).click()
   await page.getByRole('button',{name:'Generate weekly review'}).click()
@@ -165,7 +168,7 @@ test('demo run history keeps insufficient classification explicit with optional 
 })
 
 test('manual draft can be accepted and linked to a confirmed actual session', async ({page}) => {
-  const profileResponse=await page.request.get('http://127.0.0.1:5173/api/v1/profile')
+  const profileResponse=await page.request.get('/api/v1/profile')
   const profile=(await profileResponse.json()).data
   expect(profile.anchor_confirmed).toBe(true)
   expect(profile.strength_days_confirmed).toBe(true)
@@ -207,11 +210,53 @@ test('manual draft can be accepted and linked to a confirmed actual session', as
   const actual=page.getByRole('combobox',{name:'Actual for planned strength'})
   await actual.selectOption(`manual:${actualId}`)
   await expect(page.getByRole('dialog',{name:'Day editor'})).toBeHidden()
-  const plans=(await (await page.request.get(`http://127.0.0.1:5173/api/v1/plans?start_date=${startDate}&end_date=${endDate}`)).json()).data.items
+  const plans=(await (await page.request.get(`/api/v1/plans?start_date=${startDate}&end_date=${endDate}`)).json()).data.items
   expect(plans.some((p:{status:string;sessions:{kind:string;completion_manual_session_id:string|null}[]})=>p.status==='accepted'&&p.sessions.some(s=>s.kind==='strength'&&s.completion_manual_session_id))).toBe(true)
   await page.locator('.day-card').nth(index).click()
   await page.getByRole('button',{name:'Unlink actual session'}).click()
   await expect(page.getByRole('dialog',{name:'Day editor'})).toBeHidden()
-  const after=(await (await page.request.get(`http://127.0.0.1:5173/api/v1/plans?start_date=${startDate}&end_date=${endDate}`)).json()).data.items
+  const after=(await (await page.request.get(`/api/v1/plans?start_date=${startDate}&end_date=${endDate}`)).json()).data.items
   expect(after.find((p:{status:string})=>p.status==='accepted').sessions.some((s:{completion_manual_session_id:string|null})=>s.completion_manual_session_id)).toBe(false)
+})
+
+test('Codex weekly plan and daily adjustment appear in the calendar and can be rolled back', async ({page, request}) => {
+  const headers = {'X-Local-Request': '1'}
+  const root = '/api/v1'
+  const key = `browser-agent-${Date.now()}`
+  const checkin = await request.post(`${root}/checkins`, {headers, data: {idempotency_key: key, observed_at: new Date().toISOString(), symptoms: 'none', gait: 'normal', feeling: 'usual', note: 'Synthetic browser acceptance fixture for persisted plans.'}})
+  expect(checkin.ok()).toBe(true)
+  const state = (await (await request.get(`${root}/coach/agent/context?workflow=weekly`)).json()).data
+  const review = {actual_vs_plan: 'Synthetic acceptance fixture; unlinked actuals remain unknown.', progression: 'Hold exposure to verify the saved calendar workflow.', recovery: 'No recovery inference is made by this browser fixture.', symptoms: 'Synthetic check-in reports no current symptoms.', strength: 'Keep the confirmed full-body and mobility rotation.', weekly_strategy: 'Preserve the easy running rhythm without catch-up sessions.', uncertainty: ['This is a synthetic browser test, not personalized training advice.'], follow_up: ['Verify the next saved daily decision.'], evidence: []}
+  const target = {intent: 'easy', purpose: 'Synthetic browser prescription', prescription: 'Run 20 minutes on familiar flat terrain.', intensity: 'Comfortable conversational effort.', duration_minutes: 20, reason: 'Verify the calendar renders the saved running prescription.'}
+  const weekly = await request.post(`${root}/coach/agent/proposals`, {headers, data: {workflow: 'weekly', as_of: state.as_of, evidence_hash: state.evidence_hash, expected_revision_id: state.current_revision_id, idempotency_key: `${key}-weekly`, summary: 'Browser fixture weekly plan', rationale: 'Persist a concrete synthetic plan for calendar acceptance testing.', review, source_ids: ['S001'], sessions: state.context.run_opportunities.map((slot: {date: string}) => ({date: slot.date, kind: 'run', target}))}})
+  expect(weekly.ok(), await weekly.text()).toBe(true)
+  const weeklyData = (await weekly.json()).data
+  expect(weeklyData.revision.workflow).toBe('weekly')
+  await page.goto('/')
+  await page.getByRole('button', {name: 'Cycle', exact: true}).click()
+  const prescribed = page.locator('.day-card').filter({hasText: '20 min'}).first()
+  await expect(prescribed).toBeVisible()
+  await prescribed.click()
+  const dialog = page.getByRole('dialog', {name: 'Day editor'})
+  await expect(dialog.getByText(target.reason)).toBeVisible()
+  await expect(dialog.getByText('Saved by the Codex research coach').first()).toBeVisible()
+  await dialog.getByRole('button', {name: 'Close', exact: true}).click()
+  const dailyState = (await (await request.get(`${root}/coach/agent/context?workflow=daily`)).json()).data
+  const daily = await request.post(`${root}/coach/agent/proposals`, {headers, data: {workflow: 'daily', as_of: dailyState.as_of, evidence_hash: dailyState.evidence_hash, expected_revision_id: dailyState.current_revision_id, idempotency_key: `${key}-daily`, summary: 'Browser fixture daily adjustment', rationale: 'Use a concrete shorter exposure to verify the revision workflow.', review, source_ids: ['S001'], sessions: [{date: state.context.run_opportunities[0].date, kind: 'run', target: {...target, duration_minutes: 15, prescription: 'Run 15 minutes on familiar flat terrain.', reason: 'Shorter synthetic session for daily adjustment acceptance testing.'}}]}})
+  expect(daily.ok(), await daily.text()).toBe(true)
+  await page.getByRole('button', {name: 'Refresh plans', exact: true}).click()
+  await expect(page.locator('.day-card').filter({hasText: '15 min'})).toHaveCount(1)
+  const savedDecision = page.locator('.agent-revision').filter({has: page.locator('summary', {hasText: 'Browser fixture daily adjustment'})})
+  await savedDecision.locator(':scope > summary').click()
+  await expect(savedDecision.getByText(/Before: easy · 20 min/)).toBeVisible()
+  await expect(savedDecision.getByText(/After: easy · 15 min/)).toBeVisible()
+  await savedDecision.getByRole('button', {name: 'Undo this revision'}).click()
+  await savedDecision.getByLabel('Reason for undoing').fill('Restore the weekly synthetic fixture prescription.')
+  const undo = page.waitForResponse(response => response.url().endsWith('/rollback') && response.request().method() === 'POST')
+  await savedDecision.getByRole('button', {name: 'Confirm rollback'}).click()
+  expect((await undo).ok()).toBe(true)
+  await expect(page.locator('.day-card').filter({hasText: '15 min'})).toHaveCount(0)
+  await expect(page.locator('.day-card').filter({hasText: '20 min'})).toHaveCount(7)
+  await page.setViewportSize({width: 390, height: 844})
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false)
 })

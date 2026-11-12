@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, date
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -87,10 +88,10 @@ def test_conflict_merge_reverse_and_keep_separate():
     before = client.get('/api/v1/summary?as_of=2026-11-15&days=14').json()['data']['rolling_7']['distance_m']
     assert client.post(endpoint,json={'resolution':'merge','canonical_activity_id':ids[1]},headers=headers).status_code == 200
     merged = client.get('/api/v1/summary?as_of=2026-11-15&days=14').json()['data']['rolling_7']['distance_m']
-    assert merged-before == 1000
+    assert merged-before == pytest.approx(1000, abs=1e-8)
     assert client.post(endpoint,json={'resolution':'reverse'},headers=headers).status_code == 200
     reversed_total = client.get('/api/v1/summary?as_of=2026-11-15&days=14').json()['data']['rolling_7']['distance_m']
-    assert reversed_total == before
+    assert reversed_total == pytest.approx(before, abs=1e-8)
     assert client.post(endpoint,json={'resolution':'keep_separate'},headers=headers).status_code == 200
     separate = client.get('/api/v1/summary?as_of=2026-11-15&days=14').json()['data']['rolling_7']['distance_m']
     assert abs(separate-before-2000) < 1e-8

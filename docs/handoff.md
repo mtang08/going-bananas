@@ -1,4 +1,44 @@
+# Current handoff — persisted running-coach workflow
+
+## Agent-plan completion checkpoint — November 11, 2026
+
+The persisted weekly/daily running-coach workflow is complete for the documented
+P0 scope. Weekly prescriptions, daily confirmations or adjustments, immutable
+revision history, protected completion links, and version-checked rollback are
+wired through the helper, API, and calendar. This work does not add FIT metrics,
+blocks, intensity anchors, or an autonomous coaching scheduler.
+
+Final verification on synthetic data: 68 backend tests, 24 frontend tests,
+49 PostgreSQL integration tests, 13 helper tests, and nine browser acceptance
+cases passed. Lint, type checking, and production build passed. Browser tests
+ran against a separate demo app on port 8019 using `PLAYWRIGHT_BASE_URL`; the
+existing app and real database were not stopped, migrated, or seeded.
+
+Completion fixes reject malformed evidence reference lists with 422, require an
+upcoming accepted running plan for daily confirmation, retain the revision
+reviewed when opening Undo, and omit workout-completion controls for rest slots.
+The load-test failure was a DST-sensitive fixture issue: prior runs are now
+seeded at local noon on their intended dates. Existing load bounds are unchanged;
+regressions cover equality, per-session excess, and aggregate excess.
+
+The current user-facing contract is [running-coach-workflow.md](running-coach-workflow.md).
+The v0.9 redesign remains a separate, partially supplied specification; its
+missing task packets and Garmin inventory gates have not been implemented here.
+
+## Historical foundation handoff
+
+The following is retained as prior release history; its older implementation
+status and schema statements do not override the completion checkpoint above.
+
 # Current handoff — Strong and local coaching MVP
+
+> **Superseded product status, November 11, 2026:** the user says the app is not
+> usable as a running coach yet. Start with [live-progress.md](live-progress.md)
+> and [running-coach-workflow.md](running-coach-workflow.md). The release below
+> verified foundations, not the complete coaching workflow. The run anchor is
+> now confirmed (`2026-11-10`, live profile version 4 when inspected); an initial
+> installed Codex skill also exists, but its advice still cannot become app
+> proposals/plans through an integrated flow. Preserve newer uncommitted work.
 
 Updated November 11, 2026. The local release is implemented
 and verified; see [release checklist](release-checklist.md) for executed evidence

@@ -40,7 +40,10 @@ try {
   await page.screenshot({ path: resolve('private/real/run-classification-readonly.png'), fullPage: true })
   await activityDialog.getByRole('button', { name: 'Close' }).click()
   await page.locator('nav').getByRole('button', { name: 'Coach', exact: true }).click()
-  await page.getByRole('heading', { name: 'Train with context.' }).waitFor()
+  await page.getByRole('heading', { name: 'Plan, train, review.' }).waitFor()
+  await page.getByRole('heading', { name: 'Coach plan history' }).waitFor()
+  await page.getByText(/Review my recent training and plan the next 14 days/).waitFor()
+  await page.getByText('Local rule guidance · legacy', { exact: true }).click()
   await page.getByRole('button', { name: 'Generate daily guidance' }).waitFor()
   await page.screenshot({ path: resolve('private/real/coach-readonly.png'), fullPage: true })
   await page.locator('nav').getByRole('button', { name: 'Strength', exact: true }).click()
@@ -68,7 +71,7 @@ try {
     if(name!=='Strength'){
       await page.getByRole('button', { name: 'Open menu' }).click()
       await page.locator('nav').getByRole('button', { name, exact: true }).click()
-      await page.getByRole('heading', { name: name==='Coach'?'Train with context.':'Keep the rhythm visible.' }).waitFor()
+      await page.getByRole('heading', { name: name==='Coach'?'Plan, train, review.':'Keep the rhythm visible.' }).waitFor()
       await page.waitForFunction(() => parseFloat(getComputedStyle(document.querySelector('.sidebar')).left) <= -230)
     }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)

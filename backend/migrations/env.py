@@ -3,6 +3,7 @@ from __future__ import annotations
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+import app.agent_models  # noqa: F401
 import app.coaching_models  # noqa: F401
 import app.models  # noqa: F401
 import app.strong_models  # noqa: F401

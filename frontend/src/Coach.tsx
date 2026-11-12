@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, BookOpen, Check, RefreshCw } from 'lucide-react'
 import { api, post, addDays, localDate, dateLabel } from './api'
+import { AgentPlanHistory } from './PlanViews'
 
 type SessionOption = {mode: string; purpose: string; duration_or_structure: string | null; intensity_instruction: string; terrain_or_equipment?: string | null}
 type References = {policy_ids: string[]; evidence_ids: string[]; sources?: {id: string; title: string; url?: string}[]}
@@ -30,6 +31,16 @@ function Outcome({item, inputsChanged}: {item: Recommendation; inputsChanged: bo
 }
 
 export function Coach({onCheckin,onSetup}: {onCheckin:()=>void; onSetup:()=>void}) {
+  const [showLegacy, setShowLegacy] = useState(false)
+  return <section className="page-content coach-page">
+    <div className="page-heading"><div><div className="eyebrow">RESEARCH COACH</div><h1>Plan, train, review.</h1><p>Your saved running plan and daily decisions, with the reasons behind them.</p></div><button className="button primary" onClick={onCheckin}>Record check-in <ArrowRight size={16}/></button></div>
+    <div className="panel coach-input"><h2>Invoke your coach in Codex</h2><p>Use the installed <code>$going-bananas-coach</code> skill for your weekly review or daily check-in.</p><p className="command">$going-bananas-coach Review my recent training and plan the next 14 days.</p><p className="command">$going-bananas-coach Check today’s plan against my latest recovery and check-in.</p><p>The coach reads your live training, active plan, feedback, and selected research. Validated proposals save directly to your calendar, with a recorded reason and revision history. Open Cycle to see each prescription and link an actual run.</p><p className="fineprint">Invocations are explicit. Refresh plans after the coach saves a decision.</p><button className="text-button" onClick={onSetup}>Check cycle setup</button></div>
+    <AgentPlanHistory/>
+    <details className="legacy-guidance" open={showLegacy}><summary onClick={event => {event.preventDefault(); setShowLegacy(!showLegacy)}}>Local rule guidance · legacy</summary>{showLegacy && <><p>These earlier rule-based cards are separate from the Codex research coach. Their feedback records stay with these cards; accepting a card records a choice without changing the calendar.</p><LocalGuidance onCheckin={onCheckin} onSetup={onSetup}/></>}</details>
+  </section>
+}
+
+function LocalGuidance({onCheckin,onSetup}: {onCheckin:()=>void; onSetup:()=>void}) {
   const qc=useQueryClient()
   const [kind,setKind]=useState<'daily'|'weekly'>('daily'),[tomorrow,setTomorrow]=useState(false)
   const [illness,setIllness]=useState('unknown'),[soreness,setSoreness]=useState('unknown'),[restriction,setRestriction]=useState('unknown')

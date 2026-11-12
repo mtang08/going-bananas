@@ -172,6 +172,8 @@ def activity_data(session: Session, a: Activity, detail: bool = False,
               'local_date': a.start_at.astimezone(ZoneInfo(tz(session))).date(), 'source_local_date': a.local_date, 'sport': a.sport, 'subtype': a.subtype,
               'distance_m': a.distance_m, 'elapsed_s': a.elapsed_s, 'moving_s': a.moving_s,
               'moving_pace_s_per_km': pace_s_per_km(a.distance_m, a.moving_s),
+              'avg_hr_bpm': a.avg_hr_bpm,
+              'elapsed_pace_s_per_km': pace_s_per_km(a.distance_m, a.elapsed_s),
               'workout_label': label or 'unknown', 'resolution_state': a.resolution_state,
               'classification': classification,
               'source': 'garmin' if a.garmin_id else 'import', 'provenance': a.field_provenance,
@@ -610,8 +612,13 @@ class DecisionInput(BaseModel):
 
 
 def plan_data(session: Session, plan: PlanVersion) -> dict:
-    sessions = session.scalars(select(PlannedSession).where(PlannedSession.plan_id == plan.id)
-                               .order_by(PlannedSession.date)).all()
+    from app.agent_models import CoachPlanRevision
+    revision = session.scalar(select(CoachPlanRevision).where(CoachPlanRevision.plan_id == plan.id)
+                              .order_by(desc(CoachPlanRevision.created_at)).limit(1))
+    member_ids = revision.payload.get('active_session_ids', []) if revision else None
+    condition = (PlannedSession.id.in_([uuid.UUID(x) for x in member_ids])
+                 if member_ids is not None else PlannedSession.plan_id == plan.id)
+    sessions = session.scalars(select(PlannedSession).where(condition).order_by(PlannedSession.date)).all()
     result = []
     for item in sessions:
         link = session.scalar(select(CompletionLink).where(CompletionLink.planned_session_id == item.id))
@@ -621,7 +628,8 @@ def plan_data(session: Session, plan: PlanVersion) -> dict:
                        'completion_manual_session_id': link.manual_session_id if link else None})
     return {'id': plan.id, 'version': plan.version, 'status': plan.status, 'start_date': plan.start_date,
             'end_date': plan.end_date, 'profile_version': plan.profile_version, 'sessions': result,
-            'created_at': plan.created_at, 'decided_at': plan.decided_at, 'reason': plan.reason}
+            'created_at': plan.created_at, 'decided_at': plan.decided_at, 'reason': plan.reason,
+            'parent_id': plan.parent_id, 'agent_revision_id': revision.id if revision else None}
 
 
 @router.get('/plans')
@@ -744,7 +752,8 @@ class CompletionInput(BaseModel):
 def post_completion_link(body: CompletionInput, session: Session = Depends(get_session)) -> dict:
     planned = session.get(PlannedSession, body.planned_session_id)
     plan = session.get(PlanVersion, planned.plan_id) if planned else None
-    if not planned or not plan or plan.status != 'accepted':
+    from app.services.agent_plans import is_active_session
+    if not planned or not plan or (plan.status != 'accepted' and not is_active_session(session, planned.id)):
         fail('invalid_plan', 'Accepted planned session required')
     if body.activity_id and not session.get(Activity, body.activity_id):
         fail('not_found', 'Actual activity not found', 404)

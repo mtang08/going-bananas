@@ -20,6 +20,7 @@ beforeEach(()=>{
   vi.stubGlobal('fetch',vi.fn(async(input:string,options?:RequestInit)=>{
     const url=String(input),method=options?.method||'GET',body=options?.body?JSON.parse(String(options.body)):null
     calls.push({url,method,body})
+    if(url.includes('/coach/agent/revisions'))return respond({items:[],current_revision_id:null})
     if(url.includes('/coach/recommendations/')){
       if(failOutcome)return respond(null,false)
       if(saved)saved={...saved,outcome:{status:body.status,effect:body.effect}}
@@ -37,7 +38,7 @@ beforeEach(()=>{
   }))
 })
 afterEach(()=>{cleanup();vi.unstubAllGlobals()})
-function mount(view:React.ReactNode){const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});return render(<QueryClientProvider client={client}>{view}</QueryClientProvider>)}
+function mount(view:React.ReactNode){const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});const result=render(<QueryClientProvider client={client}>{view}</QueryClientProvider>);const legacy=screen.queryByText('Local rule guidance · legacy');if(legacy)fireEvent.click(legacy);return result}
 
 describe('Coach guidance',()=>{
   it('loads saved guidance without generating, then sends explicit unknown inputs and never writes a plan',async()=>{
