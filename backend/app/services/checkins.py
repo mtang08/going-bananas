@@ -195,13 +195,21 @@ def _check_related(session: Session, body: dict, *, owner_prompt_id: uuid.UUID |
     prompt = session.get(Prompt, prompt_id)
     expected_kind = {'post_run': 'rpe', 'delayed_followup': 'delayed_symptom'}.get(kind)
     if (prompt is None or expected_kind is None or prompt.kind != expected_kind
-        or prompt.activity_id != activity_id or
-        (prompt.status not in {'open', 'expired'} and not
-         (prompt.status == 'answered' and prompt.id == owner_prompt_id))):
+        or prompt.activity_id != activity_id):
         fail('prompt_subject_mismatch', 'Prompt does not match check-in subject')
-    if (kind == 'post_run' and prompt.status != 'answered'
-        and session.scalar(select(SessionRpe.id).where(
-            SessionRpe.activity_id == activity_id).limit(1)) is None):
+    assert prompt is not None
+    owns_prompt = prompt.id == owner_prompt_id
+    existing_owner = session.scalar(select(Checkin.id).where(Checkin.prompt_id == prompt.id).limit(1))
+    has_rpe = kind == 'post_run' and session.scalar(select(SessionRpe.id).where(
+        SessionRpe.activity_id == activity_id).limit(1)) is not None
+    # The RPE write can answer this prompt before the modal saves its optional
+    # post-run note. Bind that newly answered prompt once, without reopening it.
+    newly_answered_rpe = prompt.status == 'answered' and has_rpe and existing_owner is None
+    if ((existing_owner is not None and not owns_prompt)
+        or (prompt.status not in {'open', 'expired'} and not
+            (prompt.status == 'answered' and owns_prompt) and not newly_answered_rpe)):
+        fail('prompt_subject_mismatch', 'Prompt does not match check-in subject')
+    if kind == 'post_run' and not has_rpe and not owns_prompt:
         fail('prompt_subject_mismatch', 'RPE prompt requires a recorded RPE')
     return prompt
 

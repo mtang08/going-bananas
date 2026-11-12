@@ -199,3 +199,31 @@ def test_legacy_authority_blocks_new_writes_but_allows_reads(api_fixture):
     assert client.post('/api/v1/v2/checkins', json=_body()).status_code == 409
     assert client.post('/api/v1/coach/v2/daily/request', json={}).status_code == 409
     assert client.put(f'/api/v1/activities/{activity_id}/rpe', json={'rpe': 7}).status_code == 409
+
+
+def test_rpe_autocompletion_allows_one_followup_note(api_fixture):
+    client, connection = api_fixture
+    activity_id = _activity(connection)
+    prompt_id = uuid.uuid4()
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        session.add(Prompt(id=prompt_id, kind='rpe', activity_id=activity_id,
+            opens_at=datetime.now(UTC)-timedelta(hours=1), status='answered'))
+        session.commit()
+    body = _body(kind='post_run', activity_id=str(activity_id), prompt_id=str(prompt_id),
+        symptoms=[], fatigue=None, note='synthetic post-run note')
+    assert client.post('/api/v1/v2/checkins', json=body).status_code == 422
+    assert client.put(f'/api/v1/activities/{activity_id}/rpe', json={'rpe': 6}).status_code == 200
+    created = client.post('/api/v1/v2/checkins', json=body)
+    assert created.status_code == 201, created.text
+    assert client.post('/api/v1/v2/checkins', json=body).status_code == 200
+    duplicate = {**body, 'idempotency_key': 'another-' + uuid.uuid4().hex}
+    assert client.post('/api/v1/v2/checkins', json=duplicate).status_code == 422
+    assert client.patch(f"/api/v1/v2/checkins/{created.json()['data']['id']}",
+        json={'expected_version': 1, 'note': 'edited note'}).status_code == 200
+    delayed_id = uuid.uuid4()
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        session.add(Prompt(id=delayed_id, kind='delayed_symptom', activity_id=activity_id,
+            opens_at=datetime.now(UTC)-timedelta(hours=1), status='answered'))
+        session.commit()
+    assert client.post('/api/v1/v2/checkins', json=_body(kind='delayed_followup',
+        activity_id=str(activity_id), prompt_id=str(delayed_id))).status_code == 422
