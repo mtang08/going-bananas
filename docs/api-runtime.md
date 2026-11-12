@@ -33,3 +33,35 @@ All browser routes begin `/api/v1`. Every response uses `{schema_version:"v1",da
 Sync route implementation belongs to ingestion: `GET /sync/status`, `POST /sync`, `GET /sync/jobs/{id}`. Source tables are defined in `backend/app/models.py`; ingestion should use `backend/app/db.py` session helpers and `bump_revision(session)` after semantic changes.
 
 Strength totals are observed counts only. When `profile.preferences.strength_source` is `strong`, summary, weekly recap, and context include `strength_coverage: {source:"strong",status:"unavailable",reason:"strong_not_connected",complete:false,observed_manual_count,observed_imported_count}` until a verified Strong source is connected. Unlinked planned strength means unknown completion, never an inferred skipped session. New accepted plans may replace an overlapping accepted plan only when their date ranges match exactly; otherwise acceptance returns `422 overlapping_plan`.
+
+
+## Calendar and reviewed coaching API
+
+Calendar authority enables `/calendar`, `/calendar/versions`, `/calendar/diff`,
+`/calendar/edits`, `/calendar/rollback`, and explicit completion links. All source
+writes serialize before app-state row locks. One successful source transaction
+increments `data_revision` once and refreshes affected metrics/prompts atomically.
+Derived-only reads do not increment the source revision.
+
+- `GET /metrics/windows`: 7/14/28/56-day volume, effort, intensity and long-run
+  metrics, plus spacing and symptom summaries.
+- `GET /metrics/recovery?start=DATE&end=DATE`: inclusive dates, including missing
+  nights; maximum92 dates.
+- `GET /activities/UUID/execution`: actual, planned, completion, laps/steps,
+  execution metrics, RPE and linked symptom facts.
+- `GET /metrics/explain/UUID`: immutable stored metric evidence/configuration.
+- `GET/POST /v2/checkins`, `PATCH /v2/checkins/UUID`, and subject RPE endpoints
+  retain explicit unknowns and manual precedence.
+- `GET /coach/v2/daily`: saved deterministic daily guidance.
+- `GET /coach/proposals[?status=pending]` and `GET /coach/proposals/UUID`: saved
+  changesets, before/after/current fields, source freshness and decisions.
+- `POST /coach/proposals/UUID/decision`: explicit selection plus idempotency key
+  and expected head. Full accepted/rejected partition required. Returns the
+  stored decision result; source drift or changed terminal selection returns409.
+  Invalid subsets return422 with structured field errors.
+
+Snapshots and proposal submission use the local CLI, not HTTP endpoints.
+Submission does not activate a plan. Terminal decisions are immutable; retries
+with the identical selection return the original result before freshness checks.
+The app keeps old read routes for source/history inspection while disabling old
+planning writers after calendar cutover. Mode/origin protections apply throughout.

@@ -22,7 +22,7 @@ authority=profile['data'].get('planning_authority','legacy')
 if authority=='calendar':
     paths += ['calendar','calendar/versions','prompts','coach/v2/daily',
               'metrics/windows','metrics/recovery','anchors','goals','events',
-              'strength-routine','blocks/active']
+              'strength-routine','blocks/active','coach/proposals']
 for path in paths:
     with urlopen(args.base_url+'/api/v1/'+path,timeout=15) as response:
         assert response.status==200,path
