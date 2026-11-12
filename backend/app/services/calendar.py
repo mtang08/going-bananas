@@ -9,12 +9,11 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import desc, func, select, text, update
+from sqlalchemy import desc, func, select, text
 from sqlalchemy.orm import Session
 
 from app.api.core import current_profile, fail
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
-from app.coach_v2_models import CoachProposal
 from app.config import settings
 from app.domain.cycle import opportunities
 from app.metrics.engine import load_runs
@@ -279,11 +278,8 @@ def _version_row(session: Session, state: AppState, *, kind: str, actor: str,
 
 
 def _stale_proposals(session: Session) -> list[uuid.UUID]:
-    ids = session.scalars(select(CoachProposal.id).where(CoachProposal.status == 'pending')
-        .order_by(CoachProposal.id)).all()
-    if ids:
-        session.execute(update(CoachProposal).where(CoachProposal.id.in_(ids)).values(status='stale'))
-    return list(ids)
+    from app.services.proposals import mark_pending_stale
+    return mark_pending_stale(session, except_id=None)
 
 
 def apply_edits(session: Session, expected_head: int, edits: list[dict], reason: str | None,
