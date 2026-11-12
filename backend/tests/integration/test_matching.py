@@ -30,7 +30,11 @@ def _guard_url() -> str:
 
 
 @pytest.fixture
-def db():
+def db(monkeypatch):
+    # This service-seam suite invokes matching/its injected assessor explicitly.
+    # Real transactional refresh is covered by test_metrics_flow.
+    from app.metrics import engine as metric_engine
+    monkeypatch.setattr(metric_engine, '_refresh_scopes', lambda session, scopes: [])
     engine = create_engine(_guard_url())
     schema = "mvp025_" + uuid.uuid4().hex
     with engine.begin() as connection:

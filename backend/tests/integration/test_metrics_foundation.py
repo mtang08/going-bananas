@@ -102,7 +102,7 @@ def test_config_upsert_and_result_history_with_same_session_replay(db) -> None:
         upsert_results(session, [replace(first, subject_key='synthetic-3', timezone='')])
         filled = latest_results(session, 'test_metric.v1', 'v1', ['synthetic-3'])['synthetic-3']
         assert filled.status == 'available' and filled.timezone == 'America/New_York'
-        assert 'INPUT_PROVENANCE_MISSING' in missing.reason_codes
+        assert 'MISSING_PROVENANCE' in missing.reason_codes
         session.commit()
 
 

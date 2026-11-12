@@ -69,13 +69,73 @@ def _parse() -> argparse.Namespace:
     profile = sub.add_parser("init-profile")
     profile.add_argument("--timezone", default="America/New_York")
     profile.add_argument("--facts-file", type=Path)
+    metrics = sub.add_parser("metrics-recompute")
+    metrics.add_argument("--metric", default="all")
+    metrics.add_argument("--since", type=date.fromisoformat)
+    metrics.add_argument("--until", type=date.fromisoformat)
+    fit = sub.add_parser("fit-backfill")
+    fit.add_argument("--since", type=date.fromisoformat, required=True)
+    strong = sub.add_parser("strong-import")
+    strong.add_argument("csv", type=Path)
+    strong.add_argument("--apply", action="store_true")
     return parser.parse_args()
 
 
 def main() -> int:
     args = _parse()
+    from app.metrics.engine import install_triggers
+    install_triggers()
     try:
-        if args.command == "seed-demo":
+        if args.command == "metrics-recompute":
+            from app.metric_models import MetricResult
+            from app.metrics import engine as metrics_engine
+            metrics_engine.metric_modules()
+            if args.metric != 'all' and args.metric not in metrics_engine.REGISTRY:
+                raise ValueError('invalid_metric')
+            with SessionLocal.begin() as session:
+                today = metrics_engine._today(session)
+                since, until = args.since or today - timedelta(days=83), args.until or today
+                if since > until or until > today:
+                    raise ValueError('invalid_date_window')
+                if args.metric != 'all':
+                    wanted = {args.metric}
+                    pending = [args.metric]
+                    while pending:
+                        for dependency in metrics_engine.REGISTRY[pending.pop()].depends_on:
+                            if dependency not in wanted:
+                                wanted.add(dependency)
+                                pending.append(dependency)
+                    session.info['metrics_filter'] = wanted
+                for day_offset in range((until - since).days + 1):
+                    metrics_engine.ensure_windows(session, since + timedelta(days=day_offset))
+                query = select(MetricResult)
+                if args.metric != 'all':
+                    query = query.where(MetricResult.metric_id == args.metric)
+                rows = list(session.scalars(query))
+                metric_summary = {'metric': args.metric, 'since': str(since), 'until': str(until),
+                    'subjects': len({(row.metric_id, row.subject_key) for row in rows}),
+                    'results_current': sum(row.is_current for row in rows), 'history_rows': len(rows)}
+            print(json.dumps(metric_summary))
+        elif args.command == "fit-backfill":
+            from app.adapters.garmin.personal import GarminPersonalSource
+            from app.services.fit_ingest import backfill_fit
+            if settings.app_mode != 'real':
+                raise ValueError('real_mode_required')
+            if args.since > date.today():
+                raise ValueError('invalid_date_window')
+            key_file = Path(os.getenv('GARMIN_KEY_FILE', settings.private_dir / 'garmin-key'))
+            with GarminPersonalSource(key_file, settings.private_dir / 'garmin-token.json') as source:
+                print(json.dumps(backfill_fit(SessionLocal, source, settings.private_dir, args.since)))
+        elif args.command == "strong-import":
+            from app.services.strong_import import import_strong_csv
+            with SessionLocal() as session:
+                strong_summary = import_strong_csv(session, settings.private_dir, args.csv, apply=args.apply)
+                if args.apply:
+                    session.commit()
+                else:
+                    session.rollback()
+            print(json.dumps(strong_summary, default=str))
+        elif args.command == "seed-demo":
             if settings.app_mode != "demo":
                 raise ValueError("demo_mode_required")
             with SessionLocal.begin() as session:

@@ -28,6 +28,10 @@ def _headers():
 
 @pytest.fixture
 def calendar_fixture(monkeypatch):
+    # This service-seam suite invokes matching/its injected assessor explicitly.
+    # Real transactional refresh is covered by test_metrics_flow.
+    from app.metrics import engine as metric_engine
+    monkeypatch.setattr(metric_engine, '_refresh_scopes', lambda session, scopes: [])
     parsed = urlsplit(settings.database_url)
     assert settings.app_mode == 'test'
     assert parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 55439

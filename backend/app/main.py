@@ -3,20 +3,28 @@ from __future__ import annotations
 import secrets
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import text
+from sqlalchemy import select, text
+from sqlalchemy.orm import Session
 
 from app import calendar_models, checkin_models, coach_v2_models, fit_models, metric_models, planning_models  # noqa: F401
 from app.api.agent import router as agent_router
+from app.api.anchors import router as anchors_router
+from app.api.calendar import router as calendar_router
+from app.api.checkins import router as checkins_router
 from app.api.coaching import router as coaching_router
 from app.api.core import router as core_router
+from app.api.metrics import router as metrics_router
+from app.api.planning import router as planning_router
 from app.api.strength import router as strength_router
 from app.api.sync import router as sync_router
 from app.config import settings
-from app.db import SessionLocal, get_revision
+from app.db import SessionLocal, get_revision, get_session
+from app.metrics.engine import install_triggers
 from app.migrations_head import EXPECTED_HEAD
+from app.models import AppState
 
 app = FastAPI(title='Going Bananas Analytics', docs_url=None, redoc_url=None)
 
@@ -94,11 +102,23 @@ def ready():
             'data':{'status':'ok','database':True}}
 
 
-app.include_router(core_router, prefix='/api/v1')
+def serialize_source_write(request: Request, session: Session = Depends(get_session)) -> None:
+    if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
+        if session.scalar(select(AppState.planning_authority).where(AppState.id == 1)) == 'calendar':
+            session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+
+
+install_triggers()
+app.include_router(core_router, prefix='/api/v1', dependencies=[Depends(serialize_source_write)])
+app.include_router(anchors_router, prefix='/api/v1')
+app.include_router(calendar_router, prefix='/api/v1')
+app.include_router(checkins_router, prefix='/api/v1')
+app.include_router(planning_router, prefix='/api/v1')
+app.include_router(metrics_router, prefix='/api/v1')
 app.include_router(sync_router, prefix='/api/v1')
 app.include_router(coaching_router, prefix='/api/v1')
 app.include_router(agent_router, prefix='/api/v1')
-app.include_router(strength_router, prefix='/api/v1')
+app.include_router(strength_router, prefix='/api/v1', dependencies=[Depends(serialize_source_write)])
 
 
 @app.get('/{path:path}', include_in_schema=False)
