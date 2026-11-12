@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import uuid
@@ -392,9 +393,16 @@ def test_projection_sections_per_operation() -> None:
 
 def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
     from app.services import snapshot as module
+    from app.services.decision_inputs import fingerprint
 
     source = minimal()
     captured = []
+    source_versions = {
+        "legacy_checkins": [],
+        "activity_sources": [{"source_id": "synthetic", "payload_hash": "a" * 64}] * 4000,
+        "profile": {"version": 1},
+        "history_epoch": None,
+    }
 
     class FakeSession:
         def __init__(self) -> None:
@@ -417,8 +425,8 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
     def collect(_session, operation, as_of, *, now, kb):
         captured.append(kb)
         return {
-            "source_versions": {"legacy_checkins": []},
-            "source_fingerprint": "f" * 64,
+            "source_versions": source_versions,
+            "source_fingerprint": fingerprint(source_versions, kb),
             "safety_guard": {
                 "window_hours": 72,
                 "gait_change_yes": False,
@@ -457,6 +465,21 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
     second = module.build_snapshot(cast(Any, session), DAILY, AS_OF, now=NOW)
     assert session.rows[0].payload_sha256 == session.rows[1].payload_sha256
     assert first["payload"] == second["payload"]
+    assert session.rows[0].source_versions == source_versions
+    assert session.rows[0].source_fingerprint == fingerprint(source_versions, captured[0])
+    assert first["payload"]["snapshot_meta"]["source_fingerprint"] == session.rows[0].source_fingerprint
+    provenance = first["payload"]["snapshot_meta"]["source_provenance"]
+    assert "source_versions" not in first["payload"]["snapshot_meta"]
+    assert provenance == {
+        "sha256": hashlib.sha256(canonical_json(source_versions).encode()).hexdigest(),
+        "collections": {
+            "legacy_checkins": {"kind": "array", "count": 0},
+            "activity_sources": {"kind": "array", "count": 4000},
+            "profile": {"kind": "object", "count": 1},
+            "history_epoch": {"kind": "scalar", "count": 0},
+        },
+    }
+    assert len(canonical_json(first["payload"])) < 30_000
     assert isinstance(session.rows[0].kb_routes, list)
     assert captured[0].digest == session.rows[0].kb_digest
     assert captured[0].selected_records == tuple(first["payload"]["snapshot_meta"]["knowledge"]["selected_records"])
@@ -464,6 +487,18 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
     assert session.calls[:3] == ["SELECT pg_advisory_xact_lock(71382413)", "windows", "nights"]
     assert "metrics_now" not in session.info
     assert "snapshot_id" not in first["payload"]["snapshot_meta"]
+
+    changed_versions = {**source_versions, "activity_sources": [
+        *source_versions["activity_sources"][:-1],
+        {"source_id": "synthetic", "payload_hash": "b" * 64},
+    ]}
+    source_versions = changed_versions
+    changed = module.build_snapshot(cast(Any, session), DAILY, AS_OF, now=NOW)
+    assert session.rows[-1].source_versions == changed_versions
+    assert session.rows[-1].source_fingerprint == fingerprint(changed_versions, captured[-1])
+    assert session.rows[-1].source_fingerprint != session.rows[0].source_fingerprint
+    assert changed["payload"]["snapshot_meta"]["source_provenance"]["sha256"] != provenance["sha256"]
+    assert changed["payload"]["snapshot_meta"]["source_provenance"]["collections"] == provenance["collections"]
 
 
 def test_srpe_suffixed_windows_in_load_shape() -> None:

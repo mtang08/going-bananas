@@ -51,6 +51,23 @@ def _wire(value: Any) -> Any:
     return json.loads(canonical_json(value))
 
 
+def _source_provenance(source_versions: dict[str, Any]) -> dict[str, Any]:
+    """Summarize the stored source vector without repeating its records in the coach input."""
+    collections = {}
+    for key, value in source_versions.items():
+        if isinstance(value, list):
+            kind, count = "array", len(value)
+        elif isinstance(value, dict):
+            kind, count = "object", len(value)
+        else:
+            kind, count = "scalar", 0 if value is None else 1
+        collections[key] = {"kind": kind, "count": count}
+    return {
+        "sha256": hashlib.sha256(canonical_json(source_versions).encode()).hexdigest(),
+        "collections": collections,
+    }
+
+
 _PRIVATE_KEYS = (
     "note",
     "latitude",
@@ -1022,7 +1039,7 @@ def build_snapshot(
         payload["legacy_checkins"] = decision["source_versions"]["legacy_checkins"]
         meta = payload["snapshot_meta"]
         meta["source_fingerprint"] = decision["source_fingerprint"]
-        meta["source_versions"] = decision["source_versions"]
+        meta["source_provenance"] = _source_provenance(decision["source_versions"])
         meta["safety_guard"] = decision["safety_guard"]
         meta["knowledge"] = {"digest": kb.digest, "selected_records": list(kb.selected_records)}
         payload_json = canonical_json(payload)
