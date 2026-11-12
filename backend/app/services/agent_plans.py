@@ -289,6 +289,8 @@ def validate_proposal(body: Proposal, context: dict, before: list[dict]) -> list
 def _persist(session: Session, *, day: date, workflow: str, summary: str, rationale: str, evidence_hash: str,
              key: str, current: CoachPlanRevision | None, before: list[dict], updates: list[dict], inputs: dict,
              review: dict, source_ids: list[str], warnings: list[str], rollback_of_id: str | None = None) -> dict:
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     profile = current_profile(session)
     revision_id = uuid.uuid4()
     before_by = {(str(s['date']), s['kind']): s for s in before}
@@ -357,6 +359,8 @@ def _replayed(session: Session, row: CoachPlanRevision) -> dict:
 def submit(session: Session, body: Proposal) -> dict:
     # One transaction lock also serializes initial creation and identical retries.
     session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     cached = session.scalar(select(CoachPlanRevision).where(CoachPlanRevision.idempotency_key == body.idempotency_key))
     if cached:
         if cached.inputs.get('proposal_hash') != fingerprint(body.model_dump(mode='json')):
@@ -422,6 +426,8 @@ def revertible(session: Session, current: CoachPlanRevision | None = None) -> Co
 
 def rollback(session: Session, revision_id: uuid.UUID, expected_revision_id: uuid.UUID, reason: str) -> dict:
     session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     current = latest(session)
     target = revertible(session, current)
     if not current or current.id != expected_revision_id or not target or revision_id != target.id:

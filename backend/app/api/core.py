@@ -482,6 +482,8 @@ def get_checkins(start_date: date | None = None, end_date: date | None = None,
 
 @router.post('/checkins', status_code=201)
 def post_checkin(body: CheckinInput, response: Response, session: Session = Depends(get_session)) -> dict:
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     old = session.scalar(select(Checkin).where(Checkin.idempotency_key == body.idempotency_key))
     if old:
         response.status_code = 200
@@ -499,6 +501,8 @@ def post_checkin(body: CheckinInput, response: Response, session: Session = Depe
 
 @router.patch('/checkins/{checkin_id}')
 def patch_checkin(checkin_id: uuid.UUID, body: CheckinPatch, session: Session = Depends(get_session)) -> dict:
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     row = session.get(Checkin, checkin_id, with_for_update=True)
     if not row:
         fail('not_found', 'Check-in not found', 404)
@@ -664,6 +668,8 @@ def get_plans(start_date: date | None = None, end_date: date | None = None,
 
 @router.post('/plans', status_code=201)
 def post_plan(body: PlanInput, session: Session = Depends(get_session)) -> dict:
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     profile = current_profile(session)
     row = PlanVersion(start_date=body.start_date, end_date=body.end_date,
                       profile_version=profile.version if profile else 0,
@@ -678,6 +684,8 @@ def post_plan(body: PlanInput, session: Session = Depends(get_session)) -> dict:
 
 
 def decide_plan(plan_id: uuid.UUID, body: DecisionInput, status: str, session: Session) -> dict:
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     plan = session.get(PlanVersion, plan_id, with_for_update=True)
     if not plan:
         fail('not_found', 'Plan not found', 404)
@@ -756,6 +764,8 @@ class CompletionInput(BaseModel):
 
 @router.post('/completion-links', status_code=201)
 def post_completion_link(body: CompletionInput, session: Session = Depends(get_session)) -> dict:
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     planned = session.get(PlannedSession, body.planned_session_id)
     plan = session.get(PlanVersion, planned.plan_id) if planned else None
     from app.services.agent_plans import is_active_session
@@ -778,6 +788,8 @@ def post_completion_link(body: CompletionInput, session: Session = Depends(get_s
 
 @router.delete('/completion-links/{link_id}')
 def delete_completion_link(link_id: uuid.UUID, session: Session = Depends(get_session)) -> dict:
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     link = session.get(CompletionLink, link_id)
     if not link:
         fail('not_found', 'Completion link not found', 404)
@@ -906,6 +918,8 @@ class SnapshotInput(BaseModel):
 
 @router.post('/weekly-snapshots', status_code=201)
 def post_weekly_snapshot(body: SnapshotInput, session: Session = Depends(get_session)) -> dict:
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     if body.week_start.weekday() != 0:
         fail('invalid_week', 'week_start must be Monday')
     profile = current_profile(session)
