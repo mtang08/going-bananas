@@ -1,204 +1,546 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "package_name": "running_coach_kb",
-  "package_version": "1.0.0+privacy1",
+  "package_version": "1.1.0+privacy1",
   "created_on": "2026-11-10",
-  "searched_through": "2026-11-10",
-  "athlete_context_date": "2026-11-10",
-  "completion_status": "complete_with_explicit_gaps",
-  "scope_note": "Local researched coaching knowledge base and reusable workflows; no application, installed skill, medical diagnosis, live Garmin integration, or activated training prescription.",
+  "updated_on": "2026-11-11",
+  "searched_through": "2026-11-11",
+  "completion_status": "complete_incremental_extension_with_explicit_gaps",
+  "scope_note": "Public generalizable running-coach knowledge base. No public athlete snapshot, application implementation, live Garmin integration, medical diagnosis, activated policy, or personalized training calendar.",
+  "baseline_revision": {
+    "repository": "https://github.com/mtang08/going-bananas",
+    "branch": "main",
+    "package_version": "1.0.0+privacy1",
+    "inspected_on": "2026-11-11",
+    "commit_sha": null,
+    "commit_sha_status": "Unavailable from the accessible raw-file interface; public manifest file hashes and inspection date pin the audited baseline. No SHA was inferred.",
+    "public_privacy_transform_preserved": true
+  },
   "counts": {
-    "files": 19,
-    "sources": 56,
-    "evidence_findings": 43,
-    "policy_candidates": 18,
-    "evaluation_cases": 15,
-    "topic_guides": 8
+    "files_excluding_manifest": 28,
+    "sources": 72,
+    "evidence_findings": 55,
+    "policy_candidates": 23,
+    "evaluation_cases": 26,
+    "topic_guides": 11,
+    "workflows": 3,
+    "session_recipes": 10,
+    "method_comparison_entries": 15
   },
   "validation": {
-    "all_required_files_present": true,
-    "all_non_manifest_files_nonempty": true,
+    "all_patch_files_nonempty": true,
     "json_valid": true,
-    "policy_fields_complete": true,
-    "all_policy_evidence_ids_resolve": true,
-    "all_policy_source_ids_resolve": true,
-    "all_markdown_evidence_and_source_ids_resolve": true,
-    "coaching_guide_word_count": 740,
-    "coaching_guide_target_words": "600-900"
+    "stable_base_ids_preserved": true,
+    "source_ids_unique_and_resolve": true,
+    "evidence_ids_unique_and_resolve": true,
+    "policy_ids_unique_and_references_resolve": true,
+    "recipe_ids_unique_and_references_resolve": true,
+    "routed_paths_exist_in_patch_or_public_baseline": true,
+    "duplicate_new_sources_not_detected": true,
+    "public_patch_contains_no_athlete_snapshot": true,
+    "coaching_guide_word_count": 1023,
+    "coaching_guide_target_words": "800-1100",
+    "token_measurement_method": "UTF-8 character and whitespace-word counts measured from produced files; approximate token proxy is characters/4 because no model tokenizer was installed."
   },
   "routing": {
-    "daily_recommendation": [
-      "COACHING_GUIDE.md",
-      "workflows/daily_recommendation.md",
-      "athlete_context.md (fallback only)",
-      "relevant topics/*",
-      "matching policies"
-    ],
-    "weekly_review": [
-      "COACHING_GUIDE.md",
-      "workflows/weekly_review.md",
-      "topics/aerobic_progression.md",
-      "relevant topics/*",
-      "matching policies"
-    ],
-    "poor_sleep_or_fatigue": [
-      "topics/recovery_and_daily_adaptation.md",
-      "policies P001-P003 and P015"
-    ],
-    "long_run_tenderness_or_progression": [
-      "topics/ptt_and_load_tolerance.md",
-      "topics/aerobic_progression.md",
-      "policies P005-P008"
-    ],
-    "strength_run_scheduling": [
-      "topics/hybrid_strength_and_scheduling.md",
-      "policies P009, P011-P012"
-    ],
-    "quality_method_selection": [
-      "topics/intensity_and_workout_methods.md",
-      "references/method_comparison.md",
-      "policies P009 and P014"
-    ],
-    "wearable_metric_question": [
-      "topics/wearables_and_metric_interpretation.md",
-      "policies P001, P010, P015"
-    ],
-    "fueling_question": [
-      "topics/fueling_and_energy_availability.md",
-      "policy P017"
-    ],
-    "deep_evidence_audit": [
-      "references/evidence_matrix.md",
-      "references/source_registry.json",
-      "research/running_evidence_review.md"
-    ],
-    "evaluation": [
-      "evaluation/coaching_cases.md"
-    ]
+    "proceed_or_modify_today": {
+      "minimum": [
+        {
+          "path": "COACHING_GUIDE.md",
+          "sections": [
+            "3. Decision hierarchy",
+            "7. Missing data and uncertainty",
+            "8. Output and audit contracts"
+          ]
+        },
+        {
+          "path": "workflows/daily_recommendation.md",
+          "sections": [
+            "Decision sequence",
+            "Clarification rule",
+            "Daily output contract"
+          ]
+        },
+        {
+          "state": "current approved session/version and fresh operation-specific athlete state"
+        }
+      ],
+      "conditional": [
+        "planned recipe record",
+        "one triggered recovery/symptom/strength/environment topic",
+        "matching P001-P018 records"
+      ],
+      "avoid_routinely": [
+        "workflows/block_review.md",
+        "topics/periodization_and_training_blocks.md",
+        "all recipes",
+        "evidence matrices/source registry"
+      ],
+      "measured_minimum": {
+        "characters": 6101,
+        "words": 767,
+        "approx_token_proxy_char_div_4": 1525
+      },
+      "common_total_estimate": "about 1,500-3,000 proxy tokens depending on one conditional section/record"
+    },
+    "review_rolling_plan": {
+      "minimum": [
+        {
+          "path": "COACHING_GUIDE.md",
+          "sections": [
+            "2. Decision authority by layer",
+            "3. Decision hierarchy",
+            "7. Missing data and uncertainty",
+            "8. Output and audit contracts"
+          ]
+        },
+        {
+          "path": "workflows/weekly_review.md",
+          "sections": [
+            "Process",
+            "Weekly output contract",
+            "Prohibited inferences"
+          ]
+        },
+        {
+          "state": "prior-cycle plan versus actual plus compact active-block summary"
+        }
+      ],
+      "conditional": [
+        "topics/aerobic_progression.md relevant sections",
+        "selected recipe records",
+        "triggered symptom/recovery/strength/environment topics"
+      ],
+      "avoid_routinely": [
+        "full periodization literature",
+        "all recipe records",
+        "source registry"
+      ],
+      "measured_minimum": {
+        "characters": 8375,
+        "words": 1083,
+        "approx_token_proxy_char_div_4": 2094
+      },
+      "common_total_estimate": "about 2,100-4,500 proxy tokens"
+    },
+    "review_training_block": {
+      "minimum": [
+        {
+          "path": "COACHING_GUIDE.md",
+          "sections": [
+            "2. Decision authority by layer",
+            "3. Decision hierarchy",
+            "7. Missing data and uncertainty",
+            "8. Output and audit contracts"
+          ]
+        },
+        {
+          "path": "workflows/block_review.md",
+          "sections": [
+            "Review sequence",
+            "Observable fact -> interpretation -> candidate action",
+            "Output contract",
+            "Prohibited inferences"
+          ]
+        },
+        {
+          "path": "topics/periodization_and_training_blocks.md",
+          "sections": [
+            "Takeaways first",
+            "Does an explicit block add value?",
+            "Lifecycle decisions"
+          ]
+        },
+        {
+          "state": "current block definition/history, exposure, adaptation, tolerance, goals/constraints"
+        }
+      ],
+      "conditional": [
+        "eligible recipe records",
+        "topics/intensity_calibration_and_testing.md",
+        "topics/races_tapers_and_transitions.md",
+        "triggered base topics",
+        "P019-P023"
+      ],
+      "avoid_routinely": [
+        "all recipes",
+        "full source registry",
+        "untriggered daily recovery corpus"
+      ],
+      "measured_minimum": {
+        "characters": 15899,
+        "words": 2116,
+        "approx_token_proxy_char_div_4": 3975
+      },
+      "common_total_estimate": "about 4,000-6,500 proxy tokens with one recipe/conditional section"
+    },
+    "select_quality_session": {
+      "minimum": [
+        {
+          "path": "COACHING_GUIDE.md",
+          "sections": [
+            "3. Decision hierarchy",
+            "5. Select and adapt recipes",
+            "7. Missing data and uncertainty",
+            "8. Output and audit contracts"
+          ]
+        },
+        {
+          "path": "topics/intensity_and_workout_methods.md",
+          "sections": [
+            "Takeaways first",
+            "Two demanding exposures within seven runs per fortnight",
+            "Workout methods",
+            "Mile/5K compatibility with aerobic priority",
+            "Decision cues"
+          ]
+        },
+        {
+          "path": "recipes/running_session_families.json",
+          "records": "only candidate recipe IDs"
+        },
+        {
+          "state": "active objective, prerequisites, recent family exposure, anchor confidence, long-run/strength placement and tolerance"
+        }
+      ],
+      "conditional": [
+        "topics/intensity_calibration_and_testing.md relevant sections",
+        "topics/hybrid_strength_and_scheduling.md relevant sections",
+        "symptom/environment topic"
+      ],
+      "avoid_routinely": [
+        "all recipes",
+        "block theory",
+        "source registry"
+      ],
+      "measured_minimum_without_recipe": {
+        "characters": 10430,
+        "words": 1371,
+        "approx_token_proxy_char_div_4": 2608
+      },
+      "measured_recipe_record_proxy_range": "about 860-1,296 tokens per selected record",
+      "common_total_estimate": "about 3,500-5,000 proxy tokens"
+    },
+    "recalibrate_intensity": {
+      "minimum": [
+        {
+          "path": "COACHING_GUIDE.md",
+          "sections": [
+            "3. Decision hierarchy",
+            "6. Calibrate without false precision",
+            "7. Missing data and uncertainty",
+            "8. Output and audit contracts"
+          ]
+        },
+        {
+          "path": "topics/intensity_calibration_and_testing.md",
+          "sections": [
+            "Core position",
+            "Calibration workflow",
+            "When to use effort instead of exact pace",
+            "Recalibration triggers",
+            "What not to infer"
+          ]
+        },
+        {
+          "state": "current anchor objects/history and quality-screened race/test/workout observations"
+        }
+      ],
+      "conditional": [
+        "wearable/environment guidance",
+        "race/benchmark guidance",
+        "relevant recipe record",
+        "P020-P021"
+      ],
+      "avoid_routinely": [
+        "full block workflow unless the objective changes",
+        "all recipes",
+        "full source registry"
+      ],
+      "measured_minimum": {
+        "characters": 8662,
+        "words": 1156,
+        "approx_token_proxy_char_div_4": 2166
+      },
+      "common_total_estimate": "about 2,200-3,800 proxy tokens"
+    },
+    "handle_goal_or_race_change": {
+      "minimum": [
+        {
+          "path": "COACHING_GUIDE.md",
+          "sections": [
+            "2. Decision authority by layer",
+            "3. Decision hierarchy",
+            "7. Missing data and uncertainty",
+            "8. Output and audit contracts"
+          ]
+        },
+        {
+          "path": "topics/races_tapers_and_transitions.md",
+          "sections": [
+            "When a new race enters the plan",
+            "Taper principles",
+            "Race-priority changes",
+            "What can wait until a race is real",
+            "What not to infer"
+          ]
+        },
+        {
+          "path": "workflows/block_review.md",
+          "sections": [
+            "Review sequence",
+            "Output contract"
+          ]
+        },
+        {
+          "state": "event metadata/priority, current block, prerequisites, constraints and approved versions"
+        }
+      ],
+      "conditional": [
+        "calibration sections",
+        "event-specific addendum",
+        "eligible recipes",
+        "P022-P023"
+      ],
+      "avoid_routinely": [
+        "untriggered recovery corpus",
+        "detailed marathon plan",
+        "all evidence files"
+      ],
+      "measured_minimum": {
+        "characters": 14483,
+        "words": 1914,
+        "approx_token_proxy_char_div_4": 3621
+      },
+      "common_total_estimate": "about 3,600-5,000 proxy tokens"
+    },
+    "deep_evidence_audit": {
+      "minimum": [
+        "relevant row(s) from references/evidence_matrix.md and/or references/periodization_evidence_addendum.md",
+        "matching records from references/source_registry.json"
+      ],
+      "conditional": [
+        "research logs",
+        "references/method_comparison.md"
+      ],
+      "avoid_routinely": [
+        "unrelated evidence categories"
+      ]
+    },
+    "evaluation": {
+      "minimum": [
+        "evaluation/coaching_cases.md",
+        "evaluation/periodization_cases.md"
+      ],
+      "assertion": "route must retrieve every exact document/record named by each case and must flag omitted conditional context when the expected reasoning depends on it"
+    }
   },
   "known_gaps": [
-    "No actual Garmin running export was supplied; current mileage and recent progression remain unverified.",
-    "PTT diagnosis, clinical stage, rehab instructions, and validated return-to-running criteria are unknown.",
-    "Age, sex, medication, max HR, thresholds, terrain, and exact strength/hypertrophy goals are unconfirmed.",
-    "Several sources were abstract-only; access levels are recorded in the source registry.",
-    "Wearable validation is device/firmware specific and often uses models other than the Forerunner 265."
+    "No direct trial establishes the superiority of explicit training blocks for recreational runners training 3-4 times per week.",
+    "No universal fixed block duration, cutback cadence, recipe starting dose, testing cadence, taper percentage, or interruption-return schedule is supported.",
+    "Threshold and critical-speed methods are protocol/model dependent and not automatically interchangeable.",
+    "Elite periodization and session density are descriptive and cannot be dose-transferred.",
+    "Token estimates use a transparent character proxy because an exact model tokenizer was unavailable; measured characters and words are retained.",
+    "The exact main-branch commit SHA was not exposed by the available raw-file interface; baseline public hashes and inspection date are recorded.",
+    "Current athlete state, diagnosis/clinical instructions, recent training, thresholds, and live plan are private runtime inputs, not KB content."
   ],
+  "change_summary": {
+    "changed": [
+      "README.md",
+      "COACHING_GUIDE.md",
+      "references/source_registry.json",
+      "manifest.json"
+    ],
+    "added": [
+      "workflows/block_review.md",
+      "topics/periodization_and_training_blocks.md",
+      "topics/intensity_calibration_and_testing.md",
+      "topics/races_tapers_and_transitions.md",
+      "recipes/running_session_families.json",
+      "references/periodization_evidence_addendum.md",
+      "policies/periodization_policy_candidates.json",
+      "evaluation/periodization_cases.md",
+      "research/periodization_search_log_and_gaps.md"
+    ],
+    "unchanged_count": 16,
+    "stable_ids_preserved": true,
+    "policy_activation_changed": false
+  },
   "files": [
     {
-      "path": "README.md",
-      "status": "complete",
-      "bytes": 7883,
-      "sha256": "c32e288622adc2238c0b26fe4c8c69be1c8b4703db56ed0b524a07cdc45cf384"
-    },
-    {
       "path": "COACHING_GUIDE.md",
-      "status": "complete",
-      "bytes": 5577,
-      "sha256": "0c87073c9f4c10a762ed0584622d87ada8e21f870e313b77a4c2ab8fb59a3f8d"
+      "status": "changed",
+      "bytes": 8449,
+      "sha256": "a716e1e77933f40997316393b40ed233f5b25f9fbd2dcb971e63444d5b55db16"
     },
     {
-      "path": "workflows/daily_recommendation.md",
-      "status": "complete",
-      "bytes": 6542,
-      "sha256": "7d31981dda2afb5f6295efc486c2c8bb893faecae4087195090f746dc1794d6f"
+      "path": "README.md",
+      "status": "changed",
+      "bytes": 9549,
+      "sha256": "4bf07db11e5d8cee42cab4e01db9ec0d26406e9525a4dfc60fba47b9347b8d07"
     },
     {
-      "path": "workflows/weekly_review.md",
-      "status": "complete",
-      "bytes": 6508,
-      "sha256": "ec791b290722433fe4ffd22f326b9941ffd8b44b28f354be5dc2c5682f0174f3"
+      "path": "evaluation/coaching_cases.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 10448,
+      "sha256": "61058f7fa0b1613da5a89f883b59f56573bca0aaf87e8052adda93f3cd53128b"
     },
     {
-      "path": "topics/aerobic_progression.md",
-      "status": "complete",
-      "bytes": 11229,
-      "sha256": "a70607bba0cb5e322a57ad9b2eda0a5fc1331af7e894c39d8732f3351165631c"
+      "path": "evaluation/periodization_cases.md",
+      "status": "added",
+      "bytes": 23144,
+      "sha256": "f8bc3476d3a376d3ceeba06a380558b47b66c5142e65ae60fe3fd322f9929043"
     },
     {
-      "path": "topics/intensity_and_workout_methods.md",
-      "status": "complete",
-      "bytes": 12301,
-      "sha256": "e7bdbe0d115126a3fec75782f11d2136f2f710f7d056c88961b10ba1af6aacfa"
+      "path": "policies/coaching_policy_candidates.json",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 55323,
+      "sha256": "76546a753a42a9721bf5785742d0db78186340e367a6bec791bc7b780498d5fe"
     },
     {
-      "path": "topics/long_runs_and_race_development.md",
-      "status": "complete",
-      "bytes": 10638,
-      "sha256": "b6ee02215147b920346b4322ab0867aef87a49d2b0a2f3ae2572a5c4ceb228c5"
+      "path": "policies/periodization_policy_candidates.json",
+      "status": "added",
+      "bytes": 16172,
+      "sha256": "03a42d8711fda61aa40d84bfd6f50dfe9b153a6bc09d275c98e2c1c0b294f2d4"
     },
     {
-      "path": "topics/hybrid_strength_and_scheduling.md",
-      "status": "complete",
-      "bytes": 12115,
-      "sha256": "361b254017fde94a5363b6f86d0e957ab7907cfb7e4a5de3c7fdcc5b6e894674"
-    },
-    {
-      "path": "topics/ptt_and_load_tolerance.md",
-      "status": "complete",
-      "bytes": 10990,
-      "sha256": "a2d85d0e4e89266661f1831f2ca5fb29851e416bfe4de7135f010d11c36ff03c"
-    },
-    {
-      "path": "topics/recovery_and_daily_adaptation.md",
-      "status": "complete",
-      "bytes": 9289,
-      "sha256": "3146c57496fe6cd31c28914abf8c2b54628196cbf7270239120852fe0927c9c8"
-    },
-    {
-      "path": "topics/wearables_and_metric_interpretation.md",
-      "status": "complete",
-      "bytes": 9156,
-      "sha256": "868bf5a150f171edcd04cacd496c01310f99e825ffb0990b2cc0a7e1fbe614e2"
-    },
-    {
-      "path": "topics/fueling_and_energy_availability.md",
-      "status": "complete",
-      "bytes": 8300,
-      "sha256": "340d5a2b00e5374b395c40b7c332f345f23574f45cf9c2abf042b38588d3eac4"
-    },
-    {
-      "path": "references/source_registry.json",
-      "status": "complete",
-      "bytes": 49608,
-      "sha256": "692b8b632952b4b3fd2fcdea125a958be1eb1bc0883eca3f8b34a4f045025e44"
+      "path": "recipes/running_session_families.json",
+      "status": "added",
+      "bytes": 50117,
+      "sha256": "c74b794095f5ff9608473a82e0bc67f58bad7f49795405d6aaccc44aa85b0417"
     },
     {
       "path": "references/evidence_matrix.md",
-      "status": "complete",
+      "status": "unchanged_from_1.0.0+privacy1",
       "bytes": 20758,
       "sha256": "347bf46a99c2df9f92968550f9485b72166130532843bd0cac84f0507fdbe64e"
     },
     {
       "path": "references/method_comparison.md",
-      "status": "complete",
+      "status": "unchanged_from_1.0.0+privacy1",
       "bytes": 24679,
       "sha256": "ec853493c3e8c7a5c4f53628cd6913a26b30b24a14e7214c69279bd114e7e1ee"
     },
     {
-      "path": "policies/coaching_policy_candidates.json",
-      "status": "complete",
-      "bytes": 55323,
-      "sha256": "76546a753a42a9721bf5785742d0db78186340e367a6bec791bc7b780498d5fe"
+      "path": "references/periodization_evidence_addendum.md",
+      "status": "added",
+      "bytes": 10861,
+      "sha256": "be759e83a4520014fc138622517fcdf725655c9a3a0d446dad99265b549b726d"
     },
     {
-      "path": "evaluation/coaching_cases.md",
-      "status": "complete",
-      "bytes": 10448,
-      "sha256": "61058f7fa0b1613da5a89f883b59f56573bca0aaf87e8052adda93f3cd53128b"
+      "path": "references/source_registry.json",
+      "status": "changed",
+      "bytes": 65429,
+      "sha256": "a1f6bf37eeee5a2b4206e27e9d4e3a329a3b61dafff1d511576e303a83d9bb73"
+    },
+    {
+      "path": "research/periodization_search_log_and_gaps.md",
+      "status": "added",
+      "bytes": 8242,
+      "sha256": "fa72528408205c5e642bc2a59d3de67bf9b766cdddb7556ba85c424fb06e0045"
+    },
+    {
+      "path": "research/running_evidence_review.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 54603,
+      "sha256": "986b9bd1e058eb67bd564c3b20e1b9b8ede0640d6e00c0c6591017e3289b5584"
     },
     {
       "path": "research/search_log_and_gaps.md",
-      "status": "complete",
+      "status": "unchanged_from_1.0.0+privacy1",
       "bytes": 11761,
       "sha256": "907558078228c51798f67e87f265510684b48b10a22c2d3ef88697eaa3dbe410"
     },
     {
-      "path": "research/running_evidence_review.md",
-      "status": "complete",
-      "bytes": 54603,
-      "sha256": "986b9bd1e058eb67bd564c3b20e1b9b8ede0640d6e00c0c6591017e3289b5584"
+      "path": "topics/aerobic_progression.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 11229,
+      "sha256": "a70607bba0cb5e322a57ad9b2eda0a5fc1331af7e894c39d8732f3351165631c"
+    },
+    {
+      "path": "topics/fueling_and_energy_availability.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 8300,
+      "sha256": "340d5a2b00e5374b395c40b7c332f345f23574f45cf9c2abf042b38588d3eac4"
+    },
+    {
+      "path": "topics/hybrid_strength_and_scheduling.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 12115,
+      "sha256": "361b254017fde94a5363b6f86d0e957ab7907cfb7e4a5de3c7fdcc5b6e894674"
+    },
+    {
+      "path": "topics/intensity_and_workout_methods.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 12301,
+      "sha256": "e7bdbe0d115126a3fec75782f11d2136f2f710f7d056c88961b10ba1af6aacfa"
+    },
+    {
+      "path": "topics/intensity_calibration_and_testing.md",
+      "status": "added",
+      "bytes": 9942,
+      "sha256": "8ad5549d51272c621f9354adb081195ed22c3636bab630ec6ad5536541ad7204"
+    },
+    {
+      "path": "topics/long_runs_and_race_development.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 10638,
+      "sha256": "b6ee02215147b920346b4322ab0867aef87a49d2b0a2f3ae2572a5c4ceb228c5"
+    },
+    {
+      "path": "topics/periodization_and_training_blocks.md",
+      "status": "added",
+      "bytes": 13065,
+      "sha256": "4b37f6e224337249ce8ad49708c68152f410f498cc6343e788d48850f2e202d4"
+    },
+    {
+      "path": "topics/ptt_and_load_tolerance.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 10990,
+      "sha256": "a2d85d0e4e89266661f1831f2ca5fb29851e416bfe4de7135f010d11c36ff03c"
+    },
+    {
+      "path": "topics/races_tapers_and_transitions.md",
+      "status": "added",
+      "bytes": 8895,
+      "sha256": "503b80483592cb595265ace0742c9ab601597ddb1143ab224c64cf770b72a7b3"
+    },
+    {
+      "path": "topics/recovery_and_daily_adaptation.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 9289,
+      "sha256": "3146c57496fe6cd31c28914abf8c2b54628196cbf7270239120852fe0927c9c8"
+    },
+    {
+      "path": "topics/wearables_and_metric_interpretation.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 9156,
+      "sha256": "868bf5a150f171edcd04cacd496c01310f99e825ffb0990b2cc0a7e1fbe614e2"
+    },
+    {
+      "path": "workflows/block_review.md",
+      "status": "added",
+      "bytes": 12662,
+      "sha256": "c83c6543cfccb9d306b6b2f63ff1b5b58e0ce940deed3d82e115c0b85c308c0a"
+    },
+    {
+      "path": "workflows/daily_recommendation.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 6542,
+      "sha256": "7d31981dda2afb5f6295efc486c2c8bb893faecae4087195090f746dc1794d6f"
+    },
+    {
+      "path": "workflows/weekly_review.md",
+      "status": "unchanged_from_1.0.0+privacy1",
+      "bytes": 6508,
+      "sha256": "ec791b290722433fe4ffd22f326b9941ffd8b44b28f354be5dc2c5682f0174f3"
     }
   ],
+  "manifest_self": {
+    "path": "manifest.json",
+    "sha256": null,
+    "note": "Self-referential manifest; checksum intentionally omitted."
+  },
   "import_provenance": {
     "original_archive_sha256": "2f5e92592d956e55676289f1fcd4da7a916ddfdad6bf37deae52961e4868aa87",
     "original_manifest_sha256": "82eabae513a8ab9bbc50ed5af88d3c20c8771c30232a1062c8ec664a624d591a",
@@ -307,5 +649,17 @@
         "imported_sha256": "986b9bd1e058eb67bd564c3b20e1b9b8ede0640d6e00c0c6591017e3289b5584"
       }
     ]
+  },
+  "incremental_import_provenance": {
+    "imported_on": "2026-11-11",
+    "source_package_version": "1.1.0+privacy1",
+    "source_manifest_sha256": "ad34cc383230226652202e8d6e18c8ef943a46e90c34b0a3fa55392f59215a4a",
+    "previous_public_manifest_sha256": "5bfa432ccb59861b34b891fcb6895524df5dc0d6e64a988d1e43d009f81b68fa",
+    "source_manifest_preserved_privately": true,
+    "previous_public_manifest_preserved_privately": true,
+    "verified_changed_or_added_files": 12,
+    "verified_unchanged_baseline_files": 16,
+    "payload_transform": "None; all 28 public payload files exactly match the supplied incremental manifest. Original privacy import provenance retained as historical provenance.",
+    "privacy_review": "No athlete snapshot imported; new evaluation athletes are explicitly fictitious. Current private athlete/app state remains authoritative."
   }
 }

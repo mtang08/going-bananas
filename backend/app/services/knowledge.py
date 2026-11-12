@@ -16,7 +16,11 @@ from typing import Literal
 DEFAULT_ROOT = Path(__file__).resolve().parents[3] / "running_coach_kb"
 MAX_FILE_BYTES = 100_000
 MAX_CONTEXT_CHARS = 70_000
-WORKFLOWS = {"daily": "workflows/daily_recommendation.md", "weekly": "workflows/weekly_review.md"}
+WORKFLOWS = {
+    "daily": "workflows/daily_recommendation.md",
+    "weekly": "workflows/weekly_review.md",
+    "block": "workflows/block_review.md",
+}
 
 
 class KnowledgeIntegrityError(ValueError):
@@ -32,6 +36,7 @@ class KnowledgeContext:
     integrity_ok: bool
     policies: tuple[dict, ...]
     sources: tuple[dict, ...]
+    recipes: tuple[dict, ...] = ()
 
 
 def _read(root: Path, rel: str, manifest: dict) -> str:
@@ -53,11 +58,12 @@ def _read(root: Path, rel: str, manifest: dict) -> str:
 
 
 def load_knowledge(
-    workflow: Literal["daily", "weekly"],
+    workflow: Literal["daily", "weekly", "block"],
     topics: Iterable[str] = (),
     policy_ids: Iterable[str] = (),
     source_ids: Iterable[str] = (),
     *,
+    recipe_ids: Iterable[str] = (),
     root: Path | None = None,
 ) -> KnowledgeContext:
     """Return selected prose in guide → workflow → topic → policy/source order.
@@ -87,7 +93,7 @@ def load_knowledge(
             raise ValueError("Invalid manifest metadata")
     except (OSError, UnicodeError, ValueError) as exc:
         raise KnowledgeIntegrityError("Knowledge manifest is malformed") from exc
-    if manifest.get("schema_version") != "1.0" or manifest.get("package_name") != "running_coach_kb":
+    if manifest.get("schema_version") not in {"1.0", "1.1"} or manifest.get("package_name") != "running_coach_kb":
         raise KnowledgeIntegrityError("Unsupported knowledge manifest")
     available = {p.removeprefix("topics/").removesuffix(".md") for p in (f["path"] for f in manifest["files"]) if p.startswith("topics/") and p.endswith(".md")}
     chosen_topics = tuple(dict.fromkeys(topics))
@@ -95,20 +101,31 @@ def load_knowledge(
         raise ValueError("Unknown or excessive knowledge topics")
     wanted_policies = tuple(dict.fromkeys(policy_ids))
     wanted_sources = tuple(dict.fromkeys(source_ids))
-    if len(wanted_policies) > 8 or len(wanted_sources) > 12:
+    wanted_recipes = tuple(dict.fromkeys(recipe_ids))
+    if len(wanted_policies) > 8 or len(wanted_sources) > 12 or len(wanted_recipes) > 3:
         raise ValueError("Too many knowledge records")
     files = ["COACHING_GUIDE.md", WORKFLOWS[workflow], *(f"topics/{topic}.md" for topic in chosen_topics)]
     sections = [f"# {rel}\n\n{_read(base, rel, manifest)}" for rel in files]
     policies: tuple[dict, ...] = ()
     sources: tuple[dict, ...] = ()
+    recipes: tuple[dict, ...] = ()
     if wanted_policies:
-        policy_file = "policies/coaching_policy_candidates.json"
-        data = json.loads(_read(base, policy_file, manifest))
-        records = {p["policy_id"]: p for p in data["policies"]}
+        records = {}
+        policy_files = ["policies/coaching_policy_candidates.json"]
+        extension = "policies/periodization_policy_candidates.json"
+        if any(entry["path"] == extension for entry in manifest["files"]):
+            policy_files.append(extension)
+        for policy_file in policy_files:
+            data = json.loads(_read(base, policy_file, manifest))
+            file_records = {p["policy_id"]: p for p in data["policies"]}
+            if any(pid in file_records for pid in wanted_policies):
+                files.append(policy_file)
+            records.update(file_records)
+            if all(pid in records for pid in wanted_policies):
+                break
         if any(pid not in records for pid in wanted_policies):
             raise ValueError("Unknown policy ID")
         policies = tuple(records[pid] for pid in wanted_policies)
-        files.append(policy_file)
         sections.append("# Candidate policies (reviewable, not executable rules)\n\n" + "\n\n".join(
             f"## {p['policy_id']}: {p['title']}\n"
             f"Trigger: {'; '.join(p['trigger'])}\n"
@@ -130,7 +147,18 @@ def load_knowledge(
         sections.append("# Selected source references\n\n" + "\n\n".join(
             f"{s['source_id']}: {s['citation']} Access: {s['access_level']}. {s.get('notes', '')}" for s in sources
         ))
+    if wanted_recipes:
+        recipe_file = "recipes/running_session_families.json"
+        data = json.loads(_read(base, recipe_file, manifest))
+        records = {recipe["recipe_id"]: recipe for recipe in data["recipes"]}
+        if any(rid not in records for rid in wanted_recipes):
+            raise ValueError("Unknown recipe ID")
+        recipes = tuple(records[rid] for rid in wanted_recipes)
+        files.append(recipe_file)
+        sections.append("# Selected session recipes (examples, not personalized prescriptions)\n\n" +
+                        "\n\n".join(json.dumps(recipe, ensure_ascii=False, indent=2) for recipe in recipes))
     result = "\n\n".join(sections)
     if len(result) > MAX_CONTEXT_CHARS:
         raise ValueError("Selected knowledge context exceeds bound")
-    return KnowledgeContext(result, manifest["package_version"], manifest["searched_through"], tuple(files), True, policies, sources)
+    return KnowledgeContext(result, manifest["package_version"], manifest["searched_through"], tuple(files), True,
+                            policies, sources, recipes)

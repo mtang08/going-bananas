@@ -1,0 +1,1404 @@
+{
+  "schema_version": "1.0",
+  "package_version": "1.1.0+privacy1",
+  "searched_through": "2026-11-11",
+  "status": "operational_examples_not_personalized_prescriptions_or_activated_rules",
+  "usage_note": "Select a family only after current athlete/app state, active block, symptoms/function, recovery, schedule, and existing policies are applied. Exact doses remain athlete-calibrated.",
+  "recipe_count": 10,
+  "recipes": [
+    {
+      "recipe_id": "REC001",
+      "title": "Easy aerobic running",
+      "session_family": "easy_aerobic",
+      "decision_ids": [
+        "proceed_or_modify_today",
+        "adjust_weekly_volume",
+        "review_rolling_plan"
+      ],
+      "intended_adaptation": [
+        "Aerobic consistency and low-intensity volume",
+        "Technique and impact-tolerance exposure at controllable cost",
+        "Recovery-compatible running between demanding exposures"
+      ],
+      "suitable_block_objectives": [
+        "Aerobic consistency",
+        "Return to ordinary running",
+        "Volume or frequency development",
+        "Maintenance during race-specific work"
+      ],
+      "prerequisites": [
+        "No current clinical instruction that rules out running",
+        "Symptoms/function compatible with ordinary easy running",
+        "A duration or route that can be shortened without defeating the purpose"
+      ],
+      "do_not_use_when": [
+        "Routine optimization is inappropriate because of illness red flags, progressive function loss, or clinician restriction",
+        "The label easy would conceal a pace/terrain/heat demand that is not actually easy"
+      ],
+      "preferred_intensity_anchors": [
+        {
+          "anchor": "conversational breathing/talk test",
+          "role": "primary"
+        },
+        {
+          "anchor": "RPE",
+          "role": "primary or corroborating"
+        },
+        {
+          "anchor": "heart rate below an individually credible first-threshold range",
+          "role": "optional secondary; not required"
+        },
+        {
+          "anchor": "pace",
+          "role": "descriptive under comparable conditions, not a target to force"
+        }
+      ],
+      "acceptable_anchor_fallbacks": [
+        "Use breathing/RPE when HR, pace, terrain, or weather is unreliable",
+        "Use duration rather than distance when terrain or pace varies"
+      ],
+      "illustrative_doses": [
+        {
+          "classification": "coaching convention",
+          "population": "recreational runners",
+          "example": "A short-to-moderate continuous run that finishes with stable easy effort and leaves the next planned exposure feasible.",
+          "qualification": "Illustrative ranges are evidence-context or coaching-convention examples, not a personalized starting prescription or universal safe dose.",
+          "evidence_ids": [
+            "E-INT-04",
+            "E-INT-05"
+          ],
+          "source_ids": [
+            "S012",
+            "S013",
+            "S014"
+          ]
+        },
+        {
+          "classification": "research/practice context",
+          "population": "trained and elite distance runners",
+          "example": "Most annual running volume is commonly performed at low intensity, but elite frequency and volume are not portable dose recommendations.",
+          "qualification": "Use only as support for easy-running predominance, not elite mileage transfer.",
+          "evidence_ids": [
+            "E-PER-03"
+          ],
+          "source_ids": [
+            "S059",
+            "S060"
+          ]
+        }
+      ],
+      "deliberately_athlete_calibrated": [
+        "Starting duration",
+        "Whether frequency or duration is the next progression",
+        "Terrain and surface",
+        "Pace/HR relationship",
+        "Delayed symptom response"
+      ],
+      "progression_levers": [
+        "Increase one of frequency or duration while holding intensity ordinary",
+        "Add duration to selected runs rather than every run",
+        "Choose a slightly longer known route before adding pace"
+      ],
+      "regression_levers": [
+        "Shorten duration",
+        "Use flatter/softer or more familiar terrain",
+        "Insert walking",
+        "Substitute low-impact aerobic work if running is not tolerated"
+      ],
+      "placement_constraints": [
+        "Keep enough separation from quality/long-run/lower-body lifting based on actual recovery cost",
+        "Do not turn an easy day into a make-up quality session"
+      ],
+      "common_execution_failures": [
+        "Chasing prior pace despite heat/hills/fatigue",
+        "Drifting to moderate effort because the session feels unimportant",
+        "Adding a fast finish that changes the recovery cost",
+        "Classifying easy from pace alone"
+      ],
+      "modify_or_stop_signals": [
+        "Worsening focal symptoms, altered gait/function, or escalating pain",
+        "Effort/breathing persistently outside intended easy domain despite slowing",
+        "Illness or systemic warning signs",
+        "Next-day delayed response materially worse than baseline"
+      ],
+      "substitutions": [
+        "Shorter easy run",
+        "Run/walk",
+        "Easy cycling/elliptical with mode-specific effort",
+        "Rest when routine training is inappropriate"
+      ],
+      "monitoring": [
+        "RPE and talk-test response",
+        "Duration/distance/terrain",
+        "Symptoms during and later",
+        "Whether the next planned session remains feasible"
+      ],
+      "delayed_response": [
+        "Review later-day and next-day symptoms when a run is longer, hillier, or otherwise novel"
+      ],
+      "evidence_ids": [
+        "E-INT-04",
+        "E-INT-05",
+        "E-PER-03"
+      ],
+      "source_ids": [
+        "S012",
+        "S013",
+        "S014",
+        "S059",
+        "S060"
+      ],
+      "evidence_class": "mixed research and coaching convention",
+      "evidence_confidence": "moderate for easy-running predominance; low for any exact dose"
+    },
+    {
+      "recipe_id": "REC002",
+      "title": "Long aerobic run",
+      "session_family": "long_aerobic",
+      "decision_ids": [
+        "progress_long_run",
+        "review_rolling_plan",
+        "review_training_block"
+      ],
+      "intended_adaptation": [
+        "Durable aerobic work",
+        "Fueling and pacing practice as duration warrants",
+        "Running-specific tissue and impact tolerance",
+        "Event-relevant endurance when appropriate"
+      ],
+      "suitable_block_objectives": [
+        "Aerobic durability",
+        "Half-marathon or marathon foundations",
+        "Sustained easy-running tolerance"
+      ],
+      "prerequisites": [
+        "Recent ordinary running consistency",
+        "A comparable longest recent run and known delayed response",
+        "Adequate recovery space after the session",
+        "Fueling/hydration plan when duration/conditions warrant"
+      ],
+      "do_not_use_when": [
+        "Delayed symptom response is deteriorating",
+        "The proposed run is a large novelty without a reason and follow-up plan",
+        "A race, quality session, or lower-body lift creates unmanageable density",
+        "The runner is returning from interruption and ordinary duration is not re-established"
+      ],
+      "preferred_intensity_anchors": [
+        {
+          "anchor": "conversational effort/RPE",
+          "role": "primary for ordinary long aerobic work"
+        },
+        {
+          "anchor": "duration",
+          "role": "primary dose representation across variable pace/terrain"
+        },
+        {
+          "anchor": "distance",
+          "role": "mechanical/context descriptor"
+        },
+        {
+          "anchor": "HR",
+          "role": "secondary when individual zones and sensor quality are credible"
+        }
+      ],
+      "acceptable_anchor_fallbacks": [
+        "Use effort and duration in heat/hills",
+        "Use a known route or out-and-back with an early turn option"
+      ],
+      "illustrative_doses": [
+        {
+          "classification": "coaching convention under evidence uncertainty",
+          "population": "recreational runners",
+          "example": "Progress from the recent longest tolerated comparable run by changing one main lever—usually duration—then observe the delayed response before the next increase.",
+          "qualification": "No universal percentage cap or weekly increase is validated.",
+          "evidence_ids": [
+            "E-AER-01",
+            "E-AER-02",
+            "E-AER-03",
+            "E-LONG-02"
+          ],
+          "source_ids": [
+            "S001",
+            "S002",
+            "S003"
+          ]
+        },
+        {
+          "classification": "observational association",
+          "population": "half-marathon and marathon runners",
+          "example": "Higher volume and longer endurance runs are associated with better performance, without defining an individual safe or optimal dose.",
+          "qualification": "Self-selection and healthy-runner bias limit causal prescription.",
+          "evidence_ids": [
+            "E-LONG-01"
+          ],
+          "source_ids": [
+            "S020",
+            "S021"
+          ]
+        }
+      ],
+      "deliberately_athlete_calibrated": [
+        "Current longest comparable run",
+        "Duration versus distance progression",
+        "Fueling need",
+        "Terrain and weather",
+        "Next-day/36-hour symptom response"
+      ],
+      "progression_levers": [
+        "Add a small amount of duration while keeping effort/terrain stable",
+        "Hold duration and improve execution or recovery",
+        "Add event-specific steady segments only in a later appropriate block"
+      ],
+      "regression_levers": [
+        "Shorten to the last tolerated duration",
+        "Flatten route",
+        "Use planned walk breaks",
+        "Split aerobic work across running and low-impact mode without calling it equivalent mileage"
+      ],
+      "placement_constraints": [
+        "Protect recovery before/after based on actual cost",
+        "Do not force one long run every calendar week when the rolling cadence or tolerance argues otherwise",
+        "Avoid simultaneous long-run, quality-dose, and lower-body-strength progression"
+      ],
+      "common_execution_failures": [
+        "Running faster because the route feels good",
+        "Using a weekly percentage cap as clearance",
+        "Ignoring delayed tenderness because the run felt fine",
+        "Making the long run the entire weekly progression"
+      ],
+      "modify_or_stop_signals": [
+        "Gait change or progressive focal symptoms",
+        "Effort rises beyond the intended domain",
+        "Fueling/heat problem becomes limiting",
+        "Delayed response exceeds the established baseline"
+      ],
+      "substitutions": [
+        "Shorter long aerobic run",
+        "Easy run plus low-impact aerobic time on another day",
+        "Cycling/elliptical as aerobic support with no mile conversion"
+      ],
+      "monitoring": [
+        "Longest comparable recent run",
+        "Session RPE and pace/HR context",
+        "Fueling/conditions",
+        "Later-day and next-day response",
+        "Recovery time to the next planned exposure"
+      ],
+      "delayed_response": [
+        "Required before progression when symptoms have shown a delayed pattern"
+      ],
+      "evidence_ids": [
+        "E-AER-01",
+        "E-AER-02",
+        "E-AER-03",
+        "E-LONG-01",
+        "E-LONG-02"
+      ],
+      "source_ids": [
+        "S001",
+        "S002",
+        "S003",
+        "S020",
+        "S021"
+      ],
+      "evidence_class": "observational evidence plus coaching convention",
+      "evidence_confidence": "moderate for associations and rejection of universal caps; low for exact progression"
+    },
+    {
+      "recipe_id": "REC003",
+      "title": "Controlled threshold intervals",
+      "session_family": "threshold_intervals",
+      "decision_ids": [
+        "select_quality_session",
+        "recalibrate_intensity",
+        "review_rolling_plan"
+      ],
+      "intended_adaptation": [
+        "Sustainable high-aerobic/threshold-oriented work with recoveries that preserve control",
+        "Practice accumulating quality time without racing continuously",
+        "Calibrate repeatable effort and pace under standardized conditions"
+      ],
+      "suitable_block_objectives": [
+        "Threshold-oriented development",
+        "5K/10K/half-marathon support",
+        "Aerobic power while mechanical risk is better controlled than in faster interval formats"
+      ],
+      "prerequisites": [
+        "Stable ordinary running and tolerance of some faster running",
+        "Credible effort anchor or willingness to use effort-first execution",
+        "Recovery space and compatible lower-body strength placement"
+      ],
+      "do_not_use_when": [
+        "The athlete is likely to race every repetition",
+        "Symptoms/function make faster running inappropriate",
+        "The current block prioritizes consistency/long-run tolerance and quality would displace it",
+        "The only anchor is a precise unverified device estimate"
+      ],
+      "preferred_intensity_anchors": [
+        {
+          "anchor": "controlled hard RPE and breathing",
+          "role": "primary"
+        },
+        {
+          "anchor": "recent credible threshold/race-derived pace range",
+          "role": "secondary when confidence is moderate/high"
+        },
+        {
+          "anchor": "HR near an individually established threshold",
+          "role": "late-session corroboration; account for lag"
+        },
+        {
+          "anchor": "repeat consistency",
+          "role": "execution check"
+        }
+      ],
+      "acceptable_anchor_fallbacks": [
+        "Use RPE/breathing and cap the first repetition conservatively",
+        "Use time-based repetitions on variable terrain"
+      ],
+      "illustrative_doses": [
+        {
+          "classification": "coaching convention consistent with interval literature",
+          "population": "recreational runners with prerequisites",
+          "example": "Several controlled repetitions of roughly 3–10 minutes with easy recoveries, accumulating a modest amount of quality time while the final repeat remains technically and perceptually controlled.",
+          "qualification": "Illustrative ranges are evidence-context or coaching-convention examples, not a personalized starting prescription or universal safe dose.",
+          "evidence_ids": [
+            "E-INT-07",
+            "E-WKT-01"
+          ],
+          "source_ids": [
+            "S017",
+            "S018",
+            "S019",
+            "S069",
+            "S070"
+          ]
+        },
+        {
+          "classification": "coaching convention",
+          "population": "lower-frequency runners",
+          "example": "Begin with fewer/shorter repetitions or more recovery, then progress one lever only after repeat quality and delayed response are stable.",
+          "qualification": "No universal initial total is established for a tendon-limited or low-volume runner.",
+          "evidence_ids": [
+            "E-WKT-01"
+          ],
+          "source_ids": [
+            "S069",
+            "S070"
+          ]
+        }
+      ],
+      "deliberately_athlete_calibrated": [
+        "Work-bout duration",
+        "Total quality time",
+        "Recovery duration/mode",
+        "Pace/HR range",
+        "Whether the workout belongs every week"
+      ],
+      "progression_levers": [
+        "Add one repetition",
+        "Lengthen selected work bouts",
+        "Shorten recovery modestly while retaining domain",
+        "Hold dose and improve evenness"
+      ],
+      "regression_levers": [
+        "Reduce repetitions or bout duration",
+        "Increase easy recovery",
+        "Use cruise/fartlek by effort",
+        "Convert to steady aerobic or easy running"
+      ],
+      "placement_constraints": [
+        "Avoid close placement to a mechanically costly long run or interfering lower-body lift",
+        "At 3–4 runs/week, usually make this the single formal quality family rather than adding another hard session"
+      ],
+      "common_execution_failures": [
+        "First repetition too fast",
+        "Recoveries too hard",
+        "Chasing a single target pace despite heat/hills",
+        "Interpreting completion as proof of correct threshold"
+      ],
+      "modify_or_stop_signals": [
+        "Large rep deterioration",
+        "Effort rises into race/maximal territory",
+        "Form/gait change or focal symptoms",
+        "Unusual recovery cost that threatens the next planned exposure"
+      ],
+      "substitutions": [
+        "Shorter threshold intervals",
+        "Controlled continuous steady/tempo",
+        "Easy aerobic run",
+        "Low-impact aerobic intervals when impact is limited"
+      ],
+      "monitoring": [
+        "Rep pace/time plus RPE/breathing",
+        "Recovery behavior",
+        "HR only as supporting context",
+        "Symptoms and next-day response"
+      ],
+      "delayed_response": [
+        "Review before increasing total quality work or adding faster elements"
+      ],
+      "evidence_ids": [
+        "E-INT-07",
+        "E-WKT-01",
+        "E-CAL-02"
+      ],
+      "source_ids": [
+        "S017",
+        "S018",
+        "S019",
+        "S065",
+        "S069",
+        "S070"
+      ],
+      "evidence_class": "exercise-physiology review plus coaching convention",
+      "evidence_confidence": "moderate for controllable interval design; low for exact recreational dose"
+    },
+    {
+      "recipe_id": "REC004",
+      "title": "Continuous steady or tempo run",
+      "session_family": "continuous_tempo",
+      "decision_ids": [
+        "select_quality_session",
+        "review_rolling_plan"
+      ],
+      "intended_adaptation": [
+        "Sustained controlled work near a selected steady/threshold-oriented domain",
+        "Pacing discipline and continuous concentration",
+        "Event-relevant durability when appropriate"
+      ],
+      "suitable_block_objectives": [
+        "Threshold/steady development",
+        "Half-marathon support",
+        "Race-specific sustained running after prerequisites"
+      ],
+      "prerequisites": [
+        "Reliable self-control and an effort anchor",
+        "Stable symptoms and ordinary aerobic consistency",
+        "A route/conditions where effort can be moderated"
+      ],
+      "do_not_use_when": [
+        "The athlete tends to turn continuous tempo into a time trial",
+        "Heat/hills make a pace target misleading and effort control is poor",
+        "Intervals would better preserve control",
+        "The session would create excessive density with long run/lifting"
+      ],
+      "preferred_intensity_anchors": [
+        {
+          "anchor": "RPE/breathing with controlled, sustainable feel",
+          "role": "primary"
+        },
+        {
+          "anchor": "credible pace range",
+          "role": "secondary under comparable conditions"
+        },
+        {
+          "anchor": "HR",
+          "role": "secondary with drift/lag context"
+        }
+      ],
+      "acceptable_anchor_fallbacks": [
+        "Use progression from steady to moderately hard by effort rather than exact pace",
+        "Break into intervals when continuous control is uncertain"
+      ],
+      "illustrative_doses": [
+        {
+          "classification": "coaching convention",
+          "population": "recreational runners with established base",
+          "example": "A continuous controlled segment often lies roughly in the 10–30 minute range; the correct duration is the one that preserves intended effort and recovery rather than maximizing discomfort.",
+          "qualification": "Illustrative ranges are evidence-context or coaching-convention examples, not a personalized starting prescription or universal safe dose.",
+          "evidence_ids": [
+            "E-INT-07",
+            "E-WKT-01"
+          ],
+          "source_ids": [
+            "S017",
+            "S018",
+            "S069",
+            "S070"
+          ]
+        }
+      ],
+      "deliberately_athlete_calibrated": [
+        "Continuous duration",
+        "Warm-up/cool-down",
+        "Effort/pace anchor",
+        "Route and conditions"
+      ],
+      "progression_levers": [
+        "Lengthen continuous segment modestly",
+        "Hold duration and improve evenness",
+        "Use a small event-specific pace component later"
+      ],
+      "regression_levers": [
+        "Shorten segment",
+        "Split into intervals",
+        "Use steady aerobic rather than threshold-oriented effort",
+        "Convert to easy running"
+      ],
+      "placement_constraints": [
+        "Treat as a quality exposure even if pace is below 5K pace",
+        "Do not combine with a progressive long run unless explicitly planned and tolerated"
+      ],
+      "common_execution_failures": [
+        "Racing the second half",
+        "Using current race prediction as a compulsory pace",
+        "Calling moderate drift “easy”",
+        "Adding duration and pace together"
+      ],
+      "modify_or_stop_signals": [
+        "Pace/RPE divergence from intended domain",
+        "Form or symptom deterioration",
+        "Inability to finish without racing"
+      ],
+      "substitutions": [
+        "Controlled threshold intervals",
+        "Fartlek",
+        "Easy aerobic run"
+      ],
+      "monitoring": [
+        "RPE/breathing over time",
+        "Pace/HR only in context",
+        "Recovery and delayed symptoms"
+      ],
+      "delayed_response": [
+        "Assess whether continuous load is more costly than comparable intervals"
+      ],
+      "evidence_ids": [
+        "E-INT-07",
+        "E-WKT-01",
+        "E-CAL-02"
+      ],
+      "source_ids": [
+        "S017",
+        "S018",
+        "S065",
+        "S069",
+        "S070"
+      ],
+      "evidence_class": "coaching convention supported by broader interval/threshold literature",
+      "evidence_confidence": "low-moderate"
+    },
+    {
+      "recipe_id": "REC005",
+      "title": "Multi-minute VO2-oriented intervals",
+      "session_family": "vo2_intervals",
+      "decision_ids": [
+        "select_quality_session",
+        "review_training_block"
+      ],
+      "intended_adaptation": [
+        "Accumulate time at high aerobic demand",
+        "Develop tolerance to fast but submaximal repeated running",
+        "Prepare for 3K–5K/mile demands when appropriate"
+      ],
+      "suitable_block_objectives": [
+        "VO2-oriented development",
+        "5K or mile preparation after prerequisites"
+      ],
+      "prerequisites": [
+        "Stable aerobic consistency and faster-running tolerance",
+        "Current block explicitly calls for this family",
+        "Credible effort/pace anchor and ability to avoid all-out execution",
+        "Adequate separation from long run and lower-body lifting"
+      ],
+      "do_not_use_when": [
+        "Current priority is rebuilding ordinary volume/tolerance",
+        "Symptoms or mechanics are unstable",
+        "The athlete cannot complete controlled repetitions without sprinting",
+        "The schedule allows no recovery margin"
+      ],
+      "preferred_intensity_anchors": [
+        {
+          "anchor": "hard but repeatable RPE",
+          "role": "primary"
+        },
+        {
+          "anchor": "pace associated with recent credible 3K–5K/VO2-oriented performance",
+          "role": "secondary, broad range"
+        },
+        {
+          "anchor": "time near high oxygen uptake",
+          "role": "research concept, not a wearable target to chase"
+        },
+        {
+          "anchor": "rep consistency/form",
+          "role": "execution check"
+        }
+      ],
+      "acceptable_anchor_fallbacks": [
+        "Use controlled fartlek or shorter intervals by effort",
+        "Choose threshold intervals when speed/mechanical tolerance is the constraint"
+      ],
+      "illustrative_doses": [
+        {
+          "classification": "research protocol family",
+          "population": "recreational and trained runners in interval studies/reviews",
+          "example": "Work bouts commonly span about 2–5 minutes with easy recoveries; total fast work in research sessions varies substantially.",
+          "qualification": "This describes studied formats, not a required or safe personal dose. Start from current exposure and preserve repeatability.",
+          "evidence_ids": [
+            "E-INT-07",
+            "E-WKT-01"
+          ],
+          "source_ids": [
+            "S017",
+            "S018",
+            "S019",
+            "S069",
+            "S070",
+            "S071"
+          ]
+        },
+        {
+          "classification": "coaching convention",
+          "population": "lower-frequency recreational runners",
+          "example": "A conservative version uses fewer bouts and stops while form, effort, and pace remain repeatable; progression changes one variable.",
+          "qualification": "Illustrative ranges are evidence-context or coaching-convention examples, not a personalized starting prescription or universal safe dose.",
+          "evidence_ids": [
+            "E-WKT-01"
+          ],
+          "source_ids": [
+            "S069",
+            "S070",
+            "S071"
+          ]
+        }
+      ],
+      "deliberately_athlete_calibrated": [
+        "Rep duration",
+        "Total fast work",
+        "Recovery duration",
+        "Pace/effort target",
+        "Frequency across the block"
+      ],
+      "progression_levers": [
+        "Add one controlled repetition",
+        "Lengthen work bouts within the same domain",
+        "Adjust recovery after stable execution",
+        "Hold dose and improve consistency"
+      ],
+      "regression_levers": [
+        "Fewer/shorter repetitions",
+        "Longer recovery",
+        "Slower controlled effort",
+        "Threshold intervals or easy running"
+      ],
+      "placement_constraints": [
+        "Count as a major demanding exposure with substantial neuromuscular/musculoskeletal cost",
+        "Avoid novel VO2 work near progressive long runs or unfamiliar lower-body strength",
+        "Do not infer a second hard day from an 80/20 label"
+      ],
+      "common_execution_failures": [
+        "All-out first repetition",
+        "Forcing pace while mechanics deteriorate",
+        "Turning recovery into extra work",
+        "Maximizing total distance at vVO2max because a review reports elite examples"
+      ],
+      "modify_or_stop_signals": [
+        "Material rep fade despite adequate recovery",
+        "Loss of relaxed form/coordination",
+        "Focal symptoms or altered gait",
+        "Effort becomes maximal rather than repeatable"
+      ],
+      "substitutions": [
+        "Short controlled intervals/fartlek",
+        "Threshold intervals",
+        "Easy aerobic run",
+        "Low-impact high-aerobic intervals with mode-specific anchors"
+      ],
+      "monitoring": [
+        "Rep time/pace and variability",
+        "RPE/breathing",
+        "Form/coordination",
+        "Recovery cost and delayed symptoms"
+      ],
+      "delayed_response": [
+        "Required before increasing dose because metabolic similarity does not imply equal mechanical cost"
+      ],
+      "evidence_ids": [
+        "E-INT-07",
+        "E-WKT-01"
+      ],
+      "source_ids": [
+        "S017",
+        "S018",
+        "S019",
+        "S069",
+        "S070",
+        "S071"
+      ],
+      "evidence_class": "review and intervention evidence with substantial protocol heterogeneity",
+      "evidence_confidence": "moderate for family effects; low for exact individual format"
+    },
+    {
+      "recipe_id": "REC006",
+      "title": "Short controlled intervals or fartlek",
+      "session_family": "short_intervals_fartlek",
+      "decision_ids": [
+        "select_quality_session",
+        "review_rolling_plan"
+      ],
+      "intended_adaptation": [
+        "Introduce faster aerobic running with short controllable bouts",
+        "Vary stimulus while limiting continuous strain",
+        "Develop rhythm and economy without maximal sprinting"
+      ],
+      "suitable_block_objectives": [
+        "Introductory quality",
+        "5K/mile support",
+        "Maintenance of faster running during another block"
+      ],
+      "prerequisites": [
+        "Stable ordinary running",
+        "Ability to keep short bouts relaxed and submaximal",
+        "Clear distinction from all-out sprint work"
+      ],
+      "do_not_use_when": [
+        "Short bouts encourage maximal sprinting",
+        "Mechanics/symptoms are unstable",
+        "The workout would be layered onto another quality exposure"
+      ],
+      "preferred_intensity_anchors": [
+        {
+          "anchor": "RPE and relaxed form",
+          "role": "primary"
+        },
+        {
+          "anchor": "time-based work/recovery",
+          "role": "dose control"
+        },
+        {
+          "anchor": "pace",
+          "role": "secondary; avoid instantaneous GPS chasing"
+        }
+      ],
+      "acceptable_anchor_fallbacks": [
+        "Landmark-based fartlek",
+        "Gentle pickups inside an easy run",
+        "Threshold intervals if control improves with longer bouts"
+      ],
+      "illustrative_doses": [
+        {
+          "classification": "studied protocol family",
+          "population": "recreational/trained runners",
+          "example": "Short-interval research spans roughly 15 seconds to under 2 minutes with many work/recovery combinations.",
+          "qualification": "The literature does not establish a single best format or justify copying high session totals.",
+          "evidence_ids": [
+            "E-INT-07",
+            "E-WKT-01"
+          ],
+          "source_ids": [
+            "S017",
+            "S018",
+            "S019",
+            "S069",
+            "S070",
+            "S071"
+          ]
+        },
+        {
+          "classification": "coaching convention",
+          "population": "quality-naive or lower-frequency runners",
+          "example": "Use a small number of relaxed controlled pickups with generous easy running, ending before speed or form deteriorates.",
+          "qualification": "Illustrative ranges are evidence-context or coaching-convention examples, not a personalized starting prescription or universal safe dose.",
+          "evidence_ids": [
+            "E-INT-08"
+          ],
+          "source_ids": [
+            "S017",
+            "S019"
+          ]
+        }
+      ],
+      "deliberately_athlete_calibrated": [
+        "Bout length",
+        "Number of bouts",
+        "Recovery",
+        "Surface",
+        "Intensity ceiling"
+      ],
+      "progression_levers": [
+        "Add a small number of bouts",
+        "Lengthen bouts slightly",
+        "Reduce recovery only after control is established"
+      ],
+      "regression_levers": [
+        "Fewer bouts",
+        "Slower effort",
+        "Longer easy recoveries",
+        "Replace with strides or easy running"
+      ],
+      "placement_constraints": [
+        "Count actual intensity and mechanical novelty, not just total fast minutes",
+        "Avoid stacking with hills, strides, or plyometrics as if each were free"
+      ],
+      "common_execution_failures": [
+        "All-out accelerations",
+        "Too little recovery",
+        "GPS pace chasing on short bouts",
+        "Adding more because RPE stays low early"
+      ],
+      "modify_or_stop_signals": [
+        "Tension/straining replaces relaxed rhythm",
+        "Form or symptoms deteriorate",
+        "Bouts become progressively faster rather than controlled"
+      ],
+      "substitutions": [
+        "Relaxed strides",
+        "Threshold intervals",
+        "Easy aerobic run"
+      ],
+      "monitoring": [
+        "Perceived control",
+        "Form",
+        "Bout consistency",
+        "Later response"
+      ],
+      "delayed_response": [
+        "Check when the session is a new speed or surface exposure"
+      ],
+      "evidence_ids": [
+        "E-INT-07",
+        "E-INT-08",
+        "E-WKT-01"
+      ],
+      "source_ids": [
+        "S017",
+        "S018",
+        "S019",
+        "S069",
+        "S070",
+        "S071"
+      ],
+      "evidence_class": "heterogeneous interval evidence plus coaching convention",
+      "evidence_confidence": "low-moderate"
+    },
+    {
+      "recipe_id": "REC007",
+      "title": "Relaxed strides",
+      "session_family": "strides",
+      "decision_ids": [
+        "select_quality_session",
+        "review_rolling_plan"
+      ],
+      "intended_adaptation": [
+        "Practice relaxed fast mechanics and coordination",
+        "Maintain small speed exposure without a full quality session",
+        "Prepare for later faster work when tolerated"
+      ],
+      "suitable_block_objectives": [
+        "Aerobic development with small speed maintenance",
+        "Transition toward 5K/mile work",
+        "Technique/rhythm"
+      ],
+      "prerequisites": [
+        "Easy running is stable",
+        "Fast running is mechanically tolerated",
+        "A safe flat surface and adequate warm-up"
+      ],
+      "do_not_use_when": [
+        "Symptoms worsen with faster running",
+        "The athlete interprets strides as maximal sprints",
+        "Plyometrics/hills/strength already create too much mechanical novelty"
+      ],
+      "preferred_intensity_anchors": [
+        {
+          "anchor": "relaxed fast form with full control",
+          "role": "primary"
+        },
+        {
+          "anchor": "short duration, full easy recovery",
+          "role": "dose control"
+        },
+        {
+          "anchor": "pace/HR",
+          "role": "not primary"
+        }
+      ],
+      "acceptable_anchor_fallbacks": [
+        "Gentle cadence pickups",
+        "Omit and retain easy running"
+      ],
+      "illustrative_doses": [
+        {
+          "classification": "coaching convention; direct dose evidence insufficient",
+          "population": "runners with established tolerance",
+          "example": "Several short accelerations commonly around 10–25 seconds with full easy recovery, stopping well before all-out sprinting.",
+          "qualification": "Illustrative ranges are evidence-context or coaching-convention examples, not a personalized starting prescription or universal safe dose.",
+          "evidence_ids": [
+            "E-INT-08"
+          ],
+          "source_ids": [
+            "S017",
+            "S019",
+            "S069",
+            "S070"
+          ]
+        }
+      ],
+      "deliberately_athlete_calibrated": [
+        "Number",
+        "Duration",
+        "Top speed",
+        "Surface",
+        "Frequency"
+      ],
+      "progression_levers": [
+        "Improve relaxation at the same dose",
+        "Add one or two repetitions",
+        "Slightly lengthen only while remaining nonmaximal"
+      ],
+      "regression_levers": [
+        "Fewer/shorter strides",
+        "Lower top speed",
+        "Longer recovery",
+        "Omit"
+      ],
+      "placement_constraints": [
+        "Place after an easy warm-up/run when symptoms and coordination are normal",
+        "Count as mechanical fast exposure around lifting/hills"
+      ],
+      "common_execution_failures": [
+        "Maximal sprinting",
+        "Abrupt acceleration/deceleration",
+        "Insufficient warm-up",
+        "Using strides to rescue a missed quality session"
+      ],
+      "modify_or_stop_signals": [
+        "Tightness, focal symptoms, altered mechanics",
+        "Loss of relaxed form",
+        "Need to strain for speed"
+      ],
+      "substitutions": [
+        "Easy running only",
+        "Gentle pickups",
+        "Controlled short hills only if hill tolerance is better established"
+      ],
+      "monitoring": [
+        "Relaxation/form",
+        "Symptoms during/later",
+        "Interaction with strength and next quality session"
+      ],
+      "delayed_response": [
+        "Review next day when speed exposure is new or tendon symptoms are relevant"
+      ],
+      "evidence_ids": [
+        "E-INT-08",
+        "E-WKT-01"
+      ],
+      "source_ids": [
+        "S017",
+        "S019",
+        "S069",
+        "S070"
+      ],
+      "evidence_class": "coaching convention with evidence gap",
+      "evidence_confidence": "low"
+    },
+    {
+      "recipe_id": "REC008",
+      "title": "Controlled hills or short fast uphill work",
+      "session_family": "hills_short_fast",
+      "decision_ids": [
+        "select_quality_session",
+        "review_rolling_plan"
+      ],
+      "intended_adaptation": [
+        "Running-specific strength/economy and controlled fast mechanics",
+        "Introduce intensity with terrain-mediated speed",
+        "Race-specific hill skill when relevant"
+      ],
+      "suitable_block_objectives": [
+        "Strength/economy support",
+        "5K/mile preparation",
+        "Hilly-event preparation"
+      ],
+      "prerequisites": [
+        "Stable symptoms and ordinary running",
+        "Known tolerance to grade/surface",
+        "Clear hill type: short fast versus longer aerobic/threshold hill"
+      ],
+      "do_not_use_when": [
+        "Posterior-chain/calf/tendon loading is not tolerated",
+        "The route forces aggressive downhill recovery",
+        "The session duplicates plyometric or lower-body strength stress",
+        "The athlete will sprint maximally"
+      ],
+      "preferred_intensity_anchors": [
+        {
+          "anchor": "effort and relaxed mechanics",
+          "role": "primary"
+        },
+        {
+          "anchor": "time and grade description",
+          "role": "dose/context"
+        },
+        {
+          "anchor": "pace",
+          "role": "not comparable to flat running"
+        }
+      ],
+      "acceptable_anchor_fallbacks": [
+        "Gentle rolling route at easy effort",
+        "Flat strides",
+        "Omit fast component"
+      ],
+      "illustrative_doses": [
+        {
+          "classification": "coaching convention",
+          "population": "runners with hill tolerance",
+          "example": "Short controlled uphill repetitions often last roughly 8–20 seconds with full walk/jog recovery; longer 30–120-second hills are a different, more metabolically demanding session family.",
+          "qualification": "Illustrative ranges are evidence-context or coaching-convention examples, not a personalized starting prescription or universal safe dose.",
+          "evidence_ids": [
+            "E-INT-08",
+            "E-WKT-01"
+          ],
+          "source_ids": [
+            "S017",
+            "S019",
+            "S069",
+            "S070"
+          ]
+        }
+      ],
+      "deliberately_athlete_calibrated": [
+        "Grade",
+        "Duration",
+        "Number",
+        "Intensity",
+        "Downhill exposure",
+        "Surface"
+      ],
+      "progression_levers": [
+        "Improve form at same dose",
+        "Add one repetition",
+        "Lengthen only if session purpose changes deliberately"
+      ],
+      "regression_levers": [
+        "Lower grade",
+        "Reduce repetitions/speed",
+        "Walk down fully",
+        "Use flat relaxed strides or easy running"
+      ],
+      "placement_constraints": [
+        "Treat short fast hills as mechanical quality",
+        "Avoid near unfamiliar calf/leg strength or plyometrics",
+        "Account for downhill eccentric cost"
+      ],
+      "common_execution_failures": [
+        "Maximal sprinting",
+        "Too steep/long for intended purpose",
+        "Fast downhill recovery",
+        "Combining short sprints and longer hill intervals unintentionally"
+      ],
+      "modify_or_stop_signals": [
+        "Focal tendon/calf/foot symptoms",
+        "Loss of posture/coordination",
+        "Straining or slipping",
+        "Delayed response worse than baseline"
+      ],
+      "substitutions": [
+        "Flat strides",
+        "Easy rolling route",
+        "Easy aerobic run"
+      ],
+      "monitoring": [
+        "Grade/surface",
+        "Form",
+        "Symptoms during and delayed",
+        "Downhill load"
+      ],
+      "delayed_response": [
+        "Explicit next-day check when hills are novel or tendon symptoms have delayed behavior"
+      ],
+      "evidence_ids": [
+        "E-INT-08",
+        "E-WKT-01"
+      ],
+      "source_ids": [
+        "S017",
+        "S019",
+        "S069",
+        "S070"
+      ],
+      "evidence_class": "coaching convention with indirect support",
+      "evidence_confidence": "low"
+    },
+    {
+      "recipe_id": "REC009",
+      "title": "Controlled benchmark or race-specific session",
+      "session_family": "benchmark_race_specific",
+      "decision_ids": [
+        "recalibrate_intensity",
+        "handle_goal_or_race_change",
+        "review_training_block"
+      ],
+      "intended_adaptation": [
+        "Answer a defined performance/calibration question",
+        "Practice event rhythm, pacing, and decision making",
+        "Provide a transition signal when evidence is credible"
+      ],
+      "suitable_block_objectives": [
+        "Assessment",
+        "5K/mile/half/marathon-specific preparation",
+        "Pre-race rehearsal"
+      ],
+      "prerequisites": [
+        "A written decision question",
+        "Known event/benchmark protocol and conditions",
+        "Sufficient recovery and mechanical readiness",
+        "A plan for interpreting ambiguous results"
+      ],
+      "do_not_use_when": [
+        "The only purpose is to prove fitness",
+        "A maximal test would disrupt the more important training sequence",
+        "Conditions are too incomparable for the decision",
+        "Symptoms/illness make maximal or specific work inappropriate"
+      ],
+      "preferred_intensity_anchors": [
+        {
+          "anchor": "protocol-specific effort/pacing plan",
+          "role": "primary"
+        },
+        {
+          "anchor": "RPE and split consistency",
+          "role": "execution"
+        },
+        {
+          "anchor": "pace/HR",
+          "role": "contextual and method-specific"
+        }
+      ],
+      "acceptable_anchor_fallbacks": [
+        "Standardized submaximal comparison",
+        "Controlled workout rather than maximal test",
+        "Defer test and use broader effort anchors"
+      ],
+      "illustrative_doses": [
+        {
+          "classification": "decision framework, not a fixed dose",
+          "population": "recreational runners",
+          "example": "Select the least costly repeatable protocol that can resolve the decision; maximal races/time trials are optional, not default.",
+          "qualification": "Standardization and repeatability matter more than a universal distance.",
+          "evidence_ids": [
+            "E-CAL-01",
+            "E-CAL-03",
+            "E-CAL-04"
+          ],
+          "source_ids": [
+            "S064",
+            "S066",
+            "S067",
+            "S068"
+          ]
+        },
+        {
+          "classification": "coaching convention",
+          "population": "race-specific preparation",
+          "example": "Use controlled segments at event-relevant rhythm only after prerequisites; keep total dose familiar enough that it informs rather than derails the block.",
+          "qualification": "Illustrative ranges are evidence-context or coaching-convention examples, not a personalized starting prescription or universal safe dose.",
+          "evidence_ids": [
+            "E-PER-03",
+            "E-RACE-01"
+          ],
+          "source_ids": [
+            "S059",
+            "S060",
+            "S062"
+          ]
+        }
+      ],
+      "deliberately_athlete_calibrated": [
+        "Protocol",
+        "Maximal versus controlled status",
+        "Recovery before/after",
+        "Event-specific volume",
+        "Interpretation threshold"
+      ],
+      "progression_levers": [
+        "Increase specificity before total stress",
+        "Lengthen race-specific segments while reducing unrelated load",
+        "Use a more demanding benchmark only when it changes a decision"
+      ],
+      "regression_levers": [
+        "Submaximal standardized check",
+        "Shorter specific segments",
+        "Ordinary quality recipe",
+        "Defer"
+      ],
+      "placement_constraints": [
+        "Replace another demanding exposure; do not simply add it",
+        "Allow recovery and taper context appropriate to priority",
+        "Avoid novel shoes/surface/fueling when measurement is the goal"
+      ],
+      "common_execution_failures": [
+        "No defined question",
+        "Racing a workout",
+        "Recalibrating every zone from one result",
+        "Ignoring course/weather/pacing",
+        "Treating a good result as clearance for simultaneous progressions"
+      ],
+      "modify_or_stop_signals": [
+        "Symptoms/function change",
+        "Protocol becomes invalid (sensor/course/weather/pacing)",
+        "Effort exceeds intended controlled level",
+        "Result would be uninterpretable"
+      ],
+      "substitutions": [
+        "Standardized easy-run comparison",
+        "Controlled threshold intervals",
+        "Race participation at lower priority/effort",
+        "No test"
+      ],
+      "monitoring": [
+        "Conditions and protocol",
+        "Splits/RPE",
+        "Symptoms and recovery",
+        "Decision made from result and confidence"
+      ],
+      "delayed_response": [
+        "Include event/benchmark recovery and later symptoms before block transition"
+      ],
+      "evidence_ids": [
+        "E-CAL-01",
+        "E-CAL-03",
+        "E-CAL-04",
+        "E-PER-03",
+        "E-RACE-01"
+      ],
+      "source_ids": [
+        "S059",
+        "S060",
+        "S062",
+        "S064",
+        "S066",
+        "S067",
+        "S068"
+      ],
+      "evidence_class": "measurement reviews plus coaching convention",
+      "evidence_confidence": "moderate for standardization principles; low for universal test choice"
+    },
+    {
+      "recipe_id": "REC010",
+      "title": "Low-impact aerobic substitution",
+      "session_family": "cross_training_aerobic",
+      "decision_ids": [
+        "proceed_or_modify_today",
+        "adjust_weekly_volume",
+        "review_rolling_plan"
+      ],
+      "intended_adaptation": [
+        "Maintain or supplement cardiorespiratory work when impact load is constrained",
+        "Preserve routine while running-specific tolerance is rebuilt",
+        "Provide a lower-impact option after schedule or symptom modification"
+      ],
+      "suitable_block_objectives": [
+        "Aerobic maintenance/support",
+        "Return from interruption",
+        "Volume support without claiming running equivalence"
+      ],
+      "prerequisites": [
+        "Chosen mode is itself tolerated",
+        "Mode-specific intensity anchor",
+        "Clear reason for substitution or addition",
+        "No clinical instruction against exercise"
+      ],
+      "do_not_use_when": [
+        "The mode aggravates symptoms",
+        "It is used to hide an unresolved running/clinical problem",
+        "Minutes are converted automatically to running miles",
+        "It creates extra fatigue that undermines running or strength priorities"
+      ],
+      "preferred_intensity_anchors": [
+        {
+          "anchor": "mode-specific RPE/talk test",
+          "role": "primary"
+        },
+        {
+          "anchor": "mode-specific HR history",
+          "role": "secondary; HR differs by mode"
+        },
+        {
+          "anchor": "power/resistance/cadence",
+          "role": "optional device-specific context"
+        }
+      ],
+      "acceptable_anchor_fallbacks": [
+        "Easy conversational mode without exact metrics",
+        "Rest if ordinary aerobic work is inappropriate"
+      ],
+      "illustrative_doses": [
+        {
+          "classification": "research context and coaching convention",
+          "population": "runners using cycling or other aerobic modes",
+          "example": "Small studies and meta-analyses support preservation of some aerobic fitness with cross-training, but protocols vary and do not establish one-for-one running equivalence.",
+          "qualification": "Set duration and effort from the chosen mode, recovery cost, and current objective.",
+          "evidence_ids": [
+            "E-LONG-03"
+          ],
+          "source_ids": [
+            "S022",
+            "S023"
+          ]
+        }
+      ],
+      "deliberately_athlete_calibrated": [
+        "Mode",
+        "Duration",
+        "Effort",
+        "Placement",
+        "Whether it substitutes or adds"
+      ],
+      "progression_levers": [
+        "Increase mode-specific duration modestly",
+        "Add controlled intervals only when appropriate",
+        "Improve consistency without displacing key running"
+      ],
+      "regression_levers": [
+        "Shorten/ease session",
+        "Choose another tolerated mode",
+        "Rest"
+      ],
+      "placement_constraints": [
+        "Track as its own mode and load",
+        "Do not assume low impact means zero recovery cost",
+        "Coordinate with lower-body strength and next run"
+      ],
+      "common_execution_failures": [
+        "Mile-equivalent conversion",
+        "Using running pace/HR zones",
+        "Turning every substitute into a hard session",
+        "Adding rather than replacing after a missed run"
+      ],
+      "modify_or_stop_signals": [
+        "Symptoms from the mode",
+        "Unexpected fatigue/soreness",
+        "Next key running or strength session becomes compromised"
+      ],
+      "substitutions": [
+        "Easy cycling",
+        "Elliptical/pool running if tolerated and available",
+        "Walking",
+        "Rest"
+      ],
+      "monitoring": [
+        "Mode-specific RPE/HR/power",
+        "Symptoms",
+        "Recovery cost",
+        "Effect on next running exposure"
+      ],
+      "delayed_response": [
+        "Review symptoms and next-run tolerance; aerobic maintenance does not prove impact tolerance"
+      ],
+      "evidence_ids": [
+        "E-LONG-03"
+      ],
+      "source_ids": [
+        "S022",
+        "S023"
+      ],
+      "evidence_class": "small trials/meta-analysis plus coaching convention",
+      "evidence_confidence": "low-moderate for aerobic support; low for equivalence"
+    }
+  ]
+}

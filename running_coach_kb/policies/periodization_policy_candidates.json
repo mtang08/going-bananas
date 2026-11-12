@@ -1,0 +1,244 @@
+{
+  "schema_version": "1.0",
+  "package_version": "1.1.0+privacy1",
+  "searched_through": "2026-11-11",
+  "status": "reviewable_candidates_not_activated_rules_or_medical_instructions",
+  "integration_note": "These records extend P001-P018 without replacing them. They require product review and must not be executed as automatic physiological or safety thresholds.",
+  "policies": [
+    {
+      "policy_id": "P019",
+      "title": "Treat a training block as a reviewable hypothesis",
+      "decision_question": "Should the coach start, continue, extend, consolidate, transition, replace, or end the current emphasis?",
+      "trigger": [
+        "A planned block checkpoint is due.",
+        "The rolling plan repeatedly cannot preserve the stated objective.",
+        "A major goal, race, availability, symptom, illness, or interruption change affects the block premise."
+      ],
+      "required_inputs": [
+        "current_block_objective_or_null",
+        "block_start_and_review_dates_or_null",
+        "baseline_and_completion_indicators",
+        "actual_exposure_and_adherence",
+        "adaptation_signals_with_quality_flags",
+        "tolerance_symptom_and_function_trends",
+        "current_goals_constraints_and_plan_version"
+      ],
+      "suggested_action": [
+        "Separate objective status from tolerance and exposure adequacy.",
+        "Choose one lifecycle outcome: start, continue, extend, consolidate, transition, replace, or end.",
+        "State what is preserved, what changes in the next 14 days, what remains provisional, and what observation will trigger the next review.",
+        "Use a planned date plus completion and early-review conditions; do not treat elapsed weeks alone as success or failure."
+      ],
+      "alternatives": [
+        "Continue a rolling plan without an explicit block when no recurring choice is being constrained.",
+        "Use a short consolidation period when exposure was adequate but tolerance or interpretability is uncertain.",
+        "End without declaring success when the objective is no longer relevant."
+      ],
+      "do_not_apply_when": [
+        "A narrow daily modification resolves the issue without changing the block premise.",
+        "Clinical warning signs require professional assessment before training redesign.",
+        "The application lacks enough baseline or exposure data to claim objective status; use unresolved status instead."
+      ],
+      "rationale": "Periodization theory and elite practice support structured sequencing, but no fixed block duration or model is validated for every recreational runner. Treating the block as a falsifiable, revisable coordination device preserves coherence without false physiological precision.",
+      "evidence_ids": ["E-PER-01", "E-PER-02", "E-PER-03", "E-PER-04", "E-PER-05", "E-CAL-04"],
+      "source_ids": ["S056", "S057", "S058", "S059", "S060", "S061", "S067", "S068"],
+      "evidence_certainty": "Low-moderate for model superiority; moderate for the need to avoid rigid claims",
+      "athlete_applicability": "High as a planning and audit policy; exact duration remains individualized",
+      "threshold_basis": "No universal duration, response cutoff, or mandatory block structure",
+      "calibration_needed": "Calibrate objective indicators, review cadence, and what counts as adequate exposure to the athlete, phase, data quality, and approved product semantics.",
+      "uncertainty": "The value of an explicit block depends on whether it materially constrains session selection and makes review clearer than an ongoing goal plus rolling plan.",
+      "review_triggers": [
+        "New direct evidence in low-volume recreational runners",
+        "Repeated block decisions that could not distinguish exposure, adaptation, and tolerance",
+        "User finds block metadata burdensome or unhelpful",
+        "Product changes the calendar horizon or approval model"
+      ]
+    },
+    {
+      "policy_id": "P020",
+      "title": "Recalibrate intensity only from converging, comparable evidence",
+      "decision_question": "Is the current intensity anchor materially wrong enough to revise?",
+      "trigger": [
+        "A credible race or controlled benchmark materially differs from the current anchor.",
+        "Several comparable workouts show persistent disagreement among pace, heart rate, RPE, and completion quality.",
+        "The anchor is stale relative to a meaningful training or interruption period."
+      ],
+      "required_inputs": [
+        "current_anchor_value_method_date_and_confidence",
+        "race_or_test_protocol_and_execution",
+        "pace_hr_rpe_and_talk_test_observations",
+        "terrain_weather_surface_and_sensor_quality",
+        "fatigue_fueling_symptom_and_recovery_context",
+        "at_least_one_comparable_prior_observation_or_explicit_missingness"
+      ],
+      "suggested_action": [
+        "Triangulate result, execution, effort, and context rather than converting one number mechanically.",
+        "Assign high, moderate, low, or insufficient confidence and preserve the prior anchor when evidence is ambiguous.",
+        "Use effort-based or bounded targets while confidence is low.",
+        "Change only the anchors supported by the observation; one 5K does not uniquely define every threshold or race pace."
+      ],
+      "alternatives": [
+        "Collect a lower-cost repeatable benchmark under comparable conditions.",
+        "Retain the current target but widen its acceptable range and add a warm-up decision point.",
+        "Use RPE/talk test with HR or pace as secondary guardrails."
+      ],
+      "do_not_apply_when": [
+        "Pain, gait change, illness, or a major recovery concern makes performance testing inappropriate.",
+        "The apparent change is explained by heat, hills, wind, surface, sensor error, pacing failure, or unusual fatigue.",
+        "The only evidence is a device estimate or one unusually fast training segment."
+      ],
+      "rationale": "Field methods can be useful, but protocol/model choices and individual disagreement limit interchangeability. Repeated comparable observations reduce false precision and support effort-first fallbacks.",
+      "evidence_ids": ["E-INT-04", "E-CAL-01", "E-CAL-02", "E-CAL-03", "E-CAL-04"],
+      "source_ids": ["S012", "S013", "S064", "S065", "S066", "S067", "S068"],
+      "evidence_certainty": "Moderate",
+      "athlete_applicability": "High for calibration workflow; method-specific accuracy varies",
+      "threshold_basis": "No universal minimum test count or percentage-change trigger",
+      "calibration_needed": "Define accepted protocols, comparability flags, anchor expiry behavior, and confidence transitions in the deterministic data layer.",
+      "uncertainty": "The exact amount of evidence needed depends on measurement reliability, decision consequence, and consistency across observations.",
+      "review_triggers": [
+        "New validated field protocol relevant to the athlete's available devices",
+        "Persistent disagreement between prescribed effort and execution",
+        "Frequent anchor changes that destabilize training",
+        "A material race-performance change under credible conditions"
+      ]
+    },
+    {
+      "policy_id": "P021",
+      "title": "Do not declare nonresponse from one block or one test",
+      "decision_question": "Does an unchanged or worse result mean the athlete did not respond to the training?",
+      "trigger": [
+        "A benchmark, race, or selected metric does not improve after a block.",
+        "The coach is considering abandoning a method because one outcome was flat or worse."
+      ],
+      "required_inputs": [
+        "baseline_and_followup_measurement_method",
+        "measurement_reliability_and_comparability",
+        "completed_exposure_and_adherence",
+        "confounders_and_interruption_history",
+        "other_adaptation_and_tolerance_signals",
+        "objective_relevance_to_the_test"
+      ],
+      "suggested_action": [
+        "Classify the objective as achieved, partially achieved, unresolved, or not achieved rather than assigning a responder identity.",
+        "Audit whether exposure was sufficient and whether the test actually measured the objective.",
+        "Use repeated comparable evidence before concluding that a stable response pattern exists.",
+        "Choose extend, consolidate, transition, replace, or end based on the full objective and tolerance record."
+      ],
+      "alternatives": [
+        "Repeat a lower-cost comparable test after recovery.",
+        "Use a second outcome that better matches the block objective.",
+        "End the block because priorities changed, without claiming physiological nonresponse."
+      ],
+      "do_not_apply_when": [
+        "A clear adverse symptom or functional trend already justifies stopping or replacing the exposure.",
+        "The athlete deliberately did not complete the block; classify exposure as insufficient rather than nonresponse."
+      ],
+      "rationale": "Measurement and biological variability can dominate one pre/post comparison, and responder classifications depend heavily on analytic method. The plan should not create a durable identity from noisy evidence.",
+      "evidence_ids": ["E-CAL-04", "E-PER-05"],
+      "source_ids": ["S056", "S067", "S068"],
+      "evidence_certainty": "Moderate-high for the warning; low for an exact repeat-testing requirement",
+      "athlete_applicability": "High",
+      "threshold_basis": "No single-test or single-block cutoff",
+      "calibration_needed": "Predefine which objective indicators, minimum exposure, and comparable observations are sufficient for each block type.",
+      "uncertainty": "A lack of detectable change can reflect true small response, measurement noise, insufficient exposure, poor test specificity, or confounding.",
+      "review_triggers": [
+        "Repeated comparable blocks with stable adherence and no relevant change",
+        "A more reliable measurement method becomes available",
+        "The selected outcome no longer matches the athlete's goal"
+      ]
+    },
+    {
+      "policy_id": "P022",
+      "title": "Handle a goal or race change through block review, not cramming",
+      "decision_question": "How should a new, changed, postponed, or cancelled event affect the active plan?",
+      "trigger": [
+        "A race is added, removed, reprioritized, postponed, or cancelled.",
+        "The athlete changes the primary performance goal or available preparation time."
+      ],
+      "required_inputs": [
+        "event_type_date_priority_and_course_context",
+        "current_block_objective_and_prerequisites",
+        "available_weeks_and_recent_training",
+        "current_tolerance_symptoms_and_recovery",
+        "strength_and_schedule_constraints",
+        "user_acceptance_of_tradeoffs"
+      ],
+      "suggested_action": [
+        "Classify the event as target, supported exposure, benchmark, or optional participation.",
+        "Run a versioned block review and state what objective is retained, reduced to maintenance, replaced, or ended.",
+        "Change only the committed calendar horizon after deterministic validation and user approval; leave farther work provisional or directional.",
+        "Do not compress missing race-specific work or stack demanding sessions to compensate for limited time."
+      ],
+      "alternatives": [
+        "Keep the current block and use a lower-priority race as a controlled exposure.",
+        "Treat the event as a benchmark without promising peak performance.",
+        "Decline or de-prioritize the event when prerequisites or tolerance are inadequate."
+      ],
+      "do_not_apply_when": [
+        "The event has no material effect on session choice, recovery, or user expectations; record it without replacing the block.",
+        "Clinical constraints require a separate return decision first."
+      ],
+      "rationale": "Race specificity commonly rises near important events, but elite sequencing is descriptive and cannot justify last-minute dose transfer. An explicit review makes tradeoffs visible and prevents make-up compression.",
+      "evidence_ids": ["E-PER-03", "E-PER-04", "E-PER-05", "E-RACE-01", "E-RACE-02", "E-TRANS-01"],
+      "source_ids": ["S059", "S060", "S061", "S062", "S063", "S072"],
+      "evidence_certainty": "Moderate for broad sequencing and taper principles; low for exact transition timing",
+      "athlete_applicability": "High as a decision process",
+      "threshold_basis": "No universal minimum preparation weeks or mandatory event-specific session count",
+      "calibration_needed": "Define event-priority semantics, approval behavior, and what preparation prerequisites are represented in athlete state.",
+      "uncertainty": "The best response depends on event priority, current fitness, recent exposure, tolerance, and the cost of changing the active objective.",
+      "review_triggers": [
+        "Event date or priority changes again",
+        "Prerequisite exposure remains missing",
+        "Symptoms or recovery worsen during the transition",
+        "The athlete rejects the proposed tradeoff"
+      ]
+    },
+    {
+      "policy_id": "P023",
+      "title": "Taper by reducing accumulated load while retaining familiar readiness",
+      "decision_question": "How should training change before an important event?",
+      "trigger": [
+        "An important event is close enough that reducing accumulated fatigue may improve performance.",
+        "A block review explicitly transitions into a taper."
+      ],
+      "required_inputs": [
+        "event_date_priority_and_demands",
+        "recent_training_load_and_fatigue",
+        "usual_frequency_and_familiar_intensity_exposures",
+        "previous_taper_response_or_null",
+        "symptoms_recovery_strength_and_logistics",
+        "approved_calendar_version"
+      ],
+      "suggested_action": [
+        "Reduce total training load primarily through volume while retaining small, familiar doses of intensity and usually ordinary movement frequency when tolerated.",
+        "Remove novel or high-cost exposures and avoid trying to create missing fitness.",
+        "Individualize duration and reduction from event demands, recent load, tolerance, and prior response.",
+        "Track symptom stability, subjective freshness, and execution without reacting to one restless or flat day."
+      ],
+      "alternatives": [
+        "Use a shorter or more conservative reduction when recent load is already low.",
+        "Retain only easy movement when symptoms or illness make intensity inappropriate.",
+        "Treat a lower-priority event as a supported exposure rather than creating a full taper."
+      ],
+      "do_not_apply_when": [
+        "There is no important event or no accumulated load to shed.",
+        "The athlete has a clinical or illness constraint requiring different guidance.",
+        "The proposed taper introduces novel fast work, strength, terrain, equipment, or testing."
+      ],
+      "rationale": "Meta-analytic endurance evidence supports tapering through reduced volume with familiar intensity and often frequency maintained. Recreational marathon associations are supportive but cannot establish one optimal duration or percentage.",
+      "evidence_ids": ["E-RACE-01", "E-RACE-02"],
+      "source_ids": ["S062", "S063"],
+      "evidence_certainty": "Moderate for the general strategy; low for an exact individual recipe",
+      "athlete_applicability": "Moderate-high once a real event and recent load are known",
+      "threshold_basis": "No universal taper duration or volume-reduction percentage",
+      "calibration_needed": "Calibrate from event type, recent training, athlete history, current fatigue, and symptom response.",
+      "uncertainty": "Heterogeneity across sports and observational confounding limit precise recreational-running rules.",
+      "review_triggers": [
+        "Event schedule changes",
+        "Symptoms or illness emerge",
+        "The athlete has an adverse or successful taper response to record",
+        "New sport- and population-specific taper evidence"
+      ]
+    }
+  ]
+}
