@@ -142,8 +142,10 @@ def integrate_timer_on(t_s: list[int], timer_on: list[tuple[float, float]],
         if (isinstance(start, bool) or isinstance(end, bool)
                 or not isinstance(start, (int, float)) or not isinstance(end, (int, float))
                 or not math.isfinite(start) or not math.isfinite(end)
-                or start < 0 or end <= start):
+                or start < 0 or end < start):
             raise ValueError('invalid_timer')
+        if end == start:
+            continue
         intervals.append((float(start), float(end)))
     merged: list[tuple[float, float]] = []
     for start, end in sorted(intervals):
