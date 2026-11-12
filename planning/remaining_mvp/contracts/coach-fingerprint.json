@@ -1,0 +1,46 @@
+{
+  "canonical_vector": {
+    "source_versions": {
+      "activities": [],
+      "anchors": [],
+      "block": null,
+      "calendar": 0,
+      "checkins": [],
+      "coverage": [],
+      "goals": [],
+      "history_epoch": null,
+      "operation": "review_rolling_plan",
+      "as_of": "2026-11-16",
+      "profile": {
+        "version": 1,
+        "timezone": "America/New_York"
+      },
+      "recovery": [],
+      "routine": 0,
+      "legacy_checkins": []
+    },
+    "knowledge": {
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "selection": [
+        {
+          "path": "recipes/running_session_families.json",
+          "record_ids": [
+            "REC001"
+          ]
+        }
+      ],
+      "selected_records": [
+        {
+          "path": "recipes/running_session_families.json",
+          "record_id": "REC001",
+          "content": {
+            "recipe_id": "REC001",
+            "title": "Easy"
+          }
+        }
+      ]
+    }
+  },
+  "sha256": "2db7e9a3cc9235f91a5b115aff50c73e6d11f1c4a5159e9ce06d087988f87f5a",
+  "changed_selected_content_sha256": "d5498097fa4465be201a8cc9693e73876d9f9ff261d809a71e70bee8c0245414"
+}

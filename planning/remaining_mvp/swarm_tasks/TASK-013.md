@@ -1,0 +1,42 @@
+# TASK-013 — Add exception check-ins, manual RPE and persisted daily guidance beside legacy flows
+
+Baseline: going-bananas main @ 5ebf981aa4517f4f73f3c97aa5d43232204466ce; manager-supplied dependency-complete gb-mvp1-* tag; planning/remaining_mvp MVP-1.0
+Wave / priority: P0-A; wave 1c (dependency_graph.md).
+Dependencies: TASK-003, TASK-012; TASK-002 delivered
+File ownership: Create backend/app/services/checkins.py, backend/app/services/daily_guidance.py, backend/app/api/checkins.py, backend/tests/unit/test_daily_guidance.py, backend/tests/integration/test_checkins_api.py.
+Forbidden changes: No edits/deletion to legacy services/coaching.py, api/core.py checkins, frontend, main, migrations or installed skill. No coaching activation or automatic calendar changes.
+
+## Objective and observable end state
+An exception check-in can persist deterministic guidance; absence of a check-in does not downgrade a plan. Guidance survives reload. RPE manual source wins while Garmin source remains. Legacy behavior remains usable until068.
+
+## Inputs and fixed contracts
+schemas§§2.2,2.6,3.2,6.1; coaching_contract§7. Permanent routes /v2/checkins GET/POST/PATCH/{id}, /coach/v2/daily GET, /coach/v2/daily/request POST{}, /activities/{id}/rpe PUT, /strength/history/{workout_id}/rpe PUT, /prompts GET, /prompts/{id}/dismiss POST. All new writes require calendar authority; reads remain side-effect-free. Import Checkin/CheckinRevision/SymptomReport/SessionRpe from app.checkin_models and DailyGuidance from app.coach_v2_models. Daily guidance engine local_rules.v2, no calendar mutation. Public services create_checkin(session,body:dict)->tuple[dict,bool], patch_checkin(session,id:UUID,body:dict)->dict, save_manual_rpe(session,*,activity_id:UUID|None=None,strong_workout_id:UUID|None=None,manual_session_id:UUID|None=None,rpe:float,now:datetime)->dict, persist_daily_guidance(session,*,today:date,checkin_id:UUID|None=None,now:datetime)->dict. Services never commit.
+
+## Implementation procedure
+Global lock invariant: every new writer acquires advisory71382413 before app_state FOR UPDATE and before source mutations; never defer advisory until030 after taking app_state. TASK-030 owns coordinated db.bump_data_revision and source-change coalescing (schemas§7.2).
+
+1. Implement CheckinCreate/Patch(extra=forbid), numeric decimal0.1 precision range0..10 (reject >1decimal, NaN/infinity), timezone-aware observed_at, enums/context subset. Validate activity/prompt ownership and followup kind. Idempotency key canonical request SHA including notes/symptom order: exact replay200 returns existing, differing409. New201. Patch snapshots prior full row+symptoms before replace, increments version; absent PATCH fields retained, explicit null clears nullable fields. checkin_revisions keeps full historical payload.
+2. Derive pure frozen DailyInputs(today:date,as_of:date,session_uid:UUID|None,session_kind:str|None,intent:str|None,has_plan:bool,anchor_confirmed:bool,fatigue:float|None,illness:str|None,gait_change:str|None,symptoms:tuple[dict,...],prior_symptoms:tuple[dict,...],clinical_restriction:str|None,legacy_safety_active:bool,missed_committed_runs:int,delayed_symptom_reported:bool). `daily_v2(inputs:DailyInputs)->dict` returns decision,rationale,missing_inputs,coach_review_suggested,trigger_codes,policy_ids,evidence_ids. Policy evidence looked up by `references(policy_ids)->dict` in KB policies JSON using existing validated loader path; do not duplicate stale EVIDENCE constants.
+3. Continuous bands0none,(0,3]mild,(3,6.5)moderate,>=6.5severe; worse only compared with latest same site+side report in prior7days, strictly earlier observed_at (tie recorded_at/id). No prior report→worse false, not improved. Clinical restriction nonblank active. Evaluate branch order: restriction→seek_clinical_input(P018); illnesspresent→seek_clinical_input(P004,P018); legacy_safety_active or gaityes or moderate/severe+worse→seek_clinical_input(P005,P018); worse or moderate/severe→modify(P005,P006,P008); illnesspossible→modify(P001,P004,P013); run quality/long with fatigue>=7 OR mildsymptoms→modify(P001); other run fatigue>=7→modify(P001); otherwiseproceed. If stillproceed and no plan+unconfirmed anchor→modify(P001,P013); if stillproceed and as_of>today→modify(P001). No unknown-input downgrade. No soreness branch because v2 has no soreness input; no P011.
+4. Rationale copy relevant existing daily branch text, remove claims that absence must be reassuring. Missing inputs stable short codes fatigue,illness,gait_change,clinical_restriction,session only when unknown; missing data never fabricatesnegative evidence. Trigger codes: non_proceed,moderate_symptoms,worsening_symptoms,gait_changed,illness_reported,repeated_missed_runs,delayed_symptoms_reported. coach_review_suggested true if any trigger; threshold moderate>3, missed>=2. Route rules never modify plan or create proposal.
+5. Persist only on exception create/PATCH when meaningfully changed, explicit daily/request. No other implicit generation triggers. GET never writes. input_hash hashes semantic inputs+policy evidence/engine, not now/created_at. Unique(today,input_hash) upsert returns same ID on identical request. created_at UTC set on first insert; attach checkin_id and session_uid; newest today ordering created_at,id. No v1 categorical score conversion.
+6. RPE source manual upserts one subject, validates run/Strong existence, records now and delay=max(0,now-end) only when end known (futureend→null), leaves Garminrow intact. GET prompts filters open and opens_at<=now, sorts opens_at desc,id; expired late followup can become answered only by explicitly matching subject/prompt. Dismiss open/expired sets dismissed, same dismissed idempotent; answered dismiss409 prompt_already_answered. Never reopen dismissed prompts. Generator026 owns automatic answering/expiry, not duplicated here.
+7. Return schemas§6 DTOs and full symptom lists; all DB mutations bump data_revision once per logical source change (not replay). Transaction-owned030 hooks derive metrics/prompts. Fixtures use bare app/standard handlers and authoritycalendar; main registration030.
+
+## Tests and expected results
+`cd backend && uv run pytest tests/unit/test_daily_guidance.py`: planned quality+all unknown→proceed; fatigue7→modify; severity3.0mild,3.1moderate,6.4moderate,6.5severe; gaityes beats fatigue, restriction beats everything; isolated absent inputs never downgrade. Same site/side increased within7days→worse; other side/prior8days does not. Review flags/missing codes deterministic.
+`./scripts/with-mode test bash -c 'cd backend && uv run pytest tests/integration/test_checkins_api.py -m integration'`: exact POST replay201/200 sameID, changed payload409; PATCH staleversion409; prior symptom payload archived; mismatched prompt422; expired matching late promptanswered. `test_daily_guidance_upsert_by_input_hash` two identical explicit requests sameID, GET reload sameguidance+created_at, no-checkin GETnull and rowcount0. ManualRPE7 effective overGarmin6.5, both rows retained. Authoritylegacy blocks everynewwrite; oldcheckins untouched.
+
+## Acceptance checklist
+- [ ] Exception-only guidance with no missing-input downgrade.
+- [ ] V2 ID/version/replay/history and prompt matching correct.
+- [ ] Daily reload persistence and manual RPE precedence verified.
+- [ ] No old route/model/UI loss or automatic coaching application.
+
+## Completion report
+List changed paths, exact test commands actually run and their outputs, fixture coverage, remaining device gates and blockers. No real athlete data, invented verification or design essay. Include baseline/runtime tag and resulting schema head when relevant.
+
+## Escalation rule
+If the pinned source or an exported contract differs, STOP with the exact path/signature and a short blocker. Do not invent schema, physiology, DTO, migration, UX, field observation or dependency. Historical handoff notes do not override this packet or schemas §§6–7. Tests use synthetic fixtures and a guarded disposable TEST_DATABASE_URL only; no real-mode startup, live Garmin or athlete DB. Planning approval is required before implementation begins.
+
+Legacy safety continuity: load bounded72h schema1 categorical observations and derive legacy_safety_active exactly schemas§7.3. DailyInputs carries boolean only plus original inputs in hash; severe oldcheckin still yields seek_clinical_input aftercutover. Do not assign numerical severity. Add pure fixture legacy_safety_active true/allv2unknown→seek_clinical_input.

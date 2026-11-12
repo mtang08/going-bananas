@@ -1,0 +1,137 @@
+{
+  "empty_calendar": {
+    "today": "2026-11-16",
+    "timezone": "America/New_York",
+    "start": "2026-11-16",
+    "end": "2026-11-29",
+    "version": 0,
+    "head": 0,
+    "last_planned_date": null,
+    "sessions": [],
+    "completions": [],
+    "undo": null
+  },
+  "volume_all_missing": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "metric_id": "run_volume_frequency",
+    "method_version": "v1",
+    "subject_type": "window",
+    "subject_key": "w7:2026-11-16",
+    "window_start": "2026-11-10T05:00:00Z",
+    "window_end": "2026-11-17T05:00:00Z",
+    "window_label": "w7",
+    "status": "partial",
+    "quality_status": "limited",
+    "unit": null,
+    "reason_codes": [
+      "TIMER_MISSING",
+      "DISTANCE_MISSING"
+    ],
+    "quality_flags": [],
+    "source_refs": {
+      "activity_ids": [
+        "00000000-0000-0000-0000-000000000002"
+      ]
+    },
+    "anchor_keys": [],
+    "calculated_at": "2026-11-16T15:00:00Z",
+    "config_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "anchor_set_hash": null,
+    "dependency_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "timezone": "America/New_York",
+    "is_current": true,
+    "value": {
+      "start_date": "2026-11-10",
+      "end_date": "2026-11-16",
+      "timer_duration_s": null,
+      "distance_m": null,
+      "run_count": 1,
+      "runs_missing_timer": 1,
+      "runs_missing_distance": 1,
+      "previous": {
+        "start_date": "2026-11-03",
+        "end_date": "2026-11-09",
+        "timer_duration_s": 0,
+        "distance_m": 0,
+        "run_count": 0,
+        "runs_missing_timer": 0,
+        "runs_missing_distance": 0,
+        "coverage_complete": true
+      }
+    }
+  },
+  "srpe_all_missing": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "metric_id": "session_rpe_load",
+    "method_version": "v1",
+    "subject_type": "window",
+    "subject_key": "w7:2026-11-16:run",
+    "window_start": "2026-11-10T05:00:00Z",
+    "window_end": "2026-11-17T05:00:00Z",
+    "window_label": "w7",
+    "status": "partial",
+    "quality_status": "limited",
+    "unit": "AU",
+    "reason_codes": [
+      "SESSIONS_WITHOUT_LOAD"
+    ],
+    "quality_flags": [],
+    "source_refs": {
+      "activity_ids": [
+        "00000000-0000-0000-0000-000000000002"
+      ]
+    },
+    "anchor_keys": [],
+    "calculated_at": "2026-11-16T15:00:00Z",
+    "config_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "anchor_set_hash": null,
+    "dependency_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "timezone": "America/New_York",
+    "is_current": true,
+    "value": {
+      "load_au": null,
+      "sessions_total": 1,
+      "sessions_with_rpe": 0,
+      "sessions_without_load": 1,
+      "sessions_missing_duration": 1,
+      "duration_total_s": null,
+      "duration_with_rpe_s": null,
+      "coverage_duration": null,
+      "coverage_sessions": 0
+    }
+  },
+  "rollback_result": {
+    "version": 3,
+    "kind": "rollback",
+    "stale_proposals": [],
+    "preserved_session_uids": [
+      "00000000-0000-0000-0000-000000000002"
+    ]
+  },
+  "structure": [
+    {
+      "type": "warmup",
+      "duration_type": "time",
+      "duration_value": 600,
+      "target": null
+    },
+    {
+      "type": "repeat",
+      "count": 2,
+      "steps": [
+        {
+          "type": "work",
+          "duration_type": "time",
+          "duration_value": 300,
+          "target": null
+        },
+        {
+          "type": "recovery",
+          "duration_type": "time",
+          "duration_value": 120,
+          "target": null
+        }
+      ]
+    }
+  ]
+}

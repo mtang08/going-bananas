@@ -1,0 +1,96 @@
+# TASK-023 — `session_rpe_load.v1` and `symptom_response_timeline.v1` metric modules
+Baseline: going-bananas main @ 5ebf981aa4517f4f73f3c97aa5d43232204466ce + merged dependencies per dependency_graph.md; spec MVP-1.0 planning/remaining_mvp; supplied dependency-complete gb-mvp1-* tag
+Wave / priority: P0-A; wave 2a (dependency_graph.md).
+Dependencies: TASK-011, TASK-013 (and their transitive TASK-002, TASK-003)
+File ownership: create `backend/app/metrics/srpe.py`, `backend/app/metrics/symptoms.py`, `backend/tests/unit/metrics/test_srpe.py`, `backend/tests/unit/metrics/test_symptoms.py`
+Forbidden changes: every other path. In particular `backend/app/metrics/{contract,engine,anchors}.py` (TASK-011), `backend/app/domain/associations.py` (import only), `main.py`, `cli.py`, migrations, models. No new dependency. No recompute wiring (TASK-030).
+
+## Objective and observable end state
+Two registered metrics computing from stored runs, Strong workouts, manual strength sessions, `session_rpe`, check-ins and symptom reports. Examples: a run with timer 2880 s and effective RPE 6 → `load_au=288.0`; a 7-day window with sessions 2880 s/RPE 6, 2820 s/RPE 5, 2400 s/no RPE → `load_au=523.0`, `coverage_duration=0.704`, `coverage_sessions=0.667`, status `partial`, quality `limited`. A run ending 2026-11-15T15:00Z with a check-in at 2026-11-16T23:00Z (site "medial ankle", side left, severity 4, timing `hours_24_48`, gait change yes) → `hours_after_end=32.0`, `max_severity_24_48h=4.0`.
+
+## Inputs and fixed contracts
+- Spec: `metrics.md` §2 (windows, duration = timer time only), §4 `session_rpe_load.v1` (manual > garmin_fit; running and strength tagged separately; P0 strength sRPE only from manual entry) and `symptom_response_timeline.v1` (timing enum; recurrence lookback 28 days); `schemas.md` §2.2 (`checkins`, `symptom_reports`, `session_rpe`: exactly one subject, `UQ(subject, source)`, effective RPE = manual row else garmin_fit), §2.5 (`metric_results`); `architecture.md` §2 (`associations.py` reused by `symptoms.py`).
+- Models (TASK-003): `app.checkin_models.Checkin`, `SymptomReport`, `SessionRpe`; `app.strong_models.StrongWorkoutRow` (`local_date`, `local_start` naive ISO string, `duration_s`, `resolution_state`); `app.models.ManualSession` (`date`, `time`, `kind`, `duration_s`, `linked_activity_id`; strength filter `ManualSession.kind == 'strength'` as at `backend/app/api/core.py:100`).
+- Pinned source: `backend/app/domain/associations.py:7-26` `preceding_sessions(observed_at, sessions: list[dict], timezone_name, hours=72)`; each session dict needs keys `id`, `start_at` (aware), `elapsed_s`, `sport`; it keeps sessions with `0 <= (observed_at − (start_at + elapsed_s)) / 3600 <= hours` and returns them sorted by `elapsed_hours` ascending (most recently ended first). STOP if this differs.
+- TASK-039 DTOs these values feed: `SrpeValue {load_au, sessions_with_rpe, sessions_total, coverage_duration, coverage_sessions}`; `ActivityExecution.rpe {effective, source, manual, garmin_fit, srpe_load_au}`; `LinkedSymptom {checkin_id, observed_at, kind, site, side, severity, timing, hours_after_end}`. Keep these key names exactly; the values below are supersets.
+- Run filter: `activities.sport IN ('running','trail_running','treadmill_running')`; `resolution_state != 'resolved'` excluded (provided by `load_runs`).
+
+### Shared contract (TASK-011; authoritative schemas.md §6)
+Use MetricResultData (MetricResult alias), RunFact/load_runs, coverage_label, integrate_timer_on, config_hash, latest_results, activities_coverage_complete, active_anchors/anchor_set_hash and registry exactly as schemas §6. Integration tuples can have index=None: those portions are unknown. latest_results selects current dependency signatures. All source/dependency provenance is required; engine enriches result identity. No duplicated assumed APIs. Stop on signature mismatch.
+
+### Common metric rules
+Pure arithmetic has explicit inputs/date and no DB/network/clock. ORM compute(session,subject_key) returns list[MetricResultData], registers bare metric_id with method_version='v1'. Constants CONFIG/WINDOW_DAYS/DEPENDS_ON explicit. UUID activity, wN:YYYY-MM-DD window, night:YYYY-MM-DD, session UUID subjects; malformed/unsupported keys ValueError('invalid_subject_key'). Window date bounds inclusive end through utc_date_bounds; current timezone from athlete_tz. Excluded/unresolved activity=>not_applicable ACTIVITY_EXCLUDED; absent/non-run=>[]. Never leave a stale current result (engine invalidates first). metrics §§6–10 are normative for arithmetic, provenance, unknown sums, source coverage, end time, anchors and invalidation. Compute all thresholds before rounding; seconds/meters/AU/bpm/hours1dp, ratios/coverage/speed/CV/change3dp,z2dp. Pure tests only facts; integration tests guarded disposable TEST_DATABASE_URL, fixed clock, no live startup/client. Schema §6 exported signatures take precedence over historical handoff prose.
+
+## Implementation procedure
+### `srpe.py`
+1. Constants: `METRIC_ID="session_rpe_load"`, `WINDOW_DAYS=(7, 14, 28, 56, 84)`, `DEPENDS_ON=()`, `CONFIG={"rpe_precedence": ["manual", "garmin_fit"], "rpe_range": [0, 10], "duration_fields": {"run": "activities.timer_s", "strong": "strong_workouts.duration_s", "manual": "manual_sessions.duration_s"}, "load_formula": "rpe_x_duration_min", "window_days": [7, 14, 28, 56, 84], "strength_sources": ["strong", "manual"]}`.
+2. Subject keys (extend the common rule): run = `str(activity_uuid)`; Strong workout = `strong:<uuid>`; manual strength session = `manual:<uuid>`; window input key = `w{N}:{YYYY-MM-DD}` (regex `^w(\d+):(\d{4}-\d{2}-\d{2})$`, N ∈ `WINDOW_DAYS`). A window key returns exactly two rows with subject keys `w{N}:{as_of}:run` and `w{N}:{as_of}:strength`. Anything else → `ValueError("invalid_subject_key")`.
+3. Frozen dataclass `RpeFact(subject_key: str, kind: str, local_date: date, duration_s: float | None, manual_rpe: float | None, garmin_rpe: float | None, manual_delay_s: int | None, garmin_delay_s: int | None)`; `kind ∈ {"run", "strength"}`.
+4. `effective_rpe(f: RpeFact) -> tuple[float | None, str | None, float | None, int | None, bool]` = `(rpe, rpe_source, other_source_rpe, collection_delay_s, conflict)`: manual present → (`manual_rpe`, `"manual"`, `garmin_rpe`, `manual_delay_s`, conflict); elif garmin present → (`garmin_rpe`, `"garmin_fit"`, None, `garmin_delay_s`, False); else (None, None, None, None, False). `conflict = manual_rpe is not None and garmin_rpe is not None and manual_rpe != garmin_rpe`.
+5. `session_outcome(f: RpeFact) -> dict` → `{"status", "quality_status", "value", "reason_codes", "quality_flags"}`:
+   - `value = {"kind", "duration_s", "duration_min", "rpe", "rpe_source", "other_source_rpe", "collection_delay_s", "load_au"}`; `duration_min = round(duration_s / 60, 1)` or None; `load_au = round(rpe * duration_s / 60, 1)` only when both present and rpe valid, else None. `duration_s` rounded 1 dp.
+   - rpe present and not `0 <= rpe <= 10` → `invalid`, reasons `("RPE_OUT_OF_RANGE",)`, `load_au=None`.
+   - else reasons in order: `RPE_MISSING` if rpe None, `DURATION_MISSING` if duration None; any reason → `missing`; none → `available`. RPE 0 is valid (load 0.0).
+   - Flags: `("RPE_SOURCE_CONFLICT",)` if conflict. Quality: `good` if available and no flags; `limited` if available with flags; None otherwise.
+6. `window_outcome(facts: list[RpeFact], strength_overlap_dates: list[date], coverage_complete:bool) -> dict` (facts already filtered to one kind and to the window): per fact `o = session_outcome(f)`; `sessions_total=len(facts)`; `sessions_with_rpe` = count with `o.value["rpe"]` not None and status != invalid; `duration_total_s` = round(sum of non-None `duration_s`, 1); `duration_with_rpe_s` = round(sum of `duration_s` where `load_au` is not None, 1); `load_au` = known sum (None if sessions exist but none assessable; 0.0 only empty complete window); `coverage_duration = round(duration_with_rpe_s / duration_total_s, 3)` (None if total 0); `coverage_sessions = round(sessions_with_rpe / sessions_total, 3)` (None if 0). Value `{"load_au", "sessions_total", "sessions_with_rpe", "sessions_without_load", "sessions_missing_duration", "duration_total_s", "duration_with_rpe_s", "coverage_duration", "coverage_sessions"}`; sessions_without_load counts load_au None, sessions_missing_duration counts duration_s None. Status `partial` with reasons `("SESSIONS_WITHOUT_LOAD",)` if any session status != available, else `available` (zero sessions = available). Quality: `coverage_label(duration_with_rpe_s, duration_total_s)` (None if total 0). Flags: `("STRENGTH_SOURCE_OVERLAP",)` if `strength_overlap_dates` non-empty.
+7. `compute`:
+   - Run key: `Activity` absent or not a run sport → `[]`; run from `load_runs(session, d, d+1)` (d = local start date in `athlete_tz`); omitted → ACTIVITY_EXCLUDED row. Duration = `timer_s`. RPE rows: `SessionRpe.activity_id == id` by `source`.
+   - `strong:` key: `StrongWorkoutRow` absent → `[]`; `resolution_state != 'resolved'` → ACTIVITY_EXCLUDED row. `local_date` = row value; `window_start` = `datetime.fromisoformat(local_start).replace(tzinfo=athlete_tz)` in UTC; `window_end = window_start + duration_s` or None. RPE rows by `strong_workout_id`.
+   - `manual:` key: `ManualSession` absent, `kind != 'strength'`, or `linked_activity_id` not None → `[]`. `local_date = date`; with `time`: `window_start = combine(date, time, athlete_tz)` in UTC, `window_end` = start + duration or None; without `time`: `(window_start, window_end) = utc_date_bounds(date, date, tz.key)`. RPE rows by `manual_session_id`.
+   - Session rows: `subject_type="activity"`, `window_label=local_date.isoformat()`, `unit="AU"`, `source_refs={"activity_id" | "strong_workout_id" | "manual_session_id": str(id), "session_rpe_ids": [...]}`.
+   - Window key: run facts from `load_runs(session, start, as_of+1)`; strength facts = Strong rows with `resolution_state == 'resolved'` and `local_date` in window, plus manual strength rows (`linked_activity_id IS NULL`) with `date` in window; `strength_overlap_dates` = sorted dates that have both a Strong and a manual strength session (passed only to the strength row). Rows `subject_type="window"`, window bounds per common rules, `unit="AU"`, `source_refs={"subject_keys": [...]}`.
+
+### `symptoms.py`
+8. Constants: `METRIC_ID="symptom_response_timeline"`, `WINDOW_DAYS=(28,)`, `DEPENDS_ON=()`, `LINK_HOURS=48`, `CONFIG={"link_hours": 48, "link_rule": "activity_id_else_associations.preceding_sessions_first", "recurrence_lookback_days": 28, "bucket_0_24": ["during", "immediately_after", "next_morning"], "bucket_24_48": ["hours_24_48"], "bucket_later": ["later"], "unknown_timing_rule": "by_hours_after_end", "site_normalization": "strip_lower", "gait_order": ["yes", "unsure", "no", "unknown"]}`.
+9. `run_end(start_at, end_at, timer_s) -> tuple[datetime | None, bool]` = (end_at,False) if known else (None,True). Timer duration never substitutes actual end.
+10. Exported `linked_activity_for_checkin(session, checkin) -> UUID | None` (TASK-030 imports it): `checkin.activity_id` if not None; else `d = local date of observed_at`; `runs = load_runs(session, d − 3 days, d + 1 day)` filtered to known end, sorted end descending then UUID ascending; dicts `{"id": r.activity_id, "start_at": r.start_at, "elapsed_s": (run_end(...)[0] − r.start_at).total_seconds(), "sport": r.sport}`; `hits = preceding_sessions(checkin.observed_at, dicts, tz.key, hours=LINK_HOURS)`; return `UUID(hits[0]["activity_id"])` or None.
+11. Frozen dataclass `ReportIn(checkin_id: str, observed_at: datetime, kind: str, gait_change: str | None, site: str, side: str, severity: float, timing: str)`; `CheckinIn(checkin_id: str, observed_at: datetime, kind: str, gait_change: str | None, reports: list[ReportIn])`.
+12. `bucket(timing: str, hours: float | None) -> str` ∈ `0_24|24_48|later|unknown`: timing in the CONFIG lists; unknown timing with hours None=>unknown; otherwise `unknown` → `hours < 24` → `0_24`, `24 <= hours <= 48` → `24_48`, else `later`.
+13. `activity_outcome(end: datetime | None, end_unknown: bool, checkins: list[CheckinIn]) -> dict` (checkins sorted by `(observed_at, checkin_id)`):
+   - No check-ins → `missing`, reasons `("NO_LINKED_CHECKIN",)`, value None, quality None, flags `END_TIME_UNKNOWN` if end_unknown.
+   - Else `available`; `reports` = one dict per report in check-in order then report order: `{"checkin_id", "observed_at" (ISO), "kind", "site", "side", "severity", "timing", "gait_change", "hours_after_end": round((observed_at − end)/3600, 1)}` (`site` as stored).
+   - `sites`: group by `(site.strip().lower(), side)`, sorted by that key; each `{"site", "side", "max_severity_0_24h", "max_severity_24_48h", "latest_severity", "latest_observed_at", "first_report_hours_after_end"}` — maxima over reports in that bucket (None if none), latest = last report by observed_at.
+   - `gait_change` = first present in order `yes`, `unsure`, `no` over check-ins; `unknown` if all None.
+   - `delayed_followup_answered` = any check-in kind `delayed_followup`.
+   - Value `{"activity_end_at", "delayed_followup_answered", "reports", "sites", "gait_change"}`. Flags in order: `END_TIME_UNKNOWN`, `DELAYED_FOLLOWUP_MISSING` (if not answered). Quality `good` if no flags else `limited`. No score or composite key.
+14. `window_outcome(checkins: list[CheckinIn], tz: ZoneInfo) -> dict` (check-ins with local observed date in window): none → `missing`, `("NO_CHECKINS_IN_WINDOW",)`, value None. Else `available`, quality None, value `{"checkin_count", "sites"}`; `sites` grouped and sorted as step 13: `{"site", "side", "report_count", "recurrence_days" (distinct local dates with severity > 0), "max_severity", "latest_severity", "latest_timing", "gait_change_reported" (any containing check-in has `gait_change == "yes"`)}`.
+15. `compute`: activity key → run/exclusion per common rules; `end, unknown = run_end(...)`; candidates = check-ins with `activity_id == id`, plus check-ins with `activity_id IS NULL` and known end and `end <= observed_at <= end + 48 h` whose `linked_activity_for_checkin` is this id; load their `SymptomReport`s; row `unit=None`, `source_refs={"activity_ids": [id], "checkin_ids": [...]}`. `w28:` key → all check-ins with local observed date in `[as_of−27, as_of]`; `source_refs={"checkin_ids": [...]}`. Severities stored as `float` 1 dp.
+
+## Missing/coverage reconciliation
+Window function additionally accepts coverage_complete:bool. metrics §6 null/empty/partial rules apply to load and duration subtotals; missing duration=>coverage_duration None, quality from session coverage capped limited. Strong coverage follows resolved import coverage, manual-only sessions are known records; unresolved overlap remains explicit STRENGTH_SOURCE_OVERLAP. Unknown end still includes explicitly linked checkins; no inferred association. activity_outcome accepts end:datetime|None and reports hours None without arithmetic on None. All thresholds compare unrounded values.
+
+## Tests and expected results
+- `test_all_rpe_missing`: two3000s runs,no RPE =>load None,coverage_sessions0,coverage_duration0,status partial. `test_unknown_duration`: oneRPE5/durationNone =>load None,coverage_duration None,partial.
+- `test_unknown_end`: timer3000/endNone=>endNone, no inferred association; explicitly linked unknown-timing report hoursNone,bucketunknown.
+
+Build dataclasses directly; no DB. `test_srpe.py`:
+- `test_run_load_288`: run 2880 s, manual None, garmin 6 → available, `load_au=288.0`, `duration_min=48.0`, `rpe_source="garmin_fit"`, quality good.
+- `test_manual_wins_conflict`: manual 5, garmin 6 → `rpe=5`, `rpe_source="manual"`, `other_source_rpe=6`, flags `["RPE_SOURCE_CONFLICT"]`, quality limited.
+- `test_rpe_zero_valid`: rpe 0, 3000 s → available, `load_au=0.0`.
+- `test_rpe_missing` → missing `["RPE_MISSING"]`, `load_au=None`; `test_duration_missing` → missing `["DURATION_MISSING"]`; `test_rpe_out_of_range` (11) → invalid `["RPE_OUT_OF_RANGE"]`.
+- `test_window_523`: 2880/6, 2820/5, 2400/None → `load_au=523.0`, `sessions_total=3`, `sessions_with_rpe=2`, `duration_total_s=8100.0`, `duration_with_rpe_s=5700.0`, `coverage_duration=0.704`, `coverage_sessions=0.667`, partial `["SESSIONS_WITHOUT_LOAD"]`, quality limited.
+- `test_window_empty` → available, `load_au=0.0`, coverages None, quality None.
+- `test_strength_overlap_flag`: overlap date list non-empty → flags `["STRENGTH_SOURCE_OVERLAP"]`.
+- `test_parse_keys`: `"w7:2026-11-15"`, `"strong:<uuid>"`, `"manual:<uuid>"` accepted; `"w9:2026-11-15"`, `"strong:x"` → `ValueError`.
+`test_symptoms.py`:
+- `test_hours_and_bucket_24_48`: end 2026-11-15T15:00Z; check-in 2026-11-16T23:00Z, site " Medial Ankle ", left, 4.0, `hours_24_48`, gait yes → report `hours_after_end=32.0`; site `"medial ankle"`, `max_severity_24_48h=4.0`, `max_severity_0_24h=None`; `gait_change="yes"`; flags `["DELAYED_FOLLOWUP_MISSING"]`.
+- `test_unknown_timing_dst`: end 2026-10-31T23:00Z, report 2026-11-02T00:30Z timing unknown → `hours_after_end=25.5`, bucket `24_48`.
+- `test_a12_timeline_immediate_and_24h` (`acceptance.md` §1.2 A12): post_run check-in 1 h after end with `immediately_after` severity 3, delayed_followup check-in 30 h after end with `hours_24_48` severity 4, same site/side → 2 reports with timings `["immediately_after", "hours_24_48"]`; `max_severity_0_24h=3.0`, `max_severity_24_48h=4.0`; `delayed_followup_answered=True`; flags `[]`; value has no key containing `score`.
+- `test_no_checkin_missing` → missing `["NO_LINKED_CHECKIN"]`. `test_end_unknown_flag`: `run_end(start, None, None)` → `(None, True)`; flag `END_TIME_UNKNOWN` first.
+- `test_gait_precedence`: gait values [no, unsure] → `unsure`; [None] → `unknown`.
+- `test_window_recurrence`: three check-ins on local dates 11-01, 11-01, 11-05 with "PTT" left severities 2, 0, 3 → `report_count=3`, `recurrence_days=2`, `max_severity=3.0`, `latest_severity=3.0`; empty list → missing `["NO_CHECKINS_IN_WINDOW"]`.
+- `test_preceding_link_window`: call `associations.preceding_sessions` with two run dicts (ended 10 h and 30 h before the check-in) → first hit is the 10 h run; a run ended 49 h before → no hit (pins the reuse contract).
+Command: `cd backend && uv run pytest tests/unit/metrics/test_srpe.py tests/unit/metrics/test_symptoms.py -q` → all pass; `uv run ruff check app/metrics tests/unit/metrics && uv run mypy app --ignore-missing-imports` → clean.
+
+## Acceptance checklist
+- [ ] Only the four owned files exist/changed; `git diff --stat` shows nothing else.
+- [ ] Both modules register via `@register` and export the constants above with the exact CONFIG literals; `linked_activity_for_checkin` is exported.
+- [ ] Duration is `timer_s` / `duration_s` only; no use of `elapsed_s` or `moving_s` for load.
+- [ ] Missing RPE or duration gives `None`, never 0; RPE 0 gives load 0.0.
+- [ ] All listed tests pass with the exact numbers; `make check` green.
+
+## Completion report
+Task ID, branch, status; changed files; commands run with pass/fail; each acceptance item; blockers.
+
+## Escalation rule
+If an exact file/function/contract differs from the pinned source or a requirement is underspecified, STOP and return a short blocker. Do not invent a new schema, behavior, dependency, UX, or alternative implementation.

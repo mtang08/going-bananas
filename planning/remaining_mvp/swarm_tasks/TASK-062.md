@@ -1,0 +1,90 @@
+# TASK-062 — Snapshot assembler: per-operation projections, safety facts, KB trigger table
+
+Baseline: going-bananas main @ 5ebf981aa4517f4f73f3c97aa5d43232204466ce + merged dependencies per dependency_graph.md; spec planning/remaining_mvp MVP-1.0; use supplied dependency-complete gb-mvp1-* runtime tag
+Wave / priority: P0-B; wave 8 (dependency_graph.md).
+Dependencies: TASK-060, TASK-061; all earlier DAG dependencies remain required.
+File ownership: create `backend/app/services/snapshot.py`, `backend/tests/unit/test_snapshot.py`
+Forbidden changes: all other files (no CLI, no routes, no `knowledge.py`/`proposals.py` edits). No migrations, no new dependencies.
+
+## Objective and observable end state
+`build_snapshot(session, "review_rolling_plan", as_of, now=...)` persists one `coach_snapshots` row and returns `{snapshot_id, payload, kb:{package_version, excerpts}, approx_tokens}`; two calls with unchanged data give equal `payload_sha256`. Pure helpers produce the `schemas.md` §4.1 projection and the `coaching_contract.md` §6.4 conditional topics.
+
+## Inputs and fixed contracts
+- `schemas.md` §4.1 (projection table), §2.2–2.6 (source tables), §5 (`coach snapshot` output); `coaching_contract.md` §2 (scopes), §6.4 (trigger table), §6.5 (recipes); `architecture.md` §5 (no notes, no streams, no coordinates).
+- Reuse: `app.services.knowledge.load_route, KbBundle, CONDITIONAL_TOPICS` (TASK-060); `app.services.proposals.QUALITY_RECIPES, LONG_RECIPE, is_quality_slot, scope` (TASK-061); `app.services.timezone.athlete_tz, local_date`; `app.api.core.coverage(session, start, end)`; models from TASK-003.
+- Safety contract shared with TASK-061: `payload["snapshot_meta"]["safety_guard"] = {"window_hours": 72, "gait_change_yes": bool, "max_symptom_severity": float|None, "illness_present": bool, "clinical_restriction_active": bool,"legacy_safety_active":bool}`.
+- Metric ids (no `.vN` suffix, `method_version` separate): `run_volume_frequency`, `long_run_exposure`, `session_rpe_load`, `intensity_time_distribution`, `hard_session_spacing`, `work_interval_execution`, `recovery_multisignal_summary`. Window rows: `subject_type="window"`, `subject_key=f"w{N}:{as_of.isoformat()}"`. Night rows: `subject_type="night"`, `subject_key` = ISO date. Recovery `value` keys `flags` (list) and `discordance` (bool) (`acceptance.md` §4). If merged TASK-011/02x code uses different ids/keys, STOP.
+
+## Implementation procedure
+1. Constants: `RUN_SPORTS = {"running", "trail_running", "treadmill_running"}` (canonical values in `adapters/garmin/normalize.py`); `DRILL_DOWN_QUERIES = ["activity_execution", "long_run_history", "recovery_nights", "calendar_diff", "explain_metric"]`; `DATASETS = ("activities", "sleep", "hrv", "resting_hr")`; `SNAPSHOT_SCHEMA = "coach_snapshot.v1"`; op aliases `DAILY, ROLLING, QUALITY_OP, BLOCK, CALIB, RACE` = the six keys.
+2. `@dataclass SnapshotInputs` (plain JSON-safe values; dates as `date`, instants as aware `datetime`): `as_of, now, timezone: str, calendar_version: int|None, data_revision: int, cycle_anchor: date|None, anchor_confirmed: bool, clinical_restriction: str|None` (`profile.facts.get("clinical_restriction")`), and lists of dicts:
+   - `sessions` (state at head): `session_uid, revision, local_date, slot, kind, recipe_id, custom, intent, certainty, planned_duration_s, planned_distance_m, structure, strength_slot_id`
+   - `completions`: `session_uid, status, activity_id, strong_workout_id`
+   - `strength_slots` (active only): `slot_id, label, default_weekday, lower_body_cost, typical_duration_s, main_lower_body_lifts`
+   - `strong_workouts`: `strong_workout_id, local_date, workout_name, duration_s, rpe`
+   - `goals` (status `active`): `goal_id, text, horizon, priority, status`; `events`: `event_id, name, event_date, distance_m, priority, status, result_s`
+   - `active_block`: dict of all `block_versions` columns + `block_uid, version_id` or `None`; `block_decisions`: `decision, from_version, to_version, rationale, confidence, decided_at, proposal_id, block_uid`
+   - `runs`: `activity_id, local_date, sport, timer_s, distance_m, rpe, rpe_source` (effective RPE: `manual` row else `garmin_fit`, `metrics.md` §4)
+   - `checkins`: `checkin_id, kind, observed_at, local_date, fatigue, illness, gait_change, activity_id, symptoms: [{site, side, severity, timing}]` (never `note`)
+   - `legacy_checkins`: original app.models.Checkin schema1 projection from061 collector, bounded now−72h<=observed_at<=now; exact fields schema_version,id,version,observed_at,activity_id,symptoms,change,gait,feeling,effort,severity_numeric:null. Never note or guessed numeric severity.
+   - `prompts`: `prompt_id, kind, activity_id, status, opens_at, closes_at`
+   - `metric_results`: `result_id, metric_id, method_version, subject_type, subject_key, window_label, status, quality_status, value, unit, reason_codes, quality_flags, anchor_keys, calculated_at`
+   - `anchors`: `anchor_key, kind, value_low, value_high, unit, protocol, confidence, status, calibrated_at, valid_from, review_after, supersedes_key`
+   - `proposals` (newest first, max 20, status ≠ `invalid`): `proposal_id, operation, status, submitted_at, decided_at, summary, follow_up, changes: [{change_id, op, session_uid, decision, before, after}]`
+   - `coverage`: output rows of `app.api.core.coverage(session, as_of - 120 d, as_of)`.
+3. `load_inputs(session, as_of, *, now) -> SnapshotInputs`: query original app.models.Checkin using061 exact legacy projection in the inclusive72h UTC window (not the120day v2 list);  one query per list; lookback 120 days before `as_of` for runs, strong workouts, check-ins, prompts, metric results; sessions = state at head (same DISTINCT ON query as `proposals.load_context`) restricted to `as_of-28 … as_of+13`; events with `event_date >= as_of-28`; all anchors; all `block_decisions`.
+4. `build_payload(inputs, operation) -> dict` (pure). Every operation includes `legacy_checkins` categorical schema1 records, bounded72h and separate from numeric v2 checkins; empty list explicit. No row in this list implies a numeric severity.  For other sections include only those the §4.1 column marks for the operation ("–" → key absent). Lists sorted by date/time ascending unless stated. Day windows are inclusive local dates `[as_of-(N-1), as_of]`.
+   - `snapshot_meta`: `{schema_version, operation, as_of, timezone, calendar_version, block_version_id, data_revision, scope: {start, end}` (`proposals.scope`)`, safety_guard}` — no snapshot id, no generated_at (keeps the hash stable). `safety_guard` from check-ins with `now-72h <= observed_at <= now`: any `gait_change == "yes"`; max symptom severity or None; any `illness == "present"`; `clinical_restriction_active = bool(clinical_restriction and clinical_restriction.strip())`; legacy_safety_active follows061 categorical predicate over inputs.legacy_checkins.
+   - `goals_and_constraints`: full = `{goals, events, strength_routine, latest_strong_sessions, run_cycle: {anchor_date, confirmed}, clinical_restriction}`; daily = only `strength_routine, latest_strong_sessions, run_cycle, clinical_restriction`. `latest_strong_sessions` = 2 most recent strong workouts `{local_date, workout_name, duration_s}`.
+   - `calendar`: `{head, start, end, sessions}`; window daily `as_of-3…as_of+3`, rolling/quality `as_of-14…as_of+13`, block `as_of-28…as_of+13`, race `as_of…as_of+13`. Session view = input keys + `is_original` (`revision == 1`) + `completion_status` (matching completion or None).
+   - `block`: no active block → `None` (block op: `{"active": None, "history": [...]}`). Daily `{block_uid, version_id, objective}`; calibration `{objective}`; rolling/quality/race all version columns + ids; block op `{"active": <all columns>, "history": <block_decisions of that block_uid, decided_at asc>}` (no active block → all decisions).
+   - `completed_exposures`: `{window_days, runs, lifts}`; daily 3, rolling/quality/race 14, block 28 days; calibration: runs only, 84 days, only runs whose linked session recipe ∈ {REC003, REC004, REC005, REC009}. Run view = input keys + `session_uid, planned_recipe_id, completion_status` (via `completions.activity_id`) + `class`: `long` if planned recipe REC002, `quality` if in `QUALITY_RECIPES`, `easy` if another recipe, `unplanned` if not linked. Lift view = strong workout input keys.
+   - `load_shape`: metric views with `subject_type == "window"` and `subject_key` in `{f"w{N}:{as_of}"}` for N: daily [7]; rolling/quality/race [7, 14, 28]; block [7, 14, 28, 56, 84].
+   - `execution`: `work_interval_execution` views whose `subject_key` is a run `activity_id` in window: daily latest 1, rolling/quality 14 d, block 28 d, calibration 84 d.
+   - `symptoms`: `{window_days, reports: [{checkin_id, observed_at, local_date, kind, site, side, severity, timing, activity_id}], delayed_responses: [delayed_symptom prompts opened in window]}`; daily 14, rolling/quality/race 28, block: since active block `start_date` (28 if none).
+   - `recovery`: `recovery_multisignal_summary` night views, nights `as_of-2…as_of` (daily), 14 (rolling/quality), 28 (block).
+   - `anchors`: daily/rolling/quality/race `status == "active"`; block/calibration all (history).
+   - `prior_decisions`: daily 3 newest proposals; rolling/quality 2 newest `review_rolling_plan` proposals with status ∈ {accepted, partially_accepted, rejected}; block = `block_decisions`; calibration = all anchors; race absent. Proposal change view adds `outcome` for accepted changes with `session_uid`: `{session_date (after.local_date else before.local_date), completion_status, symptom_reports_after: reports with local_date in [session_date, session_date+3]}`.
+   - `data_quality`: per dataset `fresh_through` = max `end_date` of coverage rows with `status == "complete"`; status `missing` if none, `stale` if `fresh_through < as_of-2`, else `fresh`; `flags` = sorted `f"{dataset}_{status}"` for non-fresh, plus `no_intensity_anchor` if no active anchor, `no_active_block` if none.
+   - `drill_down_queries`: `DRILL_DOWN_QUERIES`.
+   Views are whitelists: copy only the listed keys (vendor fields such as `vo2max`, `training_status`, `body_battery`, readiness never pass through).
+5. `select_conditional_topics(inputs, operation) -> list[str]` in `CONDITIONAL_TOPICS` order; "scope sessions" = sessions dated in `proposals.scope(operation, as_of)`; symptom window/recovery window as in step 4 (calibration and race: 14 days):
+   1. ptt: any symptom report in window, or a `delayed_symptom` prompt with status `answered` in window.
+   2. recovery: any recovery view in window with non-empty `value["flags"]` or `value["discordance"] is True`, or any check-in in window with illness ∈ {possible, present}.
+   3. hybrid: any strength session whose slot `lower_body_cost` ∈ {moderate, high} dated within 2 days (|Δ| ≤ 2) of a scope run session.
+   4. long_runs: op ∈ {rolling, block} and a scope run session has `recipe_id == "REC002"`.
+   5. aerobic: op ∈ {rolling, block}.
+   6. intensity_and_workout_methods: any scope session `is_quality_slot`.
+   7. intensity_calibration: op calibration, or (an active anchor with confidence ∈ {low, insufficient} and a scope session with recipe in `QUALITY_RECIPES` whose `structure` has a step with `target.modality` ∈ {speed, hr}).
+   8. periodization: op ∈ {block, race}. 9. races_tapers: op race.
+6. `select_recipe_ids(inputs, operation) -> list[str]`: sorted unique non-null `recipe_id` of scope run sessions; only when `operation in ('review_rolling_plan', 'select_quality_session')` and a scope session is a quality slot (quality recipe or `placeholder = true`), also add the active block's `eligible_recipe_ids`, or `QUALITY_RECIPES` when no block (amendment A16: daily never receives candidate recipe lists).
+7. `build_snapshot(session, operation, as_of, *, now, kb_root=None) -> dict`: `inputs = load_inputs(...)`; `payload = build_payload(...)`; `bundle = load_route(operation, recipe_ids=..., conditional_topics=..., root=kb_root)`; `kb = VerifiedKnowledge(**verify_selection(tuple(bundle.routes),root=kb_root))`; `decision = collect_decision_inputs(session,operation,as_of,now=now,kb=kb)`; set payload.legacy_checkins=decision.source_versions.legacy_checkins; set payload.snapshot_meta.source_fingerprint=decision.source_fingerprint, source_versions=decision.source_versions, safety_guard=decision.safety_guard, knowledge={digest:kb.digest,selected_records:kb.selected_records} (let `KnowledgeIntegrityError` propagate; write nothing); `payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str, ensure_ascii=False)`; `approx_tokens = math.ceil((len(payload_json) + bundle.chars) / 4)`; insert `CoachSnapshot(operation, as_of, generated_at=now, calendar_version_number, block_version_id, data_revision, payload, payload_sha256=sha256(payload_json), kb_package_version, kb_routes=list(kb.selection),kb_digest=kb.digest,source_fingerprint=decision.source_fingerprint,source_versions=decision.source_versions,approx_tokens)`; flush; do not bump `data_revision`, do not commit. Return `{"snapshot_id": str(row.id), "payload": payload, "kb": {"package_version": bundle.package_version, "excerpts": [e.to_json() for e in bundle.excerpts]}, "approx_tokens": approx_tokens}`.
+
+## Tests and expected results
+`backend/tests/unit/test_snapshot.py`, no DB: build `SnapshotInputs` inline with a helper `inputs(**overrides)`; `AS_OF = date(2026,11,16)`, `NOW = datetime(2026,11,16,15,tzinfo=UTC)`, timezone `America/New_York`, anchor 2026-11-16 confirmed, head 7. Names marked * are binding (`acceptance.md` §4).
+- `test_daily_route_minimal_c26`* : sessions T REC001, T+2 REC001 (no quality slot), one strength slot `lower_body_cost="low"` with sessions T+1, T+5; no symptoms/recovery flags. `select_conditional_topics` → `[]`; `select_recipe_ids` → `["REC001"]`; `load_route` with those → excerpt paths ⊆ {`COACHING_GUIDE.md`, `workflows/daily_recommendation.md`, both policy files, `recipes/running_session_families.json`}; policy record ids == `POLICY_MAP["proceed_or_modify_today"]`; no path in the manifest's `avoid_routinely` for the route; `ceil((len(payload_json) + bundle.chars)/4) <= 6000` (KB part alone is 5,030; if the total exceeds 6,000, STOP and report the number — do not trim the payload).
+- `test_strength_trigger_adds_hybrid_topic`* : same as above but slot cost `moderate` → topics `== ["topics/hybrid_strength_and_scheduling.md"]` and that path appears in `load_route(...)` excerpts.
+- `test_block_projection_includes_history`* : op block, active block (objective "Aerobic base", start 2026-10-19), two decisions (`start` 2026-10-19, `continue` 2026-11-09) → `payload["block"]["active"]["objective"] == "Aerobic base"`, history decisions `["start", "continue"]`, `prior_decisions` length 2; `payload["load_shape"]` filter uses N ∈ {7,14,28,56,84}.
+- `test_payload_size_bounded_by_projection`* : op rolling; A = one run every second day for 28 days; B = A + runs every second day for the prior 337 days → `len(payload_json)` of B within 5% of A (in fact equal).
+- `test_no_vendor_scores_in_payload`* : run and metric input dicts carry extra keys `vo2max`, `training_status`, `body_battery`, `readiness_score` → walking every key of every op's payload finds none containing `vo2max`, `training_status`, `body_battery`, `readiness`.
+- `test_data_quality_flags_stale_dataset`* : coverage `activities` complete through 2026-11-11, `sleep` through 2026-11-15, nothing for `hrv`/`resting_hr` → statuses stale/fresh/missing/missing; `flags == ["activities_stale", "hrv_missing", "no_active_block", "no_intensity_anchor", "resting_hr_missing"]`.
+- `test_safety_guard_window`: check-in `NOW-71h` gait `yes`; check-in `NOW-73h` severity 8.0 → `gait_change_yes is True`, `max_symptom_severity is None`.
+- `test_prior_decisions_include_outcomes`: op rolling; proposal `partially_accepted`, change c1 accepted (session T-3), c2 rejected; completion `completed_as_planned` for that session; symptom report local date T-2 severity 2 → c1 `outcome.completion_status == "completed_as_planned"`, one report; c2 has no `outcome`.
+- `test_projection_sections_per_operation`: for each op the payload key set equals §4.1 (calibration lacks `goals_and_constraints`, `calendar`, `load_shape`, `symptoms`, `recovery`; race lacks `execution`, `recovery`, `prior_decisions`).
+Commands: `cd backend && uv run pytest tests/unit/test_snapshot.py -q`; `make check`. `load_inputs`/`build_snapshot` DB paths are exercised by TASK-064 integration tests.
+
+## Acceptance checklist
+- [ ] All 9 tests pass; binding names present verbatim; `make check` green.
+- [ ] No payload contains `note`, `notes`, stream arrays, coordinates, or snapshot id/generated_at inside `payload`.
+- [ ] Only the two owned files changed.
+
+## Completion report
+Changed files; pytest + `make check` output; the C26 measured `approx_tokens`; blockers.
+
+## Escalation rule
+If an exact file/function/contract differs from the pinned source or a requirement is underspecified, STOP and return a short blocker. Do not invent a new schema, behavior, dependency, UX, or alternative implementation.
+
+## Decision-source fingerprint
+Import VerifiedKnowledge and collect_decision_inputs from TASK061 decision_inputs.py; import verify_selection from060. Use one object from the saved selection for payload, persisted metadata and source fingerprint. Never reconstruct an incomplete digest-only vector. Existing payload/source stability and privacy tests include changed selected-record content, unchanged proposal/derived-only writes and the static contracts/coach-fingerprint.json vector.
+
+Compatibility tests: recent schema1 severe/gaitaffected/moderate+worse survives068 import and appears exactly once in every operation snapshot, legacy_safety_active true; severity_numeric null; raw categorical spelling/version preserved. At72h+epsilon excludes it; future observation excluded; note canary absent. Recent schema1 feedback changes fingerprint and blocks an increase at acceptance without a calendar-head change. No heuristic conversion to v2 severity/fatigue/illness fields.
