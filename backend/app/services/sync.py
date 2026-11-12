@@ -36,6 +36,7 @@ from app.models import (
 
 PARSER_VERSION = "garmin-personal-v1"
 ADVISORY_LOCK = 837150921
+GLOBAL_WRITE_LOCK = 71382413
 
 
 def _required[T](value: T | None) -> T:
@@ -251,6 +252,7 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
         raise ValueError("invalid_account_scope")
     if not records:
         return {"seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
+    session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": GLOBAL_WRITE_LOCK})
     if timezone is None:
         timezone = athlete_tz(session)
     if source_kind == "garmin_api" and records:
@@ -341,6 +343,8 @@ def import_recovery_page(session: Session, private_dir: Path, dataset: str,
         raise ValueError("raw_record_count_mismatch")
     if source_metadata is not None and len(source_metadata) != len(records):
         raise ValueError("source_metadata_count_mismatch")
+    if records:
+        session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": GLOBAL_WRITE_LOCK})
     counts = {"seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
     owners = {item.get("userProfilePK", item.get("userProfilePk")) for item in records
               if isinstance(item, dict) and type(item.get("userProfilePK", item.get("userProfilePk"))) is int}
