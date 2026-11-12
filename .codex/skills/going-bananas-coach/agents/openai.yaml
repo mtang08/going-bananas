@@ -1,0 +1,4 @@
+interface:
+  display_name: "Going Bananas Coach"
+  short_description: "Review training and propose changes for approval"
+  default_prompt: "Use $going-bananas-coach to review my current training and prepare a changeset for me to review in the app."
