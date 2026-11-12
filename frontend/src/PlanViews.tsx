@@ -36,7 +36,7 @@ function diffLabel(value: Prescription | null) {
   return value ? [value.intent, prescriptionLabel(value), value.intensity].filter(Boolean).join(' · ') || 'Dated session' : 'No dated prescription'
 }
 
-export function AgentPlanHistory() {
+export function AgentPlanHistory({readOnly=false}: {readOnly?:boolean}) {
   const qc = useQueryClient()
   const [selected, setSelected] = useState<{id: string; expectedRevision: string | null} | null>(null)
   const [reason, setReason] = useState('')
@@ -64,8 +64,8 @@ export function AgentPlanHistory() {
       {!item.diff.length && <p>Existing prescription confirmed; no session changes.</p>}
       {item.source_ids.length > 0 && <p className="fineprint">Research records: {item.source_ids.join(', ')}</p>}
       <p className="fineprint">Saved {new Date(item.created_at).toLocaleString()} · {item.engine || 'codex_skill.v1'}</p>
-      {item.id === (data.revertible_revision_id === undefined ? data.current_revision_id : data.revertible_revision_id) && item.diff.length > 0 && <button className="button" disabled={rollback.isPending} onClick={() => {setSelected({id: item.id, expectedRevision: data.current_revision_id}); setReason(''); rollback.reset()}}>Undo this revision</button>}
-      {selected?.id === item.id && <div className="link-box"><p>Restore the previous future prescription. Completed and locked sessions remain protected. This creates a new revision.</p>{selected.expectedRevision !== data.current_revision_id && <p role="alert" className="error-text">The plan changed. Review the latest decisions and reopen undo before continuing.</p>}<label className="field">Reason for undoing<textarea value={reason} onChange={e => setReason(e.target.value)} minLength={5} maxLength={2000}/></label><div className="coach-actions"><button className="button" disabled={rollback.isPending || reason.trim().length < 5 || selected.expectedRevision !== data.current_revision_id} onClick={() => rollback.mutate(selected)}>Confirm rollback</button><button className="text-button" onClick={() => setSelected(null)}>Cancel</button></div>{rollback.error && <p role="alert" className="error-text">{rollback.error.message}</p>}</div>}
+      {!readOnly && item.id === (data.revertible_revision_id === undefined ? data.current_revision_id : data.revertible_revision_id) && item.diff.length > 0 && <button className="button" disabled={rollback.isPending} onClick={() => {setSelected({id: item.id, expectedRevision: data.current_revision_id}); setReason(''); rollback.reset()}}>Undo this revision</button>}
+      {!readOnly && selected?.id === item.id && <div className="link-box"><p>Restore the previous future prescription. Completed and locked sessions remain protected. This creates a new revision.</p>{selected.expectedRevision !== data.current_revision_id && <p role="alert" className="error-text">The plan changed. Review the latest decisions and reopen undo before continuing.</p>}<label className="field">Reason for undoing<textarea value={reason} onChange={e => setReason(e.target.value)} minLength={5} maxLength={2000}/></label><div className="coach-actions"><button className="button" disabled={rollback.isPending || reason.trim().length < 5 || selected.expectedRevision !== data.current_revision_id} onClick={() => rollback.mutate(selected)}>Confirm rollback</button><button className="text-button" onClick={() => setSelected(null)}>Cancel</button></div>{rollback.error && <p role="alert" className="error-text">{rollback.error.message}</p>}</div>}
     </details>)}
   </div>
 }

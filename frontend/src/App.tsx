@@ -146,7 +146,7 @@ export function App() {
       {page === 'history' && <History unit={unit} onCheckin={() => openCheckin()}/>}
       {page === 'strength' && <Strength/>}
       {page === 'settings' && <PlanningSettings unit={unit} setUnit={setUnit} onCheckin={openCheckin}/>}
-      {page === 'coach' && <Coach onCheckin={() => openCheckin()} onSetup={() => navigate('settings')}/>}
+      {page === 'coach' && <Coach readOnly onCheckin={() => openCheckin()} onSetup={() => navigate('settings')}/>}
     </>}
     <footer className="footer">Local training record · {modeLabel(mode)} · metrics are descriptive</footer>
   </div>{checkinOpen && workspaceReady && authority && (authority === 'calendar'

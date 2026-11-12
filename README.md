@@ -241,9 +241,10 @@ exports the legacy format. Restore only into a new target; commands are in [oper
 The reviewed `running_coach_kb/` loads selectively: guide, requested workflow,
 and relevant topics/policies/sources. The AI coach must distinguish observed
 response, research, and athlete-specific inference, cite actual evidence, and
-state uncertainty. Existing average HR and whole-run pace/distance/time support
-P0 decisions; they do not establish intrarun zones, drift, interval structure,
-or route/weather-adjusted adaptation. No model or wearable can diagnose or
+state uncertainty. Summary-only records do not establish intrarun zones, drift,
+or interval structure. FIT-based detail is available where verified streams,
+workout matching, and calibration support it; route/weather adjustment remains
+outside this MVP. No model or wearable can diagnose or
 provide an injury guarantee. See [research scope](docs/research-integration.md),
 [contracts](docs/contracts.md), [P0 implementation](docs/p0-implementation.md),
 [release evidence](docs/release-checklist.md), and [handoff](docs/handoff.md).

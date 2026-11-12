@@ -46,7 +46,7 @@ Derived-only reads do not increment the source revision.
 - `GET /metrics/windows`: 7/14/28/56-day volume, effort, intensity and long-run
   metrics, plus spacing and symptom summaries.
 - `GET /metrics/recovery?start=DATE&end=DATE`: inclusive dates, including missing
-  nights; maximum92 dates.
+  nights; maximum 92 dates.
 - `GET /activities/UUID/execution`: actual, planned, completion, laps/steps,
   execution metrics, RPE and linked symptom facts.
 - `GET /metrics/explain/UUID`: immutable stored metric evidence/configuration.
@@ -57,8 +57,8 @@ Derived-only reads do not increment the source revision.
   changesets, before/after/current fields, source freshness and decisions.
 - `POST /coach/proposals/UUID/decision`: explicit selection plus idempotency key
   and expected head. Full accepted/rejected partition required. Returns the
-  stored decision result; source drift or changed terminal selection returns409.
-  Invalid subsets return422 with structured field errors.
+  stored decision result; source drift or changed terminal selection returns 409.
+  Invalid subsets return 422 with structured field errors.
 
 Snapshots and proposal submission use the local CLI, not HTTP endpoints.
 Submission does not activate a plan. Terminal decisions are immutable; retries

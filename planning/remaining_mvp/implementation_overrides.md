@@ -11,3 +11,20 @@ Prioritize calendar → exception check-in → Codex pending changeset → revie
 Actual training data preservation remains required: do not discard activities, recovery, confirmed schedules, plans or links. Back up before real schema migration. Immutable new review lineage, explicit acceptance, source freshness, idempotency, protected completed facts and missing-data correctness remain functional requirements. Preserve old stored history without requiring an elaborate legacy UI/undo adapter to ship the new workflow.
 
 Root may merge complete functional slices to main and perform required local additive migration/setup after verification. No push, remote deployment or external messaging authorized. Real-device evidence is still honestly reported; missing evidence is not fabricated. Synthetic checks and user-readable missing outcomes allow independent implementation to proceed.
+
+## Release integration amendments — 2026-11-12
+
+Valid research routing can exceed the inherited 70,000-character legacy context
+limit: the richer synthetic rolling snapshot selected 111,101 characters, and
+the largest permitted verified selection across six operations measured 158,458.
+The reviewed route/selection path uses a separate finite 180,000-character cap;
+legacy loading retains 70,000. Per-file size/hash checks, explicit overflow
+failure, budget warnings, and all selected evidence remain intact. No silent
+truncation or safety-topic dropping is allowed. This is an implementation
+correction to make the defined full-topic routing usable, not a new product
+choice requiring athlete approval.
+
+Final integration also includes imported prescription notes in Activity details,
+a read-only fallback for historical linked imports outside current membership,
+and calendar-mode production browser verification. Legacy undo adaptation
+remains deferred as authorized above.
