@@ -6,11 +6,14 @@ from typing import Any
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
     ForeignKey,
     Integer,
+    Numeric,
+    SmallInteger,
     String,
     Text,
     Time,
@@ -31,6 +34,9 @@ class AppState(Base):
     __tablename__ = 'app_state'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     data_revision: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    calendar_head_version: Mapped[int] = mapped_column(Integer, default=0, server_default='0', nullable=False)
+    planning_authority: Mapped[str] = mapped_column(String(12), default='legacy', server_default='legacy', nullable=False)
+    __table_args__ = (CheckConstraint("planning_authority IN ('legacy','calendar')", name='ck_app_state_planning_authority'),)
 
 
 class ProfileVersion(Base):
@@ -106,7 +112,7 @@ class SourceRecord(Base):
 
 class Activity(Base):
     __tablename__ = 'activities'
-    __table_args__ = (UniqueConstraint('source_account_id', 'garmin_id'), UniqueConstraint('source_account_id', 'source_identity'))
+    __table_args__ = (UniqueConstraint('source_account_id', 'garmin_id'), UniqueConstraint('source_account_id', 'source_identity'), CheckConstraint("fit_status IN ('not_fetched','fetched','decoded','unavailable','decode_error')", name='ck_activities_fit_status'), CheckConstraint('workout_rpe IS NULL OR (workout_rpe >= 0 AND workout_rpe <= 10)', name='ck_activities_workout_rpe'))
     id: Mapped[uuid.UUID] = uuid_pk()
     source_account_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('source_accounts.id'))
     garmin_id: Mapped[str | None] = mapped_column(String(100))
@@ -119,6 +125,12 @@ class Activity(Base):
     subtype: Mapped[str | None] = mapped_column(String(80))
     distance_m: Mapped[float | None] = mapped_column(Float)
     elapsed_s: Mapped[float | None] = mapped_column(Float)
+    timer_s: Mapped[float | None] = mapped_column(Float)
+    end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fit_file_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    workout_rpe: Mapped[float | None] = mapped_column(Numeric(3, 1, asdecimal=False))
+    workout_feel: Mapped[int | None] = mapped_column(SmallInteger)
+    fit_status: Mapped[str] = mapped_column(String(20), default='not_fetched', server_default='not_fetched', nullable=False)
     moving_s: Mapped[float | None] = mapped_column(Float)
     avg_hr_bpm: Mapped[float | None] = mapped_column(Float)
     cadence_spm: Mapped[float | None] = mapped_column(Float)

@@ -32,6 +32,7 @@ from app.models import (
     Activity,
     ActivityAnnotation,
     ActivitySource,
+    AppState,
     Checkin,
     CheckinRevision,
     CompletionLink,
@@ -66,19 +67,24 @@ def current_profile(session: Session) -> ProfileVersion | None:
     return session.scalar(select(ProfileVersion).order_by(desc(ProfileVersion.version)).limit(1))
 
 
-def profile_data(profile: ProfileVersion | None) -> dict:
+def _profile_authority(session: Session) -> str:
+    state = session.get(AppState, 1)
+    return state.planning_authority if state else 'legacy'
+
+
+def profile_data(profile: ProfileVersion | None, planning_authority: str = 'legacy') -> dict:
     if profile is None:
-        return {'version': 0, 'timezone': 'America/New_York', 'cycle_anchor': None,
+        return {'version': 0, 'planning_authority': planning_authority, 'timezone': 'America/New_York', 'cycle_anchor': None,
                 'anchor_confirmed': False, 'strength_days_confirmed': False,
                 'scheduled_strength_days': [], 'strength_schedule_mode': 'weekly',
                 'strength_week_a_start': None, 'strength_week_a_days': [], 'strength_week_b_days': [],
                 'mobility_week_a_days': [], 'mobility_week_b_days': [], 'mobility_optional_days': [],
                 'facts': {}, 'preferences': {}, 'unknowns': []}
-    return {key: getattr(profile, key) for key in ('version', 'timezone', 'cycle_anchor', 'anchor_confirmed',
+    return {'planning_authority': planning_authority, **{key: getattr(profile, key) for key in ('version', 'timezone', 'cycle_anchor', 'anchor_confirmed',
             'strength_days_confirmed', 'scheduled_strength_days', 'strength_schedule_mode',
             'strength_week_a_start', 'strength_week_a_days', 'strength_week_b_days',
             'mobility_week_a_days', 'mobility_week_b_days', 'mobility_optional_days',
-            'facts', 'preferences', 'unknowns')}
+            'facts', 'preferences', 'unknowns')}}
 
 
 def tz(session: Session) -> str:
@@ -278,7 +284,7 @@ def get_imports(session: Session = Depends(get_session)) -> dict:
 
 @router.get('/profile')
 def get_profile(session: Session = Depends(get_session)) -> dict:
-    return envelope(session, profile_data(current_profile(session)))
+    return envelope(session, profile_data(current_profile(session), _profile_authority(session)))
 
 
 @router.put('/profile')
@@ -292,7 +298,7 @@ def put_profile(body: ProfileInput, session: Session = Depends(get_session)) -> 
     session.add(profile)
     bump_data_revision(session)
     session.commit()
-    return envelope(session, profile_data(profile))
+    return envelope(session, profile_data(profile, _profile_authority(session)))
 
 
 @router.get('/activities')
