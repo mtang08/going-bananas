@@ -131,3 +131,15 @@ describe('training home', () => {
     expect(within(card).queryByText('Quality slot')).not.toBeInTheDocument()
   })
 })
+
+it('links pending proposals to explicit review without making a decision', async () => {
+  const previous = globalThis.fetch
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes('/coach/proposals?status=pending')) return {ok:true,status:200,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:{items:[{id:'p1',summary:'Keep tomorrow easy'}]}})}
+    return previous(input, init)
+  }))
+  mount()
+  expect(await screen.findByRole('link',{name:'Review proposal'})).toHaveAttribute('href','#proposal/p1')
+  expect(screen.getByText('Keep tomorrow easy')).toBeInTheDocument()
+  expect(requests.every(request=>request.method==='GET')).toBe(true)
+})
