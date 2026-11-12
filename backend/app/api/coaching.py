@@ -237,6 +237,8 @@ def _get(session: Session, workflow: Literal["daily", "weekly"], as_of: date | N
 
 
 def _post(session: Session, workflow: Literal["daily", "weekly"], as_of: date | None, supplement: dict | None) -> dict:
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     day, today = _day(session, as_of)
     context, payload, kb, input_hash = _state(session, day, today, workflow, supplement)
     row = session.scalar(
@@ -296,6 +298,8 @@ def post_weekly(body: WeeklyRequest, session: Session = Depends(get_session)) ->
 
 @router.post("/recommendations/{recommendation_id}/outcome")
 def post_outcome(recommendation_id: uuid.UUID, body: OutcomeRequest, session: Session = Depends(get_session)) -> dict:
+    from app.services.legacy_cutover import require_legacy_write
+    require_legacy_write(session)
     row = session.get(CoachRecommendation, recommendation_id)
     if row is None:
         raise HTTPException(404, detail={"code": "not_found", "message": "Recommendation not found."})
