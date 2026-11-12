@@ -136,3 +136,15 @@ class GarminPersonalSource:
             if len(records) < page_size:
                 return
         raise GarminConfigurationError("activity_page_limit")
+
+    def download_activity(self, id: str) -> bytes:
+        data = self._call(lambda: self._client.download_activity(id))
+        if not isinstance(data, bytes):
+            raise GarminConfigurationError('invalid_fit_download_shape')
+        return data
+
+    def activity_workouts(self, id: str) -> object:
+        return self._call(lambda: self._client.get_activity_workouts(id))
+
+    def activity_detail(self, id: str) -> object:
+        return self._call(lambda: self._client.get_activity(id))
