@@ -8,11 +8,14 @@ revision history, protected completion links, and version-checked rollback are
 wired through the helper, API, and calendar. This work does not add FIT metrics,
 blocks, intensity anchors, or an autonomous coaching scheduler.
 
-Final verification on synthetic data: 68 backend tests, 24 frontend tests,
+Final verification on synthetic data: 68 backend tests, 26 frontend tests,
 49 PostgreSQL integration tests, 13 helper tests, and nine browser acceptance
 cases passed. Lint, type checking, and production build passed. Browser tests
 ran against a separate demo app on port 8019 using `PLAYWRIGHT_BASE_URL`; the
-existing app and real database were not stopped, migrated, or seeded.
+real database was not migrated or seeded. The local API was started with its
+existing real-mode configuration after port 8000 was found unavailable;
+readiness and read-only desktop/mobile navigation passed. Only the API was
+started; verification did not launch an automatic sync worker.
 
 Completion fixes reject malformed evidence reference lists with 422, require an
 upcoming accepted running plan for daily confirmation, retain the revision
@@ -20,6 +23,12 @@ reviewed when opening Undo, and omit workout-completion controls for rest slots.
 The load-test failure was a DST-sensitive fixture issue: prior runs are now
 seeded at local noon on their intended dates. Existing load bounds are unchanged;
 regressions cover equality, per-session excess, and aggregate excess.
+
+The actual helper also passed a demo API check: a no-change daily decision
+persisted, the calendar stayed identical, and retrying the same JSON/key
+returned the same revision. The behavior-preserving frontend split now lives
+on main too: current recurrence controls, saved prescriptions, rest handling,
+and revision history were preserved, with two additional shared-Modal tests.
 
 The current user-facing contract is [running-coach-workflow.md](running-coach-workflow.md).
 The v0.9 redesign remains a separate, partially supplied specification; its
