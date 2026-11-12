@@ -1045,10 +1045,10 @@ def decide_proposal(
         or not anchors <= known_anchors
         or (req.accept_block_change and doc.block_change is None)
     ):
-        raise DecisionError("invalid_decision", "Selection must partition all changes", 422)
+        raise DecisionError("decision_incomplete", "Selection must partition all changes", 422)
     issues = validate_subset(doc, accepted, req.accept_block_change, anchors, ctx)
     if issues:
-        raise DecisionError("invalid_subset", "Accepted subset is invalid", 422, issues)
+        raise DecisionError("proposal_invalid_subset", "Accepted subset is invalid", 422, issues)
     block_id = ctx.active_block.version_id if ctx.active_block else None
     changed = False
     if req.accept_block_change:
