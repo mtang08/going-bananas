@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import math
+import re
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, TypeGuard, cast
 
@@ -10,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.config import settings
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep
 from app.metrics.contract import (
     MetricResultData,
@@ -23,7 +26,7 @@ from app.metrics.contract import (
     plausible_speed,
 )
 from app.metrics.engine import register
-from app.models import Activity, ActivityAnnotation, AppState
+from app.models import Activity, ActivityAnnotation, ActivitySource, AppState, RawObject, SourceRecord
 from app.services.calendar_structure import expand_structure
 
 METRIC_ID = 'work_interval_execution'
@@ -44,7 +47,24 @@ CONFIG = {
     'cv_rule': 'sample_sd_of_fully_completed_valid_reps',
     'last_first_rule': 'original_endpoints',
     'subtotal_rule': 'known_or_null.v1',
+    'synthetic_provenance_rule': 'demo_fixture_raw_json_plus_normalized_trace.v1',
 }
+
+
+def _synthetic_provenance(rows: Sequence[Sequence[str | None]],
+                          normalized_hash: object) -> bool:
+    """A demo trace is usable only when every linked source has preserved raw JSON."""
+    if not isinstance(normalized_hash, str) or re.fullmatch(r'[0-9a-f]{64}', normalized_hash) is None or not rows:
+        return False
+    for row in rows:
+        if len(row) != 4:
+            return False
+        kind, payload, raw, media_type = row
+        if (kind != 'demo_fixture' or media_type != 'application/json' or
+                not isinstance(payload, str) or payload != raw or
+                re.fullmatch(r'[0-9a-f]{64}', payload) is None):
+            return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -463,7 +483,18 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
             not isinstance(refs.get('fit'), dict) or
             refs['fit'].get('raw_object_id') is None or refs['fit'].get('zip_sha256') is None or
             refs['fit'].get('fit_sha256') is None):
-        outcome = _early(Status.invalid, 'INPUT_PROVENANCE_MISSING')
+        synthetic = False
+        if settings.app_mode in {'demo', 'test'} and isinstance(refs.get('fit'), dict):
+            sources = [tuple(row) for row in session.execute(select(SourceRecord.source_kind, SourceRecord.payload_hash,
+                RawObject.sha256, RawObject.media_type).select_from(ActivitySource)
+                .join(SourceRecord, SourceRecord.id == ActivitySource.source_record_id)
+                .outerjoin(RawObject, RawObject.id == SourceRecord.raw_object_id)
+                .where(ActivitySource.activity_id == activity_id)).all()]
+            synthetic = _synthetic_provenance(sources, refs['fit'].get('normalized_hash'))
+        if synthetic:
+            outcome['quality_flags'] = sorted(set(outcome['quality_flags']) | {'SYNTHETIC_PROVENANCE'})
+        else:
+            outcome = _early(Status.invalid, 'INPUT_PROVENANCE_MISSING')
     return [MetricResultData(
         metric_id=METRIC_ID, method_version=METHOD_VERSION, subject_type='activity',
         subject_key=str(activity_id), status=Status(outcome['status']),

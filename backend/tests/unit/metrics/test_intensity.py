@@ -189,6 +189,12 @@ def test_window_incomplete_and_uncounted():
     assert result["status"] == "partial" and "SYNC_COVERAGE_INCOMPLETE" in result["reason_codes"]
     result = window_outcome([activity_outcome(small_stream(), {}, DAY, 68)])
     assert result["status"] == "not_assessable" and result["value"]["hr"]["valid_s"] is None
+    assert "ANCHOR_MISSING" in result["value"]["hr"]["reason_codes"]
+    assert "ANCHOR_MISSING" in result["value"]["speed"]["reason_codes"]
+    for mixed in ([activity_outcome(small_stream(), {}, DAY, 68), None],
+                  [activity_outcome(small_stream(), {}, DAY, 68), activity_outcome(None, {}, DAY, 68)]):
+        result = window_outcome(mixed)
+        assert "ANCHOR_MISSING" not in result["value"]["hr"]["reason_codes"]
 
 
 @pytest.mark.parametrize("key", ["w9:2026-11-15", "w7:2026-99-15", "not-a-uuid", "night:2026-11-15"])

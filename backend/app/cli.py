@@ -9,6 +9,7 @@ import sys
 import time
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
@@ -16,10 +17,11 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import SessionLocal, bump_data_revision, engine
-from app.models import ProfileVersion
+from app.models import Activity, AppState, ProfileVersion
 from app.services.backup import BackupError, create_backup, restore_backup
 from app.services.export_import import import_export
 from app.services.sync import ADVISORY_LOCK, enqueue_catchup, enqueue_sync, import_activity_page, run_one_job
+from app.services.timezone import local_date
 
 
 def _scope() -> str:
@@ -50,7 +52,8 @@ def _demo_records() -> list[dict]:
 def _parse() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("seed-demo")
+    seed = sub.add_parser("seed-demo")
+    seed.add_argument("--calendar-preview", action="store_true")
     sync = sub.add_parser("sync")
     sync.add_argument("--start", type=date.fromisoformat)
     sync.add_argument("--end", type=date.fromisoformat)
@@ -139,9 +142,25 @@ def main() -> int:
             if settings.app_mode != "demo":
                 raise ValueError("demo_mode_required")
             with SessionLocal.begin() as session:
-                counts = import_activity_page(session, settings.private_dir, _demo_records(),
-                                              account_scope="synthetic-demo", source_kind="demo_fixture")
-            print(json.dumps(counts))
+                state = session.get(AppState, 1)
+                if args.calendar_preview:
+                    if state is None or state.planning_authority != 'calendar':
+                        raise ValueError("calendar_preview_authority_required")
+                    if state.calendar_head_version == 0 and session.scalar(select(Activity.id).limit(1)):
+                        raise ValueError("calendar_preview_requires_empty_activities")
+                    from app.demo_seed import seed_demo
+                    today = local_date(datetime.now(UTC), ZoneInfo("America/New_York"))
+                    counts = seed_demo(session, settings.private_dir, today)
+                else:
+                    if state is not None and state.planning_authority != 'legacy':
+                        raise ValueError("legacy_authority_required")
+                    counts = import_activity_page(session, settings.private_dir, _demo_records(),
+                                                  account_scope="synthetic-demo", source_kind="demo_fixture")
+            if args.calendar_preview:
+                from app.demo_seed import demo_totals
+                with SessionLocal() as session:
+                    counts = demo_totals(session)
+            print(json.dumps(counts, sort_keys=True))
         elif args.command in {"sync", "worker"}:
             if settings.app_mode != "real":
                 raise ValueError("real_mode_required")

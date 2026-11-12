@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
@@ -163,10 +163,8 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
     state = session.get(AppState, 1)
     if state is None or state.calendar_head_version == 0:
         return set()
-    origin = session.scalar(select(CalendarSessionRevision.local_date)
-                            .where(CalendarSessionRevision.calendar_version_number <= state.calendar_head_version)
-                            .order_by(CalendarSessionRevision.calendar_version_number,
-                                      CalendarSessionRevision.local_date).limit(1))
+    origin = session.scalar(select(func.min(CalendarSessionRevision.local_date)).where(
+        CalendarSessionRevision.calendar_version_number <= state.calendar_head_version))
     if origin is None:
         return set()
     days = sorted({d + timedelta(days=offset) for d in dates for offset in (-1, 0, 1) if d + timedelta(days=offset) >= origin})

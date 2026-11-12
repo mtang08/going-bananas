@@ -9,6 +9,7 @@ from app.metrics.intervals import (
     FitStep,
     LapIn,
     PlanStep,
+    _synthetic_provenance,
     after_timer_seconds,
     clip,
     execution_outcome,
@@ -16,6 +17,18 @@ from app.metrics.intervals import (
     expand_plan,
     weighted_median,
 )
+
+
+def test_synthetic_trace_requires_selected_raw_json_and_normalized_hash() -> None:
+    digest = 'a' * 64
+    good = [('demo_fixture', digest, digest, 'application/json')]
+    assert _synthetic_provenance(good, 'b' * 64)
+    assert not _synthetic_provenance([], 'b' * 64)
+    assert not _synthetic_provenance(good, None)
+    assert not _synthetic_provenance(good, 'not-a-hash')
+    assert not _synthetic_provenance(good + [('garmin_api', digest, digest, 'application/json')], 'b' * 64)
+    assert not _synthetic_provenance([('demo_fixture', digest, None, 'application/json')], 'b' * 64)
+    assert not _synthetic_provenance([('demo_fixture', digest, digest, 'application/octet-stream')], 'b' * 64)
 
 
 def example() -> tuple[list[PlanStep], list[FitStep], list[LapIn], ExecStream]:
