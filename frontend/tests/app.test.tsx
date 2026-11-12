@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { App, parseHash } from '../src/App'
 
@@ -19,6 +19,8 @@ const execution = {activity:{id:'run-1',start_at:'2026-11-14T12:00:00Z',end_at:'
 const summary = {as_of:'2026-11-15',timezone:'America/New_York',metric_version:'analytics.v1',window:{start_date:'2026-10-19',end_date:'2026-11-15'},current_week:{distance_m:11265.408,run_count:2,missing_distance_count:0},rolling_7:{distance_m:11265.408,run_count:2,missing_distance_count:0},rolling_14:{distance_m:16093.44,run_count:4,missing_distance_count:0},selected:{distance_m:16093.44,run_count:4,missing_distance_count:0,longest_elapsed_s:700,strength_count:2,strength_duration_s:3600,strength_unknown_duration_count:1,low_impact_count:0,low_impact_duration_s:0,workout_distribution:{easy:1,quality:0,long:1,other:0,unknown:2}},weekly:[{start_date:'2026-11-09',end_date:'2026-11-15',distance_m:11265.408,run_count:2,missing_distance_count:0,strength_count:1}],recent_runs:[],coverage:[{dataset:'activities',status:'partial',reason:'import in progress'}]}
 const recovery = {timezone:'America/New_York',series:{sleep:[],hrv:[],resting_hr:[]},trailing_7:{sleep:{mean:null,n:0,days:7},hrv:{mean:null,n:0,days:7},resting_hr:{mean:null,n:0,days:7}},coverage:[]}
 
+const proposalId = '11111111-1111-4111-8111-111111111111'
+const emptyProposal = {id:proposalId,operation:'review_rolling_plan',status:'pending',summary:'Keep this plan',rationale:'Continue',confidence:{decision:'moderate',evidence:'moderate',data:'moderate'},head:1,is_current:true,changes:[],anchor_changes:[],block_change:null,evidence_ids:[],policy_ids:[],recipe_ids:[],validation_errors:[]}
 let requests: {url:string;method:string;body:unknown;headers:Headers}[] = []
 let profileRecord={...profile}
 let activityItems:unknown[]=[]
@@ -34,12 +36,12 @@ beforeEach(() => {
     const url=String(input),method=init?.method||'GET'
     requests.push({url,method,body:init?.body?JSON.parse(String(init.body)):null,headers:new Headers(init?.headers)})
     if(url.includes('/profile')&&method==='PUT')profileRecord={...profileRecord,...JSON.parse(String(init?.body)),version:profileRecord.version+1}
-    const data = url.includes('/calendar/versions') ? {items:[]} : url.endsWith('/calendar') ? calendarView : url.includes('/prompts') ? {items:[]} : url.includes('/blocks/active') ? null : url.includes('/strength-routine') ? {version:0,slots:[],schedule:profileRecord} : url.includes('/coach/v2/daily') ? null : url.includes('/execution') ? execution : url.includes('/sync/jobs/') ? {id:'job-1',dataset:'activities',status:'succeeded'} : url.includes('/sync') && method==='POST' ? {jobs:[{id:'job-1',dataset:'activities',status:'queued'}]} : url.includes('/sync/status') ? {datasets:[],active_jobs:[]} : url.includes('/weekly-summary') ? {week_start:'2026-11-09',week_end:'2026-11-15',summary:summary.selected,checkins:[],questions:[],coverage:[]} : url.includes('/summary') ? (url.includes('as_of=2020-12-31') ? {...summary,window:{start_date:'2020-01-02',end_date:'2020-12-31'}} : summary) : url.includes('/recovery') ? recovery : url.includes('/profile') ? profileRecord : url.includes('/health/ready') ? {status:'ok',database:true} : url.includes('/checkins') && method==='POST' ? {id:'checkin-1'} : url.includes('/activities/') ? activityItems[0] : url.includes('/activities') ? {items:activityItems,next_cursor:null,timezone:'America/New_York',coverage:[]} : url.includes('/imports') ? {items:importItems} : {items:[]}
+    const data = url.includes(`/coach/proposals/${proposalId}`) ? emptyProposal : url.includes('/calendar/versions') ? {items:[]} : url.endsWith('/calendar') ? calendarView : url.includes('/prompts') ? {items:[]} : url.includes('/blocks/active') ? null : url.includes('/strength-routine') ? {version:0,slots:[],schedule:profileRecord} : url.includes('/coach/v2/daily') ? null : url.includes('/execution') ? execution : url.includes('/sync/jobs/') ? {id:'job-1',dataset:'activities',status:'succeeded'} : url.includes('/sync') && method==='POST' ? {jobs:[{id:'job-1',dataset:'activities',status:'queued'}]} : url.includes('/sync/status') ? {datasets:[],active_jobs:[]} : url.includes('/weekly-summary') ? {week_start:'2026-11-09',week_end:'2026-11-15',summary:summary.selected,checkins:[],questions:[],coverage:[]} : url.includes('/summary') ? (url.includes('as_of=2020-12-31') ? {...summary,window:{start_date:'2020-01-02',end_date:'2020-12-31'}} : summary) : url.includes('/recovery') ? recovery : url.includes('/profile') ? profileRecord : url.includes('/health/ready') ? {status:'ok',database:true} : url.includes('/checkins') && method==='POST' ? {id:'checkin-1'} : url.includes('/activities/') ? activityItems[0] : url.includes('/activities') ? {items:activityItems,next_cursor:null,timezone:'America/New_York',coverage:[]} : url.includes('/imports') ? {items:importItems} : {items:[]}
     return {ok:true,status:200,json:async()=>wrap(data)} as Response
   }))
 })
 afterEach(()=>{cleanup();vi.unstubAllGlobals()})
-function mount(){const client=new QueryClient({defaultOptions:{queries:{retry:false}}});return render(<QueryClientProvider client={client}><App/></QueryClientProvider>)}
+function mount(client=new QueryClient({defaultOptions:{queries:{retry:false}}})){return render(<QueryClientProvider client={client}><App/></QueryClientProvider>)}
 
 describe('analytics dashboard',()=>{
   it('uses summary values and discloses partial coverage and demo mode',async()=>{
@@ -164,6 +166,10 @@ describe('authority shell',()=>{
     expect(parseHash('#activity/run%20one','calendar')).toEqual({page:'activity',id:'run one'})
     expect(parseHash('#activity/%ZZ','calendar')).toEqual({page:'home',id:null})
     expect(parseHash('#activity/%2F','calendar')).toEqual({page:'home',id:null})
+    expect(parseHash('#block','calendar')).toEqual({page:'block',id:null})
+    expect(parseHash(`#proposal/${proposalId}`,'calendar')).toEqual({page:'proposal',id:proposalId})
+    for (const hash of ['#proposal/%ZZ','#proposal/no-id',`#proposal/${proposalId}/extra`]) expect(parseHash(hash,'calendar')).toEqual({page:'home',id:null})
+    expect(parseHash(`#proposal/${proposalId}`,'legacy')).toEqual({page:'overview',id:null})
   })
   it('keeps the legacy Coach and Cycle navigation and modal',async()=>{
     mount()
@@ -201,4 +207,31 @@ describe('authority shell',()=>{
     expect(await screen.findByLabelText('Display timezone')).toBeInTheDocument()
     expect(screen.getAllByRole('heading',{name:'Planning settings'})).toHaveLength(1)
   })
+  it('opens a saved proposal without applying it and navigates to the block',async()=>{
+    profileRecord={...profile,planning_authority:'calendar'}
+    window.location.hash=`#proposal/${proposalId}`
+    mount()
+    expect(await screen.findByRole('heading',{name:'Keep this plan'})).toBeInTheDocument()
+    expect(screen.getByRole('button',{name:'Accept (no changes)'})).toBeInTheDocument()
+    expect(requests.some(request=>request.method==='POST')).toBe(false)
+    fireEvent.click(screen.getByRole('button',{name:'Training block'}))
+    expect(await screen.findByRole('heading',{name:'No active training block'})).toBeInTheDocument()
+    expect(window.location.hash).toBe('#block')
+  })
+  it('discards old planning caches and closes the old check-in when authority changes',async()=>{
+    const client=new QueryClient({defaultOptions:{queries:{retry:false,staleTime:Infinity}}})
+    mount(client)
+    await screen.findByRole('heading',{name:'Your training, in context.'})
+    fireEvent.click(screen.getAllByRole('button',{name:'Record check-in'})[0])
+    client.setQueryData(['v2','sentinel'],{old:true})
+    client.setQueryData(['legacy','sentinel'],{old:true})
+    await act(async()=>{client.setQueryData(['profile'],wrap({...profile,planning_authority:'calendar'}))})
+    expect(await screen.findByTestId('today-card')).toBeInTheDocument()
+    expect(client.getQueryData(['v2','sentinel'])).toBeUndefined()
+    expect(client.getQueryData(['legacy','sentinel'])).toBeUndefined()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(requests.some(request=>request.url.endsWith('/calendar'))).toBe(true)
+    client.clear()
+  })
+
 })

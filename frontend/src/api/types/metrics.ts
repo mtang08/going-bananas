@@ -27,7 +27,7 @@ export type FitStatus = 'not_fetched' | 'fetched' | 'decoded' | 'unavailable' | 
 export interface LinkedSymptom { checkin_id: string; observed_at: string; kind: 'exception' | 'post_run' | 'delayed_followup'; site: string; side: 'left' | 'right' | 'both' | 'na'; severity: number; timing: 'during' | 'immediately_after' | 'next_morning' | 'hours_24_48' | 'later' | 'unknown'; hours_after_end: number | null }
 export interface ActivityExecution { // [DTO fixed here]
   activity: { id: string; start_at: string; end_at: string | null; local_date: string; sport: string; distance_m: number | null; timer_s: number | null; elapsed_s: number | null; fit_status: FitStatus }
-  planned: { session_uid: string; local_date: string; kind: string; recipe_id: string | null; custom: boolean; intent: string; planned_duration_s: number | null; planned_distance_m: number | null; structure: import('./calendar').StructureItem[] | null;legacy_unstructured:boolean;legacy_payload:Record<string,unknown>|null;placeholder:boolean;locked:boolean } | null
+  planned: { session_uid: string; local_date: string; kind: string; recipe_id: string | null; custom: boolean; intent: string; notes?: string | null; planned_duration_s: number | null; planned_distance_m: number | null; structure: import('./calendar').StructureItem[] | null;legacy_unstructured:boolean;legacy_payload:Record<string,unknown>|null;placeholder:boolean;locked:boolean } | null
   completion: import('./calendar').Completion | null
   laps: Lap[]; watch_steps: WatchStep[]
   planned_actual: MetricResult<PlannedActualValue> | null

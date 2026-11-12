@@ -130,4 +130,16 @@ describe('persisted research-coach plans', () => {
     expect(within(dialog).queryByLabelText('Actual for planned run')).not.toBeInTheDocument()
   })
 
+  it('keeps imported history readable without legacy mutation controls', async () => {
+    mount(<Coach readOnly onCheckin={()=>{}} onSetup={()=>{}}/>)
+    fireEvent.click(await screen.findByText(/Hold the easy run/))
+    expect(screen.getAllByText('Before: 40 min').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button',{name:'Undo this revision'})).not.toBeInTheDocument()
+    expect(screen.queryByText(/save directly to your calendar/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Local rule guidance · legacy'))
+    await screen.findByText('No saved guidance for this date.')
+    expect(screen.queryByRole('button',{name:'Generate daily guidance'})).not.toBeInTheDocument()
+    expect(calls.every(call=>call.method==='GET')).toBe(true)
+  })
+
 })

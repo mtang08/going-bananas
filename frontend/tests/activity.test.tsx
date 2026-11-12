@@ -189,4 +189,12 @@ describe('Activity execution', () => {
     await waitFor(() => expect(screen.getByText('Could not load this view')).toBeInTheDocument())
     expect(screen.getByText('Activity not found')).toBeInTheDocument()
   })
+  it('preserves imported prescription notes without claiming structured comparison', async () => {
+    fixture = { ...base, planned: { ...base.planned!, legacy_unstructured: true,
+      notes: 'Warm up gently, then run conversationally. Stop early if symptoms rise.', structure: null }, intervals: null }
+    mount()
+    expect(await screen.findByText('Warm up gently, then run conversationally. Stop early if symptoms rise.')).toBeInTheDocument()
+    expect(screen.getByText('Structured comparison unavailable')).toBeInTheDocument()
+  })
+
 })

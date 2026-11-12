@@ -19,6 +19,7 @@ from typing import Literal
 DEFAULT_ROOT = Path(__file__).resolve().parents[3] / "running_coach_kb"
 MAX_FILE_BYTES = 100_000
 MAX_CONTEXT_CHARS = 70_000
+MAX_ROUTED_CONTEXT_CHARS = 180_000
 WORKFLOWS = {
     "daily": "workflows/daily_recommendation.md",
     "weekly": "workflows/weekly_review.md",
@@ -308,7 +309,7 @@ def _record_text(path: str, record: dict) -> str:
 
 def _bounded(excerpts: Iterable[KbExcerpt]) -> int:
     chars = sum(len(e.text) for e in excerpts)
-    if chars > MAX_CONTEXT_CHARS:
+    if chars > MAX_ROUTED_CONTEXT_CHARS:
         raise KnowledgeIntegrityError("Selected knowledge context exceeds bound")
     return chars
 

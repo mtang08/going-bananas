@@ -41,6 +41,14 @@ afterEach(()=>{cleanup();vi.unstubAllGlobals()})
 function mount(view:React.ReactNode){const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});const result=render(<QueryClientProvider client={client}>{view}</QueryClientProvider>);const legacy=screen.queryByText('Local rule guidance · legacy');if(legacy)fireEvent.click(legacy);return result}
 
 describe('Coach guidance',()=>{
+  it('shows saved outcomes without acceptance or follow-up writes in history mode',async()=>{
+    saved={...item('daily'),outcome:{status:'completed',effect:'helpful'}}
+    mount(<Coach readOnly onCheckin={()=>{}} onSetup={()=>{}}/>)
+    await screen.findByText('Recorded: completed · helpful')
+    for (const name of ['Generate daily guidance','Accept suggestion','Decline','Confirm rollback']) expect(screen.queryByRole('button',{name})).not.toBeInTheDocument()
+    expect(screen.queryByText('Record what happened')).not.toBeInTheDocument()
+    expect(calls.every(call=>call.method==='GET')).toBe(true)
+  })
   it('loads saved guidance without generating, then sends explicit unknown inputs and never writes a plan',async()=>{
     mount(<Coach onCheckin={()=>{}} onSetup={()=>{}}/>)
     await screen.findByText('A clear next step.')

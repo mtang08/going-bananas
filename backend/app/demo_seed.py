@@ -25,7 +25,7 @@ from app.models import (
     SourceRecord,
 )
 from app.planning_models import StrengthRoutineSlot
-from app.services.calendar import seed_demo_calendar
+from app.services.calendar import apply_edits, seed_demo_calendar, state_at
 from app.services.sync import import_activity_page, store_raw
 
 TZ = ZoneInfo('America/New_York')
@@ -261,6 +261,16 @@ def seed_demo(session: Session, private_dir: Path, today: date) -> dict[str, int
             side='left', severity=2.0, timing='next_morning'))
         seed_demo_calendar(session, anchor_date=today-timedelta(days=28), start_date=today,
             now=_at(today, 12), history_edits=_history(today, slots))
+        historical_long = today - timedelta(days=2)
+        week_start = historical_long - timedelta(days=historical_long.weekday())
+        duplicate = next((row for row in state_at(session, state.calendar_head_version)
+            if row['local_date'] > today and row['recipe_id'] == 'REC002'
+            and week_start <= row['local_date'] <= week_start + timedelta(days=6)), None)
+        if duplicate:
+            apply_edits(session, state.calendar_head_version, [{
+                'op': 'modify', 'session_uid': str(duplicate['session_uid']),
+                'fields': {'recipe_id': 'REC001', 'intent': 'Easy run'},
+            }], reason='synthetic fixture: retain one planned long run per week', actor='system')
     session.flush()
     from app.metrics.engine import ensure_windows, recompute
     from app.services.prompts import generate_prompts

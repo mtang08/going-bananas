@@ -99,6 +99,7 @@ export function Activity({ activityId, unit, onCheckin }: {
             ? 'Extra run — not in the plan.' : 'No planned session is linked to this run.'}</p>
             : <><strong>{plannedTitle(planned)}</strong>
               <p>{planned.intent}</p>
+              {planned.notes && <p>{planned.notes}</p>}
               {planned.legacy_unstructured && <p>Structured comparison unavailable</p>}
               {planned_actual === null ? <p>Planned vs actual: missing</p>
                 : planned_actual.value === null

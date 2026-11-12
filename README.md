@@ -6,48 +6,41 @@ imported Strong lifting snapshot and a reviewed running research library. Strong
 remains the lifting workflow; the app reads its CSV export and does not write
 workouts back to Strong.
 
-The AI running coach runs through the
-[`going-bananas-coach` Codex skill](skills/going-bananas-coach/SKILL.md). It reads
-live activities, recovery, check-ins, baseline comparisons, accepted plans, and
-selected reviewed research; then saves validated two-week running prescriptions
-or today's confirmation/adjustment directly into the app. No separate model API
-key or dashboard chat is required. Routine sync, metrics, calendar rendering,
-and labels use deterministic code and spend no model tokens.
+The running coach uses the repo-local
+[`going-bananas-coach` Codex skill](.codex/skills/going-bananas-coach/SKILL.md).
+It reads compact training snapshots and verified research, then saves a **pending
+changeset**. Review each change in the app before applying it. The dashboard,
+imports, metrics, and validation run locally without model calls.
 
 ## Daily and weekly use
 
-1. Start the app at **http://127.0.0.1:8000** and sync Garmin in Data & settings
-   when needed. Check actual observation coverage; a successful sync does not
-   prove last night's sleep is available.
-2. In Codex, invoke **`$going-bananas-coach review-week`**. The coach reviews
-   actual training, response, strength placement, and selected KB evidence, then
-   saves a complete rolling two-week running plan. Validation activates it
-   automatically under the athlete's standing preference; no manual dated
-   session entry or second routine acceptance is needed.
-3. Each morning use **`$going-bananas-coach today`**, reporting current
-   symptoms/function and energy. The coach starts from the saved session,
-   retains the weekly strategy, and saves either a confirmation or a justified
-   adjustment. Missing reports stay unknown. One poor wearable score does not
-   automatically cancel training.
-4. Inspect active prescriptions and revision diffs in the app. Runs sync as
-   actuals; link an unambiguous actual to its planned session and record effort,
-   modifications, and later response. The next review reads the same history.
+1. Open **http://127.0.0.1:8000**. Home shows today's plan, open effort/response
+   prompts, and the next two weeks. Record check-ins and actual effort there.
+2. Ask Codex to use **`$going-bananas-coach`** for a weekly review, today's
+   adjustment, a block review, calibration, or a race/goal change. If there is no
+   training block yet, start with a block review.
+3. Open **Pending proposal → Review proposal**. Select the session changes,
+   block change, and calibration anchors you want to accept. Unselected session
+   changes are rejected. Nothing applies when you open the page or submit a
+   proposal from Codex.
+4. Inspect accepted sessions and revision history in Calendar. Completed,
+   historical, and locked sessions remain protected when undoing a change.
+   A check-in or new import can make a proposal stale; request a fresh review.
+5. Use Trends and activity details to inspect timer-based volume, effort load,
+   long runs, intensity, interval execution, and recovery. Missing observations
+   remain unknown and metric explanations retain the original evidence.
 
-The saved run anchor and Week A/B strength/mobility rotation project automatically.
-Strong remains the lifting workflow. Legacy `local_rules.v1` recommendations
-retain their own provenance/history; they are not AI prescriptions or a second
-AI coaching entry point. Current scope is P0 running guidance from existing
-summary data; detailed FIT/lap/HR-zone/drift analytics and further research
-refinements are deferred. See [workflow and limits](docs/running-coach-workflow.md).
+Strength stays in Strong; import its CSV snapshot in the local app. Confirm the
+weekly or alternating strength/mobility schedule in Data & settings. Plans,
+source observations, and legacy coaching history are retained during the
+calendar migration. New coaching changes always require explicit review.
 
-Historical runs receive a **programmatic, provisional** easy/quality/long
-suggestion only when enough earlier comparable runs support it. The rule uses
-relative whole-run distance, time, moving pace, and average heart rate over the
-preceding 12 weeks. A heuristic long suggestion is limited to weekends. Missing
-or conflicting data stays unknown; manual correction always wins. The app
-spends no model tokens on individual activity labels. The activity detail shows
-its short reason and limitations, including unmeasured route/weather and the
-absence of heart-rate series or interval analysis.
+FIT decoding supplies timer segments, laps, steps, streams, and watch RPE when
+available. Source coverage, calibration, and stream quality determine whether a
+metric can be assessed. Synthetic tests do not establish device support: local
+Garmin sample decoding and timer/RPE comparisons have passed; broader repeat/lap
+mapping and non-worn-night behavior remain explicitly unverified. The app shows
+unavailable or partial evidence rather than filling those gaps.
 
 Historical Strong sessions and exact recorded sets are in Strength. The app
 uses only the preceding **18 calendar months** of Strong sessions for current
@@ -175,77 +168,60 @@ supports the inspected Strong format, not arbitrary CSVs.
 
 ## Feedback and planning
 
-Install or refresh the versioned skill from the repository:
+The reviewed skill source is `.codex/skills/going-bananas-coach`. Install that
+package during the calendar migration using the manifest and backup procedure in
+[operations](docs/operations.md); the older `skills/` package belongs to the
+legacy workflow. Start a new Codex session after installation if skill discovery
+needs refreshing.
+
+Invoke `$going-bananas-coach` and describe the review you want. The invoking
+Codex model supplies the reasoning; the app does not need a separate model key
+or runner. Select real mode for your training. Proposal payloads remain in
+private local storage, and submission always stops at pending review.
+
+The helper also provides explicit read commands:
 
 ```sh
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills/going-bananas-coach"
-cp -R skills/going-bananas-coach/. "${CODEX_HOME:-$HOME/.codex}/skills/going-bananas-coach/"
+python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real schema
+python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real snapshot --operation proceed_or_modify_today
+python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real history
 ```
 
-Start a new Codex session if needed to refresh skill discovery, then invoke
-`$going-bananas-coach review-week` or `$going-bananas-coach today`. The app must
-be running in real mode for athlete coaching. The invoking Codex model supplies
-the AI reasoning; no `OPENAI_API_KEY` or separate model runner is required.
-These are manual invocations, not an installed coaching scheduler. Personal
-proposal payloads and confirmed memory remain in private local storage.
+Use Calendar revision history to restore eligible sessions, or explicitly ask
+the skill to undo a change. Protected rollback creates a new version and keeps
+completed, historical, and locked facts. Old imported revisions remain stored;
+undo of pre-migration agent revisions is deferred.
 
-The helper can inspect context/schema/history without generating advice:
-
-```sh
-python3 skills/going-bananas-coach/scripts/coach_app.py today
-python3 skills/going-bananas-coach/scripts/coach_app.py schema
-python3 skills/going-bananas-coach/scripts/coach_app.py inspect
-```
-
-To undo a revision, ask the skill to revert it, or use its documented
-[`revert` command](skills/going-bananas-coach/references/app-access.md).
-Rollback checks the current revision and records history. Exploratory or
-read-only conversations do not activate a plan. Goals and strength configuration
-remain explicit athlete decisions. Feature ideas remain in [the backlog](docs/backlog.md).
-
-“No issues; usual energy” explicitly records no symptoms, normal gait, and usual
-feeling. Unreported days remain unknown. Detailed check-ins support corrections,
-effort, and notes. Associations show preceding sessions and elapsed time; they do
-not establish what caused symptoms.
-
-The alternating strength and mobility pattern is confirmed in the real
-profile: Week A full-body strength Monday/Friday and required gym mobility
-Wednesday; Week B full-body strength Tuesday/Saturday and required gym mobility
-Thursday. Sunday mobility is optional in both weeks. Week A begins Monday,
-November 9, 2026. Projection starts from the saved profile date, without
-creating retrospective completion debt. The current real run-cycle anchor is
-confirmed as November 10, 2026; read the live profile for later changes.
-The recurring pattern generates dated calendar context automatically; no new
-weekly plan entry is needed. An explicitly accepted dated plan takes precedence on its covered dates
-and serves as an exception to recurrence. Manual drafts remain available for
-those exceptions; acceptance is explicit. Actual off-cycle activities remain
-observations. Optional manual strength entries are available, but duplicate
-entry from Strong is not required. The older manual draft/acceptance API
-requires exact-range replacement. Agent
-revisions support rolling windows while preserving accepted dates outside the
-window, existing session links, and immutable revision history.
+Exception and post-run check-ins record fatigue, illness, gait change, symptoms,
+and effort when supplied. Unreported observations remain unknown. Associations
+show preceding sessions and elapsed time; they do not establish causation.
+Confirmed weekly or alternating strength/mobility schedules survive migration.
+Inspect or update them in Data & settings; optional manual strength entries are
+available, but duplicate entry from Strong is not required. Coaching history
+remains readable through the navigation link.
 
 ## Verification
 
 ```sh
 make check                 # backend lint/types/unit tests + frontend checks/build
 make test-integration      # PostgreSQL integration tests in garmin_test
-python3 scripts/test_coach_skill.py  # isolated helper contract tests; no live writes
+python3 scripts/test_coach_skill_v2.py  # reviewed helper contract tests; no live writes
 ```
 
-Browser acceptance uses synthetic data only. Stop a running real app first,
-start the demo app, then run the browser suite (Google Chrome is used):
+Browser acceptance uses an isolated demo database and built frontend on port
+18000. Use a disposable demo environment, never real credentials or data:
 
 ```sh
-./scripts/with-mode demo bash -c 'cd backend && uv run alembic upgrade head && uv run python -m app.cli seed-demo'
-./scripts/with-mode demo python3 scripts/serve.py --dev
+./scripts/with-mode demo bash -c 'cd backend && uv run alembic upgrade head && uv run python -m app.cli seed-demo --calendar-preview'
+make build
+APP_PORT=18000 ./scripts/with-mode demo bash -c 'cd backend && uv run uvicorn app.main:app --host 127.0.0.1 --port 18000'
 # In another terminal:
-make test-e2e
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:18000 make test-e2e
 ```
 
-To test an already-running isolated demo server on another port, use
-`PLAYWRIGHT_BASE_URL=http://127.0.0.1:8019 make test-e2e`. Browser and API
-requests use that same origin; the server must report demo mode.
+The P0-A and P0-B suites use calendar-mode fixtures. Run the older legacy suite
+against a separate ordinary demo seed. Browser and API requests use the same
+origin and verify demo mode before mutations.
 
 Browser tests refuse non-demo mode before mutations. They create synthetic
 feedback/plans/manual sessions in the demo database. `scripts/verify-demo.py`
@@ -258,16 +234,17 @@ Never run tests with real data substituted for synthetic fixtures.
 ## Backups and coaching scope
 
 `make backup` writes a private PostgreSQL/raw/profile archive with checksums,
-excluding credentials. `make context` writes a local privacy-filtered
-`coach_context.v1` snapshot; nothing is submitted to a model. Restore only into a
-new target; commands are in [operations](docs/operations.md).
+excluding credentials. `coach snapshot` writes a privacy-filtered, versioned
+training snapshot for the selected operation. The retained `make context` command
+exports the legacy format. Restore only into a new target; commands are in [operations](docs/operations.md).
 
 The reviewed `running_coach_kb/` loads selectively: guide, requested workflow,
 and relevant topics/policies/sources. The AI coach must distinguish observed
 response, research, and athlete-specific inference, cite actual evidence, and
-state uncertainty. Existing average HR and whole-run pace/distance/time support
-P0 decisions; they do not establish intrarun zones, drift, interval structure,
-or route/weather-adjusted adaptation. No model or wearable can diagnose or
+state uncertainty. Summary-only records do not establish intrarun zones, drift,
+or interval structure. FIT-based detail is available where verified streams,
+workout matching, and calibration support it; route/weather adjustment remains
+outside this MVP. No model or wearable can diagnose or
 provide an injury guarantee. See [research scope](docs/research-integration.md),
 [contracts](docs/contracts.md), [P0 implementation](docs/p0-implementation.md),
 [release evidence](docs/release-checklist.md), and [handoff](docs/handoff.md).
