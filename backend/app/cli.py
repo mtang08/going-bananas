@@ -7,8 +7,10 @@ import json
 import os
 import sys
 import time
+import uuid
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, text
@@ -81,7 +83,106 @@ def _parse() -> argparse.Namespace:
     strong = sub.add_parser("strong-import")
     strong.add_argument("csv", type=Path)
     strong.add_argument("--apply", action="store_true")
+    coach = sub.add_parser('coach')
+    coach_sub = coach.add_subparsers(dest='coach_command', required=True)
+    coach_sub.add_parser('schema')
+    from app.services.knowledge import SUPPORTED_OPERATIONS
+    snapshot = coach_sub.add_parser('snapshot')
+    snapshot.add_argument('--operation', choices=sorted(SUPPORTED_OPERATIONS), required=True)
+    snapshot.add_argument('--as-of', type=date.fromisoformat)
+    query = coach_sub.add_parser('query')
+    query.add_argument('name', choices=['activity_execution', 'long_run_history', 'recovery_nights', 'calendar_diff', 'explain_metric'])
+    query.add_argument('--activity-id', type=uuid.UUID)
+    query.add_argument('--start', type=date.fromisoformat)
+    query.add_argument('--end', type=date.fromisoformat)
+    query.add_argument('--from', dest='from_version', type=int)
+    query.add_argument('--to', dest='to_version', type=int)
+    query.add_argument('--result-id', type=uuid.UUID)
+    submit = coach_sub.add_parser('submit')
+    submit.add_argument('--file', type=Path, required=True)
     return parser.parse_args()
+
+
+def _coach(args) -> int:
+    from fastapi import HTTPException
+
+    from app.services import knowledge, proposals
+    from app.services.decision_inputs import VerifiedKnowledge
+    from app.services.timezone import athlete_tz, local_date
+
+    def output(value, *, error=False):
+        print(json.dumps(value, default=str, ensure_ascii=False), file=sys.stderr if error else sys.stdout)
+
+    def resolve_kb(selection):
+        return VerifiedKnowledge(**knowledge.verify_selection(selection))
+
+    try:
+        now = datetime.now(UTC)
+        if args.coach_command == 'schema':
+            output({'protocol': 'coach_proposal.v1', 'activation': 'manual', 'required_authority': 'calendar',
+                'proposal': proposals.ProposalDoc.model_json_schema()})
+            return 0
+        if args.coach_command == 'snapshot':
+            from app.services.snapshot import build_snapshot
+            with SessionLocal.begin() as session:
+                result = build_snapshot(session, args.operation, args.as_of or local_date(now, athlete_tz(session)), now=now)
+            output(result)
+            return 0
+        if args.coach_command == 'submit':
+            try:
+                raw = json.loads(args.file.read_text(encoding='utf-8'))
+                if not isinstance(raw, dict):
+                    raise ValueError('not_object')
+            except (OSError, UnicodeError, ValueError):
+                output({'proposal_id': None, 'status': 'invalid', 'errors': [
+                    {'code': 'V1.schema', 'path': '', 'message': 'File is not a JSON object'}]})
+                return 2
+            with SessionLocal.begin() as session:
+                submitted = proposals.submit_proposal(session, raw, now=now, resolve_kb=resolve_kb)
+            output({'proposal_id': str(submitted.proposal_id) if submitted.proposal_id else None,
+                'status': submitted.status, 'errors': [issue.to_json() for issue in submitted.issues]})
+            return {'pending': 0, 'stale': 3}.get(submitted.status, 2)
+        required = {'activity_execution': ('activity_id',), 'long_run_history': ('start', 'end'),
+            'recovery_nights': ('start', 'end'), 'calendar_diff': ('from_version', 'to_version'),
+            'explain_metric': ('result_id',)}
+        flags = {'from_version': '--from', 'to_version': '--to'}
+        for field in required[args.name]:
+            if getattr(args, field) is None:
+                output({'error': 'missing_argument', 'message': f"{flags.get(field, '--'+field.replace('_','-'))} required"}, error=True)
+                return 2
+        from app.api.metrics import activity_execution, explain_metric, long_run_history, recovery_nights
+        from app.services.calendar import calendar_diff
+        data: Any
+        with SessionLocal() as session:
+            if args.name == 'activity_execution':
+                data = activity_execution(session, args.activity_id)
+            elif args.name == 'long_run_history':
+                data = long_run_history(session, args.start, args.end)
+            elif args.name == 'recovery_nights':
+                data = recovery_nights(session, args.start, args.end)
+            elif args.name == 'calendar_diff':
+                data = calendar_diff(session, args.from_version, args.to_version)
+            else:
+                data = explain_metric(session, args.result_id)
+            output({'query': args.name, 'data': data})
+        return 0
+    except knowledge.KnowledgeIntegrityError:
+        output({'error': 'knowledge_unavailable'}, error=True)
+        return 4
+    except proposals.DecisionError as exc:
+        if args.coach_command == 'submit':
+            output({'proposal_id': None, 'status': 'invalid', 'errors': [issue.to_json() for issue in exc.fields]
+                or [{'code': exc.code, 'path': '', 'message': exc.message}]})
+        else:
+            output({'error': exc.code, 'message': exc.message}, error=True)
+        return 2
+    except HTTPException as exc:
+        code = exc.detail.get('code', 'request_error') if isinstance(exc.detail, dict) else 'request_error'
+        output({'error': code}, error=True)
+        return 4 if exc.status_code == 404 else 2
+    except Exception:
+        output({'error': 'unexpected_error'}, error=True)
+        return 1
 
 
 def main() -> int:
@@ -89,6 +190,8 @@ def main() -> int:
     from app.metrics.engine import install_triggers
     install_triggers()
     try:
+        if args.command == "coach":
+            return _coach(args)
         if args.command == "metrics-recompute":
             from app.metric_models import MetricResult
             from app.metrics import engine as metrics_engine

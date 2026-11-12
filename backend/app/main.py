@@ -14,6 +14,7 @@ from app.api.agent import router as agent_router
 from app.api.anchors import router as anchors_router
 from app.api.calendar import router as calendar_router
 from app.api.checkins import router as checkins_router
+from app.api.coach import router as coach_router
 from app.api.coaching import router as coaching_router
 from app.api.core import router as core_router
 from app.api.metrics import router as metrics_router
@@ -67,7 +68,7 @@ async def local_security(request: Request, call_next):
 @app.exception_handler(HTTPException)
 async def handle_http(request: Request, exc: HTTPException):
     detail = exc.detail if isinstance(exc.detail, dict) else {'code':'request_error','message':'Request failed'}
-    return error_response(request, detail.get('code','request_error'), detail.get('message','Request failed'), exc.status_code)
+    return error_response(request, detail.get('code','request_error'), detail.get('message','Request failed'), exc.status_code, detail.get('fields', []))
 
 
 @app.exception_handler(Exception)
@@ -117,6 +118,7 @@ app.include_router(planning_router, prefix='/api/v1')
 app.include_router(metrics_router, prefix='/api/v1')
 app.include_router(sync_router, prefix='/api/v1')
 app.include_router(coaching_router, prefix='/api/v1')
+app.include_router(coach_router, prefix='/api/v1')
 app.include_router(agent_router, prefix='/api/v1')
 app.include_router(strength_router, prefix='/api/v1', dependencies=[Depends(serialize_source_write)])
 
