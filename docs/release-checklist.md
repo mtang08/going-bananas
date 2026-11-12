@@ -145,3 +145,34 @@ workout type or physiological intensity. Future run placement in Coach remains
 conditional on a user-confirmed run-cycle anchor and current symptoms. The
 running anchor is still unknown. The 15 research behavioral cases remain
 partially exercised, as described in the previous release section.
+
+
+# Reviewed calendar coaching MVP — November 12, 2026
+
+The real local workspace now uses calendar authority and explicit proposal
+review. The matching Codex helper is installed. The API on 127.0.0.1:8000,
+one sync worker, and the existing 08:30 launchd schedule are running.
+
+| Check | Executed result |
+| --- | --- |
+| Full regression | 322 backend fast tests, 133 PostgreSQL integration tests, 132 frontend tests; Ruff, mypy, ESLint, TypeScript and production build passed. The final compact-snapshot follow-up passed 37 focused tests and the 9-test CLI integration suite. |
+| Browser acceptance | P0-A 8/8 and P0-B 8/8 passed on separate fresh synthetic fixtures. Partial acceptance, immutable decisions/replay, no-change acknowledgement, source/head staleness, invalid subsets, daily scope/safety, protected undo and block history were exercised. |
+| Helper | 10 reviewed-helper and 13 retained-helper contract tests passed. All five installed artifacts match the reviewed manifest. Actual daily and rolling snapshot commands succeeded without creating a training proposal or changing the calendar. |
+| Source preservation | Rollback-only real preview left all 56 table digests unchanged. Committed cutover preserved exact contents of all 17 canonical source tables and verified replay. No existing plan sessions needed importing; the real calendar starts empty at imported version 1. No training plan was fabricated for release testing. |
+| Backup/restore | Fresh pre-cutover and post-cutover archives each restored into separate targets with all 56 table digests equal and 1,655 archived files verified. Original legacy and new authority records are retained. |
+| Live application | 30 real API reads and foreign-origin rejection passed. Read-only desktop/mobile browser checks covered Home, Calendar, Trends, Block, History, Strength, Settings, archived coaching and actual run details, with no browser/server errors or horizontal overflow. |
+| Real FIT evidence | 49 recent runs decoded successfully, with zero unavailable/failed items in the selected backfill. Timer/RPE comparisons on the inspected samples passed. Broad repeat/lap mapping and non-worn-night behavior remain unverified. |
+| Full-history scale | Verbose source vectors initially made live snapshots too large. Compact digest/count metadata reduced daily output to 11,971 and rolling output to 26,964 proxy tokens; complete vectors remain stored and freshness checks are unchanged. |
+| Privacy | Committed release files passed a configured-secret scan. Actual snapshots, archives, reports and screenshots remain in ignored private storage. No push or remote deployment was performed. |
+
+Start the first actual plan by asking `$going-bananas-coach` for a block/weekly
+review, then explicitly accept the desired changes in the app. Empty or rejected
+reviews do not create calendar versions. Archived coaching is read-only; new
+protected undo lives in Calendar. Undo adaptation for pre-upgrade agent
+revisions remains intentionally deferred. Missing calibration/device evidence
+continues to produce explicit unknown or unavailable metrics.
+
+Release evidence is stored privately under `private/real/release/`, including
+cutover, helper-manifest, restored-backup and live-snapshot reports. Earlier
+sections above describe historical releases and are not the current feature
+inventory.

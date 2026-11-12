@@ -327,6 +327,13 @@ New snapshot generation and proposal submission are CLI-only (§5). Existing age
 
 Adopts Workstream B `athlete_state_snapshot.schema.json` v1 field names with these P0 projections. Sections absent from the projection are omitted, not null.
 
+Release projection amendment: `snapshot_meta.source_provenance` contains
+`{sha256, collections:{name:{kind:"array"|"object"|"scalar",count}}}` rather than
+embedding the full source-version vector. The complete vector remains in the
+`coach_snapshots.source_versions` column. `source_fingerprint`, safety metadata,
+and verified knowledge records remain in the payload; freshness validation
+continues to use the complete canonical vector.
+
 `select_quality_session` uses the Rolling projection.
 
 | Section | Daily | Rolling | Block | Calibration | Race change |

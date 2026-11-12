@@ -1,4 +1,14 @@
-# MVP execution checkpoint — 2026-11-12
+# MVP execution record — 2026-11-12
+
+Current status: MVP implemented and released locally. All TASK003–070 dependency
+work is integrated on main. Actual calendar cutover, matching helper install,
+source preservation, pre/post restore checks and desktop/mobile smoke passed.
+See docs/release-checklist.md for final evidence and implementation_overrides.md
+for approved scope changes. No outstanding product decision; broad device
+semantics and old undo adaptation are explicitly bounded follow-up work.
+Unrelated docs/backlog.md and docs/research-integration.md remain untouched.
+
+The entries below are historical checkpoints.
 
 User signed off MVP-1.0; only highest-impact decisions require a question. Approved spec commit c5dfb0a. Main production application remains unchanged; unrelated docs/backlog.md and docs/research-integration.md are preserved.
 
@@ -35,3 +45,20 @@ Current active: Astra lead oversees025 matching/planned-actual and042 activity p
 TASK042 86470e7 Activity, TASK043 df625e7 Trends, TASK044 eac0497 PlanningSettings, TASK025 c3f75e7 matching/planned-actual, TASK026 6f01d96 prompts, and source-writer lock follow-up015 97d21ab are complete and merged. TASK030 e380322 reviewed by Astra and merged main/integration a6127c4: atomic metrics refresh and provenance history, savepoint-safe coalesced source revisions, metrics/execution routes, source-write serialization, operational CLI. Final gates91DB integration/283backend fast/108frontend plus Ruff/mypy/lint/types/build; new13 integration tests include two-connection writers, rollback, corrections, immutable explanations and CLI. Earlier service-seam fixtures explicitly suppress automatic refresh while testing injected matching/assessors; new integration tests retain actual listeners. Actual DB authority remains legacy pending068; no athlete coaching changes accepted by manager.
 
 Active061 proposal collection/validation/acceptance and050 shell/demo under Astra lead; root proceeds063/064 API/CLI integration. Lead owns synthetic DB lease scheduling. After050 worker proceeds068 cutover; after061 worker proceeds062 snapshots, then066 review UI. Latest user priorities waive elaborate old undo/helper compatibility rollout; preserve every real source/history row, current cross-plan membership and links, immutable new review lineage, manual acceptance, atomic authority and backup. No unresolved user decision. Source notes projection remains a small frontend integration follow-up. G2 real non-worn-night/repeat mapping evidence remains explicitly incomplete.
+
+
+Final integration: 050 shell/demo, 060–066 verified research/snapshots/CLI/manual
+proposal review, and 068 populated cutover completed under Astra review with
+Sol implementers. Root070 integrated routes, archived read-only coaching,
+Activity notes, documentation, helper staging and actual release. Final full
+gates:322 backend fast /133 PostgreSQL integration /132 frontend /16 browser
+cases, plus23 helper contracts and static/build checks. The source-provenance
+compactness fix32fd023 preserves full stored evidence and canonical freshness;
+37 focused plus9 CLI integration checks passed. Real daily/rolling snapshots
+are now approximately12k/27k tokens, versus396k/411k before the fix.
+
+Real authority is calendar, head1, no fabricated proposal/plan. API8000, one
+worker and daily launchd schedule resumed. Both pre/post cutover backups restore
+all56 tables exactly;1655 archived files verified. Full source preservation
+covers17 named tables. FIT backfill49/49 succeeded; remaining device caveats are
+reported without claiming synthetic coverage proves them. No remote push.

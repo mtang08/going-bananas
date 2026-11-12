@@ -28,3 +28,13 @@ Final integration also includes imported prescription notes in Activity details,
 a read-only fallback for historical linked imports outside current membership,
 and calendar-mode production browser verification. Legacy undo adaptation
 remains deferred as authorized above.
+
+
+Full-history release validation found that embedding the full source-version
+vector in the model payload produced roughly 396k daily / 411k rolling tokens.
+The external snapshot now uses `snapshot_meta.source_provenance` with a SHA256
+and per-collection kinds/counts. `CoachSnapshot.source_versions` retains the
+complete vector, and canonical source fingerprints, safety checks, acceptance
+validation, and metric explanations are unchanged. Real snapshots measured
+11,971 daily and 26,964 rolling proxy tokens after this correction. This
+representation change replaces the earlier full-vector payload requirement.
