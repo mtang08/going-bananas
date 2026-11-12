@@ -32,7 +32,8 @@ DEPENDS_ON: tuple[str, ...] = ()
 MODALITIES = {"hr": ("hr_aerobic_upper", "hr_threshold_lower"),
               "speed": ("speed_aerobic_upper", "speed_threshold_lower")}
 CONFIG: dict = {"max_record_gap_s": 10, "zones": ["easy", "moderate", "high"], "zone_rule": "lower_inclusive",
-          "hr_valid_bpm": [30, 230], "speed_valid_mps": [0, 10], "coverage_good": 0.9, "coverage_limited": 0.7}
+          "hr_valid_bpm": [30, 230], "speed_valid_mps": [0, 10], "coverage_good": 0.9, "coverage_limited": 0.7,
+          "window_missing_anchor_reason": "all_present_outcomes.v1"}
 _SECONDS = ("easy_s", "moderate_s", "high_s", "valid_s", "unclassified_s", "unknown_s", "eligible_timer_s")
 _NUMBERS = (*_SECONDS, "coverage", "fraction_valid", "fraction_timer")
 _TIMER_FLAGS = ("TIMER_EVENTS_MISSING", "TIMER_EVENTS_AMBIGUOUS", "TIMER_MISMATCH")
@@ -163,8 +164,13 @@ def window_outcome(items: list[dict | None], coverage_complete: bool = True) -> 
             values = {k: 0.0 for k in _SECONDS}
             result.update(values, status="available", **_ratios(values))
         elif not counted:
+            present = [m for m in results if m is not None]
+            reasons = ["NO_ACTIVITY_COUNTED"] if items else ["SYNC_COVERAGE_INCOMPLETE"]
+            if present and len(present) == len(items) and all(
+                    "ANCHOR_MISSING" in m.get("reason_codes", []) for m in present):
+                reasons.append("ANCHOR_MISSING")
             result.update(status="not_assessable" if any(m and m["status"] == "not_assessable" for m in results)
-                          else "missing", reason_codes=["NO_ACTIVITY_COUNTED"] if items else ["SYNC_COVERAGE_INCOMPLETE"])
+                          else "missing", reason_codes=reasons)
         else:
             values = {key: sum(m[key] for m in counted) for key in _SECONDS}
             result.update({key: round(value, 1) for key, value in values.items()}, **_ratios(values))

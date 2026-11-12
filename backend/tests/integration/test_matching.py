@@ -178,3 +178,28 @@ def test_noncontiguous_dates_preserve_middle_auto_and_extra(db) -> None:
         assert session.scalar(select(SessionCompletion).where(
             SessionCompletion.session_uid == extra_uid)).activity_id == middle_extra.id
         session.rollback()
+
+
+@pytest.mark.integration
+def test_historical_revision_before_bootstrap_origin_auto_links(db) -> None:
+    with db() as session:
+        _seed(session)
+        state = session.get(AppState, 1)
+        assert state is not None
+        state.calendar_head_version = 2
+        session.add(CalendarVersion(number=2, parent_number=1, kind="manual_edit", actor="system"))
+        session.flush()
+        future = _plan(19)
+        historical = CalendarSessionRevision(session_uid=uuid.uuid4(), revision=1,
+            calendar_version_number=2, local_date=date(2026, 11, 6), kind="run", slot=0,
+            intent="historical synthetic run", certainty="committed")
+        actual = _activity(6)
+        session.add_all([future, historical, actual])
+        session.flush()
+        affected = rematch_dates(session, {date(2026, 11, 6)})
+        assert historical.session_uid in affected
+        linked = session.scalar(select(SessionCompletion).where(
+            SessionCompletion.session_uid == historical.session_uid))
+        assert linked is not None and linked.activity_id == actual.id
+        assert linked.match_method == "auto_same_day"
+        session.rollback()
