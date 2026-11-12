@@ -277,7 +277,7 @@ def decode_fit(fit_bytes: bytes) -> DecodedFit:
         raise FitDecodeError('decode_failed') from exc
     if errors:
         raise FitDecodeError('decode_failed')
-    messages = cast(dict[str, list[dict[str, Any]]], raw_messages)
+    messages = cast(dict[Any, list[dict[Any, Any]]], raw_messages)
     sessions = messages.get('session_mesgs', [])
     if len(sessions) != 1:
         raise FitDecodeError('missing_session' if not sessions else 'ambiguous_session')
@@ -308,9 +308,19 @@ def decode_fit(fit_bytes: bytes) -> DecodedFit:
     steps = tuple(_step(item) for item in sorted(messages.get('workout_step_mesgs', []),
         key=lambda item: _integer(item.get('message_index')) or 0))
     stream = _stream(messages.get('record_mesgs', []), messages.get('event_mesgs', []), session)
-    inventory = {name: len(rows) for name, rows in messages.items()}
-    field_names = {name: tuple(sorted({key for row in rows for key in row
-        if not _PRIVATE_FIELD.search(key)})) for name, rows in messages.items()}
+    inventory: dict[str, int] = {}
+    fields_by_message: dict[str, set[str]] = {}
+    for raw_name, rows in messages.items():
+        name = str(raw_name)
+        inventory[name] = inventory.get(name, 0) + len(rows)
+        fields = fields_by_message.setdefault(name, set())
+        for row in rows:
+            for raw_key in row:
+                key = str(raw_key)
+                if not _PRIVATE_FIELD.search(key):
+                    fields.add(key)
+    inventory = dict(sorted(inventory.items()))
+    field_names = {name: tuple(sorted(fields)) for name, fields in sorted(fields_by_message.items())}
     device = {}
     for source in [*messages.get('file_id_mesgs', []), *messages.get('device_info_mesgs', [])]:
         for key in ('manufacturer', 'product', 'software_version'):
