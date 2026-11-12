@@ -10,6 +10,7 @@ import time
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, text
@@ -151,6 +152,7 @@ def _coach(args) -> int:
                 return 2
         from app.api.metrics import activity_execution, explain_metric, long_run_history, recovery_nights
         from app.services.calendar import calendar_diff
+        data: Any
         with SessionLocal() as session:
             if args.name == 'activity_execution':
                 data = activity_execution(session, args.activity_id)

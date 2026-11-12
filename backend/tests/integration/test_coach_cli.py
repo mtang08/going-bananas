@@ -7,7 +7,6 @@ from datetime import UTC, date, datetime, timedelta
 from urllib.parse import urlsplit
 
 import pytest
-from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
@@ -20,13 +19,6 @@ from app.services import calendar
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
-KB = VerifiedKnowledge("0" * 64, (), (), frozenset({"P001"}), frozenset({"REC001"}), frozenset({"E-AER-01"}))
-
-
-def _resolve(selection: tuple[dict, ...]) -> VerifiedKnowledge:
-    assert selection == ()
-    return KB
-
 
 @pytest.fixture
 def proposal_session(monkeypatch):
@@ -91,33 +83,6 @@ def proposal_session(monkeypatch):
                 yield session
         finally:
             outer.rollback()
-
-
-def _snapshot(session: Session, operation: str = "review_rolling_plan") -> tuple[CoachSnapshot, uuid.UUID]:
-    state = session.get(AppState, 1)
-    assert state is not None
-    rows = calendar.state_at(session, state.calendar_head_version)
-    run_uid = next(row["session_uid"] for row in rows if row["kind"] == "run")
-    inputs = collect_decision_inputs(session, operation, TODAY, now=NOW, kb=KB)
-    snapshot = CoachSnapshot(
-        operation=operation,
-        as_of=TODAY,
-        generated_at=NOW - timedelta(hours=1),
-        calendar_version_number=state.calendar_head_version,
-        block_version_id=None,
-        data_revision=state.data_revision,
-        payload={"snapshot_meta": {"safety_guard": inputs["safety_guard"], "knowledge": {"selected_records": []}}},
-        source_fingerprint=inputs["source_fingerprint"],
-        source_versions=inputs["source_versions"],
-        kb_digest=KB.digest,
-        payload_sha256="0" * 64,
-        kb_package_version="test",
-        kb_routes=[],
-        approx_tokens=0,
-    )
-    session.add(snapshot)
-    session.flush()
-    return snapshot, run_uid
 
 
 def _doc(snapshot: CoachSnapshot, uid: uuid.UUID) -> dict:
@@ -273,3 +238,40 @@ def test_coach_router_and_structured_fields(cli_db):
         'code':'proposal_invalid_subset','message':'Invalid subset',
         'fields':[{'code':'V9.strength_count','path':'changes.1','message':'Preserve strength'}]})))
     assert json.loads(response.body)['error']['fields'][0]['path'] == 'changes.1'
+
+
+def test_snapshot_kb_integrity_exit_4(cli_db, tmp_path, monkeypatch):
+    import shutil
+
+    from app.services import knowledge
+    run, session = cli_db
+    _, document = snapshot_doc(run, session)
+    before = session.scalar(select(func.count()).select_from(CoachSnapshot))
+    kb = tmp_path / 'kb'
+    shutil.copytree(knowledge.DEFAULT_ROOT, kb)
+    workflow = kb / 'workflows' / 'weekly_review.md'
+    workflow.write_bytes(workflow.read_bytes() + b' ')
+    monkeypatch.setattr(knowledge, 'DEFAULT_ROOT', kb)
+    for args in [('snapshot', '--operation', 'review_rolling_plan'),
+                 ('submit', '--file', write_doc(tmp_path, document))]:
+        code, result, error = run(*args)
+        assert code == 4 and result is None and 'knowledge_unavailable' in error
+    assert session.scalar(select(func.count()).select_from(CoachSnapshot)) == before
+    assert session.scalar(select(func.count()).select_from(CoachProposal)) == 0
+    from app.api.metrics import recovery_nights
+    assert recovery_nights(session, TODAY - timedelta(days=1), TODAY)['end'] == TODAY
+
+
+def test_snapshot_excludes_checkin_notes(cli_db):
+    from app.checkin_models import Checkin, SymptomReport
+    run, session = cli_db
+    checkin = Checkin(idempotency_key=str(uuid.uuid4()), kind='exception', observed_at=NOW-timedelta(hours=30),
+        context_tags=[], note='cli-private-canary', gait_change='no')
+    session.add(checkin)
+    session.flush()
+    session.add(SymptomReport(checkin_id=checkin.id, site='ankle', side='left', severity=2, timing='next_morning'))
+    session.commit()
+    code, result, error = run('snapshot', '--operation', 'review_rolling_plan')
+    assert code == 0, error
+    assert 'cli-private-canary' not in str(result)
+    assert any(report['severity'] == 2 for report in result['payload']['symptoms']['reports'])
