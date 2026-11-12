@@ -21,7 +21,7 @@ from app.adapters.strong import ADAPTER_VERSION, StrongCSVError, scan_strong_csv
 from app.config import settings
 from app.db import SessionLocal, bump_data_revision
 from app.models import ImportBatch, RawObject, SourceAccount, SourceRecord
-from app.services.sync import ADVISORY_LOCK
+from app.services.sync import ADVISORY_LOCK, GLOBAL_WRITE_LOCK
 from app.strong_models import StrongWorkoutRow
 
 
@@ -54,6 +54,8 @@ def _store_csv(path: Path, private_dir: Path, digest: str, size: int) -> str:
 
 def import_strong_csv(session: Session, private_dir: Path, csv_path: Path, *, apply: bool = False) -> dict[str, object]:
     workouts, digest, size = scan_strong_csv(csv_path)
+    if apply:
+        session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': GLOBAL_WRITE_LOCK})
     accounts = session.scalars(select(SourceAccount).where(SourceAccount.provider == "strong")).all()
     if len(accounts) > 1 or (accounts and accounts[0].account_scope != "local-csv"):
         raise StrongCSVError("mixed_source_account")

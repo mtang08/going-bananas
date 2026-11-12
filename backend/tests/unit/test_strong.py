@@ -7,6 +7,46 @@ import pytest
 from app.adapters.strong import StrongCSVError, scan_strong_csv
 from app.services.strength_history import subtract_calendar_months
 
+
+def test_strong_apply_locks_before_source_read_and_preview_does_not(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    import app.services.strong_import as strong_import
+    from app.services.sync import GLOBAL_WRITE_LOCK
+
+    workout = SimpleNamespace(source_identity="synthetic", payload_hash="a" * 64,
+                              row_count=1, local_date="2026-11-09")
+    monkeypatch.setattr(strong_import, "scan_strong_csv", lambda _path: ([workout], "a" * 64, 1))
+    events = []
+
+    class StopAtSource(Exception):
+        pass
+
+    class Result:
+        def all(self):
+            return []
+
+    class SessionProbe:
+        def execute(self, statement, params):
+            events.append(("lock", str(statement), params))
+
+        def scalars(self, _statement):
+            events.append(("source",))
+            if applying:
+                raise StopAtSource
+            return Result()
+
+    session = SessionProbe()
+    applying = False
+    preview = strong_import.import_strong_csv(session, tmp_path, tmp_path / "synthetic.csv")
+    assert preview["status"] == "preflight_ok" and events == [("source",)]
+    events.clear()
+    applying = True
+    with pytest.raises(StopAtSource):
+        strong_import.import_strong_csv(session, tmp_path, tmp_path / "synthetic.csv", apply=True)
+    assert events[0][0] == "lock" and events[0][2] == {"key": GLOBAL_WRITE_LOCK}
+    assert events[1] == ("source",)
+
 HEADER = "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\n"
 
 

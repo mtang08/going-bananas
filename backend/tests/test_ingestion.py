@@ -11,6 +11,61 @@ from app.services.backup import BackupError, validate_backup
 from app.services.sync import catchup_window, retry_delay, store_raw
 
 
+def test_import_page_global_lock_precedes_source_access(monkeypatch, tmp_path):
+    import app.services.sync as sync
+
+    class StopAtSource(Exception):
+        pass
+
+    class SessionProbe:
+        def __init__(self):
+            self.events = []
+
+        def execute(self, statement, params):
+            self.events.append(("lock", str(statement), params))
+
+    def source_probe(*_args):
+        session.events.append(("source",))
+        raise StopAtSource
+
+    session = SessionProbe()
+    monkeypatch.setattr(sync, "_account", source_probe)
+    with pytest.raises(StopAtSource):
+        sync.import_activity_page(session, tmp_path, [{}], account_scope="synthetic",
+                                  source_kind="garmin_export", timezone="UTC")
+    assert session.events[0][0] == "lock"
+    assert session.events[0][2] == {"key": sync.GLOBAL_WRITE_LOCK}
+    assert session.events[1] == ("source",)
+    session.events.clear()
+    assert sync.import_activity_page(session, tmp_path, [], account_scope="synthetic") == {
+        "seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
+    assert session.events == []
+
+
+def test_recovery_import_global_lock_precedes_source_access(monkeypatch, tmp_path):
+    import app.services.sync as sync
+
+    class StopAtSource(Exception):
+        pass
+
+    events = []
+
+    class SessionProbe:
+        def execute(self, statement, params):
+            events.append(("lock", str(statement), params))
+
+    def source_probe(*_args):
+        events.append(("source",))
+        raise StopAtSource
+
+    monkeypatch.setattr(sync, "_account", source_probe)
+    row = {"userProfilePK": 17, "calendarDate": "2026-11-12", "lastNightAvg": 42}
+    with pytest.raises(StopAtSource):
+        sync.import_recovery_page(SessionProbe(), tmp_path, "hrv", [row])
+    assert events[0][0] == "lock" and events[0][2] == {"key": sync.GLOBAL_WRITE_LOCK}
+    assert events[1] == ("source",)
+
+
 def test_activity_time_and_sport_are_canonical():
     activity = parse_activity({"activityId": 18, "startTimeGMT": "2026-01-01T01:00:00Z",
         "activityType": {"typeKey": "running"}, "distance": 1609.344,
