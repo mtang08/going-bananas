@@ -2,14 +2,16 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import {
   addDays, api, dateLabel, DECISION_LABELS, fetchDailyGuidance, flattenStructure,
   fmtDistance, fmtDuration, formatStep, invalidateKeys, MARKER_LABELS, pageHref,
-  post, qk, sessionMarker, sessionTitle, statusText,
+  post, qk, RECIPE_LABELS, sessionMarker, sessionTitle, statusText,
   type Activity, type BlockVersion, type CalendarView, type CheckinRequest,
   type PromptList, type SessionState, type Unit,
 } from '../api'
+import type { ProposalSummary } from '../api/types/coach'
 import { QueryState } from '../components/QueryState'
 
 export function Home({ unit, onCheckin }: { unit: Unit; onCheckin: (req: CheckinRequest) => void }) {
   const qc = useQueryClient()
+  const pending = useQuery({queryKey:['v2','proposals','pending'],queryFn:()=>api<{items:ProposalSummary[]}>('/coach/proposals?status=pending')})
   const calendar = useQuery({ queryKey: qk.calendarView('head'), queryFn: () => api<CalendarView>('/calendar') })
   const prompts = useQuery({ queryKey: qk.prompts, queryFn: () => api<PromptList>('/prompts') })
   const guidance = useQuery({ queryKey: qk.coachDaily, queryFn: fetchDailyGuidance })
@@ -49,6 +51,9 @@ export function Home({ unit, onCheckin }: { unit: Unit; onCheckin: (req: Checkin
         </div>
       </>}
     </QueryState>
+    {(pending.data?.data?.items?.length ?? 0)>0 && <div className="panel pending-proposals"><h2>Pending proposal</h2>
+      {pending.data!.data.items.map(proposal=><article key={proposal.id}><p>{proposal.summary}</p><a className="button" href={`#proposal/${encodeURIComponent(proposal.id)}`}>Review proposal</a></article>)}
+    </div>}
     <div className="panel"><h2>Prompts</h2>
       <QueryState loading={prompts.isPending} error={prompts.error} stale={!!prompts.data} retry={() => { void prompts.refetch() }}>
         {open.length === 0 && <p className="muted-text">No open prompts.</p>}
@@ -79,7 +84,11 @@ export function Home({ unit, onCheckin }: { unit: Unit; onCheckin: (req: Checkin
     <div className="panel"><h2>Training block</h2>
       <QueryState loading={block.isPending} error={block.error} stale={!!block.data} retry={() => { void block.refetch() }}>
         {b === null && <p>No active block. The calendar runs without one until the first block review.</p>}
-        {b && <><p>{b.objective}</p><small>Next review {dateLabel(b.review_date)}</small></>}
+        {b && <><p>{b.objective}</p><small>Next review {dateLabel(b.review_date)}</small>
+          {today && <p>Week {Math.max(1,Math.floor((Date.parse(today)-Date.parse(b.start_date))/604800000)+1)} of {Math.max(1,Math.ceil((Date.parse(b.review_date)-Date.parse(b.start_date))/604800000))}</p>}
+          <p>Maintaining: {b.maintained_qualities?.join(', ') || 'Not specified'}</p>
+          <p>Eligible sessions: {b.eligible_recipe_ids?.map(id=>RECIPE_LABELS[id] || id).join(', ') || 'Not specified'}</p>
+          <a href="#block">View training block</a></>}
       </QueryState>
     </div>
     {view && view.head !== 0 && today && <div className="panel"><h2>Next 14 days</h2><div className="strip-grid">

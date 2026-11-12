@@ -39,8 +39,9 @@ export function windowDays(start: string, end: string): number {
   return Math.round((Date.parse(`${end}T12:00:00Z`) - Date.parse(`${start}T12:00:00Z`)) / 86400000) + 1
 }
 
+export interface ApiFieldError { code?:string; path?:string; field?:string; message:string }
 export class ApiError extends Error {
-  constructor(public status: number, public code: string, message: string, public retryable = false) { super(message) }
+  constructor(public status: number, public code: string, message: string, public retryable = false, public fields: ApiFieldError[] = []) { super(message) }
 }
 
 const BASE = '/api/v1'
@@ -54,8 +55,8 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<E
   let body: unknown
   try { body = await response.json() } catch { throw new ApiError(response.status, 'invalid_response', 'The server returned an unreadable response.') }
   if (!response.ok) {
-    const problem = (body as { error?: { code?: string; message?: string; retryable?: boolean } }).error
-    throw new ApiError(response.status, problem?.code || 'request_failed', problem?.message || 'The request failed.', problem?.retryable)
+    const problem = (body as { error?: { code?: string; message?: string; retryable?: boolean; fields?:ApiFieldError[] } }).error
+    throw new ApiError(response.status, problem?.code || 'request_failed', problem?.message || 'The request failed.', problem?.retryable, problem?.fields)
   }
   if (!body || typeof body !== 'object' || !('data' in body)) throw new ApiError(response.status, 'invalid_response', 'The server response is missing data.')
   return body as Envelope<T>
