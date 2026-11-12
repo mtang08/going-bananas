@@ -1,0 +1,28 @@
+{
+  "artifact_version": "going-bananas-coach.MVP-1.0",
+  "protocol": "coach_proposal.v1",
+  "required_authority": "calendar",
+  "activation": "manual",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "sha256": "4acd0e0f620930585d7e842f59d0185af1e57bbbf52d33bb74e578ca023cb5ae"
+    },
+    {
+      "path": "agents/openai.yaml",
+      "sha256": "2068f910256493ad3fd46a98d815b612e2d8774d19ba8bf9a746c45677b2d004"
+    },
+    {
+      "path": "references/app-access.md",
+      "sha256": "82117e0b4c3afcb9b79738a12ca422525ee9517a73a4a65f9454776989b40366"
+    },
+    {
+      "path": "references/coaching-workflows.md",
+      "sha256": "0dbb32b8e9171f353de013c46d18493b9d04c4c1327c762eee577e6b47fde17c"
+    },
+    {
+      "path": "scripts/coach_app.py",
+      "sha256": "8a87b9f5b066ba3fd6531ab4123980c3c6b2b083d8a048ec34f29ae109619d62"
+    }
+  ]
+}
