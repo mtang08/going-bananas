@@ -328,7 +328,23 @@ def test_invalid_saved_selection(selection):
         verify_selection(selection)
 
 
-def test_routed_context_hard_limit_never_truncates():
+def test_routed_context_accepts_largest_valid_selection_without_truncation():
+    from app.services.knowledge import MAX_ROUTED_CONTEXT_CHARS
+
+    recipes = sorted(kb_index().recipe_ids)
+    bundles = [load_route(operation, recipe_ids=recipes, conditional_topics=CONDITIONAL_TOPICS)
+               for operation in SUPPORTED_OPERATIONS]
+    assert max(bundle.chars for bundle in bundles) < MAX_ROUTED_CONTEXT_CHARS
+    for bundle in bundles:
+        verified = verify_selection(tuple(bundle.routes))
+        assert verified["selection"] == tuple(bundle.routes)
+        assert len(bundle.excerpts) > 0
+
+
+def test_routed_context_hard_limit_never_truncates(monkeypatch):
+    from app.services import knowledge
+
+    monkeypatch.setattr(knowledge, "MAX_ROUTED_CONTEXT_CHARS", 1)
     with pytest.raises(KnowledgeIntegrityError, match="exceeds bound"):
         load_route("review_training_block", conditional_topics=CONDITIONAL_TOPICS)
     with pytest.raises(KnowledgeIntegrityError, match="exceeds bound"):

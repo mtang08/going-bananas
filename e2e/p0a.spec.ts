@@ -19,6 +19,17 @@ test.beforeEach(async ({ request }) => {
 
 test('p0a: home shows today and 14-day strip', async ({ page, request }) => {
   const calendar = await data(await request.get('/api/v1/calendar'))
+  const history = await data(await request.get(`/api/v1/calendar?start=${day(calendar.today,-2)}&end=${calendar.today}`))
+  const completedLong = history.sessions.find((s: {local_date:string;recipe_id:string}) =>
+    s.local_date === day(calendar.today,-2) && s.recipe_id === 'REC002')
+  expect(completedLong).toBeTruthy()
+  expect(history.completions.some((c: {session_uid:string;activity_id:string|null}) =>
+    c.session_uid === completedLong.session_uid && Boolean(c.activity_id))).toBe(true)
+  const linked = history.completions.find((c: {session_uid:string;activity_id:string|null}) =>
+    c.session_uid === completedLong.session_uid && c.activity_id)
+  const longRuns = await data(await request.get(`/api/v1/metrics/long-runs?start=${day(calendar.today,-2)}&end=${calendar.today}`))
+  expect(longRuns.some((metric: {value:{activity_id:string;classification:string}}) =>
+    metric.value.activity_id === linked.activity_id && metric.value.classification === 'long')).toBe(true)
   await page.goto('/')
   await expect(page.getByTestId('today-card')).toBeVisible()
   const cells = page.getByTestId('strip-day')
