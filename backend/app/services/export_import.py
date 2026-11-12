@@ -17,7 +17,7 @@ from app.adapters.garmin.export import ExportError, scan_activities
 from app.adapters.garmin.export_recovery import scan_recovery
 from app.adapters.garmin.normalize import parse_activity
 from app.models import Activity, CoverageInterval, ImportBatch, RawObject, SourceAccount
-from app.services.sync import import_activity_page, import_recovery_page, store_raw
+from app.services.sync import athlete_tz, import_activity_page, import_recovery_page, store_raw
 
 
 def _store_archive(path: Path, private_dir: Path, digest: str, size: int) -> str:
@@ -110,11 +110,13 @@ def _coverage(session: Session, dataset: str, dates: list, now: datetime) -> dic
 
 
 def import_export(session: Session, private_dir: Path, archive_path: Path, *, apply: bool = False,
-                  timezone: str = "America/New_York") -> dict[str, object]:
+                  timezone: str | None = None) -> dict[str, object]:
     """Inspect all input first; with apply=True, persist immutable bytes and revisions.
 
     The caller owns the transaction. Dry run performs no database or private-file writes.
     """
+    if timezone is None:
+        timezone = athlete_tz(session)
     try:
         with archive_path.open("rb") as stream:
             archive_sha = hashlib.file_digest(stream, "sha256").hexdigest()

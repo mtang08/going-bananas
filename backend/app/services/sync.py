@@ -25,6 +25,7 @@ from app.models import (
     CoverageInterval,
     ImportBatch,
     ManualSession,
+    ProfileVersion,
     RawObject,
     RecoveryObservation,
     SourceAccount,
@@ -102,7 +103,13 @@ CANONICAL_FIELDS = (
     "start_at", "original_start", "source_timezone", "local_date", "sport",
     "subtype", "distance_m", "elapsed_s", "moving_s", "avg_hr_bpm",
     "cadence_spm", "source_workout_label",
+    "timer_s",
 )
+
+
+def athlete_tz(session: Session) -> str:
+    profile = session.scalar(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1))
+    return profile.timezone if profile else "America/New_York"
 
 
 def detect_import_conflicts_for_manual(session: Session, manual: ManualSession) -> None:
@@ -191,6 +198,9 @@ def _reconcile(session: Session, account: SourceAccount, identity: str, garmin_i
     ))
     selected["start_at"] = datetime.fromisoformat(selected["start_at"])
     selected["local_date"] = date.fromisoformat(selected["local_date"])
+    if activity is not None and activity.fit_status == "decoded":
+        provenance.update({key: value for key, value in (activity.field_provenance or {}).items()
+                           if isinstance(value, dict) and value.get("source_kind") == "garmin_fit"})
     semantic = {**selected, "field_provenance": provenance}
     changed = activity is None
     if activity is None:
@@ -200,6 +210,8 @@ def _reconcile(session: Session, account: SourceAccount, identity: str, garmin_i
         session.flush()
     else:
         for key, value in semantic.items():
+            if key == "timer_s" and activity.fit_status == "decoded":
+                continue
             if getattr(activity, key) != value:
                 setattr(activity, key, value)
                 changed = True
@@ -225,7 +237,7 @@ def _reconcile(session: Session, account: SourceAccount, identity: str, garmin_i
 
 def import_activity_page(session: Session, private_dir: Path, records: list[dict[str, Any]],
                          *, account_scope: str, source_kind: str = "garmin_api",
-                         timezone: str = "America/New_York",
+                         timezone: str | None = None,
                          fetched_at: datetime | None = None,
                          batch: ImportBatch | None = None,
                          raw_records: list[dict[str, Any]] | None = None,
@@ -239,6 +251,8 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
         raise ValueError("invalid_account_scope")
     if not records:
         return {"seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
+    if timezone is None:
+        timezone = athlete_tz(session)
     if source_kind == "garmin_api" and records:
         owners = {str(item.get("ownerId")) for item in records if item.get("ownerId") is not None}
         if len(owners) != 1 or any(item.get("ownerId") is None for item in records):
@@ -464,7 +478,7 @@ def enqueue_catchup(session: Session, today: date) -> list[SyncJob]:
 def retry_delay(exc: Exception, attempt: int, now: datetime | None = None) -> float | None:
     status = getattr(exc, "status_code", None)
     if (status not in {429, 500, 502, 503, 504}
-            and exc.__class__.__name__ not in {"Timeout", "ConnectTimeout", "ConnectionError"}):
+            and exc.__class__.__name__ not in {"Timeout", "ReadTimeout", "ConnectTimeout", "ConnectionError"}):
         return None
     headers = getattr(exc, "response", None)
     retry_after = getattr(headers, "headers", {}).get("Retry-After") if headers else None
@@ -553,11 +567,42 @@ def _run_recovery_job(source: GarminPersonalSource, job: SyncJob, private_dir: P
     return "partial" if partial else "complete"
 
 
+def _ingest_fit_page(source: GarminPersonalSource, private_dir: Path,
+                     page: list[dict[str, Any]], session_factory=None) -> None:
+    from app.services.fit_ingest import ingest_activity_fit
+
+    factory = session_factory or SessionLocal
+    for item in page:
+        remote_id = item.get("activityId")
+        if remote_id is None:
+            continue
+        with factory() as fit_session:
+            owner = item.get("ownerId")
+            account = fit_session.scalar(select(SourceAccount).where(
+                SourceAccount.provider == "garmin",
+                SourceAccount.account_scope == f"garmin-owner:{owner}"))
+            if account is None:
+                continue
+            activity = fit_session.scalar(select(Activity).where(
+                Activity.source_account_id == account.id,
+                Activity.garmin_id == str(remote_id),
+                Activity.resolution_state == "resolved",
+                Activity.sport.in_(("running", "trail_running", "treadmill_running"))))
+            if activity is None:
+                continue
+            try:
+                ingest_activity_fit(fit_session, source, private_dir, activity)
+                fit_session.commit()
+            except Exception:
+                fit_session.rollback()
+
+
 def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | None:
     """Drain one queued/retry job; return status, or None if lock/job unavailable."""
     # Session remains bound to a dedicated connection across commits. PostgreSQL
     # session advisory locks belong to that connection, not a pooled Session.
     with engine.connect() as lock_connection, Session(bind=lock_connection, expire_on_commit=False) as session:
+        job_id = None
         locked = session.scalar(text(f"SELECT pg_try_advisory_lock({ADVISORY_LOCK})"))
         if not locked:
             return None
@@ -567,6 +612,7 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                 .order_by(SyncJob.created_at).with_for_update(skip_locked=True))
             if job is None:
                 return None
+            job_id = job.id
             first = _required(job.start_date)
             last = _required(job.end_date)
             job.status = "running"
@@ -580,7 +626,6 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
             state.requested_start = job.start_date
             state.requested_end = job.end_date
             session.commit()
-            job_id = job.id
             with GarminPersonalSource(key_file, private_dir / "garmin-token.json") as source:
                 if job.dataset in {"sleep", "hrv", "resting_hr"}:
                     return _run_recovery_job(source, job, private_dir)
@@ -620,7 +665,8 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                         page_session.add(batch)
                         page_session.flush()
                         counts = import_activity_page(page_session, private_dir, page,
-                                                      account_scope=account_scope, batch=batch)
+                                                      account_scope=account_scope, batch=batch,
+                                                      timezone=athlete_tz(page_session))
                         batch.status = "complete"
                         batch.finished_at = datetime.now(UTC)
                         batch.counters = counts
@@ -633,7 +679,7 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                         observed = []
                         for item in page:
                             try:
-                                observed.append(parse_activity(item).start_at)
+                                observed.append(parse_activity(item, athlete_tz(page_session)).start_at)
                             except InvalidRecord:
                                 continue
                         if observed:
@@ -641,6 +687,7 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                             if state.newest_observation_at is None or newest > state.newest_observation_at:
                                 state.newest_observation_at = newest
                         page_session.commit()
+                    _ingest_fit_page(source, private_dir, page)
                     if len(page) < 50:
                         with SessionLocal() as final:
                             current = _required(final.get(SyncJob, job_id, with_for_update=True))
@@ -663,6 +710,8 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                         return "partial" if partial else "complete"
                 raise ValueError("activity_page_limit")
         except Exception as exc:
+            if job_id is None:
+                raise
             safe = "credential_attention" if getattr(exc, "status_code", None) in {401, 403} else (
                 str(exc) if isinstance(exc, ValueError) and str(exc) in {
                     "unsupported_dataset", "repeated_activity_page", "activity_page_limit",
@@ -682,5 +731,9 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                 failed.commit()
             return "failed"
         finally:
-            session.execute(text(f"SELECT pg_advisory_unlock({ADVISORY_LOCK})"))
-            session.commit()
+            session.rollback()
+            try:
+                lock_connection.execute(text(f"SELECT pg_advisory_unlock({ADVISORY_LOCK})"))
+                lock_connection.commit()
+            except Exception:
+                lock_connection.rollback()

@@ -32,6 +32,7 @@ class CanonicalActivity:
     average_cadence: float | None
     workout_label: str | None
     field_paths: dict[str, str]
+    timer_s: float | None = None
 
 
 def _number(value: Any, field: str) -> float | None:
