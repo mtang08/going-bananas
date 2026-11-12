@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.orm import Session
 
 root = Path(__file__).resolve().parents[1]
@@ -26,6 +26,9 @@ from app.models import (  # noqa: E402
     SourceRecord,
 )
 from app.strong_models import StrongWorkoutRow  # noqa: E402
+from app.calendar_models import CalendarSessionRevision, CalendarVersion, LegacyImportMap, LegacyImportRun, SessionCompletion  # noqa: E402
+from app.checkin_models import Checkin as CheckinV2  # noqa: E402
+from app.services.legacy_cutover import SOURCE_MODELS, _json, source_snapshot  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--database', required=True)
@@ -38,11 +41,24 @@ restore_url = urlunsplit((url.scheme, url.netloc, '/' + args.database, url.query
 engine = create_engine(restore_url)
 private = args.private_dir.resolve()
 source_private = settings.private_dir.resolve()
-models = [
+models = list(dict.fromkeys([*SOURCE_MODELS,
     Activity, Checkin, PlanVersion, ProfileVersion, RawObject, RecoveryObservation,
     SourceRecord, StrongWorkoutRow, CoachRecommendation, CoachOutcome, CoachOutcomeEvent,
-]
+    CalendarVersion, CalendarSessionRevision, SessionCompletion, LegacyImportRun,
+    LegacyImportMap, CheckinV2]))
 with SessionLocal() as source, Session(engine) as restored:
+    source_tables = set(inspect(source.connection()).get_table_names())
+    restored_tables = set(inspect(restored.connection()).get_table_names())
+    assert source_tables == restored_tables, 'Database table coverage differs'
+    for table in sorted(source_tables):
+        def table_digest(session):
+            name = session.bind.dialect.identifier_preparer.quote(table)
+            rows = sorted(_json(dict(row)) for row in session.execute(text(f'SELECT * FROM {name}')).mappings())
+            return len(rows), hashlib.sha256('\n'.join(rows).encode()).digest()
+        assert table_digest(source) == table_digest(restored), f'Table contents differ: {table}'
+    source_counts, source_hashes, _ = source_snapshot(source)
+    restore_counts, restore_hashes, _ = source_snapshot(restored)
+    assert (source_counts, source_hashes) == (restore_counts, restore_hashes), 'Legacy source payloads differ'
     for model in models:
         expected = source.scalar(select(func.count()).select_from(model))
         actual = restored.scalar(select(func.count()).select_from(model))

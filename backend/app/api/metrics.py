@@ -11,7 +11,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.core import envelope, fail
-from app.calendar_models import SessionCompletion
+from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.checkin_models import SessionRpe
 from app.db import get_session
 from app.fit_models import ActivityLap, ActivityWorkoutStep
@@ -66,6 +66,16 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
     head = session.scalar(select(AppState.calendar_head_version).where(AppState.id == 1)) or 0
     planned = next((row for row in calendar.state_at(session, head)
                     if completion and row['session_uid'] == completion.session_uid), None) if head else None
+    if planned is None and completion and completion.session_uid and head:
+        # An imported, completed legacy session can be absent from current
+        # membership while its original prescription remains part of history.
+        historical = session.scalar(select(CalendarSessionRevision).where(
+            CalendarSessionRevision.session_uid == completion.session_uid,
+            CalendarSessionRevision.calendar_version_number == 1,
+            CalendarSessionRevision.deleted,
+            CalendarSessionRevision.legacy_payload.is_not(None)))
+        if historical is not None:
+            planned = calendar._row_data(historical)
     def value(metric: str) -> dict:
         row = current(session, metric, str(activity_id))
         return row.value or {} if row else {}

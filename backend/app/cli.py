@@ -100,6 +100,10 @@ def _parse() -> argparse.Namespace:
     query.add_argument('--result-id', type=uuid.UUID)
     submit = coach_sub.add_parser('submit')
     submit.add_argument('--file', type=Path, required=True)
+    cutover = sub.add_parser("planning-cutover")
+    cutover_mode = cutover.add_mutually_exclusive_group()
+    cutover_mode.add_argument("--dry-run", action="store_true")
+    cutover_mode.add_argument("--apply", action="store_true")
     return parser.parse_args()
 
 
@@ -192,7 +196,22 @@ def main() -> int:
     try:
         if args.command == "coach":
             return _coach(args)
-        if args.command == "metrics-recompute":
+        if args.command == "planning-cutover":
+            from fastapi import HTTPException
+
+            from app.services.legacy_cutover import migrate_legacy_state
+            try:
+                with SessionLocal() as session:
+                    report = migrate_legacy_state(session, dry_run=not args.apply)
+                    if args.apply:
+                        session.commit()
+                    else:
+                        session.rollback()
+            except HTTPException as exc:
+                detail: dict = exc.detail if isinstance(exc.detail, dict) else {}
+                raise ValueError(detail.get('code', 'cutover_failed')) from None
+            print(json.dumps(report, sort_keys=True))
+        elif args.command == "metrics-recompute":
             from app.metric_models import MetricResult
             from app.metrics import engine as metrics_engine
             metrics_engine.metric_modules()
