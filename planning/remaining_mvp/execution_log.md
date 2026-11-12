@@ -11,3 +11,5 @@ Root baseline make setup/check passed:68 backend fast,26 frontend, lint/typechec
 Active: Astra mvp_data_lead supervises Sol low schema/migration worker and separate disjoint migration-test worker for003.004 is prepared; exactpacket only depends002 and is file-disjoint from003, so manager permits overlap when a slot frees (merge003 before004). Four-slot budget respected.
 
 Next: finish/review003 preservation and full baseline integration; merge green task branch into integration/mvp1;004 decoder/inventory; then dependency waves. No real migration/cutover, installed helper change or push yet. A schema task must not be merged to running main without compatible database readiness or explicit staging; preserve app functionality.
+
+User steering: backward compatibility and temporary-breakage constraints relaxed. implementation_overrides.md controls current priorities. Finish working end-to-end training workflow first, no unnecessary legacy rollout scaffolding. Preserve actual data; root owns backup/migration.
