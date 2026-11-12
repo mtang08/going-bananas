@@ -19,3 +19,18 @@
 .proposal-session p { white-space:pre-wrap; }
 .pending-proposals article, .block-history { padding:.75rem 0; border-bottom:1px solid var(--border, #d8ddd6); }
 @media (max-width:640px) { .proposal-diff { grid-template-columns:1fr; } .proposal-actions .button { flex:1; } }
+/* Calendar preview surfaces */
+.today-card{border-color:#d7dfce;background:linear-gradient(140deg,#fffdf8,#f0f5e9)}
+.today-card h2{margin-bottom:12px}
+.strip-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px}
+.strip-day{min-width:0;padding:12px;border:1px solid #e0e5d9;border-radius:12px;background:#fff;text-align:left}
+.strip-day.today{border-color:#667f55;background:#f2f7eb}
+.strip-day small,.session-row small{display:block;color:#647260}
+.calendar-day{margin:18px 0;padding:18px;border:1px solid #e0e5d9;border-radius:14px;background:#fff}
+.calendar-day h2{margin:0 0 12px}
+.session-row,.version-row{padding:12px 0;border-top:1px solid #e9ede5}
+.session-row:first-of-type,.version-row:first-of-type{border-top:0}
+.session-row.extra{border-left:3px solid #b8c9aa;padding-left:12px}
+.trend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.trend-grid>*{min-width:0}
+@media(max-width:700px){.strip-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.trend-grid{grid-template-columns:1fr}.calendar-day{padding:14px}}

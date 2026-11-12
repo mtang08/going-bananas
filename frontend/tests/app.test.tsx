@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { App } from '../src/App'
+import { App, parseHash } from '../src/App'
 
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({children}:{children:React.ReactNode}) => <div>{children}</div>,
@@ -13,7 +13,9 @@ vi.mock('recharts', () => ({
 let responseMode:'demo'|'real'='demo'
 let importItems:unknown[]=[]
 const wrap = (data: unknown) => ({schema_version:'v1',data_revision:3,mode:responseMode,data})
-const profile = {version:1,timezone:'America/New_York',cycle_anchor:'2026-11-02',anchor_confirmed:true,strength_days_confirmed:true,scheduled_strength_days:[0,4],strength_schedule_mode:'weekly',strength_week_a_start:null,strength_week_a_days:[],strength_week_b_days:[],mobility_week_a_days:[],mobility_week_b_days:[],mobility_optional_days:[],facts:{},preferences:{},unknowns:[]}
+const profile = {planning_authority:'legacy' as 'legacy'|'calendar',version:1,timezone:'America/New_York',cycle_anchor:'2026-11-02',anchor_confirmed:true,strength_days_confirmed:true,scheduled_strength_days:[0,4],strength_schedule_mode:'weekly',strength_week_a_start:null,strength_week_a_days:[],strength_week_b_days:[],mobility_week_a_days:[],mobility_week_b_days:[],mobility_optional_days:[],facts:{},preferences:{},unknowns:[]}
+const calendarView = {today:'2026-11-15',timezone:'America/New_York',start:'2026-11-08',end:'2026-11-28',version:1,head:1,undo:null,last_planned_date:'2026-11-28',sessions:[],completions:[]}
+const execution = {activity:{id:'run-1',start_at:'2026-11-14T12:00:00Z',end_at:'2026-11-14T12:30:00Z',local_date:'2026-11-14',sport:'running',distance_m:5000,timer_s:1800,elapsed_s:1800,fit_status:'not_fetched'},planned:null,completion:null,laps:[],watch_steps:[],planned_actual:null,intervals:null,intensity:null,rpe:{effective:null,source:null,manual:null,garmin_fit:null,srpe_load_au:null},symptoms:[]}
 const summary = {as_of:'2026-11-15',timezone:'America/New_York',metric_version:'analytics.v1',window:{start_date:'2026-10-19',end_date:'2026-11-15'},current_week:{distance_m:11265.408,run_count:2,missing_distance_count:0},rolling_7:{distance_m:11265.408,run_count:2,missing_distance_count:0},rolling_14:{distance_m:16093.44,run_count:4,missing_distance_count:0},selected:{distance_m:16093.44,run_count:4,missing_distance_count:0,longest_elapsed_s:700,strength_count:2,strength_duration_s:3600,strength_unknown_duration_count:1,low_impact_count:0,low_impact_duration_s:0,workout_distribution:{easy:1,quality:0,long:1,other:0,unknown:2}},weekly:[{start_date:'2026-11-09',end_date:'2026-11-15',distance_m:11265.408,run_count:2,missing_distance_count:0,strength_count:1}],recent_runs:[],coverage:[{dataset:'activities',status:'partial',reason:'import in progress'}]}
 const recovery = {timezone:'America/New_York',series:{sleep:[],hrv:[],resting_hr:[]},trailing_7:{sleep:{mean:null,n:0,days:7},hrv:{mean:null,n:0,days:7},resting_hr:{mean:null,n:0,days:7}},coverage:[]}
 
@@ -26,12 +28,13 @@ beforeEach(() => {
   activityItems=[]
   responseMode='demo'
   importItems=[]
+  window.location.hash=''
   localStorage.clear()
   vi.stubGlobal('fetch',vi.fn(async (input:string, init?:RequestInit) => {
     const url=String(input),method=init?.method||'GET'
     requests.push({url,method,body:init?.body?JSON.parse(String(init.body)):null,headers:new Headers(init?.headers)})
     if(url.includes('/profile')&&method==='PUT')profileRecord={...profileRecord,...JSON.parse(String(init?.body)),version:profileRecord.version+1}
-    const data = url.includes('/sync/jobs/') ? {id:'job-1',dataset:'activities',status:'succeeded'} : url.includes('/sync') && method==='POST' ? {jobs:[{id:'job-1',dataset:'activities',status:'queued'}]} : url.includes('/sync/status') ? {datasets:[],active_jobs:[]} : url.includes('/weekly-summary') ? {week_start:'2026-11-09',week_end:'2026-11-15',summary:summary.selected,checkins:[],questions:[],coverage:[]} : url.includes('/summary') ? (url.includes('as_of=2020-12-31') ? {...summary,window:{start_date:'2020-01-02',end_date:'2020-12-31'}} : summary) : url.includes('/recovery') ? recovery : url.includes('/profile') ? profileRecord : url.includes('/health/ready') ? {status:'ok',database:true} : url.includes('/checkins') && method==='POST' ? {id:'checkin-1'} : url.includes('/activities/') ? activityItems[0] : url.includes('/activities') ? {items:activityItems,next_cursor:null,timezone:'America/New_York',coverage:[]} : url.includes('/imports') ? {items:importItems} : {items:[]}
+    const data = url.includes('/calendar/versions') ? {items:[]} : url.endsWith('/calendar') ? calendarView : url.includes('/prompts') ? {items:[]} : url.includes('/blocks/active') ? null : url.includes('/strength-routine') ? {version:0,slots:[],schedule:profileRecord} : url.includes('/coach/v2/daily') ? null : url.includes('/execution') ? execution : url.includes('/sync/jobs/') ? {id:'job-1',dataset:'activities',status:'succeeded'} : url.includes('/sync') && method==='POST' ? {jobs:[{id:'job-1',dataset:'activities',status:'queued'}]} : url.includes('/sync/status') ? {datasets:[],active_jobs:[]} : url.includes('/weekly-summary') ? {week_start:'2026-11-09',week_end:'2026-11-15',summary:summary.selected,checkins:[],questions:[],coverage:[]} : url.includes('/summary') ? (url.includes('as_of=2020-12-31') ? {...summary,window:{start_date:'2020-01-02',end_date:'2020-12-31'}} : summary) : url.includes('/recovery') ? recovery : url.includes('/profile') ? profileRecord : url.includes('/health/ready') ? {status:'ok',database:true} : url.includes('/checkins') && method==='POST' ? {id:'checkin-1'} : url.includes('/activities/') ? activityItems[0] : url.includes('/activities') ? {items:activityItems,next_cursor:null,timezone:'America/New_York',coverage:[]} : url.includes('/imports') ? {items:importItems} : {items:[]}
     return {ok:true,status:200,json:async()=>wrap(data)} as Response
   }))
 })
@@ -49,6 +52,7 @@ describe('analytics dashboard',()=>{
   })
   it('one-tap check-in sends explicit values with local mutation header and stable key',async()=>{
     mount()
+    await screen.findByRole('heading',{name:'Your training, in context.'})
     fireEvent.click(screen.getAllByRole('button',{name:'Record check-in'})[0])
     fireEvent.click(screen.getByRole('button',{name:/No issues; usual energy/}))
     await waitFor(()=>expect(requests.some(x=>x.method==='POST')).toBe(true))
@@ -108,6 +112,7 @@ describe('analytics dashboard',()=>{
   })
   it('loads an archived history window and rejects windows beyond the API limit',async()=>{
     mount()
+    await screen.findByRole('heading',{name:'Your training, in context.'})
     fireEvent.click(screen.getByRole('button',{name:'History'}))
     fireEvent.change(screen.getByLabelText('Start date'),{target:{value:'2019-12-31'}})
     fireEvent.change(screen.getByLabelText('End date'),{target:{value:'2020-12-31'}})
@@ -121,6 +126,7 @@ describe('analytics dashboard',()=>{
   })
   it('uses the selected overview year for summary and recovery',async()=>{
     mount()
+    await screen.findByRole('heading',{name:'Your training, in context.'})
     fireEvent.click(screen.getByRole('button',{name:'1 year'}))
     fireEvent.change(screen.getByLabelText('Through date'),{target:{value:'2020-12-31'}})
     await waitFor(()=>expect(requests.some(x=>x.url.includes('/summary?')&&x.url.includes('days=365')&&x.url.includes('as_of=2020-12-31'))).toBe(true))
@@ -147,5 +153,52 @@ describe('analytics dashboard',()=>{
     expect(screen.getByText(/3 recovery entries were preserved/)).toBeInTheDocument()
     expect(screen.getByText(/Import incomplete/)).toBeInTheDocument()
     expect(screen.queryByText(/secret-id|secret.zip|secret-hash|private@example.com|\/private/)).not.toBeInTheDocument()
+  })
+})
+
+describe('authority shell',()=>{
+  it('parses only routes permitted by the resolved authority',()=>{
+    expect(parseHash('#calendar','legacy')).toEqual({page:'overview',id:null})
+    expect(parseHash('#coach','legacy')).toEqual({page:'coach',id:null})
+    expect(parseHash('#cycle','calendar')).toEqual({page:'home',id:null})
+    expect(parseHash('#activity/run%20one','calendar')).toEqual({page:'activity',id:'run one'})
+    expect(parseHash('#activity/%ZZ','calendar')).toEqual({page:'home',id:null})
+    expect(parseHash('#activity/%2F','calendar')).toEqual({page:'home',id:null})
+  })
+  it('keeps the legacy Coach and Cycle navigation and modal',async()=>{
+    mount()
+    fireEvent.click(await screen.findByRole('button',{name:'Coach'}))
+    expect(await screen.findByRole('heading',{name:'Plan, train, review.'})).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button',{name:'Cycle'}))
+    expect(await screen.findByRole('heading',{name:'Keep the rhythm visible.'})).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button',{name:'Record check-in'})[0])
+    expect(screen.getByRole('button',{name:/No issues; usual energy/})).toBeInTheDocument()
+  })
+  it('opens calendar Home, follows navigation hashes, and uses the v2 check-in',async()=>{
+    profileRecord={...profile,planning_authority:'calendar'}
+    mount()
+    expect(await screen.findByTestId('today-card')).toBeInTheDocument()
+    expect(screen.getAllByTestId('strip-day')).toHaveLength(14)
+    expect(screen.queryByRole('button',{name:'Cycle'})).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button',{name:'Calendar'}))
+    expect(window.location.hash).toBe('#calendar')
+    expect(await screen.findByRole('heading',{name:'Calendar.'})).toBeInTheDocument()
+    window.location.hash='#unknown'
+    fireEvent(window,new Event('hashchange'))
+    expect(await screen.findByTestId('today-card')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button',{name:'Record check-in'})[0])
+    expect(screen.getByRole('dialog',{name:'Record check-in'})).toBeInTheDocument()
+    expect(screen.getByRole('heading',{name:'Something to report?'})).toBeInTheDocument()
+  })
+  it('routes an activity deep link and keeps existing settings controls',async()=>{
+    profileRecord={...profile,planning_authority:'calendar'}
+    window.location.hash='#activity/run-1'
+    mount()
+    expect(await screen.findByRole('heading',{name:/Run ·/})).toBeInTheDocument()
+    expect(requests.some(x=>x.url.includes('/activities/run-1/execution'))).toBe(true)
+    fireEvent.click(screen.getByRole('button',{name:'Data & settings'}))
+    expect(await screen.findByRole('heading',{name:'Planning settings'})).toBeInTheDocument()
+    expect(await screen.findByLabelText('Display timezone')).toBeInTheDocument()
+    expect(screen.getAllByRole('heading',{name:'Planning settings'})).toHaveLength(1)
   })
 })
