@@ -1,0 +1,4 @@
+interface:
+  display_name: "Going Bananas feature request"
+  short_description: "Save a clear feature request for later work"
+  default_prompt: "Use $going-bananas-feature-request to record this idea in the project backlog."
