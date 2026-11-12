@@ -110,6 +110,38 @@ def test_sdk_read_failure_is_decode_failed(monkeypatch):
     _code(lambda: fit.decode_fit(build_synthetic_fit()), 'decode_failed')
 
 
+def test_unknown_numeric_and_mixed_sdk_metadata_keys_are_stable_and_private(monkeypatch):
+    from garmin_fit_sdk import Decoder as SDKDecoder
+    from garmin_fit_sdk import Stream
+
+    from app.adapters.garmin import fit
+
+    payload = build_synthetic_fit()
+    messages, errors = SDKDecoder(Stream.from_byte_array(bytearray(payload))).read(
+        apply_scale_and_offset=True, convert_datetimes_to_dates=False,
+        convert_types_to_strings=True, expand_sub_fields=False, expand_components=True)
+    assert not errors
+    modified = copy.deepcopy(messages)
+    modified['session_mesgs'][0][253] = 'synthetic unknown field'
+    modified['session_mesgs'][0]['zzz_unknown'] = 'synthetic unknown field'
+    modified['session_mesgs'][0]['serial_number'] = 'private canary'
+    modified['session_mesgs'][0]['position_lat'] = LAT_CANARY
+    modified[999] = [{253: 'safe', 'position_lat': LAT_CANARY}]
+    modified['999'] = [{'other_unknown': 'safe', 'serial_number': 'private canary'}]
+    monkeypatch.setattr(fit.Decoder, 'read', lambda self, **_: (modified, []))
+    first = decode_fit(payload)
+    second = decode_fit(payload)
+    assert first.field_names == second.field_names
+    assert first.message_inventory == second.message_inventory
+    assert {'253', 'zzz_unknown'} <= set(first.field_names['session_mesgs'])
+    assert first.field_names['999'] == ('253', 'other_unknown')
+    assert first.message_inventory['999'] == 2
+    serialized = json.dumps(first.field_names) + json.dumps(first.device)
+    assert 'position_lat' not in serialized
+    assert 'serial_number' not in serialized
+    assert str(LAT_CANARY) not in serialized
+
+
 def test_declared_and_streamed_size_limit(monkeypatch):
     from app.adapters.garmin import fit
     archive = build_synthetic_zip({'synthetic.fit': b'12345'})
