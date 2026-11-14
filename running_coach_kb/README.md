@@ -1,6 +1,6 @@
 # Running Coach Knowledge Base
 
-**Package version:** `1.1.1+privacy1`
+**Package version:** `1.2.0+privacy1`
 **Evidence searched through:** 2026-11-11  
 **Original athlete context snapshot:** stored privately; current application state is authoritative  
 **Status:** complete for the requested incremental scope, with explicit scientific, data, and product gaps
@@ -19,6 +19,8 @@ It does **not** install a skill, implement the application, prescribe a live per
    - `workflows/daily_recommendation.md`
    - `workflows/weekly_review.md`
    - `workflows/block_review.md`
+   - `workflows/exception_review.md`
+   - `workflows/post_event_review.md`
 4. Retrieve only the relevant topic sections, recipe records, and policy records.
 5. Open evidence files only for consequential, disputed, or novel choices.
 
@@ -39,7 +41,12 @@ running_coach_kb/
 ├── workflows/
 │   ├── daily_recommendation.md
 │   ├── weekly_review.md
-│   └── block_review.md
+│   ├── block_review.md
+│   ├── exception_review.md
+│   └── post_event_review.md
+├── adaptive_coaching/
+│   ├── exception_policy.md
+│   └── race_and_benchmark_policy.md
 ├── topics/
 │   ├── aerobic_progression.md
 │   ├── intensity_and_workout_methods.md
@@ -77,8 +84,10 @@ running_coach_kb/
 | Task | Minimum load | Common conditional additions |
 |---|---|---|
 | Daily proceed/modify/rest | Entry point, current app state, daily workflow | One triggered recovery/symptom/environment/strength topic; planned recipe record |
+| Exception review | Entry point, exception workflow, exception policy sections, open findings | One triggered recovery/symptom topic; P024–P026 |
+| Post-event review | Entry point, post-event workflow, race and benchmark policy sections | Calibration topic when recalibrating; P020, P027 |
 | Weekly/14-day review | Entry point, current state, weekly workflow, compact active-block summary | Aerobic topic, relevant recipe records, triggered constraints |
-| Start/review/end a block | Entry point, block workflow, periodization topic, block history | Eligible recipe records; calibration or race topic only when applicable |
+| Start/review/end a block | Entry point, block workflow, periodization topic, block history; race and benchmark policy (block-ending benchmark) | Eligible recipe records; calibration or race topic only when applicable |
 | Select a quality session | Current block objective, method topic, relevant recipe records | Calibration, strength-placement, symptom, or environment topic |
 | Recalibrate intensity | Calibration topic and current anchor/history objects | Race/benchmark, wearable, or environment sections; P020/P021 |
 | Add/change/postpone/cancel race | Race-transition topic, block workflow, current event/block state | Calibration or taper sections only when the event is sufficiently defined |
