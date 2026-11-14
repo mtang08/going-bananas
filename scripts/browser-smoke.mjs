@@ -22,7 +22,7 @@ try {
   await page.getByTestId('today-card').waitFor()
   const views = [
     ['calendar', 'Calendar.'], ['trends', 'Trends.'], ['block', 'Training block'],
-    ['settings', 'Planning settings'],
+    ['settings', 'Settings'],
   ]
   for (const [hash, heading] of views) {
     await page.goto(`http://127.0.0.1:8000/#${hash}`)
