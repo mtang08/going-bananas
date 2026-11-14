@@ -1,3 +1,6 @@
+import { SyncCard } from '../components/SyncCard'
+import { relativeTime } from '../components/shared'
+import { operationLabel, PROPOSAL_CHIP_LABELS } from '../coachLabels'
 import { Badge, Button, Card } from '../components/ui'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -84,6 +87,9 @@ export function Home({
   const title = (s: SessionState) => (s.legacy_unstructured ? 'Imported run' : sessionTitle(s))
   const g = guidance.data
   const b = block.data?.data
+  const openProposals = pending.data?.data.items ?? []
+  const attentionCount = openProposals.length + open.length
+  const showAttention = attentionCount > 0 || Boolean(prompts.error) || Boolean(pending.error)
 
   return (
     <section className="page-content home-page space-y-5">
@@ -95,50 +101,33 @@ export function Home({
           </h1>
           <p>Planned training, open prompts, and the next two weeks.</p>
         </div>
-        <Button onClick={() => onCheckin({ kind: 'exception', prompt: null, activityId: null })}>
-          Record check-in
-        </Button>
       </div>
-      <QueryState
-        loading={projection.isPending}
-        error={projection.error}
-        stale={!!projection.data}
-        retry={() => {
-          void projection.refetch()
-        }}
-      >
-        {projection.data?.data && <WeeklyMileage projection={projection.data.data} unit={unit} />}
-      </QueryState>
-      {(pending.data?.data?.items?.length ?? 0) > 0 && (
-        <Card className="pending-proposals">
-          <h2>Open proposal</h2>
-          {pending.data!.data.items.map((proposal) => (
-            <article key={proposal.id}>
-              <p>{proposal.summary}</p>
-              <Button variant="outline" asChild>
-                <a href={`#proposal/${encodeURIComponent(proposal.id)}`}>Review proposal</a>
+      <div className="home-status" data-testid="home-status">
+        <SyncCard compact />
+      </div>
+      {showAttention && (
+        <Card className="needs-attention" data-testid="needs-attention">
+          <h2>Needs attention</h2>
+          {openProposals.map((p) => (
+            <div
+              className="attention-row"
+              data-testid="attention-row"
+              data-kind="proposal"
+              key={p.id}
+            >
+              <Badge className={`status-chip ${p.status}`}>
+                {PROPOSAL_CHIP_LABELS[p.status] ?? p.status}
+              </Badge>{' '}
+              <strong>{operationLabel(p.operation)}</strong>{' '}
+              <small>
+                {relativeTime(p.submitted_at)} · {p.change_count}{' '}
+                {p.change_count === 1 ? 'change' : 'changes'}
+              </small>{' '}
+              <Button variant="outline" size="sm" asChild>
+                <a href={`#proposal/${encodeURIComponent(p.id)}`}>Review</a>
               </Button>
-            </article>
+            </div>
           ))}
-        </Card>
-      )}
-      <Card
-        className={
-          prompts.isSuccess && !prompts.error && open.length === 0
-            ? 'home-quiet-state rounded-none border-0 bg-transparent px-0 py-1 shadow-none'
-            : undefined
-        }
-      >
-        <h2>Prompts</h2>
-        <QueryState
-          loading={prompts.isPending}
-          error={prompts.error}
-          stale={!!prompts.data}
-          retry={() => {
-            void prompts.refetch()
-          }}
-        >
-          {open.length === 0 && <p className="muted-text">No open prompts.</p>}
           {open.map((prompt) => {
             const activity = activities[ids.indexOf(prompt.activity_id ?? '')]?.data?.data
             const session = view?.sessions.find((s) => s.session_uid === prompt.session_uid)
@@ -223,8 +212,18 @@ export function Home({
               {dismiss.error.message}
             </p>
           )}
-        </QueryState>
-      </Card>
+          {pending.error && (
+            <p className="error-text" role="alert">
+              Could not load proposals: {pending.error.message}
+            </p>
+          )}
+          {prompts.error && (
+            <p className="error-text" role="alert">
+              Could not load prompts: {prompts.error.message}
+            </p>
+          )}
+        </Card>
+      )}
       <Card
         className={
           guidance.isSuccess && !guidance.error && g === null
@@ -300,32 +299,37 @@ export function Home({
         )}
       </QueryState>
       {view && view.head !== 0 && today && <WeekOverview view={view} unit={unit} />}
-      <Card>
-        <h2>Training block</h2>
-        <QueryState
-          loading={block.isPending}
-          error={block.error}
-          stale={!!block.data}
-          retry={() => {
-            void block.refetch()
-          }}
-        >
-          {b === null && (
-            <p>
-              No active block. The calendar runs without one until the first block review.{' '}
-              <a href="#guide">Training guide</a>
-            </p>
-          )}
-          {b && (
+      <QueryState
+        loading={projection.isPending}
+        error={projection.error}
+        stale={!!projection.data}
+        retry={() => {
+          void projection.refetch()
+        }}
+      >
+        {projection.data?.data && <WeeklyMileage projection={projection.data.data} unit={unit} />}
+      </QueryState>
+      <QueryState
+        loading={block.isPending}
+        error={block.error}
+        stale={!!block.data}
+        retry={() => {
+          void block.refetch()
+        }}
+      >
+        <p className="home-block-line" data-testid="block-line">
+          {b ? (
             <>
-              <p>{b.objective}</p>
-              <small>Next review {dateLabel(b.review_date)}</small>
-              <p>Maintaining: {b.maintained_qualities?.join(', ') || 'Not specified'}</p>
-              <a href="#block">View training block</a> · <a href="#guide">Training guide</a>
+              Block: {b.objective} · Next review {dateLabel(b.review_date)} ·{' '}
+              <a href="#block">View training block</a>
+            </>
+          ) : (
+            <>
+              No active training block. <a href="#block">Training block</a>
             </>
           )}
-        </QueryState>
-      </Card>
+        </p>
+      </QueryState>
     </section>
   )
 }
