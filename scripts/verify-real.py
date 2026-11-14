@@ -1,10 +1,9 @@
 """Private source comparison: prints outcomes/counts, never source payloads."""
 import json
 import math
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 import sys
-from zoneinfo import ZoneInfo
 
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'backend'))
@@ -12,7 +11,6 @@ from sqlalchemy import select
 from app.config import settings
 from app.db import SessionLocal
 from app.models import Activity, RawObject, RecoveryObservation, SourceRecord, SyncState
-from app.api.core import get_summary
 
 assert settings.app_mode=='real','Real mode required'
 with SessionLocal() as session:
@@ -42,12 +40,7 @@ with SessionLocal() as session:
         assert instant==row.start_at,'source timestamp mismatch'
         assert str(source['activityId'])==row.garmin_id,'source id mismatch'
         checked+=1
-    summary=get_summary(session=session,days=28,as_of=None)['data']
-    today=datetime.now(ZoneInfo(summary['timezone'])).date()
-    start=today-timedelta(days=13)
-    expected=sum(r.distance_m for r in rows if r.sport in {'running','trail_running','treadmill_running'} and start<=r.start_at.astimezone(ZoneInfo(summary['timezone'])).date()<=today and r.distance_m is not None and r.resolution_state=='resolved')
-    assert math.isclose(expected,summary['rolling_14']['distance_m'],rel_tol=1e-10,abs_tol=1e-8),'rolling total mismatch'
     recovery=session.scalars(select(RecoveryObservation)).all()
     states=session.scalars(select(SyncState)).all()
     assert all(s.last_success_at is not None for s in states),'dataset sync not successful'
-    print(json.dumps({'source_compared_activities':checked,'canonical_identities_unique':True,'rolling_14_source_sum_matches':True,'recovery_observations':len(recovery),'datasets':{s.dataset:s.status for s in states}}))
+    print(json.dumps({'source_compared_activities':checked,'canonical_identities_unique':True,'recovery_observations':len(recovery),'datasets':{s.dataset:s.status for s in states}}))

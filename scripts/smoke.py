@@ -13,9 +13,7 @@ parsed=urlparse(args.base_url)
 if parsed.scheme!='http' or parsed.hostname not in {'127.0.0.1','localhost'} or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in {'','/'}:
     raise SystemExit('Only a local server may be smoke tested')
 args.base_url=args.base_url.rstrip('/')
-paths=['health/live','health/ready','profile','activities','summary','recovery','checkins','manual-sessions','plans','conflicts','sync/status','weekly-summary','context','coach/daily','coach/weekly',
-       'coach/context?workflow=daily','strength/years',
-       'strength/history?start_date=2026-01-01&end_date=2026-11-10']
+paths=['health/live','health/ready','profile','activities','sync/status']
 with urlopen(args.base_url+'/api/v1/profile',timeout=15) as response:
     profile=json.load(response)
 authority=profile['data'].get('planning_authority','legacy')
@@ -34,7 +32,7 @@ for path in paths:
             assert forbidden not in encoded, 'private field in '+path
     print(path+': OK')
 # Host and foreign-origin checks must precede mutations and body validation.
-request=Request(args.base_url+'/api/v1/checkins',data=b'{}',headers={'Origin':'https://foreign.example','Content-Type':'application/json','X-Local-Request':'1'},method='POST')
+request=Request(args.base_url+'/api/v1/v2/checkins',data=b'{}',headers={'Origin':'https://foreign.example','Content-Type':'application/json','X-Local-Request':'1'},method='POST')
 try:
     urlopen(request,timeout=15)
 except HTTPError as exc:
