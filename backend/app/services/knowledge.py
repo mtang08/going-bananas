@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
+from app.services.operations import OPERATIONS
+
 DEFAULT_ROOT = Path(__file__).resolve().parents[3] / "running_coach_kb"
 MAX_FILE_BYTES = 100_000
 MAX_CONTEXT_CHARS = 70_000
@@ -168,10 +170,7 @@ def load_knowledge(
                             policies, sources, recipes)
 
 
-SUPPORTED_OPERATIONS = (
-    "proceed_or_modify_today", "review_rolling_plan", "select_quality_session",
-    "review_training_block", "recalibrate_intensity", "handle_goal_or_race_change",
-)
+SUPPORTED_OPERATIONS = OPERATIONS
 CONDITIONAL_TOPICS = tuple(f"topics/{name}.md" for name in (
     "ptt_and_load_tolerance", "recovery_and_daily_adaptation", "hybrid_strength_and_scheduling",
     "long_runs_and_race_development", "aerobic_progression", "intensity_and_workout_methods",
@@ -181,11 +180,17 @@ POLICY_MAP: dict[str, tuple[str, ...]] = {
     "proceed_or_modify_today": ("P001", "P002", "P004", "P005", "P006", "P012", "P013", "P015", "P018"),
     "review_rolling_plan": ("P001", "P003", "P006", "P007", "P008", "P009", "P010", "P012", "P013", "P014", "P015", "P016", "P017"),
     "select_quality_session": ("P009", "P014", "P015", "P020"),
-    "review_training_block": ("P003", "P007", "P009", "P014", "P019", "P021"),
+    "review_training_block": ("P003", "P007", "P009", "P014", "P019", "P021", "P028"),
     "recalibrate_intensity": ("P010", "P015", "P020", "P021"),
     "handle_goal_or_race_change": ("P019", "P022", "P023"),
+    "exception_review": ("P001", "P002", "P003", "P004", "P005", "P006", "P013", "P015", "P018", "P024", "P025", "P026"),
+    "post_event_review": ("P006", "P013", "P018", "P020", "P021", "P026", "P027"),
 }
-TOKEN_BUDGET = dict(zip(SUPPORTED_OPERATIONS, (1800, 3000, 5000, 5000, 5000, 5000), strict=True))
+TOKEN_BUDGET: dict[str, int] = {
+    "proceed_or_modify_today": 1800, "review_rolling_plan": 3000, "select_quality_session": 5000,
+    "review_training_block": 5000, "recalibrate_intensity": 5000, "handle_goal_or_race_change": 5000,
+    "exception_review": 9000, "post_event_review": 7000,
+}
 POLICY_FILES = ("policies/coaching_policy_candidates.json", "policies/periodization_policy_candidates.json")
 RECIPE_FILE = "recipes/running_session_families.json"
 EVIDENCE_FILES = ("references/evidence_matrix.md", "references/periodization_evidence_addendum.md")

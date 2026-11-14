@@ -182,7 +182,7 @@ def test_extract_section_bounds():
 
 
 @pytest.mark.parametrize("operation,count,chars", list(zip(
-    SUPPORTED_OPERATIONS, (6, 7, 9, 14, 9, 11), (6090, 8399, 10423, 19139, 8645, 14462), strict=True,
+    SUPPORTED_OPERATIONS, (6, 7, 9, 14, 9, 11, 14, 14), (6090, 8399, 10423, 19139, 8645, 14462, 15492, 12750), strict=True,
 )))
 def test_route_minimum_sections(operation, count, chars):
     bundle = load_route(operation)
@@ -370,3 +370,15 @@ def test_adaptive_coaching_routes_resolve_exactly_once():
     assert extract_section(policy, "Worked examples", "policy")
     block = manifest["routing"]["review_training_block"]["minimum"]
     assert sum(item.get("path") == "adaptive_coaching/race_and_benchmark_policy.md" for item in block) == 1
+
+
+@pytest.mark.parametrize("operation", ["exception_review", "post_event_review"])
+def test_new_review_routes_within_budget(operation, caplog):
+    from app.services.knowledge import TOKEN_BUDGET
+
+    bundle = load_route(operation)
+    assert bundle.approx_tokens <= TOKEN_BUDGET[operation]
+    assert "kb_budget_exceeded" not in caplog.text
+    assert {"P011", "P019"}.isdisjoint(POLICY_MAP[operation])
+    assert POLICY_MAP["review_training_block"][-1] == "P028"
+    assert {e.path for e in bundle.excerpts if e.section} >= {"COACHING_GUIDE.md", "adaptive_coaching/exception_policy.md"}
