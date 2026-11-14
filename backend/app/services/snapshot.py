@@ -1126,31 +1126,7 @@ def _load_prompts(session: Session, now: datetime) -> list[dict]:
     return prompts
 
 
-def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInputs:
-    zone = athlete_tz(session)
-    state = session.get(AppState, 1)
-    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
-    head = state.calendar_head_version if state else 0
-    first = as_of - timedelta(days=120)
-    sessions = _load_sessions(session, head, first, as_of)
-    completions = _load_completions(session)
-    slots = _load_strength_slots(session)
-    strong_rows = session.scalars(
-        select(StrongWorkoutRow)
-        .where(
-            StrongWorkoutRow.local_date >= first,
-            StrongWorkoutRow.local_date <= as_of,
-            StrongWorkoutRow.resolution_state == "resolved",
-        )
-        .order_by(StrongWorkoutRow.local_date, StrongWorkoutRow.id)
-    ).all()
-    rpe_rows = session.scalars(select(SessionRpe).order_by(SessionRpe.collected_at, SessionRpe.id)).all()
-
-    strong = _load_strong_workouts(strong_rows, rpe_rows)
-    runs = _load_runs(session, first, as_of, rpe_rows)
-    checkins = _load_checkins(session, now, zone)
-    legacy = _load_legacy_checkins(session, now)
-    prompts = _load_prompts(session, now)
+def _load_metrics(session: Session, as_of: date, runs: list[dict]) -> list[dict]:
     metric_keys = (
         {f"w{n}:{as_of.isoformat()}" for n in (7, 14, 28, 56, 84)}
         | {f"w{n}:{as_of.isoformat()}:{kind}" for n in (7, 14, 28, 56, 84) for kind in ("run", "strength")}
@@ -1185,6 +1161,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in metric_rows
     ]
+    return metrics
+
+
+def _load_anchors(session: Session) -> list[dict]:
     anchor_rows = session.scalars(
         select(IntensityAnchor).order_by(
             IntensityAnchor.valid_from, IntensityAnchor.calibrated_at, IntensityAnchor.anchor_key
@@ -1210,6 +1190,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in anchor_rows
     ]
+    return anchors
+
+
+def _load_active_block(session: Session, as_of: date) -> tuple[Sequence[BlockVersion], dict | None]:
     block_rows = session.scalars(
         select(BlockVersion).order_by(BlockVersion.block_uid, BlockVersion.version.desc())
     ).all()
@@ -1247,6 +1231,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         if active_row
         else None
     )
+    return block_rows, active_block
+
+
+def _load_block_decisions(session: Session) -> list[dict]:
     decisions = [
         _view(
             row,
@@ -1263,6 +1251,38 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in session.scalars(select(BlockDecision).order_by(BlockDecision.decided_at, BlockDecision.id))
     ]
+    return decisions
+
+
+def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInputs:
+    zone = athlete_tz(session)
+    state = session.get(AppState, 1)
+    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
+    head = state.calendar_head_version if state else 0
+    first = as_of - timedelta(days=120)
+    sessions = _load_sessions(session, head, first, as_of)
+    completions = _load_completions(session)
+    slots = _load_strength_slots(session)
+    strong_rows = session.scalars(
+        select(StrongWorkoutRow)
+        .where(
+            StrongWorkoutRow.local_date >= first,
+            StrongWorkoutRow.local_date <= as_of,
+            StrongWorkoutRow.resolution_state == "resolved",
+        )
+        .order_by(StrongWorkoutRow.local_date, StrongWorkoutRow.id)
+    ).all()
+    rpe_rows = session.scalars(select(SessionRpe).order_by(SessionRpe.collected_at, SessionRpe.id)).all()
+
+    strong = _load_strong_workouts(strong_rows, rpe_rows)
+    runs = _load_runs(session, first, as_of, rpe_rows)
+    checkins = _load_checkins(session, now, zone)
+    legacy = _load_legacy_checkins(session, now)
+    prompts = _load_prompts(session, now)
+    metrics = _load_metrics(session, as_of, runs)
+    anchors = _load_anchors(session)
+    block_rows, active_block = _load_active_block(session, as_of)
+    decisions = _load_block_decisions(session)
     proposal_rows = session.scalars(
         select(CoachProposal)
         .where(CoachProposal.status != "invalid")
