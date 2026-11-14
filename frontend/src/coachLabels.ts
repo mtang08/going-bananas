@@ -1,3 +1,5 @@
+import { dateLabel } from './api'
+import type { BenchmarkStatus } from './api/types/blocks'
 import type { BenchmarkOutcome, Category, Ladder, Severity } from './api/types/exceptions'
 import type { ProposalStatus } from './api/types/coach'
 
@@ -50,4 +52,16 @@ export const RECALIBRATION_LABELS: Record<'none' | 'propose_anchors' | 'defer', 
   none: 'No pace change',
   propose_anchors: 'New paces proposed',
   defer: 'Recalibrate later',
+}
+
+export function benchmarkStatusLabel(
+  status: BenchmarkStatus | null | undefined,
+  plannedDate: string | null | undefined,
+): string {
+  if (!status || status.status === 'not_set') return 'Not set'
+  if (status.status === 'pending')
+    return plannedDate ? `Pending · ${dateLabel(plannedDate)}` : 'Pending'
+  if (status.status === 'completed')
+    return status.local_date ? `Completed ${dateLabel(status.local_date)}` : 'Completed'
+  return 'Missed'
 }
