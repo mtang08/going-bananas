@@ -5,8 +5,9 @@ from __future__ import annotations
 import hashlib
 import uuid
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import date, datetime, timedelta
-from typing import Any, Literal, cast
+from typing import Annotated, Any, Literal, cast
 from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -17,6 +18,7 @@ from app.domain.cycle import opportunity
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.services.calendar_structure import StructureError, expand_structure
 from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
+from app.services.exceptions.vocab import NON_TERMINAL_FINDING, LadderLevel, PatchCategory, Severity
 from app.services.operations import Operation
 
 RECIPE_IDS = {f"REC{n:03d}" for n in range(1, 11)}
@@ -163,6 +165,60 @@ class AnchorChange(Strict):
     supersedes_key: str | None = Field(None, max_length=40)
 
 
+RESOLUTION_OPS = {"exception_review", "review_rolling_plan", "review_training_block", "post_event_review"}
+ANCHOR_OPS = {"recalibrate_intensity", "post_event_review"}
+NO_STRENGTH_EDIT_OPS = {"proceed_or_modify_today", "exception_review"}
+Criterion = Annotated[str, Field(max_length=200)]
+
+
+def _anchors_allowed(doc: ProposalDoc) -> bool:
+    return doc.operation in ANCHOR_OPS
+
+
+class PatchWindow(Strict):
+    start: date
+    end: date
+
+
+class UnchangedSession(Strict):
+    session_uid: uuid.UUID
+    reason: str = Field(max_length=200)
+
+
+class ExceptionBlock(Strict):
+    finding_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
+    category: PatchCategory
+    severity: Severity
+    confidence: Literal["low", "moderate", "high"]
+    triggering_evidence: str = Field(max_length=600)
+    relevant_context: str | None = Field(default=None, max_length=600)
+    ladder_level: LadderLevel
+    patch_window: PatchWindow
+    unchanged: list[UnchangedSession] = Field(default_factory=list, max_length=14)
+    reassess_on: date
+    monitor: list[Criterion] = Field(min_length=1, max_length=6)
+    return_criteria: list[Criterion] = Field(min_length=1, max_length=6)
+    escalate_criteria: list[Criterion] = Field(min_length=1, max_length=6)
+
+
+class EventReview(Strict):
+    event_id: uuid.UUID
+    activity_id: uuid.UUID | None = None
+    pacing: str = Field(max_length=600)
+    effort_and_limiter: str = Field(max_length=600)
+    conditions: str | None = Field(default=None, max_length=400)
+    symptoms: str | None = Field(default=None, max_length=400)
+    recovery_observation: str = Field(max_length=600)
+    recalibration: Literal["none", "propose_anchors", "defer"]
+    training_implication: str = Field(max_length=600)
+
+
+class PatchResolution(Strict):
+    patch_id: uuid.UUID
+    status: Literal["resolved", "escalated"]
+    note: str = Field(max_length=300)
+
+
 class ProposalDoc(Strict):
     schema_version: Literal["coach_proposal.v1"]
     operation: Operation
@@ -182,6 +238,9 @@ class ProposalDoc(Strict):
     observations_used: list[str] = Field(default_factory=list)
     follow_up: str | None = None
     escalation: Operation | None = None
+    exception: ExceptionBlock | None = None
+    event_review: EventReview | None = None
+    patch_resolutions: list[PatchResolution] = Field(default_factory=list, max_length=10)
     skill_version: Literal["running-coach.v1"]
 
 
@@ -272,6 +331,9 @@ class ValidationContext:
     current_source_fingerprint: str
     current_kb_digest: str
     kb: VerifiedKnowledge
+    findings: dict[uuid.UUID, str] = dataclass_field(default_factory=dict)
+    patches: dict[uuid.UUID, str] = dataclass_field(default_factory=dict)
+    events: dict[uuid.UUID, tuple[str, date]] = dataclass_field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -349,7 +411,74 @@ def _resulting(doc: ProposalDoc, ctx: ValidationContext) -> dict[str, dict]:
     return state
 
 
-def _rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    exc = doc.exception
+    last = ctx.today + timedelta(days=6)
+    if doc.operation == "exception_review" and exc is None:
+        issues.append(_issue("V16.exception_required", "exception"))
+    if doc.operation != "exception_review" and exc is not None:
+        issues.append(_issue("V16.exception_forbidden", "exception"))
+    if doc.operation == "exception_review" and exc is not None:
+        window = exc.patch_window
+        length = (window.end - window.start).days + 1
+        if not ctx.today <= window.start <= window.end <= last:
+            issues.append(_issue("V17.window_out_of_scope", "exception.patch_window"))
+        if length > (3 if exc.severity in {"observe", "caution"} else 7):
+            issues.append(_issue("V17.window_too_long", "exception.patch_window"))
+        for i, change in enumerate(doc.changes):
+            head = ctx.head_sessions.get(change.session_uid) if change.session_uid else None
+            days = [head.local_date] if head else []
+            if change.after is not None and change.after.local_date is not None:
+                days.append(change.after.local_date)
+            if any(not window.start <= day <= window.end for day in days):
+                issues.append(_issue("V17.change_outside_window", f"changes.{i}"))
+        if not ctx.today <= exc.reassess_on <= ctx.today + timedelta(days=7):
+            issues.append(_issue("V17.reassess_out_of_range", "exception.reassess_on"))
+        count = len(doc.changes)
+        single = count == 1 or (count == 0 and exc.severity == "observe")
+        ladder_ok = {"current_session": single, "next_session": single, "next_days": length <= 3,
+                     "committed_window": exc.severity in {"hold", "escalate"},
+                     "block": exc.severity == "escalate" and doc.escalation == "review_training_block"}[exc.ladder_level]
+        if not ladder_ok:
+            issues.append(_issue("V18.ladder_mismatch", "exception.ladder_level"))
+        touched = {change.session_uid for change in doc.changes if change.session_uid}
+        seen: set[uuid.UUID] = set()
+        for j, item in enumerate(exc.unchanged):
+            row = ctx.head_sessions.get(item.session_uid)
+            if row is None or not ctx.today <= row.local_date <= last or item.session_uid in touched or item.session_uid in seen:
+                issues.append(_issue("V19.unchanged_invalid", f"exception.unchanged.{j}"))
+            seen.add(item.session_uid)
+        for j, finding_id in enumerate(exc.finding_ids):
+            status = ctx.findings.get(finding_id)
+            if status is None:
+                issues.append(_issue("V20.finding_unknown", f"exception.finding_ids.{j}"))
+            elif status not in NON_TERMINAL_FINDING:
+                issues.append(_issue("V20.finding_closed", f"exception.finding_ids.{j}"))
+    review = doc.event_review
+    if doc.operation == "post_event_review":
+        if review is None:
+            issues.append(_issue("V20.event_required", "event_review"))
+        elif ctx.events.get(review.event_id, ("cancelled", None))[0] == "cancelled":
+            issues.append(_issue("V20.event_unknown", "event_review.event_id"))
+    elif review is not None:
+        issues.append(_issue("V20.event_forbidden", "event_review"))
+    if doc.patch_resolutions and doc.operation not in RESOLUTION_OPS:
+        issues.append(_issue("V21.resolution_forbidden", "patch_resolutions"))
+    resolved: set[uuid.UUID] = set()
+    for j, resolution in enumerate(doc.patch_resolutions):
+        status = ctx.patches.get(resolution.patch_id)
+        if status is None:
+            issues.append(_issue("V21.patch_unknown", f"patch_resolutions.{j}.patch_id"))
+        elif status not in {"open", "escalated"}:
+            issues.append(_issue("V21.patch_closed", f"patch_resolutions.{j}.patch_id"))
+        if resolution.patch_id in resolved:
+            issues.append(_issue("V21.patch_duplicate", f"patch_resolutions.{j}.patch_id"))
+        resolved.add(resolution.patch_id)
+    return issues
+
+
+def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool = True) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     start, end = scope(doc.operation, ctx.today)
     state = _resulting(doc, ctx)
@@ -420,11 +549,11 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
         ):
             issues.append(_issue("V8.off_cycle", path))
         if head and head.kind == "strength" and change.op == "move":
-            if doc.operation == "proceed_or_modify_today":
+            if doc.operation in NO_STRENGTH_EDIT_OPS:
                 issues.append(_issue("V9.daily_strength_move", path))
             elif "strength_move" not in change.material_flags:
                 issues.append(_issue("V9.strength_move_flag", path))
-        if doc.operation == "proceed_or_modify_today" and (
+        if doc.operation in NO_STRENGTH_EDIT_OPS and (
             (change.op in {"add", "delete"} and result.get("kind") == "strength")
             or (change.op == "modify" and head and (head.kind == "strength") != (result.get("kind") == "strength"))
         ):
@@ -532,7 +661,7 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
                     issues.append(
                         _issue("V13.block_change_invalid", f"block_change.version_fields.eligible_recipe_ids.{j}")
                     )
-    if doc.anchor_changes and doc.operation != "recalibrate_intensity":
+    if doc.anchor_changes and not _anchors_allowed(doc):
         issues.append(_issue("V14.anchor_change_not_allowed", "anchor_changes"))
     anchor_keys: set[str] = set()
     for j, anchor in enumerate(doc.anchor_changes):
@@ -550,6 +679,8 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
         if key in anchor_keys:
             issues.append(_issue("V14.anchor_invalid", f"{path}.kind"))
         anchor_keys.add(key)
+    if exception_checks:
+        issues.extend(_exception_rules(doc, ctx))
     return issues
 
 
@@ -597,8 +728,8 @@ def validate_subset(
             "anchor_changes": [item for item in doc.anchor_changes if anchor_key(item, ctx.tz) in accepted_anchor_keys],
         }
     )
-    issues = _rules(selected, ctx)
-    if doc.operation == "recalibrate_intensity":
+    issues = _rules(selected, ctx, exception_checks=False)
+    if _anchors_allowed(doc):
         proposed: dict[str, set[str]] = {"hr": set(), "speed": set()}
         for anchor in doc.anchor_changes:
             modality = "hr" if anchor.kind.startswith("hr_") else "speed"
@@ -723,7 +854,9 @@ def load_context(
     session: Session, snapshot_id: uuid.UUID, *, now: datetime, kb: VerifiedKnowledge
 ) -> ValidationContext:
     from app.coach_v2_models import CoachSnapshot
+    from app.exception_models import ExceptionFinding, ExceptionPatch
     from app.models import AppState, ProfileVersion
+    from app.planning_models import Event
     from app.services.calendar import state_at
     from app.services.timezone import athlete_tz
 
@@ -775,6 +908,9 @@ def load_context(
         str(inputs["source_fingerprint"]),
         kb.digest,
         kb,
+        findings={fid: status for fid, status in session.execute(select(ExceptionFinding.id, ExceptionFinding.status))},
+        patches={pid: status for pid, status in session.execute(select(ExceptionPatch.id, ExceptionPatch.status))},
+        events={eid: (status, day) for eid, status, day in session.execute(select(Event.id, Event.status, Event.event_date))},
     )
 
 
@@ -1091,6 +1227,62 @@ def _save_block(
     return version.id, True
 
 
+def _apply_exception_effects(session: Session, doc: ProposalDoc, proposal_id: uuid.UUID, snapshot_at: datetime,
+                             status: str, calendar_version: int | None, now: datetime) -> None:
+    from app.exception_models import ExceptionFinding, ExceptionPatch
+    from app.services.exceptions.lifecycle import address_findings, close_finding, resolve_patch, supersede_patch
+
+    if status not in {"accepted", "partially_accepted"}:
+        return
+
+    def findings(*conditions: Any) -> list[Any]:
+        return list(session.scalars(select(ExceptionFinding).where(*conditions).with_for_update()))
+
+    def review(rows: list[Any]) -> None:
+        for row in rows:
+            close_finding(row, "reviewed", now=now, proposal_id=proposal_id)
+
+    active = ExceptionFinding.status.in_(NON_TERMINAL_FINDING)
+    exc = doc.exception
+    if doc.operation == "exception_review" and exc is not None:
+        listed = findings(ExceptionFinding.id.in_(exc.finding_ids), active) if exc.finding_ids else []
+        if calendar_version is not None:
+            patch = ExceptionPatch(
+                proposal_id=proposal_id, calendar_version_number=calendar_version, category=exc.category,
+                severity=exc.severity, ladder_level=exc.ladder_level, status="open",
+                window_start=exc.patch_window.start, window_end=exc.patch_window.end, reassess_on=exc.reassess_on,
+                monitor=list(exc.monitor), return_criteria=list(exc.return_criteria),
+                escalate_criteria=list(exc.escalate_criteria),
+                unchanged=[{"session_uid": str(item.session_uid), "reason": item.reason} for item in exc.unchanged],
+            )
+            session.add(patch)
+            session.flush()
+            address_findings(listed, patch)
+        else:
+            review(listed)
+    handled: set[uuid.UUID] = set()
+    for item in doc.patch_resolutions:
+        existing = session.get(ExceptionPatch, item.patch_id, with_for_update=True)
+        if existing is None or existing.status not in {"open", "escalated"}:
+            continue
+        resolve_patch(existing, item.status, by="coach", now=now, note=item.note)
+        handled.add(existing.id)
+    if doc.operation == "review_rolling_plan":
+        review(findings(ExceptionFinding.status == "open", ExceptionFinding.severity != "escalate",
+                        ExceptionFinding.evidence_at <= snapshot_at))
+    elif doc.operation == "review_training_block":
+        review(findings(active))
+        query = select(ExceptionPatch).where(ExceptionPatch.status.in_(("open", "escalated")))
+        if handled:
+            query = query.where(ExceptionPatch.id.not_in(handled))
+        for live in session.scalars(query.with_for_update()):
+            supersede_patch(live, now=now)
+    elif doc.operation == "post_event_review" and doc.event_review is not None:
+        review(findings(ExceptionFinding.rule_code == "POST_EVENT_REVIEW_DUE",
+                        ExceptionFinding.entity_key == f"event:{doc.event_review.event_id}", active))
+    session.flush()
+
+
 def decide_proposal(
     session: Session, proposal_id: uuid.UUID, req: DecisionRequest, *, now: datetime, resolve_kb: KnowledgeResolver
 ) -> DecisionResult:
@@ -1269,6 +1461,7 @@ def decide_proposal(
     proposal.decided_at = now
     proposal.decision_idempotency_key = req.idempotency_key
     proposal.decision_hash = decision_hash
+    _apply_exception_effects(session, doc, proposal_id, snapshot.generated_at, status, calendar_version, now)
     if changed:
         stale = list(dict.fromkeys([*stale, *mark_pending_stale(session, except_id=proposal_id)]))
     decision_result = DecisionResult(

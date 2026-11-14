@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.core import envelope, fail
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachProposalRevision, CoachSnapshot
 from app.db import get_session
+from app.exception_models import ExceptionPatch
 from app.models import AppState
 from app.services import calendar, knowledge, proposals
 from app.services.decision_inputs import VerifiedKnowledge
@@ -75,6 +76,11 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
         'current': {key: value for key, value in head_sessions[row.session_uid].items()
                     if key in proposals.SessionFields.model_fields} if row.session_uid in head_sessions else None,
     } for row in changes])
+    data['exception'] = proposal.payload.get('exception')
+    data['event_review'] = proposal.payload.get('event_review')
+    data['patch_resolutions'] = proposal.payload.get('patch_resolutions', [])
+    patch = session.scalar(select(ExceptionPatch).where(ExceptionPatch.proposal_id == proposal.id))
+    data['patch'] = {column.name: getattr(patch, column.name) for column in ExceptionPatch.__table__.columns} if patch else None
     return data
 
 

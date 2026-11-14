@@ -149,6 +149,35 @@ def change(change_id: str, op: str, uid: int | None, after: dict | None = None, 
     }
 
 
+def exception_block(**overrides) -> dict:
+    block = {"finding_ids": [str(U(300))], "category": "accumulated_fatigue", "severity": "caution",
+             "confidence": "moderate", "triggering_evidence": "Fatigue 8 on two mornings", "relevant_context": None,
+             "ladder_level": "next_session", "patch_window": {"start": "2026-11-16", "end": "2026-11-18"},
+             "unchanged": [{"session_uid": str(U(1)), "reason": "Easy run stays"}], "reassess_on": "2026-11-19",
+             "monitor": ["Morning fatigue"], "return_criteria": ["Usual fatigue twice"],
+             "escalate_criteria": ["High through Saturday"]}
+    block.update(overrides)
+    return block
+
+
+def exception_doc(**overrides) -> dict:
+    doc = valid_doc("exception_review")
+    doc["changes"] = [change("c1", "modify", 2, {"intent": "Easy instead of quality"})]
+    doc["exception"] = exception_block(**overrides)
+    return doc
+
+
+def exc_ctx(op: str = "exception_review") -> ValidationContext:
+    return replace(context(op), findings={U(300): "open", U(301): "dismissed"},
+                   patches={U(400): "open", U(401): "resolved"},
+                   events={U(500): ("completed", date(2026, 11, 14)), U(501): ("cancelled", date(2026, 11, 13))})
+
+
+EVENT = {"event_id": str(U(500)), "activity_id": None, "pacing": "Even", "effort_and_limiter": "RPE 9, breathing",
+         "conditions": None, "symptoms": None, "recovery_observation": "Normal walking", "recalibration": "defer",
+         "training_implication": "Easy until fresh"}
+
+
 def test_valid_rolling_proposal_is_pending() -> None:
     assert outcome(valid_doc()) == ("pending", [])
     doc = valid_doc()
@@ -513,3 +542,176 @@ def test_subset_unchanged_numeric_target_needs_no_anchor() -> None:
                                      ("exception_review", 6), ("post_event_review", 6)])
 def test_scope_by_operation(op: str, days: int) -> None:
     assert scope(op, TODAY) == (TODAY, TODAY + timedelta(days=days))
+
+
+def test_exception_schema_errors() -> None:
+    for doc in (exception_doc(monitor=[]), exception_doc(category="post_event"),
+                exception_doc(confidence="medium"), exception_doc(extra=1)):
+        status, issues = outcome(doc)
+        assert status == "invalid"
+        assert issues and all(code == "V1.schema" for code, _ in issues)
+
+
+def test_old_payload_without_new_fields_still_parses() -> None:
+    result = validate_document(valid_doc(), context())
+    assert result.doc is not None
+    assert result.doc.exception is None and result.doc.event_review is None and result.doc.patch_resolutions == []
+
+
+def test_exception_doc_is_pending() -> None:
+    assert outcome(exception_doc(), exc_ctx()) == ("pending", [])
+
+
+def test_v16_exception_required_and_forbidden() -> None:
+    doc = exception_doc()
+    del doc["exception"]
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V16.exception_required", "exception")])
+    doc = valid_doc()
+    doc["exception"] = exception_block()
+    assert outcome(doc, exc_ctx("review_rolling_plan")) == ("invalid", [("V16.exception_forbidden", "exception")])
+
+
+def test_v17_window_out_of_scope() -> None:
+    doc = exception_doc(severity="hold", ladder_level="committed_window",
+                        patch_window={"start": "2026-11-15", "end": "2026-11-18"})
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V17.window_out_of_scope", "exception.patch_window")])
+
+
+def test_v17_window_too_long() -> None:
+    doc = exception_doc(patch_window={"start": "2026-11-16", "end": "2026-11-19"})
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V17.window_too_long", "exception.patch_window")])
+
+
+def test_v17_change_outside_window() -> None:
+    doc = exception_doc(patch_window={"start": "2026-11-16", "end": "2026-11-17"})
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V17.change_outside_window", "changes.0")])
+
+
+def test_v17_reassess_out_of_range() -> None:
+    doc = exception_doc(reassess_on="2026-11-24")
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V17.reassess_out_of_range", "exception.reassess_on")])
+
+
+def test_v9_exception_review_cannot_move_strength() -> None:
+    doc = exception_doc()
+    doc["changes"] = [change("c1", "move", 11, {"local_date": "2026-11-17"}, ["strength_move"])]
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V9.daily_strength_move", "changes.0")])
+
+
+def test_v9_exception_review_cannot_add_strength() -> None:
+    doc = exception_doc()
+    doc["changes"] = [change("c1", "add", None, {"local_date": "2026-11-17", "kind": "strength", "intent": "Full body"})]
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V9.daily_strength_change", "changes.0")])
+
+
+def test_subset_skips_exception_rules() -> None:
+    doc = exception_doc(ladder_level="current_session")
+    ctx = exc_ctx()
+    result = validate_document(doc, ctx)
+    assert (result.status, result.issues) == ("pending", [])
+    assert validate_subset(result.doc, set(), False, set(), replace(ctx, findings={})) == []
+
+
+LADDER_MISMATCH = ("invalid", [("V18.ladder_mismatch", "exception.ladder_level")])
+
+
+def test_v18_next_session_allows_one_change() -> None:
+    doc = exception_doc(severity="hold", patch_window={"start": "2026-11-16", "end": "2026-11-20"})
+    doc["changes"].append(change("c2", "modify", 3, {"intent": "Easy"}))
+    assert outcome(doc, exc_ctx()) == LADDER_MISMATCH
+
+
+def test_v18_current_session_zero_changes_only_for_observe() -> None:
+    doc = exception_doc(ladder_level="current_session")
+    doc["changes"] = []
+    assert outcome(doc, exc_ctx()) == LADDER_MISMATCH
+    doc = exception_doc(ladder_level="current_session", severity="observe")
+    doc["changes"] = []
+    assert outcome(doc, exc_ctx()) == ("pending", [])
+
+
+def test_v18_committed_window_and_next_days() -> None:
+    assert outcome(exception_doc(ladder_level="committed_window"), exc_ctx()) == LADDER_MISMATCH
+    doc = exception_doc(severity="hold", ladder_level="next_days", patch_window={"start": "2026-11-16", "end": "2026-11-19"})
+    assert outcome(doc, exc_ctx()) == LADDER_MISMATCH
+
+
+def test_v18_block_needs_escalate_and_escalation() -> None:
+    doc = exception_doc(severity="escalate", ladder_level="block")
+    assert outcome(doc, exc_ctx()) == LADDER_MISMATCH
+    doc["escalation"] = "review_training_block"
+    assert outcome(doc, exc_ctx()) == ("pending", [])
+
+
+def test_v19_unchanged_touched_session() -> None:
+    doc = exception_doc(unchanged=[{"session_uid": str(U(2)), "reason": "x"}])
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V19.unchanged_invalid", "exception.unchanged.0")])
+
+
+def test_v19_unchanged_outside_window_or_unknown() -> None:
+    doc = exception_doc(unchanged=[{"session_uid": str(U(7)), "reason": "x"},
+                                   {"session_uid": str(U(999)), "reason": "x"}])
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V19.unchanged_invalid", "exception.unchanged.0"),
+                                                    ("V19.unchanged_invalid", "exception.unchanged.1")])
+
+
+def test_v19_unchanged_duplicate() -> None:
+    doc = exception_doc(unchanged=[{"session_uid": str(U(1)), "reason": "a"},
+                                   {"session_uid": str(U(1)), "reason": "b"}])
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V19.unchanged_invalid", "exception.unchanged.1")])
+
+
+ANCHOR = {"kind": "hr_threshold_lower", "value_low": 160, "unit": "bpm", "protocol": "manual",
+          "confidence": "moderate", "calibrated_at": NOW.isoformat()}
+
+
+def test_v20_finding_unknown_and_closed() -> None:
+    doc = exception_doc(finding_ids=[str(U(999)), str(U(301))])
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V20.finding_unknown", "exception.finding_ids.0"),
+                                                    ("V20.finding_closed", "exception.finding_ids.1")])
+
+
+def test_v20_post_event_requires_event_review() -> None:
+    ctx = exc_ctx("post_event_review")
+    doc = valid_doc("post_event_review")
+    assert outcome(doc, ctx) == ("invalid", [("V20.event_required", "event_review")])
+    doc["event_review"] = EVENT
+    assert outcome(doc, ctx) == ("pending", [])
+    doc["event_review"] = {**EVENT, "event_id": str(U(501))}
+    assert outcome(doc, ctx) == ("invalid", [("V20.event_unknown", "event_review.event_id")])
+
+
+def test_v20_event_review_forbidden_elsewhere() -> None:
+    doc = valid_doc()
+    doc["event_review"] = EVENT
+    assert outcome(doc, exc_ctx("review_rolling_plan")) == ("invalid", [("V20.event_forbidden", "event_review")])
+
+
+def test_v21_resolution_forbidden_for_quality_session() -> None:
+    doc = valid_doc("select_quality_session")
+    doc["changes"] = []
+    doc["patch_resolutions"] = [{"patch_id": str(U(400)), "status": "resolved", "note": "ok"}]
+    assert outcome(doc, exc_ctx("select_quality_session")) == (
+        "invalid", [("V21.resolution_forbidden", "patch_resolutions")])
+
+
+def test_v21_patch_unknown_closed_duplicate() -> None:
+    doc = valid_doc()
+    doc["patch_resolutions"] = [{"patch_id": str(U(n)), "status": "resolved", "note": "ok"} for n in (999, 401, 400, 400)]
+    assert outcome(doc, exc_ctx("review_rolling_plan")) == ("invalid", [
+        ("V21.patch_unknown", "patch_resolutions.0.patch_id"),
+        ("V21.patch_closed", "patch_resolutions.1.patch_id"),
+        ("V21.patch_duplicate", "patch_resolutions.3.patch_id"),
+    ])
+
+
+def test_v14_post_event_review_allows_anchors() -> None:
+    doc = valid_doc("post_event_review")
+    doc["event_review"] = EVENT
+    doc["changes"] = []
+    doc["anchor_changes"] = [ANCHOR]
+    assert outcome(doc, exc_ctx("post_event_review")) == ("pending", [])
+    doc = valid_doc()
+    doc["anchor_changes"] = [ANCHOR]
+    assert outcome(doc, exc_ctx("review_rolling_plan")) == (
+        "invalid", [("V14.anchor_change_not_allowed", "anchor_changes")])
