@@ -15,10 +15,11 @@ from app.calendar_models import CalendarSessionRevision, CalendarVersion, Sessio
 from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
 from app.config import settings
 from app.db import engine
+from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.metrics.engine import install_triggers
 from app.models import AppState, ProfileVersion
 from app.models import Checkin as LegacyCheckin
-from app.planning_models import Block, BlockDecision, BlockVersion, IntensityAnchor
+from app.planning_models import Block, BlockDecision, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
 from app.services.proposals import DecisionError, DecisionRequest, decide_proposal, discard_proposal, submit_proposal
@@ -46,6 +47,8 @@ def proposal_session(monkeypatch):
         try:
             with Session(bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False) as session:
                 session.info["metrics_now"] = NOW
+                session.execute(delete(ExceptionFinding))
+                session.execute(delete(ExceptionPatch))
                 session.execute(delete(CoachDecisionKey))
                 session.execute(delete(CoachProposalChange))
                 session.execute(delete(CoachProposal))
@@ -163,6 +166,46 @@ def _req(head: int, key: str, accepted: list[str] | None = None, rejected: list[
     return DecisionRequest(
         idempotency_key=key, expected_head=head, expected_revision=1, accept_change_ids=accepted or [], reject_change_ids=rejected or []
     )
+
+
+def _finding(session: Session, rule_code: str = "FATIGUE_PERSISTING", *, category: str = "accumulated_fatigue",
+             severity: str = "caution", entity_key: str | None = None,
+             evidence_at: datetime = NOW - timedelta(hours=2)) -> ExceptionFinding:
+    finding = ExceptionFinding(
+        rule_code=rule_code, rule_version="exceptions.v1", category=category, severity=severity,
+        entity_key=entity_key or rule_code.lower(), status="open", summary="Synthetic", evidence=[],
+        evidence_at=evidence_at, first_seen_at=evidence_at, last_seen_at=evidence_at,
+    )
+    session.add(finding)
+    session.flush()
+    return finding
+
+
+def _exception_doc(snapshot: CoachSnapshot, uid: uuid.UUID, finding_ids: list[uuid.UUID], *, changes: bool = True,
+                   ladder: str = "next_session") -> dict:
+    raw = _doc(snapshot, uid)
+    raw["changes"] = [{"change_id": "c1", "op": "modify", "session_uid": str(uid),
+                       "after": {"planned_duration_s": 1200}, "reason": "Fatigue"}] if changes else []
+    raw["exception"] = {
+        "finding_ids": [str(fid) for fid in finding_ids], "category": "accumulated_fatigue", "severity": "caution",
+        "confidence": "moderate", "triggering_evidence": "Fatigue 8 on two mornings", "relevant_context": None,
+        "ladder_level": ladder, "patch_window": {"start": "2026-11-16", "end": "2026-11-18"}, "unchanged": [],
+        "reassess_on": "2026-11-19", "monitor": ["Morning fatigue"], "return_criteria": ["Usual fatigue twice"],
+        "escalate_criteria": ["High through Saturday"],
+    }
+    return raw
+
+
+def _accepted_patch(session: Session) -> tuple[ExceptionPatch, ExceptionFinding, uuid.UUID]:
+    finding = _finding(session)
+    snapshot, uid = _snapshot(session, "exception_review")
+    submitted = submit_proposal(session, _exception_doc(snapshot, uid, [finding.id]), now=NOW, resolve_kb=_resolve)
+    assert submitted.status == "pending", submitted.issues
+    result = decide_proposal(session, submitted.proposal_id, _req(1, "exc-accept", ["c1"]), now=NOW, resolve_kb=_resolve)
+    assert result.calendar_version == 2
+    patch = session.scalar(select(ExceptionPatch).where(ExceptionPatch.proposal_id == submitted.proposal_id))
+    assert patch is not None
+    return patch, finding, submitted.proposal_id
 
 
 def test_submit_retry_acceptance_and_terminal_alias(proposal_session: Session) -> None:
@@ -745,3 +788,103 @@ def test_revise_stale_draft_requires_fresh_context_and_keeps_link(proposal_sessi
     assert row.base_calendar_version == 2 and row.snapshot_id == fresh.id
     change = session.scalar(select(CoachProposalChange).where(CoachProposalChange.proposal_id == row.id))
     assert change.before['intent'] == 'Updated schedule'
+
+
+def test_exception_accept_creates_patch_and_addresses_findings(proposal_session: Session) -> None:
+    session = proposal_session
+    patch, finding, proposal_id = _accepted_patch(session)
+    assert session.scalar(select(func.count(ExceptionPatch.id)).where(ExceptionPatch.proposal_id == proposal_id)) == 1
+    assert (patch.calendar_version_number, patch.status, patch.window_start, patch.window_end, patch.reassess_on) == (
+        2, "open", date(2026, 11, 16), date(2026, 11, 18), date(2026, 11, 19))
+    assert patch.monitor == ["Morning fatigue"]
+    assert (finding.status, finding.patch_id, finding.version) == ("addressed", patch.id, 2)
+
+
+def test_exception_no_change_accept_reviews_findings(proposal_session: Session) -> None:
+    session = proposal_session
+    finding = _finding(session)
+    snapshot, uid = _snapshot(session, "exception_review")
+    raw = _exception_doc(snapshot, uid, [finding.id], changes=False, ladder="next_days")
+    submitted = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert submitted.status == "pending", submitted.issues
+    result = decide_proposal(session, submitted.proposal_id, _req(1, "exc-nochange"), now=NOW, resolve_kb=_resolve)
+    assert (result.status, result.calendar_version) == ("accepted", None)
+    assert session.scalar(select(func.count(ExceptionPatch.id))) == 0
+    assert (finding.status, finding.reviewed_by_proposal_id, finding.closed_at) == (
+        "reviewed", submitted.proposal_id, NOW)
+
+
+def test_exception_reject_has_no_effects(proposal_session: Session) -> None:
+    session = proposal_session
+    finding = _finding(session)
+    snapshot, uid = _snapshot(session, "exception_review")
+    raw = _exception_doc(snapshot, uid, [finding.id], ladder="current_session")
+    submitted = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert submitted.status == "pending", submitted.issues
+    result = decide_proposal(session, submitted.proposal_id, _req(1, "exc-reject", [], ["c1"]), now=NOW,
+                             resolve_kb=_resolve)
+    assert result.status == "rejected"
+    assert session.scalar(select(func.count(ExceptionPatch.id))) == 0
+    assert (finding.status, finding.version) == ("open", 1)
+
+
+def test_rolling_accept_resolves_patch_and_reviews_old_open_findings(proposal_session: Session) -> None:
+    session = proposal_session
+    patch, addressed, _ = _accepted_patch(session)
+    old = _finding(session, "FATIGUE_HIGH", severity="observe", entity_key="fatigue")
+    esc = _finding(session, "SYM_MULTIWEEK", category="symptoms_illness", severity="escalate",
+                   entity_key="site:ankle|left")
+    late = _finding(session, "TRAVEL_REPORTED", category="calendar_disruption", severity="observe",
+                    entity_key="travel", evidence_at=NOW - timedelta(minutes=30))
+    snapshot, uid = _snapshot(session)
+    raw = _doc(snapshot, uid)
+    raw["patch_resolutions"] = [{"patch_id": str(patch.id), "status": "resolved", "note": "Settled"}]
+    submitted = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert submitted.status == "pending", submitted.issues
+    decide_proposal(session, submitted.proposal_id, _req(2, "roll-accept", ["c1"]), now=NOW, resolve_kb=_resolve)
+    assert (patch.status, patch.resolved_by, patch.resolution_note, patch.resolved_at) == (
+        "resolved", "coach", "Settled", NOW)
+    assert addressed.status == "resolved"
+    assert old.status == "reviewed"
+    assert (esc.status, late.status) == ("open", "open")
+
+
+def test_block_accept_reviews_all_and_supersedes_patches(proposal_session: Session) -> None:
+    session = proposal_session
+    patch, addressed, _ = _accepted_patch(session)
+    observe = _finding(session, "FATIGUE_HIGH", severity="observe", entity_key="fatigue")
+    escalate = _finding(session, "SYM_MULTIWEEK", category="symptoms_illness", severity="escalate",
+                        entity_key="site:ankle|left")
+    snapshot, uid = _snapshot(session, "review_training_block")
+    raw = _doc(snapshot, uid)
+    raw["changes"] = []
+    submitted = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert submitted.status == "pending", submitted.issues
+    result = decide_proposal(session, submitted.proposal_id, _req(2, "block-accept"), now=NOW, resolve_kb=_resolve)
+    assert result.status == "accepted"
+    assert [row.status for row in (addressed, observe, escalate)] == ["reviewed", "reviewed", "reviewed"]
+    assert (patch.status, patch.resolved_by) == ("superseded", "coach")
+
+
+def test_post_event_accept_reviews_only_that_event(proposal_session: Session) -> None:
+    session = proposal_session
+    first = Event(name="Synthetic 10K", event_date=TODAY - timedelta(days=2), distance_m=10000, priority="target",
+                  status="completed")
+    second = Event(name="Synthetic 5K", event_date=TODAY - timedelta(days=3), distance_m=5000, priority="target",
+                   status="completed")
+    session.add_all([first, second])
+    session.flush()
+    due = [_finding(session, "POST_EVENT_REVIEW_DUE", category="post_event", severity="observe",
+                    entity_key=f"event:{event.id}") for event in (first, second)]
+    snapshot, uid = _snapshot(session, "post_event_review")
+    raw = _doc(snapshot, uid)
+    raw["changes"] = []
+    raw["event_review"] = {"event_id": str(first.id), "activity_id": None, "pacing": "Even",
+                           "effort_and_limiter": "RPE 9, breathing", "conditions": None, "symptoms": None,
+                           "recovery_observation": "Normal walking", "recalibration": "defer",
+                           "training_implication": "Easy until fresh"}
+    submitted = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert submitted.status == "pending", submitted.issues
+    result = decide_proposal(session, submitted.proposal_id, _req(1, "post-accept"), now=NOW, resolve_kb=_resolve)
+    assert result.status == "accepted"
+    assert (due[0].status, due[1].status) == ("reviewed", "open")

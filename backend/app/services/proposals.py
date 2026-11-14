@@ -1227,6 +1227,62 @@ def _save_block(
     return version.id, True
 
 
+def _apply_exception_effects(session: Session, doc: ProposalDoc, proposal_id: uuid.UUID, snapshot_at: datetime,
+                             status: str, calendar_version: int | None, now: datetime) -> None:
+    from app.exception_models import ExceptionFinding, ExceptionPatch
+    from app.services.exceptions.lifecycle import address_findings, close_finding, resolve_patch, supersede_patch
+
+    if status not in {"accepted", "partially_accepted"}:
+        return
+
+    def findings(*conditions: Any) -> list[Any]:
+        return list(session.scalars(select(ExceptionFinding).where(*conditions).with_for_update()))
+
+    def review(rows: list[Any]) -> None:
+        for row in rows:
+            close_finding(row, "reviewed", now=now, proposal_id=proposal_id)
+
+    active = ExceptionFinding.status.in_(NON_TERMINAL_FINDING)
+    exc = doc.exception
+    if doc.operation == "exception_review" and exc is not None:
+        listed = findings(ExceptionFinding.id.in_(exc.finding_ids), active) if exc.finding_ids else []
+        if calendar_version is not None:
+            patch = ExceptionPatch(
+                proposal_id=proposal_id, calendar_version_number=calendar_version, category=exc.category,
+                severity=exc.severity, ladder_level=exc.ladder_level, status="open",
+                window_start=exc.patch_window.start, window_end=exc.patch_window.end, reassess_on=exc.reassess_on,
+                monitor=list(exc.monitor), return_criteria=list(exc.return_criteria),
+                escalate_criteria=list(exc.escalate_criteria),
+                unchanged=[{"session_uid": str(item.session_uid), "reason": item.reason} for item in exc.unchanged],
+            )
+            session.add(patch)
+            session.flush()
+            address_findings(listed, patch)
+        else:
+            review(listed)
+    handled: set[uuid.UUID] = set()
+    for item in doc.patch_resolutions:
+        existing = session.get(ExceptionPatch, item.patch_id, with_for_update=True)
+        if existing is None or existing.status not in {"open", "escalated"}:
+            continue
+        resolve_patch(existing, item.status, by="coach", now=now, note=item.note)
+        handled.add(existing.id)
+    if doc.operation == "review_rolling_plan":
+        review(findings(ExceptionFinding.status == "open", ExceptionFinding.severity != "escalate",
+                        ExceptionFinding.evidence_at <= snapshot_at))
+    elif doc.operation == "review_training_block":
+        review(findings(active))
+        query = select(ExceptionPatch).where(ExceptionPatch.status.in_(("open", "escalated")))
+        if handled:
+            query = query.where(ExceptionPatch.id.not_in(handled))
+        for live in session.scalars(query.with_for_update()):
+            supersede_patch(live, now=now)
+    elif doc.operation == "post_event_review" and doc.event_review is not None:
+        review(findings(ExceptionFinding.rule_code == "POST_EVENT_REVIEW_DUE",
+                        ExceptionFinding.entity_key == f"event:{doc.event_review.event_id}", active))
+    session.flush()
+
+
 def decide_proposal(
     session: Session, proposal_id: uuid.UUID, req: DecisionRequest, *, now: datetime, resolve_kb: KnowledgeResolver
 ) -> DecisionResult:
@@ -1405,6 +1461,7 @@ def decide_proposal(
     proposal.decided_at = now
     proposal.decision_idempotency_key = req.idempotency_key
     proposal.decision_hash = decision_hash
+    _apply_exception_effects(session, doc, proposal_id, snapshot.generated_at, status, calendar_version, now)
     if changed:
         stale = list(dict.fromkeys([*stale, *mark_pending_stale(session, except_id=proposal_id)]))
     decision_result = DecisionResult(
