@@ -74,9 +74,9 @@ def test_404_unavailable_and_retryable_read_timeout(monkeypatch, tmp_path: Path)
 def test_athlete_timezone_defaults_to_profile() -> None:
     class ProfileSession:
         def scalar(self, _):
-            return SimpleNamespace(timezone='Asia/Tokyo')
-    assert sync.athlete_tz(ProfileSession()) == 'Asia/Tokyo'
-    assert sync.athlete_tz(_FakeSession()) == 'America/New_York'
+            return 'Asia/Tokyo'
+    assert sync.timezone_name(ProfileSession()) == 'Asia/Tokyo'
+    assert sync.timezone_name(_FakeSession()) == 'America/New_York'
     before = parse_activity({'activityId': '1', 'startTimeGMT': '2026-11-01T05:30:00Z',
                              'activityType': {'typeKey': 'running'}}, 'America/New_York')
     after = parse_activity({'activityId': '2', 'startTimeGMT': '2026-11-01T06:30:00Z',

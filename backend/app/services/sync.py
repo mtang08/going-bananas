@@ -25,7 +25,6 @@ from app.models import (
     CoverageInterval,
     ImportBatch,
     ManualSession,
-    ProfileVersion,
     RawObject,
     RecoveryObservation,
     SourceAccount,
@@ -33,6 +32,7 @@ from app.models import (
     SyncJob,
     SyncState,
 )
+from app.services.timezone import athlete_tz
 
 PARSER_VERSION = "garmin-personal-v1"
 ADVISORY_LOCK = 837150921
@@ -108,9 +108,8 @@ CANONICAL_FIELDS = (
 )
 
 
-def athlete_tz(session: Session) -> str:
-    profile = session.scalar(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1))
-    return profile.timezone if profile else "America/New_York"
+def timezone_name(session: Session) -> str:
+    return athlete_tz(session).key
 
 
 def detect_import_conflicts_for_manual(session: Session, manual: ManualSession) -> None:
@@ -254,7 +253,7 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
         return {"seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
     session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": GLOBAL_WRITE_LOCK})
     if timezone is None:
-        timezone = athlete_tz(session)
+        timezone = timezone_name(session)
     if source_kind == "garmin_api" and records:
         owners = {str(item.get("ownerId")) for item in records if item.get("ownerId") is not None}
         if len(owners) != 1 or any(item.get("ownerId") is None for item in records):
@@ -670,7 +669,7 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                         page_session.flush()
                         counts = import_activity_page(page_session, private_dir, page,
                                                       account_scope=account_scope, batch=batch,
-                                                      timezone=athlete_tz(page_session))
+                                                      timezone=timezone_name(page_session))
                         batch.status = "complete"
                         batch.finished_at = datetime.now(UTC)
                         batch.counters = counts
@@ -683,7 +682,7 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                         observed = []
                         for item in page:
                             try:
-                                observed.append(parse_activity(item, athlete_tz(page_session)).start_at)
+                                observed.append(parse_activity(item, timezone_name(page_session)).start_at)
                             except InvalidRecord:
                                 continue
                         if observed:
