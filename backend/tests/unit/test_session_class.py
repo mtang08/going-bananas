@@ -117,3 +117,24 @@ def test_constants():
     assert QUALITY_RECIPES == {'REC003', 'REC004', 'REC005', 'REC006', 'REC008', 'REC009'}
     assert LONG_RECIPE == 'REC002'
     assert [recipe for recipe, cls in RECIPE_CLASS.items() if cls == 'long'] == ['REC002']
+
+
+
+def test_spacing_config_identity_unchanged():
+    from app.metrics.contract import config_hash
+    from app.metrics.spacing import CONFIG
+
+    assert config_hash(CONFIG) == '01c51faf66223ff3b228bf2bee35dd89b077036f052861e0ff89b5e03f85ab13'
+
+
+def test_proposals_and_snapshot_share_sets():
+    from app.services import proposals, snapshot
+
+    assert proposals.QUALITY_RECIPES is QUALITY_RECIPES
+    assert snapshot.QUALITY_RECIPES is QUALITY_RECIPES
+    assert snapshot._classify(None) == 'unplanned'
+    assert snapshot._classify('') == 'unplanned'
+    assert snapshot._classify('REC002') == 'long'
+    assert snapshot._classify('REC009') == 'quality'
+    assert snapshot._classify('REC010') == 'easy'
+    assert snapshot._classify('REC007') == 'easy'

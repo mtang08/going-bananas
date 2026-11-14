@@ -19,13 +19,14 @@ from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin as CheckinV2
 from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachSnapshot
+from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.metric_models import MetricResult, Prompt
 from app.models import Activity, AppState, ProfileVersion
 from app.planning_models import BlockDecision, BlockVersion, Event, Goal, IntensityAnchor, StrengthRoutineSlot
 from app.services.calendar import state_at
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection
-from app.services.proposals import LONG_RECIPE, QUALITY_RECIPES, DecisionError, derive_certainty, is_quality_slot, scope
+from app.services.proposals import DecisionError, derive_certainty, is_quality_slot, scope
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 

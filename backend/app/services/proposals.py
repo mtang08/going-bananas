@@ -14,6 +14,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from app.domain.cycle import opportunity
+from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.services.calendar_structure import StructureError, expand_structure
 from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
 
@@ -26,8 +27,6 @@ OPERATIONS = (
     "handle_goal_or_race_change",
 )
 RECIPE_IDS = {f"REC{n:03d}" for n in range(1, 11)}
-QUALITY_RECIPES = {"REC003", "REC004", "REC005", "REC006", "REC008", "REC009"}
-LONG_RECIPE = "REC002"
 BLOCK_OPS = {"review_training_block", "handle_goal_or_race_change"}
 OFF_CYCLE_OPS = {"review_rolling_plan", "review_training_block", "handle_goal_or_race_change"}
 ANCHOR_UNIT = {

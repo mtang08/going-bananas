@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.domain.analytics import utc_date_bounds
+from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.metric_models import MetricResult as MetricResultRow
 from app.metrics.contract import MetricResultData, Status, completion_association_hash, config_hash, sha256_json
 from app.metrics.engine import load_runs, register
@@ -23,8 +24,8 @@ METRIC_ID = "hard_session_spacing"
 METHOD_VERSION = "v1"
 WINDOW_DAYS = (14,)
 DEPENDS_ON = ("long_run_exposure",)
-CONFIG = {"quality_recipes": ["REC003", "REC004", "REC005", "REC006", "REC008", "REC009"],
-          "long_recipe": "REC002", "lower_body_cost": ["moderate", "high"],
+CONFIG = {"quality_recipes": sorted(QUALITY_RECIPES),
+          "long_recipe": LONG_RECIPE, "lower_body_cost": ["moderate", "high"],
           "range_rule": "interval_subtraction.v1"}
 HARD_CLASSES = ("quality", "long", "lower_body_strength")
 
@@ -121,7 +122,7 @@ def _plan_classes(session: Session, row: CalendarSessionRevision) -> list[str]:
     if row.kind == "run":
         if row.recipe_id in CONFIG["quality_recipes"]:
             return ["quality"]
-        if row.recipe_id == "REC002":
+        if row.recipe_id == LONG_RECIPE:
             return ["long"]
     if row.kind == "strength" and row.strength_slot_id:
         slot = session.get(StrengthRoutineSlot, row.strength_slot_id)
