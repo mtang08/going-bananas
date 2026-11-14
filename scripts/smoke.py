@@ -18,7 +18,7 @@ with urlopen(args.base_url+'/api/v1/profile',timeout=15) as response:
     profile=json.load(response)
 authority=profile['data'].get('planning_authority','legacy')
 if authority=='calendar':
-    paths += ['calendar','calendar/versions','prompts','coach/v2/daily',
+    paths += ['calendar','calendar/versions','prompts',
               'metrics/windows','metrics/recovery','anchors','goals','events',
               'strength-routine','blocks/active','coach/proposals']
 for path in paths:

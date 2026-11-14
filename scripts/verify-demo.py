@@ -47,10 +47,9 @@ checkin_body={'idempotency_key':str(uuid4()),'kind':'exception','observed_at':da
               'activity_id':None,'prompt_id':None,'note':'synthetic-private-note-canary'}
 checkin=request('/v2/checkins',checkin_body,'POST',201)
 assert request('/v2/checkins',checkin_body,'POST')['id']==checkin['id']
-guidance=request('/coach/v2/daily/request',{},'POST')
-assert guidance['decision']=='modify'
-reloaded=request('/coach/v2/daily')
-assert reloaded['id']==guidance['id']
+assert 'daily_guidance' not in checkin and 'exceptions' in checkin
+findings=request('/exceptions')['findings']
+assert any(item['rule_code']=='FATIGUE_HIGH' and item['status']=='open' for item in findings)
 today=date.fromisoformat(calendar['today'])
 historical=request('/calendar?start='+str(today-timedelta(days=14))+'&end='+str(today+timedelta(days=13)))
 def execution(days_ago):
