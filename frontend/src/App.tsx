@@ -1,26 +1,16 @@
 import { useEffect, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import {
-  Activity as ActivityIcon,
   BookOpen,
   CalendarDays,
   ChartNoAxesColumn,
   Footprints,
-  HeartPulse,
   Menu,
   Plus,
   Settings2,
 } from 'lucide-react'
 import { dateLabel, localDate, type CheckinRequest, type Profile } from './api'
 import { useServer, type Unit } from './components/shared'
-import { Overview } from './pages/Overview'
-import { History } from './pages/History'
-import { Cycle } from './pages/Cycle'
-import { Settings } from './pages/Settings'
-import { CheckinModal } from './pages/CheckinModal'
 import { CheckinModalV2 } from './pages/CheckinModalV2'
-import { Coach } from './pages/Coach'
-import { Strength } from './pages/Strength'
 import { Home } from './pages/Home'
 import { Calendar } from './pages/Calendar'
 import { Trends } from './pages/Trends'
@@ -31,70 +21,29 @@ import { PlanningSettings } from './pages/PlanningSettings'
 import { Guide } from './pages/Guide'
 import { Badge, Button, Dialog, DialogContent, DialogTitle, DialogTrigger } from './components/ui'
 
-type Authority = Profile['planning_authority']
 type Page =
-  | 'overview'
-  | 'coach'
-  | 'strength'
-  | 'history'
-  | 'cycle'
-  | 'settings'
-  | 'home'
-  | 'calendar'
-  | 'trends'
-  | 'activity'
-  | 'block'
-  | 'proposal'
-  | 'guide'
+  'home' | 'calendar' | 'trends' | 'block' | 'settings' | 'activity' | 'proposal' | 'guide'
 type Route = { page: Page; id: string | null }
 type NavItem = { id: Page; label: string; icon: typeof ChartNoAxesColumn }
 
-const legacyNav: NavItem[] = [
-  { id: 'overview', label: 'Overview', icon: ChartNoAxesColumn },
-  { id: 'coach', label: 'Coach', icon: Footprints },
-  { id: 'strength', label: 'Strength', icon: HeartPulse },
-  { id: 'history', label: 'History', icon: ActivityIcon },
-  { id: 'cycle', label: 'Cycle', icon: CalendarDays },
-  { id: 'settings', label: 'Data & settings', icon: Settings2 },
-]
-const calendarNav: NavItem[] = [
+const nav: NavItem[] = [
   { id: 'home', label: 'Home', icon: Footprints },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'trends', label: 'Trends', icon: ChartNoAxesColumn },
   { id: 'block', label: 'Training block', icon: CalendarDays },
-  { id: 'history', label: 'History', icon: ActivityIcon },
-  { id: 'strength', label: 'Strength', icon: HeartPulse },
-  { id: 'coach', label: 'Coaching history', icon: Footprints },
-  { id: 'settings', label: 'Data & settings', icon: Settings2 },
-  { id: 'guide', label: 'User guide', icon: BookOpen },
+  { id: 'settings', label: 'Settings', icon: Settings2 },
 ]
 
-export function parseHash(hash: string, authority: Authority): Route {
-  const fallback: Route = { page: authority === 'calendar' ? 'home' : 'overview', id: null }
+export function parseHash(hash: string): Route {
+  const fallback: Route = { page: 'home', id: null }
   if (!hash.startsWith('#')) return fallback
   const path = hash.slice(1)
-  const allowed =
-    authority === 'calendar'
-      ? new Set([
-          'home',
-          'calendar',
-          'trends',
-          'block',
-          'history',
-          'strength',
-          'settings',
-          'coach',
-          'guide',
-        ])
-      : new Set(['overview', 'coach', 'cycle', 'history', 'strength', 'settings'])
+  const allowed = new Set(['home', 'calendar', 'trends', 'block', 'settings', 'guide'])
   if (allowed.has(path)) return { page: path as Page, id: null }
-  if (
-    authority === 'calendar' &&
-    /^proposal\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path)
-  ) {
+  if (/^proposal\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path)) {
     return { page: 'proposal', id: path.slice('proposal/'.length) }
   }
-  if (authority === 'calendar' && path.startsWith('activity/')) {
+  if (path.startsWith('activity/')) {
     try {
       const id = decodeURIComponent(path.slice('activity/'.length))
       if (id && !id.includes('/') && !id.includes('#') && !id.includes('?'))
@@ -111,9 +60,7 @@ function modeLabel(mode?: string) {
 }
 
 export function App() {
-  const queryClient = useQueryClient()
-  const [loadedAuthority, setLoadedAuthority] = useState<Authority | undefined>(undefined)
-  const [route, setRoute] = useState<Route>({ page: 'overview', id: null })
+  const [route, setRoute] = useState<Route>({ page: 'home', id: null })
   const [checkinOpen, setCheckinOpen] = useState(false)
   const [checkinRequest, setCheckinRequest] = useState<CheckinRequest | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -126,42 +73,17 @@ export function App() {
   }
   const ready = useServer<{ status: string; database?: boolean }>(['ready'], '/health/ready')
   const profile = useServer<Profile>(['profile'], '/profile')
-  const authority = profile.data ? (profile.data.data.planning_authority ?? 'legacy') : undefined
-  useEffect(() => {
-    if (!authority || authority === loadedAuthority) return
-    let active = true
-    const refresh = async () => {
-      if (loadedAuthority) {
-        const filter = {
-          predicate: (query: { queryKey: readonly unknown[] }) =>
-            !['profile', 'ready'].includes(String(query.queryKey[0])),
-        }
-        await queryClient.cancelQueries(filter)
-        if (!active) return
-        queryClient.removeQueries(filter)
-      }
-      setCheckinOpen(false)
-      setCheckinRequest(null)
-      setLoadedAuthority(authority)
-    }
-    void refresh()
-    return () => {
-      active = false
-    }
-  }, [authority, loadedAuthority, queryClient])
-  const workspaceReady = authority && loadedAuthority === authority
+  const authority = profile.data?.data.planning_authority
   const mode = profile.data?.mode || ready.data?.mode
-  const nav = authority === 'calendar' ? calendarNav : legacyNav
   useEffect(() => {
-    if (!authority) return
     const update = () => {
-      setRoute(parseHash(window.location.hash, authority))
+      setRoute(parseHash(window.location.hash))
       setMenuOpen(false)
     }
     update()
     window.addEventListener('hashchange', update)
     return () => window.removeEventListener('hashchange', update)
-  }, [authority])
+  }, [])
   const navigate = (page: Page) => {
     window.location.hash = page
     setRoute({ page, id: null })
@@ -181,7 +103,10 @@ export function App() {
       ? 'Activity'
       : page === 'proposal'
         ? 'Review proposal'
-        : (nav.find((item) => item.id === page)?.label ?? 'Home')
+        : page === 'guide'
+          ? 'User guide'
+          : (nav.find((item) => item.id === page)?.label ?? 'Home')
+  const dbDown = ready.isError || ready.data?.data.status === 'unavailable'
 
   const navigation = (
     <nav aria-label="Primary navigation" className="grid gap-1">
@@ -267,6 +192,11 @@ export function App() {
             >
               {modeLabel(mode)}
             </Badge>
+            <Button variant="ghost" size="sm" asChild>
+              <a href="#guide">
+                <BookOpen size={16} /> Guide
+              </a>
+            </Button>
             <span className="hidden text-xs text-muted-foreground md:inline">
               {dateLabel(localDate(), { weekday: 'short', month: 'short', day: 'numeric' })}
             </span>
@@ -281,31 +211,35 @@ export function App() {
             </Button>
           </div>
         </header>
-        {ready.data?.data.status === 'unavailable' && (
+        {dbDown ? (
           <div className="notice error global-notice" role="alert">
-            The local database is unavailable. Previously loaded data may be stale.
+            Database unavailable — start it with make db-start
           </div>
+        ) : (
+          profile.error && (
+            <div className="notice error global-notice" role="alert">
+              Could not load the training workspace: {profile.error.message}{' '}
+              <Button variant="outline" size="sm" onClick={() => void profile.refetch()}>
+                Retry
+              </Button>
+            </div>
+          )
         )}
-        {!workspaceReady && (
+        {!profile.data && !profile.error && (
           <div className="page-content" role="status">
             Loading training workspace…
           </div>
         )}
-        {workspaceReady && authority === 'legacy' && (
-          <>
-            {page === 'overview' && <Overview unit={unit} onCheckin={() => openCheckin()} />}
-            {page === 'coach' && (
-              <Coach onCheckin={() => openCheckin()} onSetup={() => navigate('settings')} />
-            )}
-            {page === 'cycle' && <Cycle onCheckin={() => openCheckin()} />}
-            {page === 'history' && <History unit={unit} onCheckin={() => openCheckin()} />}
-            {page === 'strength' && <Strength />}
-            {page === 'settings' && (
-              <Settings unit={unit} setUnit={setUnit} onCheckin={() => openCheckin()} />
-            )}
-          </>
+        {authority === 'legacy' && (
+          <section className="page-content">
+            <div className="notice warning" role="status" data-testid="cutover-required">
+              <strong>Planning cutover required.</strong> This workspace still uses the retired
+              legacy planner. Run <code>python -m app.cli planning-cutover --dry-run</code>, then{' '}
+              <code>--apply</code> (see docs/operations.md), and reload.
+            </div>
+          </section>
         )}
-        {workspaceReady && authority === 'calendar' && (
+        {authority === 'calendar' && (
           <>
             {page === 'home' && <Home unit={unit} onCheckin={openCheckin} />}
             {page === 'calendar' && <Calendar unit={unit} />}
@@ -316,17 +250,8 @@ export function App() {
             {page === 'activity' && route.id && (
               <Activity activityId={route.id} unit={unit} onCheckin={openCheckin} />
             )}
-            {page === 'history' && <History unit={unit} onCheckin={() => openCheckin()} />}
-            {page === 'strength' && <Strength />}
             {page === 'settings' && (
               <PlanningSettings unit={unit} setUnit={setUnit} onCheckin={openCheckin} />
-            )}
-            {page === 'coach' && (
-              <Coach
-                readOnly
-                onCheckin={() => openCheckin()}
-                onSetup={() => navigate('settings')}
-              />
             )}
           </>
         )}
@@ -334,14 +259,9 @@ export function App() {
           Local training record · {modeLabel(mode)} · metrics are descriptive
         </footer>
       </div>
-      {checkinOpen &&
-        workspaceReady &&
-        authority &&
-        (authority === 'calendar' ? (
-          <CheckinModalV2 request={checkinRequest} close={closeCheckin} />
-        ) : (
-          <CheckinModal close={closeCheckin} />
-        ))}
+      {checkinOpen && authority === 'calendar' && (
+        <CheckinModalV2 request={checkinRequest} close={closeCheckin} />
+      )}
     </div>
   )
 }

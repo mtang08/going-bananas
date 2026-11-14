@@ -24,7 +24,7 @@ const wrap = (data: unknown) => ({
   data,
 })
 const profile = {
-  planning_authority: 'legacy' as 'legacy' | 'calendar',
+  planning_authority: 'calendar' as 'legacy' | 'calendar',
   version: 1,
   timezone: 'America/New_York',
   cycle_anchor: '2026-11-02',
@@ -164,10 +164,14 @@ const emptyProposal = {
 let requests: { url: string; method: string; body: unknown; headers: Headers }[] = []
 let profileRecord = { ...profile }
 let activityItems: unknown[] = []
+let readyStatus = 200
+let profileStatus = 200
 beforeEach(() => {
   requests = []
   profileRecord = { ...profile }
   activityItems = []
+  readyStatus = 200
+  profileStatus = 200
   responseMode = 'demo'
   importItems = []
   window.location.hash = ''
@@ -183,6 +187,18 @@ beforeEach(() => {
         body: init?.body ? JSON.parse(String(init.body)) : null,
         headers: new Headers(init?.headers),
       })
+      if (url.includes('/health/ready') && readyStatus !== 200)
+        return {
+          ok: false,
+          status: 503,
+          json: async () => wrap({ status: 'unavailable', database: false }),
+        } as Response
+      if (url.includes('/profile') && method === 'GET' && profileStatus !== 200)
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ error: { code: 'internal_error', message: 'boom' } }),
+        } as Response
       if (url.endsWith('/calendar/weekly-projection'))
         return { ok: true, status: 200, json: async () => wrap(weeklyProjection) } as Response
       if (url.includes('/profile') && method === 'PUT')
@@ -282,28 +298,19 @@ describe('authority shell', () => {
     await waitFor(() => expect(opener).toHaveFocus())
   })
 
-  it('parses only routes permitted by the resolved authority', () => {
-    expect(parseHash('#calendar', 'legacy')).toEqual({ page: 'overview', id: null })
-    expect(parseHash('#coach', 'legacy')).toEqual({ page: 'coach', id: null })
-    expect(parseHash('#cycle', 'calendar')).toEqual({ page: 'home', id: null })
-    expect(parseHash('#activity/run%20one', 'calendar')).toEqual({
-      page: 'activity',
-      id: 'run one',
-    })
-    expect(parseHash('#activity/%ZZ', 'calendar')).toEqual({ page: 'home', id: null })
-    expect(parseHash('#activity/%2F', 'calendar')).toEqual({ page: 'home', id: null })
-    expect(parseHash('#block', 'calendar')).toEqual({ page: 'block', id: null })
-    expect(parseHash('#guide', 'calendar')).toEqual({ page: 'guide', id: null })
-    expect(parseHash(`#proposal/${proposalId}`, 'calendar')).toEqual({
-      page: 'proposal',
-      id: proposalId,
-    })
+  it('parses current routes and sends removed pages home', () => {
+    for (const page of ['calendar', 'trends', 'block', 'settings', 'guide'])
+      expect(parseHash(`#${page}`)).toEqual({ page, id: null })
+    expect(parseHash('#activity/run%20one')).toEqual({ page: 'activity', id: 'run one' })
+    expect(parseHash('#activity/%ZZ')).toEqual({ page: 'home', id: null })
+    expect(parseHash('#activity/%2F')).toEqual({ page: 'home', id: null })
+    expect(parseHash(`#proposal/${proposalId}`)).toEqual({ page: 'proposal', id: proposalId })
     for (const hash of ['#proposal/%ZZ', '#proposal/no-id', `#proposal/${proposalId}/extra`])
-      expect(parseHash(hash, 'calendar')).toEqual({ page: 'home', id: null })
-    expect(parseHash(`#proposal/${proposalId}`, 'legacy')).toEqual({ page: 'overview', id: null })
+      expect(parseHash(hash)).toEqual({ page: 'home', id: null })
+    for (const hash of ['#history', '#strength', '#coach', '#overview', '#cycle', '#unknown', ''])
+      expect(parseHash(hash)).toEqual({ page: 'home', id: null })
   })
   it('opens calendar Home, follows navigation hashes, and uses the v2 check-in', async () => {
-    profileRecord = { ...profile, planning_authority: 'calendar' }
     mount()
     expect(await screen.findByTestId('today-card')).toBeInTheDocument()
     expect(screen.getAllByTestId('strip-day')).toHaveLength(14)
@@ -324,13 +331,12 @@ describe('authority shell', () => {
     mount()
     expect(await screen.findByRole('heading', { name: /Run ·/ })).toBeInTheDocument()
     expect(requests.some((x) => x.url.includes('/activities/run-1/execution'))).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: 'Data & settings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
     expect(await screen.findByRole('heading', { name: 'Planning settings' })).toBeInTheDocument()
     expect(await screen.findByLabelText('Display timezone')).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { name: 'Planning settings' })).toHaveLength(1)
   })
   it('opens a saved proposal without applying it and navigates to the block', async () => {
-    profileRecord = { ...profile, planning_authority: 'calendar' }
     window.location.hash = `#proposal/${proposalId}`
     mount()
     expect(await screen.findByText('Keep this plan')).toBeInTheDocument()
@@ -341,5 +347,40 @@ describe('authority shell', () => {
       await screen.findByRole('heading', { name: 'No active training block' }),
     ).toBeInTheDocument()
     expect(window.location.hash).toBe('#block')
+  })
+  it('shows only the five lean navigation items and a Guide link', async () => {
+    mount()
+    await screen.findByTestId('today-card')
+    const primary = screen.getByRole('navigation', { name: 'Primary navigation' })
+    expect(
+      within(primary)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Home', 'Calendar', 'Trends', 'Training block', 'Settings'])
+    expect(screen.getByRole('link', { name: 'Guide' })).toHaveAttribute('href', '#guide')
+    for (const name of ['History', 'Strength', 'Coaching history'])
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+  })
+  it('shows the database banner when readiness fails', async () => {
+    readyStatus = 503
+    mount()
+    expect(
+      await screen.findByText('Database unavailable — start it with make db-start'),
+    ).toBeInTheDocument()
+  })
+  it('shows profile load errors instead of loading forever', async () => {
+    profileStatus = 500
+    mount()
+    expect(
+      await screen.findByText(/Could not load the training workspace: boom/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Loading training workspace…')).not.toBeInTheDocument()
+  })
+  it('asks for the cutover in a legacy workspace', async () => {
+    profileRecord = { ...profile, planning_authority: 'legacy' }
+    mount()
+    expect(await screen.findByTestId('cutover-required')).toBeInTheDocument()
+    expect(screen.queryByTestId('today-card')).not.toBeInTheDocument()
+    expect(requests.some((request) => request.url.endsWith('/calendar'))).toBe(false)
   })
 })
