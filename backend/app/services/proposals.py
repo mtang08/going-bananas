@@ -518,6 +518,89 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
     return issues
 
 
+def _recipe_issue(doc: ProposalDoc, ctx: ValidationContext, *, change: Change, result: dict[str, Any],
+                  fields: set[str], path: str) -> ValidationIssue | None:
+    check_recipe = (change.op == "add" and result.get("kind") == "run") or (
+        change.op == "modify"
+        and result.get("kind") == "run"
+        and bool(fields & {"kind", "recipe_id", "custom", "structure"})
+    )
+    if check_recipe:
+        recipe = result.get("recipe_id")
+        if not recipe and not (result.get("custom") and result.get("structure")):
+            return _issue("V6.recipe_required", f"{path}.after")
+        elif recipe:
+            if recipe not in RECIPE_IDS:
+                return _issue("V6.unknown_recipe", f"{path}.after.recipe_id")
+            else:
+                eligible = (
+                    doc.block_change.version_fields.eligible_recipe_ids
+                    if doc.block_change
+                    else (ctx.active_block.eligible_recipe_ids if ctx.active_block else ())
+                )
+                if recipe not in eligible:
+                    return _issue("V6.recipe_not_eligible", f"{path}.after.recipe_id")
+    return None
+
+
+def _quality_pileup(change: Change, head: HeadSession | None, result_date: date | None, *,
+                    state: dict[str, dict], before: dict[str, dict]) -> bool:
+    if (
+        change.op == "move"
+        and head
+        and is_quality_slot(head.kind, head.recipe_id, head.placeholder)
+        and result_date
+        and (result_date - timedelta(days=result_date.weekday()))
+        != (head.local_date - timedelta(days=head.local_date.weekday()))
+    ):
+        week = result_date - timedelta(days=result_date.weekday())
+
+        def count(rows: dict[str, dict]) -> int:
+            return sum(
+                is_quality_slot(row["kind"], row.get("recipe_id"), row.get("placeholder", False))
+                and week <= row["local_date"] <= week + timedelta(days=6)
+                for row in rows.values()
+            )
+
+        return count(state) > count(before)
+    return False
+
+
+def _safety_violation(ctx: ValidationContext, change: Change, head: HeadSession | None, fields: set[str],
+                      result: dict[str, Any], result_date: date | None) -> bool:
+    if (
+        safety_active(ctx.current_safety_guard)
+        and result_date
+        and ctx.today <= result_date <= ctx.today + timedelta(days=3)
+    ):
+        unsafe = (
+            (change.op == "add" and result.get("kind") == "run")
+            or (
+                change.op == "move"
+                and head is not None
+                and head.kind == "run"
+                and not ctx.today <= head.local_date <= ctx.today + timedelta(days=3)
+            )
+            or (change.op == "modify" and head is not None and head.kind != "run" and result.get("kind") == "run")
+            or (
+                change.op == "modify"
+                and "planned_duration_s" in fields
+                and head is not None
+                and (
+                    head.planned_duration_s is None
+                    or (result.get("planned_duration_s") or 0) > head.planned_duration_s
+                )
+            )
+            or (
+                change.op in {"add", "modify"}
+                and "recipe_id" in fields
+                and result.get("recipe_id") in QUALITY_RECIPES
+            )
+        )
+        return bool(unsafe)
+    return False
+
+
 def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool = True) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     start, end = scope(doc.operation, ctx.today)
@@ -555,26 +638,9 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
                 dates.append(after.local_date)
         if any(d is not None and not (start <= d <= end) for d in dates):
             issues.append(_issue("V5.out_of_scope", path))
-        check_recipe = (change.op == "add" and result.get("kind") == "run") or (
-            change.op == "modify"
-            and result.get("kind") == "run"
-            and bool(fields & {"kind", "recipe_id", "custom", "structure"})
-        )
-        if check_recipe:
-            recipe = result.get("recipe_id")
-            if not recipe and not (result.get("custom") and result.get("structure")):
-                issues.append(_issue("V6.recipe_required", f"{path}.after"))
-            elif recipe:
-                if recipe not in RECIPE_IDS:
-                    issues.append(_issue("V6.unknown_recipe", f"{path}.after.recipe_id"))
-                else:
-                    eligible = (
-                        doc.block_change.version_fields.eligible_recipe_ids
-                        if doc.block_change
-                        else (ctx.active_block.eligible_recipe_ids if ctx.active_block else ())
-                    )
-                    if recipe not in eligible:
-                        issues.append(_issue("V6.recipe_not_eligible", f"{path}.after.recipe_id"))
+        recipe_issue = _recipe_issue(doc, ctx, change=change, result=result, fields=fields, path=path)
+        if recipe_issue is not None:
+            issues.append(recipe_issue)
         produces_run = (
             (change.op == "add" and result.get("kind") == "run")
             or (change.op == "move" and head is not None and head.kind == "run")
@@ -598,56 +664,10 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
             or (change.op == "modify" and head and (head.kind == "strength") != (result.get("kind") == "strength"))
         ):
             issues.append(_issue("V9.daily_strength_change", path))
-        if (
-            change.op == "move"
-            and head
-            and is_quality_slot(head.kind, head.recipe_id, head.placeholder)
-            and result_date
-            and (result_date - timedelta(days=result_date.weekday()))
-            != (head.local_date - timedelta(days=head.local_date.weekday()))
-        ):
-            week = result_date - timedelta(days=result_date.weekday())
-
-            def count(rows: dict[str, dict]) -> int:
-                return sum(
-                    is_quality_slot(row["kind"], row.get("recipe_id"), row.get("placeholder", False))
-                    and week <= row["local_date"] <= week + timedelta(days=6)
-                    for row in rows.values()
-                )
-
-            if count(state) > count(before):
-                issues.append(_issue("V10.quality_pileup", path))
-        if (
-            safety_active(ctx.current_safety_guard)
-            and result_date
-            and ctx.today <= result_date <= ctx.today + timedelta(days=3)
-        ):
-            unsafe = (
-                (change.op == "add" and result.get("kind") == "run")
-                or (
-                    change.op == "move"
-                    and head is not None
-                    and head.kind == "run"
-                    and not ctx.today <= head.local_date <= ctx.today + timedelta(days=3)
-                )
-                or (change.op == "modify" and head is not None and head.kind != "run" and result.get("kind") == "run")
-                or (
-                    change.op == "modify"
-                    and "planned_duration_s" in fields
-                    and head is not None
-                    and (
-                        head.planned_duration_s is None
-                        or (result.get("planned_duration_s") or 0) > head.planned_duration_s
-                    )
-                )
-                or (
-                    change.op in {"add", "modify"}
-                    and "recipe_id" in fields
-                    and result.get("recipe_id") in QUALITY_RECIPES
-                )
-            )
-            if unsafe:
-                issues.append(_issue("V12.safety_guard", path))
+        if _quality_pileup(change, head, result_date, state=state, before=before):
+            issues.append(_issue("V10.quality_pileup", path))
+        if _safety_violation(ctx, change, head, fields, result, result_date):
+            issues.append(_issue("V12.safety_guard", path))
         if doc.operation == "select_quality_session" and (
             change.op != "modify" or not head or not is_quality_slot(head.kind, head.recipe_id, head.placeholder)
         ):
