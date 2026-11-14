@@ -3,22 +3,19 @@ from __future__ import annotations
 from datetime import date, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.core import envelope
 from app.config import settings
-from app.db import get_revision, get_session
+from app.db import get_session
+from app.errors import fail
 from app.models import SyncJob, SyncState
 from app.services.sync import enqueue_sync
 
 router = APIRouter(prefix="/sync", tags=["sync"])
-
-
-def _envelope(session: Session, data: object) -> dict:
-    return {"schema_version": "v1", "data_revision": get_revision(session),
-            "mode": settings.app_mode, "data": data}
 
 
 class SyncRequest(BaseModel):
@@ -38,7 +35,7 @@ def status(session: Session = Depends(get_session)) -> dict:
     states = session.scalars(select(SyncState).order_by(SyncState.dataset)).all()
     jobs = session.scalars(select(SyncJob).where(SyncJob.status.in_(("queued", "running", "retry_wait")))
         .order_by(SyncJob.created_at)).all()
-    return _envelope(session, {"datasets": [{
+    return envelope(session, {"datasets": [{
         "dataset": s.dataset, "status": s.status, "reason": s.reason,
         "last_attempt_at": s.last_attempt_at, "last_success_at": s.last_success_at,
         "newest_observation_at": s.newest_observation_at,
@@ -57,7 +54,7 @@ def _job(job: SyncJob) -> dict:
 @router.post("", status_code=202)
 def request_sync(body: SyncRequest, session: Session = Depends(get_session)) -> dict:
     if settings.app_mode != "real":
-        raise HTTPException(409, detail="real_mode_required")
+        fail("real_mode_required", "Real mode required", 409)
     end = body.end_date or date.today()
     start = body.start_date or end - timedelta(days=13)
     jobs = [enqueue_sync(session, start, end, "activities")]
@@ -65,12 +62,12 @@ def request_sync(body: SyncRequest, session: Session = Depends(get_session)) -> 
     jobs += [enqueue_sync(session, recovery_start, end, dataset)
              for dataset in ("sleep", "hrv", "resting_hr")]
     session.commit()
-    return _envelope(session, {"jobs": [_job(job) for job in jobs]})
+    return envelope(session, {"jobs": [_job(job) for job in jobs]})
 
 
 @router.get("/jobs/{job_id}")
 def job_detail(job_id: UUID, session: Session = Depends(get_session)) -> dict:
     job = session.get(SyncJob, job_id)
     if job is None:
-        raise HTTPException(404, detail="job_not_found")
-    return _envelope(session, _job(job))
+        fail("job_not_found", "Sync job not found", 404)
+    return envelope(session, _job(job))

@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import calendar_models, checkin_models, coach_v2_models, fit_models, metric_models, planning_models  # noqa: F401
 from app.api.anchors import router as anchors_router
@@ -21,11 +22,13 @@ from app.api.planning import router as planning_router
 from app.api.sync import router as sync_router
 from app.config import settings
 from app.db import SessionLocal, get_revision, get_session
+from app.errors import fail
 from app.metrics.engine import install_triggers
 from app.migrations_head import EXPECTED_HEAD
 from app.models import AppState
 
 app = FastAPI(title='Going Bananas Analytics', docs_url=None, redoc_url=None)
+STATUS_CODES = {404: 'not_found', 405: 'method_not_allowed'}
 
 
 def error_response(request: Request, code: str, message: str, status: int, fields=None) -> JSONResponse:
@@ -63,11 +66,12 @@ async def local_security(request: Request, call_next):
     return response
 
 
-@app.exception_handler(HTTPException)
-async def handle_http(request: Request, exc: HTTPException):
-    detail = exc.detail if isinstance(exc.detail, dict) else {'code':'request_error','message':'Request failed'}
-    return error_response(request, detail.get('code','request_error'), detail.get('message','Request failed'), exc.status_code, detail.get('fields', []))
-
+@app.exception_handler(StarletteHTTPException)
+async def handle_http(request: Request, exc: StarletteHTTPException):
+    detail = exc.detail if isinstance(exc.detail, dict) else {
+        'code': STATUS_CODES.get(exc.status_code, 'request_error'), 'message': 'Request failed'}
+    return error_response(request, detail.get('code', 'request_error'), detail.get('message', 'Request failed'),
+                          exc.status_code, detail.get('fields', []))
 
 @app.exception_handler(Exception)
 async def handle_unexpected(request: Request, exc: Exception):
@@ -125,10 +129,10 @@ def serve_frontend(path: str):
         raise HTTPException(status_code=404, detail={'code': 'not_found', 'message': 'API route not found'})
     dist = settings.frontend_dist
     if not dist.exists():
-        raise HTTPException(status_code=404, detail='Frontend not built')
+        fail('frontend_not_built', 'Frontend not built', 404)
     target = (dist / path).resolve()
     if target.is_file() and target.is_relative_to(dist):
         return FileResponse(target)
     if '.' not in Path(path).name and (dist / 'index.html').is_file():
         return FileResponse(dist / 'index.html')
-    raise HTTPException(status_code=404, detail='Not found')
+    fail('not_found', 'Not found', 404)
