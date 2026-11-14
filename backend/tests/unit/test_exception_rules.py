@@ -10,6 +10,7 @@ from app.services.exceptions.facts import (
     CheckinFact,
     DetectionInputs,
     EventFact,
+    PlannedActualFact,
     RpeRun,
     SessionFact,
     SymptomFact,
@@ -206,3 +207,63 @@ def test_clinician_restriction():
     assert one(inputs, code).summary == 'Clinician restriction on file: No running.'
     assert hits(inp(), code) == []
     assert hits(inp(clinician_restriction='No running'), code) == []
+
+
+def test_rpe_above_intent():
+    code = 'RPE_ABOVE_INTENT'
+    s = ses(2, status='completed_as_planned', aid='a1', uid='s1')
+    r = run(2, 6, uid='s1', aid='a1')
+    inputs = inp(sessions=(s,), runs=(r,))
+    assert hits(inputs, code) == [('activity:a1', 'observe')]
+    assert one(inputs, code).summary == 'Easy run felt RPE 6 (expected 2–4).'
+    assert one(dataclasses.replace(inputs, checkins=(chk(2, 10, tags=('heat',)),)), code).summary.endswith(' Heat reported.')
+    assert one(dataclasses.replace(inputs, checkins=(chk(1, 9, tags=('heat',)),)), code).summary.endswith('2–4).')
+    assert hits(dataclasses.replace(inputs, runs=(dataclasses.replace(r, rpe=5.9),)), code) == []
+    assert hits(dataclasses.replace(inputs, runs=(run(2, 9),)), code) == []
+    for d, expected in ((14, False), (13, True)):
+        assert bool(hits(inp(sessions=(ses(d, uid='s1'),), runs=(run(d, 6, uid='s1'),)), code)) == expected
+    assert hits(inp(sessions=(ses(2, 'REC009', uid='s1'),), runs=(run(2, 10, uid='s1'),)), code) == []
+    assert one(inputs, code).evidence_at == at(2, 8)
+    assert one(dataclasses.replace(inputs, runs=(dataclasses.replace(r, rpe_at=at(1, 9)),)), code).evidence_at == at(1, 9)
+
+
+def test_rpe_above_intent_repeated():
+    code = 'RPE_ABOVE_INTENT_REPEATED'
+    for days, expected in (((1, 5), [('rpe_easy_long', 'caution')]), ((1, 7), [])):
+        sessions = tuple(ses(d, uid=str(d)) for d in days)
+        runs = tuple(run(d, 6, uid=str(d)) for d in days)
+        assert hits(inp(sessions=sessions, runs=runs), code) == expected
+    assert hits(inp(sessions=(ses(1, uid='a'), ses(5, 'REC003', uid='b')),
+                    runs=(run(1, 6, uid='a'), run(5, 10, uid='b'))), code) == []
+
+
+def test_session_failed():
+    code = 'SESSION_FAILED'
+    s = ses(3, 'REC003', status='partial', uid='s1')
+    assert hits(inp(sessions=(s,)), code) == [('session:s1', 'observe')]
+    modified = dataclasses.replace(s, completion_status='completed_modified', modification_reason='fatigue')
+    assert 'modified for fatigue' in one(inp(sessions=(modified,)), code).summary
+    assert hits(inp(sessions=(dataclasses.replace(modified, modification_reason='schedule'),)), code) == []
+    completed = dataclasses.replace(s, completion_status='completed_as_planned')
+    assert hits(inp(sessions=(completed,), planned_actual={'s1': PlannedActualFact((), 'not_met')}), code)
+    assert hits(inp(sessions=(ses(3, 'REC001', status='partial'),)), code) == []
+    for d, expected in ((14, False), (13, True), (-1, False)):
+        assert bool(hits(inp(sessions=(ses(d, 'REC003', status='partial'),)), code)) == expected
+
+
+def test_session_failed_repeated():
+    code = 'SESSION_FAILED_REPEATED'
+    sessions = tuple(ses(d, 'REC003', status='partial') for d in (2, 10))
+    assert hits(inp(sessions=sessions), code) == [('quality_failed', 'caution')]
+    assert hits(inp(sessions=sessions[:1]), code) == []
+
+
+def test_response_multiweek():
+    code = 'RESPONSE_MULTIWEEK'
+    sessions = tuple(ses(d, 'REC003', status='partial') for d in (1, 3, 8, 12))
+    assert hits(inp(sessions=sessions), code) == [('training_response', 'escalate')]
+    assert hits(inp(sessions=sessions[:2]), code) == []
+    easy = tuple(ses(d, uid=str(d)) for d in (1, 2))
+    failed = tuple(ses(d, 'REC003', status='partial') for d in (8, 9))
+    runs = tuple(run(d, 6, uid=str(d)) for d in (1, 2))
+    assert hits(inp(sessions=easy + failed, runs=runs), code) == [('training_response', 'escalate')]

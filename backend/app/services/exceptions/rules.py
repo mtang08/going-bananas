@@ -354,6 +354,84 @@ def _clinician_restriction(inputs: DetectionInputs) -> list[Candidate]:
                        [_ev_profile(inputs, inputs.clinician_restriction_at)], f'Clinician restriction on file: {v[:160]}.')]
 
 
+def _tag_text(tags: set[str]) -> str:
+    return _cap(", ".join(TAG_LABELS.get(t, t) for t in sorted(tags)))
+
+
+def _above(inputs: DetectionInputs, days: int, classes: frozenset[str] | None = None) -> list[tuple[RpeRun, SessionFact]]:
+    return [(r, s) for r, s, kind in _mismatches(inputs) if kind == 'above' and _in_last(r.local_date, inputs.today, days)
+            and (classes is None or s.session_class in classes)]
+
+
+_EASY_LONG = frozenset({'easy', 'long'})
+_WHY = {'partial': 'partial', 'target': 'target not met'}
+
+
+def _rpe_above_intent(inputs: DetectionInputs) -> list[Candidate]:
+    out: list[Candidate] = []
+    for r, s in _above(inputs, 14):
+        if s.expected_rpe is None or r.rpe is None:
+            continue
+        tags = _tags_near(inputs, r)
+        lo, hi = s.expected_rpe
+        summary = f'{_cap(s.session_class)} run felt RPE {_n(r.rpe)} (expected {_n(lo)}–{_n(hi)}).'
+        if tags:
+            summary += f' {_tag_text(tags)} reported.'
+        out.append(_candidate('RPE_ABOVE_INTENT', 'training_response', 'observe', f'activity:{r.activity_id}',
+                              [_ev_rpe(r, s, tags)], summary))
+    return out
+
+
+def _rpe_above_intent_repeated(inputs: DetectionInputs) -> list[Candidate]:
+    above = _above(inputs, 7, _EASY_LONG)
+    if len(above) < 2:
+        return []
+    return [_candidate('RPE_ABOVE_INTENT_REPEATED', 'training_response', 'caution', 'rpe_easy_long',
+                       [_ev_rpe(r, s, _tags_near(inputs, r)) for r, s in above],
+                       f'{len(above)} easy or long runs felt harder than intended in the last 7 days.')]
+
+
+def _why(s: SessionFact, reason: str) -> str:
+    if reason == 'modified':
+        return f"modified for {(s.modification_reason or '').replace('_', ' ')}"
+    return _WHY[reason]
+
+
+def _session_failed(inputs: DetectionInputs) -> list[Candidate]:
+    return [_candidate('SESSION_FAILED', 'training_response', 'observe', f'session:{s.session_uid}',
+                       [_ev_session(s, reason)],
+                       f'{_cap(s.session_class)} session on {_d(s.local_date)} was not completed as planned '
+                       f'({_why(s, reason)}).')
+            for s, reason in _failed(inputs)]
+
+
+def _session_failed_repeated(inputs: DetectionInputs) -> list[Candidate]:
+    failed = _failed(inputs)
+    if len(failed) < 2:
+        return []
+    return [_candidate('SESSION_FAILED_REPEATED', 'training_response', 'caution', 'quality_failed',
+                       [_ev_session(s, reason) for s, reason in failed],
+                       f'{len(failed)} quality sessions were not completed as planned in the last 14 days.')]
+
+
+def _response_multiweek(inputs: DetectionInputs) -> list[Candidate]:
+    today = inputs.today
+    above = _above(inputs, 14, _EASY_LONG)
+    failed = _failed(inputs)
+    items: list[Item] = []
+    for first, last in ((today - timedelta(days=6), today), (today - timedelta(days=13), today - timedelta(days=7))):
+        runs = [(r, s) for r, s in above if first <= r.local_date <= last]
+        sessions = [(s, reason) for s, reason in failed if first <= s.local_date <= last]
+        if len(runs) < 2 and len(sessions) < 2:
+            return []
+        if len(runs) >= 2:
+            items += [_ev_rpe(r, s, _tags_near(inputs, r)) for r, s in runs]
+        if len(sessions) >= 2:
+            items += [_ev_session(s, reason) for s, reason in sessions]
+    return [_candidate('RESPONSE_MULTIWEEK', 'training_response', 'escalate', 'training_response', items,
+                       'Training response flags repeated in both of the last two 7-day periods.')]
+
+
 RULES: tuple[tuple[str, Rule], ...] = (
     ('SYM_NEW_SITE', _sym_new_site),
     ('SYM_WORSENING', _sym_worsening),
@@ -366,6 +444,11 @@ RULES: tuple[tuple[str, Rule], ...] = (
     ('ILLNESS_PRESENT', _illness_present),
     ('ILLNESS_PROLONGED', _illness_prolonged),
     ('CLINICIAN_RESTRICTION', _clinician_restriction),
+    ('RPE_ABOVE_INTENT', _rpe_above_intent),
+    ('RPE_ABOVE_INTENT_REPEATED', _rpe_above_intent_repeated),
+    ('SESSION_FAILED', _session_failed),
+    ('SESSION_FAILED_REPEATED', _session_failed_repeated),
+    ('RESPONSE_MULTIWEEK', _response_multiweek),
 )
 
 
