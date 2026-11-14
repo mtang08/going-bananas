@@ -34,8 +34,12 @@ test('p0a: home shows today and 14-day strip', async ({ page, request }) => {
   await expect(page.getByTestId('today-card')).toBeVisible()
   const cells = page.getByTestId('strip-day')
   await expect(cells).toHaveCount(14)
-  expect(await cells.first().getAttribute('data-date')).toBe(calendar.today)
-  expect(await cells.last().getAttribute('data-date')).toBe(day(calendar.today, 13))
+  const weekday = new Date(`${calendar.today}T12:00:00Z`).getUTCDay()
+  const monday = day(calendar.today, -((weekday + 6) % 7))
+  expect(await cells.evaluateAll(nodes => nodes.map(node => node.getAttribute('data-date'))))
+    .toEqual(Array.from({length:14}, (_, i) => day(monday, i)))
+  await expect(page.locator(`[data-testid="strip-day"][data-date="${calendar.today}"]`)
+    .getByText('Today', {exact:true})).toBeVisible()
   await expect(page.getByTestId('today-card').getByText(/No session|Committed|Provisional/).first()).toBeVisible()
 })
 
@@ -69,6 +73,7 @@ test('p0a: manual edit versions', async ({ page, request }) => {
   const after = await data(await request.get('/api/v1/calendar'))
   expect(after.sessions.find((s: {session_uid:string}) => s.session_uid === original.session_uid)?.local_date).toBe(movedDate)
   await page.goto('/#calendar')
+  await page.getByText('Calendar history', {exact:true}).click()
   await expect(page.getByTestId('version-row').filter({hasText:`v${edited.version} · Manual edit`})).toBeVisible()
   const rollback = await request.post('/api/v1/calendar/rollback', {headers:{'X-Local-Request':'1'}, data:{expected_head:edited.version,to_version:before.head}})
   expect(rollback.status()).toBe(201)
@@ -132,7 +137,13 @@ test('p0a: anchor enables intensity', async ({ page, request }) => {
     expect(response.status()).toBe(200)
   }
   await page.goto('/#trends')
-  await expect(page.getByText(/Easy .* Moderate .* High/).first()).toBeVisible()
+  const heartRate = page.getByTestId('intensity-hr')
+  await expect(heartRate).toContainText('Coverage')
+  const distribution = heartRate.locator('..')
+  await expect(distribution.getByRole('img', {name:'Heart rate intensity time distribution; durations listed below'})).toBeVisible()
+  for (const zone of ['Easy', 'Moderate', 'High', 'Unknown']) {
+    await expect(distribution.getByRole('listitem').filter({hasText:new RegExp(`^${zone} · \\d`)})).toBeVisible()
+  }
 })
 
 test('p0a: only local requests', async ({ page }) => {
