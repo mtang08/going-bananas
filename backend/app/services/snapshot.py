@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -933,16 +934,15 @@ def select_recipe_ids(inputs: SnapshotInputs, operation: str) -> list[str]:
     return sorted(ids)
 
 
-def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInputs:
-    from app.calendar_models import LegacyImportMap
-    from app.metrics.engine import load_runs
-    from app.models import Checkin as LegacyCheckin
+def _effective_rpe(rpe_rows: Sequence[SessionRpe], strong_id: Any) -> Any:
+    matched = [r for r in rpe_rows if r.strong_workout_id == strong_id]
+    preferred = next((r for r in reversed(matched) if r.source == "manual"), None) or next(
+        (r for r in reversed(matched) if r.source == "garmin_fit"), None
+    )
+    return preferred.rpe if preferred else None
 
-    zone = athlete_tz(session)
-    state = session.get(AppState, 1)
-    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
-    head = state.calendar_head_version if state else 0
-    first = as_of - timedelta(days=120)
+
+def _load_sessions(session: Session, head: int, first: date, as_of: date) -> list[dict]:
     sessions = [
         dict(
             _view(
@@ -969,11 +969,19 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         for row in state_at(session, head)
         if first <= row["local_date"] <= as_of + timedelta(days=13)
     ]
+    return sessions
+
+
+def _load_completions(session: Session) -> list[dict]:
     completion_rows = session.scalars(select(SessionCompletion)).all()
     completions = [
         _view(row, ("session_uid", "status", "activity_id", "strong_workout_id", "manual_session_id", "modification_reason"))
         for row in completion_rows
     ]
+    return completions
+
+
+def _load_strength_slots(session: Session) -> list[dict]:
     slots = [
         _view(
             row,
@@ -986,6 +994,34 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
             .order_by(StrengthRoutineSlot.default_weekday, StrengthRoutineSlot.id)
         )
     ]
+    return slots
+
+
+def _load_strong_workouts(strong_rows: Sequence[StrongWorkoutRow], rpe_rows: Sequence[SessionRpe]) -> list[dict]:
+    strong = [
+        dict(
+            _view(row, ("local_date", "workout_name", "duration_s")),
+            strong_workout_id=row.id,
+            rpe=_effective_rpe(rpe_rows, row.id),
+        )
+        for row in strong_rows
+    ]
+    return strong
+
+
+def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInputs:
+    from app.calendar_models import LegacyImportMap
+    from app.metrics.engine import load_runs
+    from app.models import Checkin as LegacyCheckin
+
+    zone = athlete_tz(session)
+    state = session.get(AppState, 1)
+    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
+    head = state.calendar_head_version if state else 0
+    first = as_of - timedelta(days=120)
+    sessions = _load_sessions(session, head, first, as_of)
+    completions = _load_completions(session)
+    slots = _load_strength_slots(session)
     strong_rows = session.scalars(
         select(StrongWorkoutRow)
         .where(
@@ -997,21 +1033,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     ).all()
     rpe_rows = session.scalars(select(SessionRpe).order_by(SessionRpe.collected_at, SessionRpe.id)).all()
 
-    def effective_rpe(strong_id: Any) -> Any:
-        matched = [r for r in rpe_rows if r.strong_workout_id == strong_id]
-        preferred = next((r for r in reversed(matched) if r.source == "manual"), None) or next(
-            (r for r in reversed(matched) if r.source == "garmin_fit"), None
-        )
-        return preferred.rpe if preferred else None
-
-    strong = [
-        dict(
-            _view(row, ("local_date", "workout_name", "duration_s")),
-            strong_workout_id=row.id,
-            rpe=effective_rpe(row.id),
-        )
-        for row in strong_rows
-    ]
+    strong = _load_strong_workouts(strong_rows, rpe_rows)
     run_facts = load_runs(session, first, as_of + timedelta(days=1))
     activities = (
         {
