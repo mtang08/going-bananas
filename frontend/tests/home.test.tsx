@@ -201,6 +201,17 @@ describe('training home', () => {
     expect(posts[0].body).toEqual({ expected_version: 3, note: null })
     expect(posts[0].headers.get('X-Local-Request')).toBe('1')
   })
+  it('lists logged findings last in a closed disclosure', async () => {
+    promptItems = []; proposalItems = []
+    exceptionsData = { ...exceptionsData, findings: [finding('f2', 'observe', 'Easy run felt RPE 7.')] }
+    mount()
+    const box = await screen.findByTestId('logged-findings')
+    expect(box).not.toHaveAttribute('open')
+    expect(box.querySelector('summary')).toHaveTextContent('Logged for Sunday review (1)')
+    expect(box).toHaveTextContent('Easy run felt RPE 7.')
+    expect(screen.getByTestId('block-line').compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByTestId('needs-attention')).toBeNull()
+  })
   it('resolves or escalates a due patch', async () => {
     exceptionsData.patches = [pa1]; mount()
     const resolved = await screen.findByRole('button', { name: 'Mark resolved' })

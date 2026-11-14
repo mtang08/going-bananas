@@ -8,7 +8,7 @@ import {
   PROPOSAL_CHIP_LABELS,
   SEVERITY_LABELS,
 } from '../coachLabels'
-import { Badge, Button, Card } from '../components/ui'
+import { Badge, Button, Card, Disclosure } from '../components/ui'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   addDays,
@@ -60,6 +60,7 @@ export function Home({
     queryFn: () => api<ExceptionsView>('/exceptions'),
   })
   const findings = exceptions.data?.data?.findings ?? []
+  const logged = findings.filter((f) => f.status === 'open' && f.severity === 'observe')
   const recommended = exceptions.data?.data?.review_recommended ?? []
   const flagged = findings.filter((f) => f.status === 'open' && f.severity !== 'observe')
   const due = (exceptions.data?.data?.patches ?? []).filter((p) => p.reassess_due)
@@ -390,6 +391,19 @@ export function Home({
           )}
         </p>
       </QueryState>
+      {logged.length > 0 && (
+        <Disclosure variant="card" className="training-disclosure" data-testid="logged-findings">
+          <summary>Logged for Sunday review ({logged.length})</summary>
+          <ul>
+            {logged.map((f) => (
+              <li key={f.id}>
+                <Badge className="severity-chip observe">{SEVERITY_LABELS.observe}</Badge>{' '}
+                {CATEGORY_LABELS[f.category]} · {f.summary}
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
+      )}
     </section>
   )
 }
