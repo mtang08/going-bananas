@@ -1,9 +1,27 @@
-import { Card, Disclosure } from '../components/ui'
-import { useQuery } from '@tanstack/react-query'
-import { api, dateLabel, qk, RECIPE_LABELS, type BlockVersion, type CalendarView } from '../api'
+import { Button, Card, Disclosure, NativeSelect } from '../components/ui'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  RUN_SPORTS,
+  addDays,
+  api,
+  dateLabel,
+  fmtDistance,
+  fmtDuration,
+  fmtRpe,
+  invalidateKeys,
+  put,
+  qk,
+  query,
+  RECIPE_LABELS,
+  type Activity,
+  type BlockVersion,
+  type CalendarView,
+  type Unit,
+} from '../api'
+import { benchmarkStatusLabel } from '../coachLabels'
 import { QueryState } from '../components/QueryState'
 import './TrainingDesign.css'
-export function Block() {
+export function Block({ unit = 'mi' }: { unit?: Unit }) {
   const active = useQuery({
     queryKey: qk.blocksActive,
     queryFn: () => api<BlockVersion | null>('/blocks/active'),
@@ -20,6 +38,27 @@ export function Block() {
       api<{
         items: BlockVersion[]
       }>(`/blocks/${encodeURIComponent(block!.block_uid)}/history`),
+  })
+  const qc = useQueryClient()
+  const bm = block?.benchmark ?? null
+  const status = block?.benchmark_status ?? null
+  const runStart = bm ? addDays(bm.planned_date, -7) : ''
+  const runEnd = block ? addDays(block.review_date, 7) : ''
+  const runs = useQuery({
+    queryKey: ['v2', 'activities', runStart, runEnd, 'runs'],
+    enabled: Boolean(bm && block),
+    queryFn: () =>
+      api<{ items: Activity[] }>(
+        `/activities${query({ start_date: runStart, end_date: runEnd, limit: 200 })}`,
+      ),
+  })
+  const runOptions = (runs.data?.data?.items ?? []).filter((a) => RUN_SPORTS.includes(a.sport))
+  const choose = useMutation({
+    mutationFn: (activityId: string | null) =>
+      put<unknown>(`/blocks/${encodeURIComponent(block!.block_uid)}/benchmark-activity`, {
+        activity_id: activityId,
+      }),
+    onSuccess: () => invalidateKeys(qc, [['v2', 'blocks'], qk.exceptions]),
   })
   const days = (a: string, b: string) =>
     Math.floor((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000)
@@ -149,6 +188,82 @@ export function Block() {
                   </>
                 )}
               </Disclosure>
+            </Card>
+            <Card className="block-benchmark" data-testid="block-benchmark">
+              <h2>Block benchmark</h2>
+              {!bm ? (
+                <p>Status: Not set. The next block review sets the ending benchmark.</p>
+              ) : (
+                <>
+                  <p>{bm.protocol}</p>
+                  <dl>
+                    <div>
+                      <dt>Planned</dt>
+                      <dd>{dateLabel(bm.planned_date)}</dd>
+                    </div>
+                    <div>
+                      <dt>Progress if</dt>
+                      <dd>{bm.progress_if}</dd>
+                    </div>
+                    <div>
+                      <dt>Consolidate if</dt>
+                      <dd>{bm.consolidate_if}</dd>
+                    </div>
+                    <div>
+                      <dt>Status</dt>
+                      <dd data-testid="benchmark-status">
+                        {benchmarkStatusLabel(status, bm.planned_date)}
+                      </dd>
+                    </div>
+                  </dl>
+                  {status?.status === 'completed' && (
+                    <p data-testid="benchmark-match">
+                      {status.local_date ? dateLabel(status.local_date) : 'Date missing'} ·{' '}
+                      {fmtDistance(status.distance_m, unit)} · {fmtDuration(status.result_s)} · RPE{' '}
+                      {fmtRpe(status.rpe)} ·{' '}
+                      {status.match_method === 'manual' ? 'Chosen by you' : 'Matched automatically'}
+                    </p>
+                  )}
+                  <QueryState
+                    loading={runs.isPending}
+                    error={runs.error}
+                    stale={!!runs.data}
+                    retry={() => void runs.refetch()}
+                  >
+                    <label htmlFor="benchmark-activity">Choose activity</label>
+                    <NativeSelect
+                      id="benchmark-activity"
+                      disabled={choose.isPending}
+                      value={status?.match_method === 'manual' ? (status.activity_id ?? '') : ''}
+                      onChange={(e) => {
+                        if (e.target.value) choose.mutate(e.target.value)
+                      }}
+                    >
+                      <option value="">Choose a run</option>
+                      {runOptions.map((run) => (
+                        <option key={run.id} value={run.id}>
+                          {dateLabel(run.local_date)} · {fmtDistance(run.distance_m, unit)}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </QueryState>
+                  {status?.match_method === 'manual' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={choose.isPending}
+                      onClick={() => choose.mutate(null)}
+                    >
+                      Use automatic match
+                    </Button>
+                  )}
+                  {choose.error && (
+                    <p className="error-text" role="alert">
+                      {choose.error.message}
+                    </p>
+                  )}
+                </>
+              )}
             </Card>
             <Disclosure className="training-disclosure" variant="card">
               <summary>Block history</summary>
