@@ -88,7 +88,7 @@ The coach saves a draft and provides its review link. **Pending your review; not
 - Review related calibration anchors with any targets that depend on them.
 - For a no-change review, the app records your acknowledgment.
 - Opening a proposal or receiving it in chat does not apply it.
-- Exception reviews add an **Exception** card: why now, plan impact, sessions left unchanged, the reassess date, and what to watch for. Race and benchmark reviews add a **Race review** card, and settled patches appear under **Patch updates**.
+- Exception reviews add an **Exception** card: why now, plan impact, sessions left unchanged, the reassess date, and what to watch for. Race reviews add a **Race review** card; block benchmark reviews add a **Benchmark review** card. Settled patches appear under **Patch updates**.
 
 To refine an open draft, keep its link and ask:
 

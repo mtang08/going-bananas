@@ -4,7 +4,23 @@
 
 The loop: the Sunday weekly review rolls 14 days (days 1–7 committed, days 8–14 provisional). Between Sundays, the exception detector raises findings, and caution or hold findings lead to an exception review that patches only the committed week. Each block ends with a benchmark that drives the block review, which also handles findings that need a bigger review. Other races get a post-race review. The legacy coach (`local_rules.v1`), daily guidance (`local_rules.v2`), legacy agent plans, the `skills/` package, `make context`, and the History, Strength, and Coaching history pages are removed; their tables remain. Older sections are historical context.
 
-AC-21f passed on candidate `9e69ef7e152c15633b33538ad7f0d23a49db8446`:
+Final cleanup verification (Gate E) passed on application source
+`f7aec5b15638ebb2ad52be37354d8d6b9822d53b`, reviewed against pre-cleanup
+`8a2e13fdaa1bedf7a2e684cf623a44871de5be0f`. `make RUN=env check` passed
+497 backend and 203 frontend tests plus lint, types, and build;
+`make RUN=env test-integration` passed 162 PostgreSQL tests; the helper suite
+passed 18 tests. A fresh guarded synthetic demo was migrated and seeded directly
+with `seed-demo --calendar-preview`, then rebuilt: all 20 Google Chrome cases
+and `scripts/verify-demo.py --base-url http://127.0.0.1:18000` passed. Every
+acceptance command exited 0. The only gate changes correct the guide's benchmark
+card title, repair the current skill-reference link, and record this evidence;
+the three guide tests and six-document local-link check also passed. Validator
+goldens are unchanged, active-block selection is shared, and all eight formatted
+API/type files match exact Prettier output with equivalent TypeScript ASTs.
+No real data or configuration was read or changed. Nonfatal KB-budget and build
+chunk-size warnings remain. O2 and O3 below remain deferred product follow-ups.
+
+Earlier AC-21f acceptance passed on candidate `9e69ef7e152c15633b33538ad7f0d23a49db8446`:
 `make check` passed 491 backend and 203 frontend tests plus lint, types, and build;
 `make test-integration` passed 153 tests; the coach-helper suite passed 18 tests.
 All 20 Google Chrome acceptance cases passed (p0a: 8, p0b: 8, p1-exceptions: 4),
