@@ -105,3 +105,58 @@ def test_empty_inputs_detect_nothing():
 def test_clock_format():
     assert _clock(1470) == "24:30"
     assert _clock(3725) == "1:02:05"
+
+
+def test_sym_new_site():
+    code = 'SYM_NEW_SITE'
+    def check(*checks):
+        return hits(inp(checkins=checks), code)
+    assert check(chk(1, symptoms=(sym(),))) == [('site:achilles|left', 'observe')]
+    assert check(chk(1, symptoms=(sym(severity=7),))) == [('site:achilles|left', 'caution')]
+    assert check(chk(1, symptoms=(sym(severity=6.9),))) == [('site:achilles|left', 'observe')]
+    assert check(chk(20, symptoms=(sym(),)), chk(1, symptoms=(sym(),))) == []
+    assert check(chk(30, symptoms=(sym(),)), chk(1, symptoms=(sym(),)))
+    assert check(chk(20, symptoms=(sym(site=' ACHILLES '),)), chk(1, symptoms=(sym(),))) == []
+    assert ('site:achilles|left', 'observe') in check(chk(20, symptoms=(sym(side='right'),)), chk(1, symptoms=(sym(),)))
+    assert check(chk(7, symptoms=(sym(),))) == []
+    assert check(chk(6, symptoms=(sym(),)))
+    assert one(inp(checkins=(chk(1, symptoms=(sym(),)),)), code).summary == 'New symptom: Left achilles at 3/10.'
+
+
+def test_sym_worsening():
+    code = 'SYM_WORSENING'
+    def check(*pairs):
+        return inp(checkins=tuple(chk(day, symptoms=(sym(severity=severity),)) for day, severity in pairs))
+    first = check((3, 3), (1, 5))
+    assert hits(first, code) == [('site:achilles|left', 'caution')]
+    assert hits(check((3, 5), (1, 3)), code) == []
+    assert hits(check((3, 3), (1, 3)), code) == []
+    assert hits(check((8, 3), (0, 5)), code) == []
+    assert hits(check((7, 3), (0, 5)), code)
+    assert hits(check((4, 6), (2, 2), (0, 4)), code)
+    assert one(first, code).summary == 'Left achilles symptom rose from 3 to 5/10 within 7 days.'
+
+
+def test_sym_persisting():
+    code = 'SYM_PERSISTING'
+    early = chk(1, 8, activity='a1', symptoms=(sym(timing='immediately_after'),))
+    late = chk(0, 8, linked='a1', symptoms=(sym(timing='next_morning'),))
+    assert hits(inp(checkins=(early, late)), code) == [('site:achilles|left', 'caution')]
+    assert hits(inp(checkins=(early, dataclasses.replace(late, linked_activity_id='a2'))), code) == []
+    assert hits(inp(checkins=(dataclasses.replace(early, symptoms=(sym(timing='later'),)), late)), code) == []
+    assert hits(inp(checkins=(early, dataclasses.replace(late, symptoms=(sym(timing='during'),)))), code) == []
+    assert hits(inp(checkins=(early, dataclasses.replace(late, linked_activity_id=None))), code) == []
+
+
+def test_sym_recurrent():
+    code = 'SYM_RECURRENT'
+    assert hits(inp(checkins=tuple(chk(d, symptoms=(sym(),)) for d in (0, 5, 13))), code) == [('site:achilles|left', 'caution')]
+    assert hits(inp(checkins=tuple(chk(d, symptoms=(sym(),)) for d in (0, 5, 14))), code) == []
+    assert hits(inp(checkins=tuple(chk(d, symptoms=(sym(),)) for d in (0, 0, 5))), code) == []
+
+
+def test_sym_multiweek():
+    code = 'SYM_MULTIWEEK'
+    for days in ((2, 9, 16), (6, 13, 20), (0, 7, 14)):
+        assert hits(inp(checkins=tuple(chk(d, symptoms=(sym(),)) for d in days)), code) == [('site:achilles|left', 'escalate')]
+    assert hits(inp(checkins=tuple(chk(d, symptoms=(sym(),)) for d in (2, 9, 21))), code) == []

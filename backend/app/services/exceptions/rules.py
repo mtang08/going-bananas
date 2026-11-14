@@ -202,7 +202,109 @@ def _missed(inputs: DetectionInputs, s: SessionFact) -> bool:
     return s.completion_status is None and planned is not None and 'NO_ACTIVITY_FOUND' in planned.reason_codes
 
 
-RULES: tuple[tuple[str, Rule], ...] = ()
+Report = tuple[CheckinFact, SymptomFact]
+
+
+def _by_site(inputs: DetectionInputs) -> dict[str, list[Report]]:
+    groups: dict[str, list[Report]] = {}
+    for c, s in _reports(inputs):
+        groups.setdefault(s.site_key, []).append((c, s))
+    return groups
+
+
+def _sym_new_site(inputs: DetectionInputs) -> list[Candidate]:
+    out: list[Candidate] = []
+    for key, reports in _by_site(inputs).items():
+        new = [(c, s) for c, s in reports if _in_last(c.local_date, inputs.today, SYMPTOM_TRIGGER_DAYS)
+               and not any(c.observed_at - timedelta(days=NEW_SITE_LOOKBACK_DAYS) <= oc.observed_at < c.observed_at
+                           for oc, _ in reports)]
+        if new:
+            c, s = new[-1]
+            sev: Severity = 'caution' if s.severity >= SEVERITY_SUPPORT else 'observe'
+            out.append(_candidate('SYM_NEW_SITE', 'symptoms_illness', sev, f'site:{key}', [_ev_symptom(c, s)],
+                                  f'New symptom: {_cap(_site_label(key))} at {_n(s.severity)}/10.'))
+    return out
+
+
+def _sym_worsening(inputs: DetectionInputs) -> list[Candidate]:
+    out: list[Candidate] = []
+    for key, reports in _by_site(inputs).items():
+        found: tuple[Report, Report] | None = None
+        for c, s in reports:
+            if not _in_last(c.local_date, inputs.today, SYMPTOM_TRIGGER_DAYS):
+                continue
+            prior = [(pc, ps) for pc, ps in reports
+                     if c.observed_at - timedelta(days=SYMPTOM_TRIGGER_DAYS) <= pc.observed_at < c.observed_at]
+            if not prior:
+                continue
+            pc, ps = max(prior, key=lambda r: (r[0].observed_at, r[0].recorded_at, r[1].id))
+            if s.severity > ps.severity:
+                found = ((pc, ps), (c, s))
+        if found:
+            (pc, ps), (c, s) = found
+            out.append(_candidate('SYM_WORSENING', 'symptoms_illness', 'caution', f'site:{key}',
+                                  [_ev_symptom(pc, ps), _ev_symptom(c, s)],
+                                  f'{_cap(_site_label(key))} symptom rose from {_n(ps.severity)} to '
+                                  f'{_n(s.severity)}/10 within 7 days.'))
+    return out
+
+
+_PERSIST_WHEN = {'next_morning': 'the next morning', 'hours_24_48': '24–48 hours later'}
+
+
+def _sym_persisting(inputs: DetectionInputs) -> list[Candidate]:
+    out: list[Candidate] = []
+    for key, reports in _by_site(inputs).items():
+        found: tuple[Report, Report] | None = None
+        for lc, ls in reports:
+            if not _in_last(lc.local_date, inputs.today, SYMPTOM_TRIGGER_DAYS) or ls.timing not in _PERSIST_WHEN:
+                continue
+            earlier = [(ec, es) for ec, es in reports if ec.observed_at < lc.observed_at
+                       and es.timing in {'during', 'immediately_after'}
+                       and ec.linked_activity_id is not None and ec.linked_activity_id == lc.linked_activity_id]
+            if earlier:
+                found = (earlier[-1], (lc, ls))
+        if found:
+            (ec, es), (lc, ls) = found
+            out.append(_candidate('SYM_PERSISTING', 'symptoms_illness', 'caution', f'site:{key}',
+                                  [_ev_symptom(ec, es), _ev_symptom(lc, ls)],
+                                  f'{_cap(_site_label(key))} symptom from a run was still present '
+                                  f'{_PERSIST_WHEN[ls.timing]} ({_n(ls.severity)}/10).'))
+    return out
+
+
+def _sym_recurrent(inputs: DetectionInputs) -> list[Candidate]:
+    out: list[Candidate] = []
+    for key, reports in _by_site(inputs).items():
+        recent = [(c, s) for c, s in reports if _in_last(c.local_date, inputs.today, 14)]
+        days = {c.local_date for c, _ in recent}
+        if len(days) >= 3:
+            out.append(_candidate('SYM_RECURRENT', 'symptoms_illness', 'caution', f'site:{key}',
+                                  [_ev_symptom(c, s) for c, s in recent],
+                                  f'{_cap(_site_label(key))} symptom reported on {len(days)} days in the last 14 days.'))
+    return out
+
+
+def _sym_multiweek(inputs: DetectionInputs) -> list[Candidate]:
+    out: list[Candidate] = []
+    today = inputs.today
+    for key, reports in _by_site(inputs).items():
+        recent = [(c, s) for c, s in reports if today - timedelta(days=20) <= c.local_date <= today]
+        periods = {(today - c.local_date).days // 7 for c, _ in recent}
+        if {0, 1, 2} <= periods:
+            out.append(_candidate('SYM_MULTIWEEK', 'symptoms_illness', 'escalate', f'site:{key}',
+                                  [_ev_symptom(c, s) for c, s in recent],
+                                  f'{_cap(_site_label(key))} symptom reported in each of the last three 7-day periods.'))
+    return out
+
+
+RULES: tuple[tuple[str, Rule], ...] = (
+    ('SYM_NEW_SITE', _sym_new_site),
+    ('SYM_WORSENING', _sym_worsening),
+    ('SYM_PERSISTING', _sym_persisting),
+    ('SYM_RECURRENT', _sym_recurrent),
+    ('SYM_MULTIWEEK', _sym_multiweek),
+)
 
 
 def detect(inputs: DetectionInputs) -> list[Candidate]:
