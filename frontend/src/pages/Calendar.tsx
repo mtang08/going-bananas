@@ -414,6 +414,9 @@ export function Calendar({ unit }: { unit: Unit }) {
                       {' · '}
                       {new Date(version.created_at).toLocaleString()}
                       {version.reason && <span> · {version.reason}</span>}
+                      {version.proposal_id && (
+                        <a href={`#proposal/${encodeURIComponent(version.proposal_id)}`}>Open proposal</a>
+                      )}
                       <Button
                         variant="link"
                         onClick={() =>
