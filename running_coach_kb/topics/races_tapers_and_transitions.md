@@ -157,3 +157,4 @@ The KB should retrieve or create these only when date, priority, current trainin
 - E-TRANS-01; S072
 - Existing E-AER-05–06, E-LONG-01–03, E-INT-07–08
 - P020–P023
+- `adaptive_coaching/race_and_benchmark_policy.md` (block-ending benchmark, post-event review); P027–P028
