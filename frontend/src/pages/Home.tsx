@@ -1,21 +1,25 @@
+import type { ExceptionsView, Finding, Patch } from '../api/types/exceptions'
+import { CopyPrompt } from '../components/CopyPrompt'
 import { SyncCard } from '../components/SyncCard'
 import { relativeTime } from '../components/shared'
-import { operationLabel, PROPOSAL_CHIP_LABELS } from '../coachLabels'
+import {
+  CATEGORY_LABELS,
+  operationLabel,
+  PROPOSAL_CHIP_LABELS,
+  SEVERITY_LABELS,
+} from '../coachLabels'
 import { Badge, Button, Card } from '../components/ui'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   addDays,
   api,
   dateLabel,
-  DECISION_LABELS,
-  fetchDailyGuidance,
   fmtDistance,
   invalidateKeys,
   pageHref,
   post,
   qk,
   sessionTitle,
-  statusText,
   type Activity,
   type BlockVersion,
   type CalendarView,
@@ -51,7 +55,31 @@ export function Home({
     queryFn: () => api<WeeklyProjection>('/calendar/weekly-projection'),
   })
   const prompts = useQuery({ queryKey: qk.prompts, queryFn: () => api<PromptList>('/prompts') })
-  const guidance = useQuery({ queryKey: qk.coachDaily, queryFn: fetchDailyGuidance })
+  const exceptions = useQuery({
+    queryKey: qk.exceptions,
+    queryFn: () => api<ExceptionsView>('/exceptions'),
+  })
+  const findings = exceptions.data?.data?.findings ?? []
+  const recommended = exceptions.data?.data?.review_recommended ?? []
+  const flagged = findings.filter((f) => f.status === 'open' && f.severity !== 'observe')
+  const due = (exceptions.data?.data?.patches ?? []).filter((p) => p.reassess_due)
+  const dismissFinding = useMutation({
+    mutationFn: (f: Finding) =>
+      post<Finding>(`/exceptions/${encodeURIComponent(f.id)}/dismiss`, {
+        expected_version: f.version,
+        note: null,
+      }),
+    onSettled: () => invalidateKeys(qc, [qk.exceptions]),
+  })
+  const resolvePatch = useMutation({
+    mutationFn: ({ patch, status }: { patch: Patch; status: 'resolved' | 'escalated' }) =>
+      post<Patch>(`/exception-patches/${encodeURIComponent(patch.id)}/resolve`, {
+        expected_version: patch.version,
+        status,
+        note: null,
+      }),
+    onSettled: () => invalidateKeys(qc, [qk.exceptions, qk.calendar]),
+  })
   const block = useQuery({
     queryKey: qk.blocksActive,
     queryFn: () => api<BlockVersion | null>('/blocks/active'),
@@ -85,11 +113,15 @@ export function Home({
       .sort()
       .at(-1)
   const title = (s: SessionState) => (s.legacy_unstructured ? 'Imported run' : sessionTitle(s))
-  const g = guidance.data
   const b = block.data?.data
   const openProposals = pending.data?.data.items ?? []
-  const attentionCount = openProposals.length + open.length
-  const showAttention = attentionCount > 0 || Boolean(prompts.error) || Boolean(pending.error)
+  const attentionCount =
+    openProposals.length + recommended.length + flagged.length + due.length + open.length
+  const showAttention =
+    attentionCount > 0 ||
+    Boolean(prompts.error) ||
+    Boolean(pending.error) ||
+    Boolean(exceptions.error)
 
   return (
     <section className="page-content home-page space-y-5">
@@ -125,6 +157,58 @@ export function Home({
               </small>{' '}
               <Button variant="outline" size="sm" asChild>
                 <a href={`#proposal/${encodeURIComponent(p.id)}`}>Review</a>
+              </Button>
+            </div>
+          ))}
+          {recommended.map((r) => (
+            <div
+              className="attention-row"
+              data-testid="attention-row"
+              data-kind="recommendation"
+              key={`${r.operation}:${r.reason}`}
+            >
+              <strong>{operationLabel(r.operation)}</strong> <span>{r.reason}</span>
+              <CopyPrompt text={r.prompt} className="attention-prompt" />
+            </div>
+          ))}
+          {flagged.map((f) => (
+            <div
+              className="attention-row"
+              data-testid="attention-row"
+              data-kind="finding"
+              key={f.id}
+            >
+              <Badge className={`severity-chip ${f.severity}`}>{SEVERITY_LABELS[f.severity]}</Badge>{' '}
+              <strong>{CATEGORY_LABELS[f.category]}</strong> <span>{f.summary}</span>{' '}
+              <Button
+                variant="link"
+                disabled={dismissFinding.isPending}
+                onClick={() => dismissFinding.mutate(f)}
+              >
+                Dismiss
+              </Button>
+            </div>
+          ))}
+          {due.map((p) => (
+            <div className="attention-row" data-testid="attention-row" data-kind="patch" key={p.id}>
+              <strong>
+                Reassess due · {dateLabel(p.window_start)}–{dateLabel(p.window_end)}
+              </strong>{' '}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={resolvePatch.isPending}
+                onClick={() => resolvePatch.mutate({ patch: p, status: 'resolved' })}
+              >
+                Mark resolved
+              </Button>{' '}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={resolvePatch.isPending}
+                onClick={() => resolvePatch.mutate({ patch: p, status: 'escalated' })}
+              >
+                Still not right
               </Button>
             </div>
           ))}
@@ -212,6 +296,16 @@ export function Home({
               {dismiss.error.message}
             </p>
           )}
+          {exceptions.error && (
+            <p className="error-text" role="alert">
+              Could not load findings: {exceptions.error.message}
+            </p>
+          )}
+          {(dismissFinding.error ?? resolvePatch.error) && (
+            <p className="error-text" role="alert">
+              {(dismissFinding.error ?? resolvePatch.error)!.message}
+            </p>
+          )}
           {pending.error && (
             <p className="error-text" role="alert">
               Could not load proposals: {pending.error.message}
@@ -224,40 +318,6 @@ export function Home({
           )}
         </Card>
       )}
-      <Card
-        className={
-          guidance.isSuccess && !guidance.error && g === null
-            ? 'home-quiet-state rounded-none border-0 bg-transparent px-0 py-1 shadow-none'
-            : undefined
-        }
-      >
-        <h2>Daily guidance</h2>
-        <QueryState
-          loading={guidance.isPending}
-          error={guidance.error}
-          stale={guidance.data !== undefined}
-          retry={() => {
-            void guidance.refetch()
-          }}
-        >
-          {g === null && <p>No guidance today. The planned session stands.</p>}
-          {g && (
-            <>
-              <Badge className={`status-chip ${g.decision}`}>{DECISION_LABELS[g.decision]}</Badge>
-              <p>{g.rationale}</p>
-              {g.coach_review_suggested && (
-                <div className="notice warning">
-                  Coach review suggested. Run the running-coach skill (daily review) before
-                  training.
-                </div>
-              )}
-              {g.missing_inputs.length > 0 && (
-                <small>Missing inputs: {g.missing_inputs.map(statusText).join(', ')}</small>
-              )}
-            </>
-          )}
-        </QueryState>
-      </Card>
       <QueryState
         loading={calendar.isPending}
         error={calendar.error}
