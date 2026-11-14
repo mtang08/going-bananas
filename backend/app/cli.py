@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, text
+from sqlalchemy import MetaData, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -49,6 +49,26 @@ def _demo_records() -> list[dict]:
         {"activityId": 1005, "startTimeGMT": stamp(2), "activityType": {"typeKey": "strength_training"},
          "elapsedDuration": 2700, "movingDuration": 2400},
     ]
+
+
+def _prepare_calendar_preview(session: Session) -> AppState:
+    from app.services.calendar import LOCK_ID
+
+    session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
+    state = session.get(AppState, 1, with_for_update=True)
+    if state is None:
+        raise ValueError('calendar_preview_authority_required')
+    if state.planning_authority == 'legacy':
+        metadata = MetaData()
+        metadata.reflect(bind=session.connection())
+        if state.calendar_head_version != 0 or state.data_revision != 0 or any(
+            session.scalar(select(1).select_from(table).limit(1)) is not None
+            for table in metadata.tables.values() if table.name not in {'app_state', 'alembic_version'}
+        ):
+            raise ValueError('calendar_preview_requires_empty_database')
+        state.planning_authority = 'calendar'
+        session.flush()
+    return state
 
 
 def _parse() -> argparse.Namespace:
@@ -284,16 +304,16 @@ def main() -> int:
             if settings.app_mode != "demo":
                 raise ValueError("demo_mode_required")
             with SessionLocal.begin() as session:
-                state = session.get(AppState, 1)
+                state: AppState | None
                 if args.calendar_preview:
-                    if state is None or state.planning_authority != 'calendar':
-                        raise ValueError("calendar_preview_authority_required")
+                    state = _prepare_calendar_preview(session)
                     if state.calendar_head_version == 0 and session.scalar(select(Activity.id).limit(1)):
                         raise ValueError("calendar_preview_requires_empty_activities")
                     from app.demo_seed import seed_demo
                     today = local_date(datetime.now(UTC), ZoneInfo("America/New_York"))
                     counts = seed_demo(session, settings.private_dir, today)
                 else:
+                    state = session.get(AppState, 1)
                     if state is not None and state.planning_authority != 'legacy':
                         raise ValueError("legacy_authority_required")
                     counts = import_activity_page(session, settings.private_dir, _demo_records(),
