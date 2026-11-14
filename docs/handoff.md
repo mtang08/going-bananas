@@ -4,9 +4,16 @@
 
 The loop: the Sunday weekly review rolls 14 days (days 1–7 committed, days 8–14 provisional). Between Sundays, the exception detector raises findings, and caution or hold findings lead to an exception review that patches only the committed week. Each block ends with a benchmark that drives the block review, which also handles findings that need a bigger review. Other races get a post-race review. The legacy coach (`local_rules.v1`), daily guidance (`local_rules.v2`), legacy agent plans, the `skills/` package, `make context`, and the History, Strength, and Coaching history pages are removed; their tables remain. Older sections are historical context.
 
-Final AC-21 verification is pending AC-21f. That gate will record the results of
-`make check`, `make test-integration`, `python3 scripts/test_coach_skill_v2.py`,
-and the p0a, p0b, and p1-exceptions browser suites on a fresh demo database.
+AC-21f passed on candidate `9e69ef7e152c15633b33538ad7f0d23a49db8446`:
+`make check` passed 491 backend and 203 frontend tests plus lint, types, and build;
+`make test-integration` passed 153 tests; the coach-helper suite passed 18 tests.
+All 20 Google Chrome acceptance cases passed (p0a: 8, p0b: 8, p1-exceptions: 4),
+followed by `scripts/verify-demo.py`. The required documentation scan found no
+obsolete navigation or daily-guidance terms in README, the user guide, or the API
+runtime guide. All verification commands exited 0. The fresh synthetic demo used
+the guarded calendar-preview initializer without planning cutover; no real data
+was read or changed. Browser logs still include nonfatal KB-budget warnings.
+This evidence-only handoff update leaves the tested application and suites unchanged.
 Next: O2 and O3 in [backlog](backlog.md).
 
 ## Agent-plan completion checkpoint — November 11, 2026
