@@ -137,7 +137,13 @@ test('p0a: anchor enables intensity', async ({ page, request }) => {
     expect(response.status()).toBe(200)
   }
   await page.goto('/#trends')
-  await expect(page.getByText(/Easy .* Moderate .* High/).first()).toBeVisible()
+  const heartRate = page.getByTestId('intensity-hr')
+  await expect(heartRate).toContainText('Coverage')
+  const distribution = heartRate.locator('..')
+  await expect(distribution.getByRole('img', {name:'Heart rate intensity time distribution; durations listed below'})).toBeVisible()
+  for (const zone of ['Easy', 'Moderate', 'High', 'Unknown']) {
+    await expect(distribution.getByRole('listitem').filter({hasText:new RegExp(`^${zone} · \\d`)})).toBeVisible()
+  }
 })
 
 test('p0a: only local requests', async ({ page }) => {
