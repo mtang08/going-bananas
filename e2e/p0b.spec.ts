@@ -49,6 +49,9 @@ function proposalFile(document:object):string {
 function submit(document:object) {
   return coach('submit','--file',proposalFile(document))
 }
+function revise(id:string, revision:number, document:object) {
+  return coach('revise',id,'--expected-revision',String(revision),'--reason','Check invalid revision','--file',proposalFile(document))
+}
 function documentFrom(snapshotResult:any, changes:any[], summary:string, extras:Record<string,unknown>={}) {
   const meta = snapshotResult.payload.snapshot_meta
   return {schema_version:'coach_proposal.v1',operation:meta.operation,snapshot_id:snapshotResult.snapshot_id,
@@ -69,6 +72,11 @@ function change(id:string, session:any, after:Record<string,unknown>) {
 async function calendar(request:APIRequestContext) { return data(await request.get('/api/v1/calendar')) }
 async function decision(request:APIRequestContext,id:string,body:object) {
   return request.post(`/api/v1/coach/proposals/${id}/decision`,{headers:local,data:body})
+}
+async function discard(request:APIRequestContext,id:string,revision:number) {
+  const response=await request.delete(`/api/v1/coach/proposals/${id}?expected_revision=${revision}`,{headers:local})
+  expect(response.status()).toBe(200)
+  expect(await data(response)).toMatchObject({proposal_id:id,revision,status:'discarded'})
 }
 async function review(page:Page,id:string) {
   await page.goto(`/#proposal/${id}`)
@@ -121,7 +129,7 @@ test('p0b: weekly untick one accept rest',async ({page,request})=>{
   expect(updated(run2)).toMatchObject({planned_duration_s:run2.planned_duration_s+300,revision:run2.revision+1,changed_by_version:after.head})
   expect(updated(run8)).toMatchObject({planned_duration_s:run8.planned_duration_s-300,revision:run8.revision+1,changed_by_version:after.head})
   expect(updated(run4)).toMatchObject({intent:run4.intent,revision:run4.revision})
-  const replayBody={idempotency_key:randomUUID(),expected_head:0,accept_change_ids:['c3','c1'],reject_change_ids:['c2'],accept_block_change:false,accept_anchor_changes:[]}
+  const replayBody={idempotency_key:randomUUID(),expected_head:0,expected_revision:detail.revision,accept_change_ids:['c3','c1'],reject_change_ids:['c2'],accept_block_change:false,accept_anchor_changes:[]}
   const replay=await decision(request,submitted.output.proposal_id,replayBody)
   expect(replay.status()).toBe(200)
   expect((await data(replay)).calendar_version).toBe(after.head)
@@ -168,6 +176,7 @@ test('p0b: protected undo',async ({page,request})=>{
   const wideBefore=await data(await request.get(`/api/v1/calendar?start=${day(current.today,-14)}&end=${day(current.today,13)}`))
   const protectedRows=wideBefore.sessions.filter((row:any)=>row.locked || row.local_date<current.today)
   await page.goto('/#calendar')
+  await page.getByText('Calendar history', {exact:true}).click()
   const target=weekly!.before.head
   const version=page.getByTestId('version-row').filter({hasText:`v${target} ·`})
   await version.getByRole('button',{name:'Restore',exact:true}).click()
@@ -200,16 +209,18 @@ test('p0b: daily exception scope',async ({page,request})=>{
   const reduced=submit(documentFrom(snap,[change('c1',run2,{planned_duration_s:run2.planned_duration_s-600})],`P0-B daily reduce ${randomUUID().slice(0,8)}`))
   expect(reduced.code,JSON.stringify(reduced.output)).toBe(0)
   expect(reduced.output.status).toBe('pending')
-  const outside=submit(documentFrom(snap,[change('c1',run4,{intent:'Outside daily scope'})],`P0-B daily outside ${randomUUID().slice(0,8)}`))
+  const outside=revise(reduced.output.proposal_id,reduced.output.revision,documentFrom(snap,[change('c1',run4,{intent:'Outside daily scope'})],`P0-B daily outside ${randomUUID().slice(0,8)}`))
   expect(outside.code).toBe(2)
   expect(outside.output.errors[0]).toMatchObject({code:'V5.out_of_scope',path:'changes.0'})
-  const increase=submit(documentFrom(snap,[change('c1',run2,{planned_duration_s:run2.planned_duration_s+600})],`P0-B daily increase ${randomUUID().slice(0,8)}`))
+  const increase=revise(reduced.output.proposal_id,reduced.output.revision,documentFrom(snap,[change('c1',run2,{planned_duration_s:run2.planned_duration_s+600})],`P0-B daily increase ${randomUUID().slice(0,8)}`))
   expect(increase.code).toBe(2)
   expect(increase.output.errors[0]).toMatchObject({code:'V12.safety_guard',path:'changes.0'})
+  expect(await data(await request.get(`/api/v1/coach/proposals/${reduced.output.proposal_id}`)))
+    .toMatchObject({id:reduced.output.proposal_id,revision:reduced.output.revision,status:'pending'})
   expect((await calendar(request)).head).toBe(current.head)
   await page.goto('/')
   await expect(page.locator('[data-testid="attention-row"][data-kind="recommendation"]').filter({hasText:'Exception review'}).first()).toBeVisible()
-  const rejected=await decision(request,reduced.output.proposal_id,{idempotency_key:randomUUID(),expected_head:current.head,
+  const rejected=await decision(request,reduced.output.proposal_id,{idempotency_key:randomUUID(),expected_head:current.head,expected_revision:reduced.output.revision,
     accept_change_ids:[],reject_change_ids:['c1'],accept_block_change:false,accept_anchor_changes:[]})
   expect(rejected.status()).toBe(200)
 })
@@ -231,11 +242,12 @@ test('p0b: stale cannot be accepted',async ({page,request})=>{
   await expect(page.getByText(/This proposal is stale/)).toBeVisible()
   await expect(page.getByRole('button',{name:'Accept selected'})).toBeDisabled()
   const head=(await calendar(request)).head
-  const response=await decision(request,submitted.output.proposal_id,{idempotency_key:randomUUID(),expected_head:head,
+  const response=await decision(request,submitted.output.proposal_id,{idempotency_key:randomUUID(),expected_head:head,expected_revision:submitted.output.revision,
     accept_change_ids:['c1'],reject_change_ids:[],accept_block_change:false,accept_anchor_changes:[]})
   expect(response.status()).toBe(409)
   expect(await errorCode(response)).toBe('proposal_stale')
   expect((await calendar(request)).head).toBe(head)
+  await discard(request,submitted.output.proposal_id,submitted.output.revision)
 })
 
 test('p0b: source-only drift and invalid subset',async ({request})=>{
@@ -252,11 +264,12 @@ test('p0b: source-only drift and invalid subset',async ({request})=>{
   }})
   expect(symptom.status()).toBe(201)
   expect((await calendar(request)).head).toBe(before.head)
-  const stale=await decision(request,submitted.output.proposal_id,{idempotency_key:randomUUID(),expected_head:before.head,
+  const stale=await decision(request,submitted.output.proposal_id,{idempotency_key:randomUUID(),expected_head:before.head,expected_revision:submitted.output.revision,
     accept_change_ids:['c1'],reject_change_ids:[],accept_block_change:false,accept_anchor_changes:[]})
   expect(stale.status()).toBe(409)
   expect(await errorCode(stale)).toBe('stale_evidence')
   expect((await calendar(request)).head).toBe(before.head)
+  await discard(request,submitted.output.proposal_id,submitted.output.revision)
 
   const current=await calendar(request)
   const run8=runOn(current,8)
@@ -268,12 +281,12 @@ test('p0b: source-only drift and invalid subset',async ({request})=>{
   const subset=submit(documentFrom(fresh,[{change_id:'c1',op:'delete',session_uid:run8.session_uid,reason:'Replace run'},replacement],
     `P0-B subset ${randomUUID().slice(0,8)}`))
   expect(subset.code,JSON.stringify(subset.output)).toBe(0)
-  const invalid=await decision(request,subset.output.proposal_id,{idempotency_key:randomUUID(),expected_head:current.head,
+  const invalid=await decision(request,subset.output.proposal_id,{idempotency_key:randomUUID(),expected_head:current.head,expected_revision:subset.output.revision,
     accept_change_ids:['c2'],reject_change_ids:['c1'],accept_block_change:false,accept_anchor_changes:[]})
   expect(invalid.status()).toBe(422)
   expect(await errorCode(invalid)).toBe('proposal_invalid_subset')
   expect((await calendar(request)).head).toBe(current.head)
-  const reject=await decision(request,subset.output.proposal_id,{idempotency_key:randomUUID(),expected_head:current.head,
+  const reject=await decision(request,subset.output.proposal_id,{idempotency_key:randomUUID(),expected_head:current.head,expected_revision:subset.output.revision,
     accept_change_ids:[],reject_change_ids:['c1','c2'],accept_block_change:false,accept_anchor_changes:[]})
   expect(reject.status()).toBe(200)
   expect((await data(reject)).status).toBe('rejected')
@@ -308,6 +321,7 @@ test('p0b: block start',async ({page,request})=>{
   await page.goto('/#block')
   await expect(page.getByRole('heading',{name:'Training block'})).toBeVisible()
   await expect(page.getByRole('heading',{name:'Synthetic aerobic base'})).toBeVisible()
+  await page.getByText('Block history', {exact:true}).click()
   await expect(page.getByRole('heading',{name:'Version 1 · active'})).toBeVisible()
   const history=await data(await request.get(`/api/v1/blocks/${current.block_uid}/history`))
   expect(history.items).toHaveLength(1)
