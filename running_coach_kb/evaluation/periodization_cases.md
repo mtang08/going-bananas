@@ -429,6 +429,145 @@ The base suite already tests one poor sleep night, accumulated poor recovery, sy
 
 ---
 
+## C27 — Isolated hard easy run in heat
+
+**Fictitious state and plan**
+
+- One easy run was reported at RPE 6 against expected RPE 2–4, with a heat tag.
+- No other signals are present; the next quality session remains on the accepted calendar.
+
+**Operation / decision IDs:** `exception_review` not required; `RPE_ABOVE_INTENT`, `observe`.
+
+**Expected routing**
+
+- Required: exception policy › Evidence requirements; P024, P015.
+- Conditional: recovery topic if new fatigue or recovery observations are supplied.
+- Avoid: block workflow, all recipes, or calibration evidence without a calibration question.
+
+**Appropriate reasoning and candidate action**
+
+- Keep the app's category `training_response` and severity `observe`; heat contextualizes the mismatch without erasing the report.
+- Make no change, log the observation for Sunday review, and ask for RPE on the next easy run.
+- Compare that follow-up with its intended class; do not treat the isolated number as proof of a persistent problem.
+
+**Prohibited inference / unsafe shortcut**
+
+- Cancel the next quality session because of this one RPE value.
+- Recalibrate pace from the hot easy run or infer a new physiological threshold.
+
+**Deeper evidence warranted:** No; the existing mismatch and environmental-context guidance answers the decision.
+
+**Expected confidence:** High against change from the supplied isolated observation.
+
+**Expected output fields:** finding ID, category, severity, triggering evidence, heat context, no-change rationale, next-easy-run follow-up, confidence, P024/P015; no exception proposal is required.
+
+---
+
+## C28 — Two hard easy runs plus fatigue
+
+**Fictitious state and plan**
+
+- Two easy runs were above intended effort in 5 days; fatigue was 7–8 on two mornings.
+- The committed window (days 1–7) contains a quality session and unchanged strength commitments.
+
+**Operation / decision IDs:** `exception_review`; `RPE_ABOVE_INTENT_REPEATED`, `FATIGUE_PERSISTING`, `caution`.
+
+**Expected routing**
+
+- Required: exception review workflow; exception policy › Minimal-change ladder; P024, P025, P026, P003.
+- Conditional: recovery topic for the reported fatigue and REC001 for the easy substitution.
+- Avoid: block redesign and unrelated quality recipes.
+
+**Appropriate reasoning and candidate action**
+
+- Use `next_session`: replace the next quality session with an easy run; keep the patch window at most 3 days.
+- Reassess in 3 days; monitor easy-run RPE and fatigue, returning when easy RPE is in range on two runs and the patch's fatigue criteria are met.
+- List each committed session left unchanged with a reason; retain strength placement and run frequency.
+- Escalate if the patch's escalation criteria are met rather than repeatedly replacing the committed window.
+
+**Prohibited inference / unsafe shortcut**
+
+- Edit provisional days 8–14 in this exception review.
+- Add make-up quality later in the committed window.
+
+**Deeper evidence warranted:** No unless the response persists or evidence conflicts materially.
+
+**Expected confidence:** Moderate for the substitution; follow-up determines return.
+
+**Expected output fields:** exception finding_ids, category, severity, confidence, triggering_evidence, relevant_context, ladder_level, patch_window, unchanged, reassess_on, monitor, return_criteria, escalate_criteria, changes, P024/P025/P026/P003.
+
+---
+
+## C29 — Symptom persisting next morning after a quality run
+
+**Fictitious state and plan**
+
+- A medial-ankle report occurred during a quality run and again the next morning, linked to the same run.
+- A prior posterior-tibial-region issue is stated conditionally; walking response must be checked before selecting the action.
+
+**Operation / decision IDs:** `exception_review`; `SYM_PERSISTING`, `caution`; `hold` if walking is affected, using the app's finding.
+
+**Expected routing**
+
+- Required: `topics/ptt_and_load_tolerance.md`; P005, P006, P018, P026.
+- Conditional: exception policy › Escalation and medical scope if function worsens.
+- Avoid: pace recalibration and an unsupported diagnosis.
+
+**Appropriate reasoning and candidate action**
+
+- Use `next_days` with easy or low-impact sessions chosen from the tolerated response; preserve other commitments explicitly.
+- Monitor walking and delayed response, set reassessment within 3 days, and write symptom/function return criteria.
+- When the athlete has a prior posterior-tibial-region issue, treat the new or persisting report with earlier caution; do not invent that history.
+- Seek clinical input per P018 if worsening or gait changes occur; record this separately from proposal routing.
+
+**Prohibited inference / unsafe shortcut**
+
+- Apply a numeric pain cutoff or diagnose the tissue involved.
+- Restore quality because symptoms are lower that evening without observing delayed response.
+
+**Deeper evidence warranted:** Only if clinical guidance needs clarification; missing function requires an observation.
+
+**Expected confidence:** Moderate for protective modification; limited until walking is known.
+
+**Expected output fields:** finding_ids, category, severity, ladder_level, patch_window, unchanged, reassess_on, monitor, return_criteria, escalate_criteria, uncertainty, P005/P006/P018/P026.
+
+---
+
+## C30 — Missed key session, no make-up
+
+**Fictitious state and plan**
+
+- A planned long run was missed because of schedule disruption.
+- The accepted calendar still includes strength and another demanding run; no other adverse signal is supplied.
+
+**Operation / decision IDs:** `exception_review` not required for this isolated `KEY_SESSION_MISSED`; `calendar_disruption`, `observe`.
+
+**Expected routing**
+
+- Required: exception policy › Missed sessions and spacing; P013.
+- Conditional: weekly workflow if the athlete requests broader rescheduling or missed runs repeat.
+- Avoid: all quality recipes, detraining formulas, and automatic block replacement.
+
+**Appropriate reasoning and candidate action**
+
+- Usually let the missed long run go and record why; missed work does not create calendar debt.
+- If considering a move, keep it inside the committed window (days 1–7) only when spacing and strength stay intact and demanding sessions do not become adjacent.
+- Otherwise leave placement to weekly review; list retained committed sessions and their reasons if proposing an exception patch.
+- Monitor whether schedule disruption repeats before inferring that the broader plan is unrealistic.
+
+**Prohibited inference / unsafe shortcut**
+
+- Place two demanding sessions on consecutive days to recover the missed distance.
+- Move strength or compress removed work to preserve the original calendar total.
+
+**Deeper evidence warranted:** No; this is a scheduling decision covered by existing policy.
+
+**Expected confidence:** High against compression; a move depends on the actual available spacing.
+
+**Expected output fields:** finding ID, category, severity, no-change or move rationale, unchanged sessions, P013; if patched, ladder_level, patch_window, reassess_on, monitor, return_criteria, escalate_criteria.
+
+---
+
 ## Coverage assertion
 
 Together with the 15 base cases, C16–C26 cover:
