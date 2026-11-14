@@ -427,7 +427,7 @@ def _resulting(doc: ProposalDoc, ctx: ValidationContext) -> dict[str, dict]:
     return state
 
 
-def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+def _exception_block_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     exc = doc.exception
     last = ctx.today + timedelta(days=6)
@@ -471,6 +471,11 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
                 issues.append(_issue("V20.finding_unknown", f"exception.finding_ids.{j}"))
             elif status not in NON_TERMINAL_FINDING:
                 issues.append(_issue("V20.finding_closed", f"exception.finding_ids.{j}"))
+    return issues
+
+
+def _event_review_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     review, bench = doc.event_review, ctx.benchmark
     if review is not None and review.event_id is None and review.activity_id is None:
         issues.append(_issue("V20.event_target_invalid", "event_review"))
@@ -490,6 +495,11 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
             issues.append(_issue("V20.event_target_invalid", "event_review"))
     elif review is not None:
         issues.append(_issue("V20.event_forbidden", "event_review"))
+    return issues
+
+
+def _benchmark_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     fields = doc.block_change.version_fields if doc.block_change else None
     if fields is not None and fields.status == "active":
         planned = fields.benchmark
@@ -503,6 +513,11 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
             bad_trial = planned.kind == "time_trial" and (planned.event_id is not None or "REC009" not in fields.eligible_recipe_ids)
             if bad_event or bad_trial:
                 issues.append(_issue("V22.benchmark_event", "block_change.version_fields.benchmark"))
+    return issues
+
+
+def _patch_resolution_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     if doc.patch_resolutions and doc.operation not in RESOLUTION_OPS:
         issues.append(_issue("V21.resolution_forbidden", "patch_resolutions"))
     resolved: set[uuid.UUID] = set()
@@ -518,147 +533,191 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
     return issues
 
 
-def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool = True) -> list[ValidationIssue]:
+def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues = _exception_block_rules(doc, ctx)
+    issues += _event_review_rules(doc, ctx)
+    issues += _benchmark_rules(doc, ctx)
+    issues += _patch_resolution_rules(doc, ctx)
+    return issues
+
+
+def _recipe_issue(doc: ProposalDoc, ctx: ValidationContext, *, change: Change, result: dict[str, Any],
+                  fields: set[str], path: str) -> ValidationIssue | None:
+    check_recipe = (change.op == "add" and result.get("kind") == "run") or (
+        change.op == "modify"
+        and result.get("kind") == "run"
+        and bool(fields & {"kind", "recipe_id", "custom", "structure"})
+    )
+    if check_recipe:
+        recipe = result.get("recipe_id")
+        if not recipe and not (result.get("custom") and result.get("structure")):
+            return _issue("V6.recipe_required", f"{path}.after")
+        elif recipe:
+            if recipe not in RECIPE_IDS:
+                return _issue("V6.unknown_recipe", f"{path}.after.recipe_id")
+            else:
+                eligible = (
+                    doc.block_change.version_fields.eligible_recipe_ids
+                    if doc.block_change
+                    else (ctx.active_block.eligible_recipe_ids if ctx.active_block else ())
+                )
+                if recipe not in eligible:
+                    return _issue("V6.recipe_not_eligible", f"{path}.after.recipe_id")
+    return None
+
+
+def _quality_pileup(change: Change, head: HeadSession | None, result_date: date | None, *,
+                    state: dict[str, dict], before: dict[str, dict]) -> bool:
+    if (
+        change.op == "move"
+        and head
+        and is_quality_slot(head.kind, head.recipe_id, head.placeholder)
+        and result_date
+        and (result_date - timedelta(days=result_date.weekday()))
+        != (head.local_date - timedelta(days=head.local_date.weekday()))
+    ):
+        week = result_date - timedelta(days=result_date.weekday())
+
+        def count(rows: dict[str, dict]) -> int:
+            return sum(
+                is_quality_slot(row["kind"], row.get("recipe_id"), row.get("placeholder", False))
+                and week <= row["local_date"] <= week + timedelta(days=6)
+                for row in rows.values()
+            )
+
+        return count(state) > count(before)
+    return False
+
+
+def _safety_violation(ctx: ValidationContext, change: Change, head: HeadSession | None, fields: set[str],
+                      result: dict[str, Any], result_date: date | None) -> bool:
+    if (
+        safety_active(ctx.current_safety_guard)
+        and result_date
+        and ctx.today <= result_date <= ctx.today + timedelta(days=3)
+    ):
+        unsafe = (
+            (change.op == "add" and result.get("kind") == "run")
+            or (
+                change.op == "move"
+                and head is not None
+                and head.kind == "run"
+                and not ctx.today <= head.local_date <= ctx.today + timedelta(days=3)
+            )
+            or (change.op == "modify" and head is not None and head.kind != "run" and result.get("kind") == "run")
+            or (
+                change.op == "modify"
+                and "planned_duration_s" in fields
+                and head is not None
+                and (
+                    head.planned_duration_s is None
+                    or (result.get("planned_duration_s") or 0) > head.planned_duration_s
+                )
+            )
+            or (
+                change.op in {"add", "modify"}
+                and "recipe_id" in fields
+                and result.get("recipe_id") in QUALITY_RECIPES
+            )
+        )
+        return bool(unsafe)
+    return False
+
+
+def _change_rules(doc: ProposalDoc, ctx: ValidationContext, *, start: date, end: date,
+                  state: dict[str, dict]) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
-    start, end = scope(doc.operation, ctx.today)
-    state = _resulting(doc, ctx)
     before = {str(uid): dict(vars(row)) for uid, row in ctx.head_sessions.items()}
     seen_ids: set[str] = set()
     seen_uids: set[uuid.UUID] = set()
     for i, change in enumerate(doc.changes):
-        path = f"changes.{i}"
-        head = ctx.head_sessions.get(change.session_uid) if change.session_uid else None
-        after = change.after
-        fields = after.model_fields_set if after else set()
-        if after is not None and after.structure is not None:
-            try:
-                expand_structure([item.model_dump() for item in after.structure])
-            except StructureError:
-                issues.append(_issue("V6.invalid_structure", f"{path}.after.structure", "Invalid workout steps or targets"))
-        result = (
-            {**vars(head), **after.model_dump(include=fields)}
-            if head and after
-            else (after.model_dump() if after else vars(head) if head else {})
-        )
-        if change.change_id in seen_ids:
-            issues.append(_issue("V4.duplicate_change_id", f"{path}.change_id"))
-        seen_ids.add(change.change_id)
-        if change.session_uid and not head:
-            issues.append(_issue("V4.unknown_session", f"{path}.session_uid"))
-        if change.session_uid in seen_uids:
-            issues.append(_issue("V4.session_in_multiple_changes", f"{path}.session_uid"))
-        if change.session_uid:
-            seen_uids.add(change.session_uid)
-        dates = [after.local_date] if change.op == "add" and after else [head.local_date] if head else []
-        if change.op == "move" and after:
-            if after.local_date is not None:
-                dates.append(after.local_date)
-        if any(d is not None and not (start <= d <= end) for d in dates):
-            issues.append(_issue("V5.out_of_scope", path))
-        check_recipe = (change.op == "add" and result.get("kind") == "run") or (
-            change.op == "modify"
-            and result.get("kind") == "run"
-            and bool(fields & {"kind", "recipe_id", "custom", "structure"})
-        )
-        if check_recipe:
-            recipe = result.get("recipe_id")
-            if not recipe and not (result.get("custom") and result.get("structure")):
-                issues.append(_issue("V6.recipe_required", f"{path}.after"))
-            elif recipe:
-                if recipe not in RECIPE_IDS:
-                    issues.append(_issue("V6.unknown_recipe", f"{path}.after.recipe_id"))
-                else:
-                    eligible = (
-                        doc.block_change.version_fields.eligible_recipe_ids
-                        if doc.block_change
-                        else (ctx.active_block.eligible_recipe_ids if ctx.active_block else ())
-                    )
-                    if recipe not in eligible:
-                        issues.append(_issue("V6.recipe_not_eligible", f"{path}.after.recipe_id"))
-        produces_run = (
-            (change.op == "add" and result.get("kind") == "run")
-            or (change.op == "move" and head is not None and head.kind == "run")
-            or (change.op == "modify" and head is not None and head.kind != "run" and result.get("kind") == "run")
-        )
-        result_date = result.get("local_date")
-        if (
-            produces_run
-            and result_date
-            and (ctx.cycle_anchor is None or opportunity(result_date, ctx.cycle_anchor) is None)
-            and not ("off_cycle_run" in change.material_flags and doc.operation in OFF_CYCLE_OPS)
-        ):
-            issues.append(_issue("V8.off_cycle", path))
-        if head and head.kind == "strength" and change.op == "move":
-            if doc.operation in NO_STRENGTH_EDIT_OPS:
-                issues.append(_issue("V9.daily_strength_move", path))
-            elif "strength_move" not in change.material_flags:
-                issues.append(_issue("V9.strength_move_flag", path))
-        if doc.operation in NO_STRENGTH_EDIT_OPS and (
-            (change.op in {"add", "delete"} and result.get("kind") == "strength")
-            or (change.op == "modify" and head and (head.kind == "strength") != (result.get("kind") == "strength"))
-        ):
-            issues.append(_issue("V9.daily_strength_change", path))
-        if (
-            change.op == "move"
-            and head
-            and is_quality_slot(head.kind, head.recipe_id, head.placeholder)
-            and result_date
-            and (result_date - timedelta(days=result_date.weekday()))
-            != (head.local_date - timedelta(days=head.local_date.weekday()))
-        ):
-            week = result_date - timedelta(days=result_date.weekday())
+        issues += _change_issues(doc, ctx, i, change, start=start, end=end, state=state, before=before,
+                                 seen_ids=seen_ids, seen_uids=seen_uids)
+    return issues
 
-            def count(rows: dict[str, dict]) -> int:
-                return sum(
-                    is_quality_slot(row["kind"], row.get("recipe_id"), row.get("placeholder", False))
-                    and week <= row["local_date"] <= week + timedelta(days=6)
-                    for row in rows.values()
-                )
 
-            if count(state) > count(before):
-                issues.append(_issue("V10.quality_pileup", path))
-        if (
-            safety_active(ctx.current_safety_guard)
-            and result_date
-            and ctx.today <= result_date <= ctx.today + timedelta(days=3)
-        ):
-            unsafe = (
-                (change.op == "add" and result.get("kind") == "run")
-                or (
-                    change.op == "move"
-                    and head is not None
-                    and head.kind == "run"
-                    and not ctx.today <= head.local_date <= ctx.today + timedelta(days=3)
-                )
-                or (change.op == "modify" and head is not None and head.kind != "run" and result.get("kind") == "run")
-                or (
-                    change.op == "modify"
-                    and "planned_duration_s" in fields
-                    and head is not None
-                    and (
-                        head.planned_duration_s is None
-                        or (result.get("planned_duration_s") or 0) > head.planned_duration_s
-                    )
-                )
-                or (
-                    change.op in {"add", "modify"}
-                    and "recipe_id" in fields
-                    and result.get("recipe_id") in QUALITY_RECIPES
-                )
-            )
-            if unsafe:
-                issues.append(_issue("V12.safety_guard", path))
-        if doc.operation == "select_quality_session" and (
-            change.op != "modify" or not head or not is_quality_slot(head.kind, head.recipe_id, head.placeholder)
-        ):
-            issues.append(_issue("V15.not_quality_slot", path))
-        if doc.operation == "recalibrate_intensity" and (
-            change.op != "modify" or not fields <= {"intent", "structure", "notes"}
-        ):
-            issues.append(_issue("V15.recalibrate_change_not_allowed", path))
+def _change_issues(doc: ProposalDoc, ctx: ValidationContext, i: int, change: Change, *, start: date, end: date, state: dict[str, dict], before: dict[str, dict], seen_ids: set[str], seen_uids: set[uuid.UUID]) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    path = f"changes.{i}"
+    head = ctx.head_sessions.get(change.session_uid) if change.session_uid else None
+    after = change.after
+    fields = after.model_fields_set if after else set()
+    if after is not None and after.structure is not None:
+        try:
+            expand_structure([item.model_dump() for item in after.structure])
+        except StructureError:
+            issues.append(_issue("V6.invalid_structure", f"{path}.after.structure", "Invalid workout steps or targets"))
+    result = (
+        {**vars(head), **after.model_dump(include=fields)}
+        if head and after
+        else (after.model_dump() if after else vars(head) if head else {})
+    )
+    if change.change_id in seen_ids:
+        issues.append(_issue("V4.duplicate_change_id", f"{path}.change_id"))
+    seen_ids.add(change.change_id)
+    if change.session_uid and not head:
+        issues.append(_issue("V4.unknown_session", f"{path}.session_uid"))
+    if change.session_uid in seen_uids:
+        issues.append(_issue("V4.session_in_multiple_changes", f"{path}.session_uid"))
+    if change.session_uid:
+        seen_uids.add(change.session_uid)
+    dates = [after.local_date] if change.op == "add" and after else [head.local_date] if head else []
+    if change.op == "move" and after:
+        if after.local_date is not None:
+            dates.append(after.local_date)
+    if any(d is not None and not (start <= d <= end) for d in dates):
+        issues.append(_issue("V5.out_of_scope", path))
+    recipe_issue = _recipe_issue(doc, ctx, change=change, result=result, fields=fields, path=path)
+    if recipe_issue is not None:
+        issues.append(recipe_issue)
+    produces_run = (
+        (change.op == "add" and result.get("kind") == "run")
+        or (change.op == "move" and head is not None and head.kind == "run")
+        or (change.op == "modify" and head is not None and head.kind != "run" and result.get("kind") == "run")
+    )
+    result_date = result.get("local_date")
+    if (
+        produces_run
+        and result_date
+        and (ctx.cycle_anchor is None or opportunity(result_date, ctx.cycle_anchor) is None)
+        and not ("off_cycle_run" in change.material_flags and doc.operation in OFF_CYCLE_OPS)
+    ):
+        issues.append(_issue("V8.off_cycle", path))
+    if head and head.kind == "strength" and change.op == "move":
+        if doc.operation in NO_STRENGTH_EDIT_OPS:
+            issues.append(_issue("V9.daily_strength_move", path))
+        elif "strength_move" not in change.material_flags:
+            issues.append(_issue("V9.strength_move_flag", path))
+    if doc.operation in NO_STRENGTH_EDIT_OPS and (
+        (change.op in {"add", "delete"} and result.get("kind") == "strength")
+        or (change.op == "modify" and head and (head.kind == "strength") != (result.get("kind") == "strength"))
+    ):
+        issues.append(_issue("V9.daily_strength_change", path))
+    if _quality_pileup(change, head, result_date, state=state, before=before):
+        issues.append(_issue("V10.quality_pileup", path))
+    if _safety_violation(ctx, change, head, fields, result, result_date):
+        issues.append(_issue("V12.safety_guard", path))
+    if doc.operation == "select_quality_session" and (
+        change.op != "modify" or not head or not is_quality_slot(head.kind, head.recipe_id, head.placeholder)
+    ):
+        issues.append(_issue("V15.not_quality_slot", path))
+    if doc.operation == "recalibrate_intensity" and (
+        change.op != "modify" or not fields <= {"intent", "structure", "notes"}
+    ):
+        issues.append(_issue("V15.recalibrate_change_not_allowed", path))
+    return issues
+
+
+def _preserved_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     for j, uid in enumerate(doc.preserved):
         if uid not in ctx.head_sessions:
             issues.append(_issue("V4.unknown_preserved", f"preserved.{j}"))
+    return issues
+
+
+def _calendar_shape_rules(state: dict[str, dict], *, start: date, end: date) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     for day_offset in range((end - start).days + 1):
         day = start + timedelta(days=day_offset)
         if sum(row["kind"] == "run" and row["local_date"] == day for row in state.values()) > 1:
@@ -671,6 +730,11 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
         if sum(row["kind"] == "run" and row.get("recipe_id") == LONG_RECIPE for row in rows) > 1:
             issues.append(_issue("V10.multiple_long", "changes"))
         week += timedelta(days=7)
+    return issues
+
+
+def _kb_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     for field, allowed in [
         ("policy_ids", ctx.kb.policy_ids),
         ("recipe_ids", ctx.kb.recipe_ids),
@@ -679,6 +743,11 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
         for j, value in enumerate(getattr(doc, field)):
             if value not in allowed:
                 issues.append(_issue("V11.unknown_kb_id", f"{field}.{j}"))
+    return issues
+
+
+def _block_change_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     block = doc.block_change
     if block:
         if doc.operation not in BLOCK_OPS:
@@ -701,6 +770,11 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
                     issues.append(
                         _issue("V13.block_change_invalid", f"block_change.version_fields.eligible_recipe_ids.{j}")
                     )
+    return issues
+
+
+def _anchor_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     if doc.anchor_changes and not _anchors_allowed(doc):
         issues.append(_issue("V14.anchor_change_not_allowed", "anchor_changes"))
     anchor_keys: set[str] = set()
@@ -719,8 +793,20 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
         if key in anchor_keys:
             issues.append(_issue("V14.anchor_invalid", f"{path}.kind"))
         anchor_keys.add(key)
+    return issues
+
+
+def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool = True) -> list[ValidationIssue]:
+    start, end = scope(doc.operation, ctx.today)
+    state = _resulting(doc, ctx)
+    issues = _change_rules(doc, ctx, start=start, end=end, state=state)
+    issues += _preserved_rules(doc, ctx)
+    issues += _calendar_shape_rules(state, start=start, end=end)
+    issues += _kb_rules(doc, ctx)
+    issues += _block_change_rules(doc, ctx)
+    issues += _anchor_rules(doc, ctx)
     if exception_checks:
-        issues.extend(_exception_rules(doc, ctx))
+        issues += _exception_rules(doc, ctx)
     return issues
 
 
