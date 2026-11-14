@@ -264,7 +264,7 @@ def seed_demo(session: Session, private_dir: Path, today: date) -> dict[str, int
         historical_long = today - timedelta(days=2)
         week_start = historical_long - timedelta(days=historical_long.weekday())
         duplicate = next((row for row in state_at(session, state.calendar_head_version)
-            if row['local_date'] > today and row['recipe_id'] == 'REC002'
+            if row['local_date'] >= today and row['recipe_id'] == 'REC002'
             and week_start <= row['local_date'] <= week_start + timedelta(days=6)), None)
         if duplicate:
             apply_edits(session, state.calendar_head_version, [{
