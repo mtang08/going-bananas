@@ -67,19 +67,6 @@ def _plan_session_ids(session: Session, plan: PlanVersion) -> set[uuid.UUID]:
     return set(session.scalars(select(PlannedSession.id).where(condition)))
 
 
-def planning_authority(session: Session) -> str:
-    """Read authority without taking a row lock or changing state."""
-    value = session.scalar(select(AppState.planning_authority).where(AppState.id == 1))
-    return value or 'legacy'
-
-
-def require_legacy_write(session: Session) -> None:
-    """Serialize with calendar writers before an old route reads or writes data."""
-    session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
-    if planning_authority(session) != 'legacy':
-        raise HTTPException(409, detail={'code': 'legacy_write_disabled',
-            'message': 'Legacy planning writes are disabled. Use the calendar workflow.'})
-
 SOURCE_MODELS: tuple[Any, ...] = (
     PlanVersion, PlannedSession, CompletionLink, Checkin, CheckinRevision,
     WeeklySnapshot, CoachPlanRevision, CoachRecommendation, CoachOutcome,
