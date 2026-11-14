@@ -774,6 +774,15 @@ def test_v22_benchmark_required() -> None:
         "invalid", [("V22.benchmark_required", "block_change.version_fields.benchmark")])
 
 
+def test_benchmark_issues_precede_patch_resolution_issues() -> None:
+    doc = block_start_doc(benchmark=None)
+    doc["patch_resolutions"] = [{"patch_id": str(U(999)), "status": "resolved", "note": "Settled"}]
+    assert outcome(doc, context("review_training_block", block=False)) == ("invalid", [
+        ("V22.benchmark_required", "block_change.version_fields.benchmark"),
+        ("V21.patch_unknown", "patch_resolutions.0.patch_id"),
+    ])
+
+
 def test_v22_benchmark_date_in_last_seven_days() -> None:
     doc = block_start_doc(benchmark={**BENCH, "planned_date": "2026-12-20"})
     assert outcome(doc, context("review_training_block", block=False)) == (
