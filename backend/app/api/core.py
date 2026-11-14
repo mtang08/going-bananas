@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -53,8 +53,15 @@ def date_window(session: Session, start_date: date | None, end_date: date | None
 
 
 def annotation(session: Session, activity_id: uuid.UUID) -> ActivityAnnotation | None:
-    return session.scalar(select(ActivityAnnotation).where(ActivityAnnotation.activity_id == activity_id)
-                          .order_by(desc(ActivityAnnotation.version)).limit(1))
+    return latest_annotations(session, [activity_id]).get(activity_id)
+
+
+def latest_annotations(session: Session, activity_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ActivityAnnotation]:
+    if not activity_ids:
+        return {}
+    rows = session.scalars(select(ActivityAnnotation).where(ActivityAnnotation.activity_id.in_(activity_ids))
+                           .order_by(ActivityAnnotation.activity_id, ActivityAnnotation.version))
+    return {row.activity_id: row for row in rows}
 
 
 def run_classifications(session: Session, rows: Sequence[Activity]) -> dict[str, dict]:
@@ -65,10 +72,11 @@ def run_classifications(session: Session, rows: Sequence[Activity]) -> dict[str,
     last = max(a.start_at for a in targets)
     history = session.scalars(select(Activity).where(Activity.start_at >= first, Activity.start_at <= last,
                               Activity.sport.in_(RUN_SPORTS)).order_by(Activity.start_at)).all()
+    annotations = latest_annotations(session, [a.id for a in history])
     zone = athlete_tz(session)
     observations = []
     for a in history:
-        ann = annotation(session, a.id)
+        ann = annotations.get(a.id)
         observations.append(RunObservation(
             id=str(a.id), local_date=a.start_at.astimezone(zone).date(), start_at=a.start_at,
             sport=a.sport, distance_m=a.distance_m, elapsed_s=a.elapsed_s, moving_s=a.moving_s,
@@ -84,13 +92,16 @@ def run_classifications(session: Session, rows: Sequence[Activity]) -> dict[str,
 
 
 def activity_data(session: Session, a: Activity, detail: bool = False,
-                  classifications: dict[str, dict] | None = None) -> dict:
-    ann = annotation(session, a.id)
+                  classifications: dict[str, dict] | None = None, *,
+                  annotations: Mapping[uuid.UUID, ActivityAnnotation] | None = None,
+                  zone: ZoneInfo | None = None) -> dict:
+    ann = annotations.get(a.id) if annotations is not None else annotation(session, a.id)
+    zone = zone or athlete_tz(session)
     classification = (classifications if classifications is not None else run_classifications(session, [a])).get(str(a.id))
     label = classification['effective_label'] if classification else (
         ann.workout_label if ann and ann.workout_label else a.source_workout_label)
     result = {'id': a.id, 'start_at': a.start_at, 'original_start': a.original_start,
-              'local_date': a.start_at.astimezone(athlete_tz(session)).date(), 'source_local_date': a.local_date, 'sport': a.sport, 'subtype': a.subtype,
+              'local_date': a.start_at.astimezone(zone).date(), 'source_local_date': a.local_date, 'sport': a.sport, 'subtype': a.subtype,
               'distance_m': a.distance_m, 'elapsed_s': a.elapsed_s, 'moving_s': a.moving_s,
               'moving_pace_s_per_km': pace_s_per_km(a.distance_m, a.moving_s),
               'avg_hr_bpm': a.avg_hr_bpm,
@@ -182,7 +193,8 @@ def get_activities(start_date: date | None = None, end_date: date | None = None,
                    sport: str | None = None, cursor: str | None = None, limit: int = Query(50, ge=1, le=200),
                    session: Session = Depends(get_session)) -> dict:
     start, end = date_window(session, start_date, end_date)
-    lower, upper = utc_date_bounds(start, end, athlete_tz(session).key)
+    zone = athlete_tz(session)
+    lower, upper = utc_date_bounds(start, end, zone.key)
     q = select(Activity).where(Activity.start_at >= lower, Activity.start_at < upper)
     if sport:
         q = q.where(Activity.sport == sport)
@@ -197,9 +209,11 @@ def get_activities(start_date: date | None = None, end_date: date | None = None,
         q = q.where((Activity.start_at < cd) | ((Activity.start_at == cd) & (Activity.id < cid)))
     rows = session.scalars(q.order_by(desc(Activity.start_at), desc(Activity.id)).limit(limit+1)).all()
     next_cursor = f'{rows[limit-1].start_at.isoformat()}|{rows[limit-1].id}' if len(rows) > limit else None
-    classifications = run_classifications(session, rows[:limit])
-    return envelope(session, {'items': [activity_data(session, a, classifications=classifications) for a in rows[:limit]],
-                              'next_cursor': next_cursor, 'timezone': athlete_tz(session).key, 'coverage': coverage(session, start, end)})
+    page = rows[:limit]
+    classifications = run_classifications(session, page)
+    annotations = latest_annotations(session, [a.id for a in page])
+    return envelope(session, {'items': [activity_data(session, a, classifications=classifications, annotations=annotations, zone=zone) for a in page],
+                              'next_cursor': next_cursor, 'timezone': zone.key, 'coverage': coverage(session, start, end)})
 
 
 @router.get('/activities/{activity_id}')

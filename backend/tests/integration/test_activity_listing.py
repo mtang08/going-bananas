@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -102,3 +102,22 @@ def test_listing_pages_with_cursor(listing):
         assert len(seen) < 41
     assert len(seen) == len(set(seen)) == 41
     assert seen == [row['id'] for row in expected]
+
+
+def test_statement_count_independent_of_page_size(listing):
+    client, connection, _ = listing
+    statements = []
+    def counter(*args):
+        statements.append(1)
+    event.listen(connection, 'before_cursor_execute', counter)
+    try:
+        counts = []
+        for limit in (5, 30):
+            statements.clear()
+            response = client.get('/api/v1/activities', params={**WINDOW, 'limit': limit})
+            assert response.status_code == 200, response.text
+            assert len(response.json()['data']['items']) == limit
+            counts.append(len(statements))
+        assert counts[0] == counts[1] and counts[0] <= 20, counts
+    finally:
+        event.remove(connection, 'before_cursor_execute', counter)
