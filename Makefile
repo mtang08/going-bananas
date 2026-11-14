@@ -33,6 +33,3 @@ sync:
 
 backup:
 	$(RUN) bash -c 'cd backend && uv run python -m app.cli backup "$$PRIVATE_DIR/backups/backup-$$(date +%Y%m%d-%H%M%S).tar.gz"'
-
-context:
-	$(RUN) bash -c 'cd backend && uv run python -m app.cli export-context "$$PRIVATE_DIR/context-$$(date +%Y%m%d-%H%M%S).json"'

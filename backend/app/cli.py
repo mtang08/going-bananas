@@ -69,8 +69,6 @@ def _parse() -> argparse.Namespace:
     restore.add_argument("archive", type=Path)
     restore.add_argument("--target-database-name", required=True)
     restore.add_argument("--target-private-dir", required=True, type=Path)
-    context = sub.add_parser("export-context")
-    context.add_argument("output", type=Path)
     profile = sub.add_parser("init-profile")
     profile.add_argument("--timezone", default="America/New_York")
     profile.add_argument("--facts-file", type=Path)
@@ -376,16 +374,6 @@ def main() -> int:
                                            unknowns=[]))
                 bump_data_revision(session)
             print(json.dumps({"profile_version": 1}))
-        elif args.command == "export-context":
-            from app.services.summary import build_context
-            with SessionLocal() as session:
-                context = build_context(session)
-            if args.output.exists():
-                raise ValueError("context_output_exists")
-            args.output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            args.output.write_text(json.dumps(context, default=str, sort_keys=True))
-            args.output.chmod(0o600)
-            print(json.dumps({"status": "created"}))
         return 0
     except (ValueError, BackupError) as exc:
         # Known safe codes only; never echo raw network exceptions or payloads.

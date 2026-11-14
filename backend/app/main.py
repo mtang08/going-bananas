@@ -10,17 +10,13 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app import calendar_models, checkin_models, coach_v2_models, fit_models, metric_models, planning_models  # noqa: F401
-from app.api.agent import router as agent_router
 from app.api.anchors import router as anchors_router
 from app.api.calendar import router as calendar_router
 from app.api.checkins import router as checkins_router
 from app.api.coach import router as coach_router
-from app.api.coaching import router as coaching_router
 from app.api.core import router as core_router
-from app.api.history import router as history_router
 from app.api.metrics import router as metrics_router
 from app.api.planning import router as planning_router
-from app.api.strength import router as strength_router
 from app.api.sync import router as sync_router
 from app.config import settings
 from app.db import SessionLocal, get_revision, get_session
@@ -112,17 +108,13 @@ def serialize_source_write(request: Request, session: Session = Depends(get_sess
 
 install_triggers()
 app.include_router(core_router, prefix='/api/v1', dependencies=[Depends(serialize_source_write)])
-app.include_router(history_router, prefix='/api/v1')
 app.include_router(anchors_router, prefix='/api/v1')
 app.include_router(calendar_router, prefix='/api/v1')
 app.include_router(checkins_router, prefix='/api/v1')
 app.include_router(planning_router, prefix='/api/v1')
 app.include_router(metrics_router, prefix='/api/v1')
 app.include_router(sync_router, prefix='/api/v1')
-app.include_router(coaching_router, prefix='/api/v1')
 app.include_router(coach_router, prefix='/api/v1')
-app.include_router(agent_router, prefix='/api/v1')
-app.include_router(strength_router, prefix='/api/v1', dependencies=[Depends(serialize_source_write)])
 
 
 @app.get('/{path:path}', include_in_schema=False)

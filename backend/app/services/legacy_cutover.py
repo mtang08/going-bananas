@@ -44,18 +44,28 @@ from app.strong_models import StrongWorkoutRow
 LOCK_ID = 71382413
 
 
-def planning_authority(session: Session) -> str:
-    """Read authority without taking a row lock or changing state."""
-    value = session.scalar(select(AppState.planning_authority).where(AppState.id == 1))
-    return value or 'legacy'
+def _latest_revision(session: Session) -> CoachPlanRevision | None:
+    return session.scalar(select(CoachPlanRevision).order_by(
+        CoachPlanRevision.created_at.desc(), CoachPlanRevision.id.desc()).limit(1))
 
 
-def require_legacy_write(session: Session) -> None:
-    """Serialize with calendar writers before an old route reads or writes data."""
-    session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
-    if planning_authority(session) != 'legacy':
-        raise HTTPException(409, detail={'code': 'legacy_write_disabled',
-            'message': 'Legacy planning writes are disabled. Use the calendar workflow.'})
+def _revertible(session: Session, current: CoachPlanRevision | None) -> CoachPlanRevision | None:
+    cursor = current
+    while cursor and cursor.workflow != 'rollback':
+        if cursor.payload.get('diff'):
+            return cursor
+        cursor = session.get(CoachPlanRevision, cursor.parent_revision_id) if cursor.parent_revision_id else None
+    return None
+
+
+def _plan_session_ids(session: Session, plan: PlanVersion) -> set[uuid.UUID]:
+    revision = session.scalar(select(CoachPlanRevision).where(CoachPlanRevision.plan_id == plan.id)
+                              .order_by(CoachPlanRevision.created_at.desc()).limit(1))
+    member_ids = revision.payload.get('active_session_ids', []) if revision else None
+    condition = (PlannedSession.id.in_([uuid.UUID(x) for x in member_ids])
+                 if member_ids is not None else PlannedSession.plan_id == plan.id)
+    return set(session.scalars(select(PlannedSession.id).where(condition)))
+
 
 SOURCE_MODELS: tuple[Any, ...] = (
     PlanVersion, PlannedSession, CompletionLink, Checkin, CheckinRevision,
@@ -175,9 +185,7 @@ def _session_fields(row: PlannedSession, *, slot: int, today: date) -> dict[str,
 
 
 def _membership(session: Session, planned: dict[uuid.UUID, PlannedSession]) -> set[uuid.UUID]:
-    from app.api.core import plan_data
-    from app.services.agent_plans import latest
-    current = latest(session)
+    current = _latest_revision(session)
     if current is not None and isinstance(current.payload.get('active_session_ids'), list):
         try:
             ids = {uuid.UUID(str(raw)) for raw in current.payload['active_session_ids']}
@@ -187,12 +195,11 @@ def _membership(session: Session, planned: dict[uuid.UUID, PlannedSession]) -> s
             _fail('cutover_validation_failed', 'Legacy active membership references a missing session')
         return ids
     accepted = session.scalars(select(PlanVersion).where(PlanVersion.status == 'accepted')).all()
-    return {item['id'] for plan in accepted for item in plan_data(session, plan)['sessions']}
+    return {uid for plan in accepted for uid in _plan_session_ids(session, plan)}
 
 
 def _import(session: Session, state: AppState, *, dry_run: bool) -> MigrationReport:
     from app.metrics.engine import recompute
-    from app.services.agent_plans import latest, revertible
     from app.services.calendar import _today
     if session.scalar(text('SELECT version_num FROM alembic_version')) != EXPECTED_HEAD:
         _fail('schema_not_ready', 'Schema head is not ready for cutover', 409)
@@ -268,7 +275,7 @@ def _import(session: Session, state: AppState, *, dry_run: bool) -> MigrationRep
         session.add(LegacyImportMap(import_id=marker.id, source_table='completion_links',
             source_id=link.id, target_kind='completion', target_id=completion.id,
             payload=payload, payload_sha256=digest))
-    undo = revertible(session, latest(session))
+    undo = _revertible(session, _latest_revision(session))
     marker.undo_payload = {'revision_id': str(undo.id), 'before': _canonical(undo.payload.get('before', [])),
                            'after': _canonical(undo.payload.get('after', []))} if undo else None
     counts_after, hashes_after, _ = source_snapshot(session)

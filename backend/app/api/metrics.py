@@ -159,11 +159,6 @@ def get_execution(activity_id: UUID, session: Session = Depends(get_session)) ->
     return envelope(session, data)
 
 
-@router.get('/metrics/explain/{result_id}')
-def get_explain(result_id: UUID, session: Session = Depends(get_session)) -> dict:
-    return envelope(session, explain_metric(session, result_id))
-
-
 @router.get('/metrics/long-runs')
 def get_long_runs(start: date, end: date, session: Session = Depends(get_session)) -> dict:
     data = long_run_history(session, start, end)
