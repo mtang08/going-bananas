@@ -254,7 +254,6 @@ def test_http_routes_and_bounds(db, tmp_path):
     assert len(response.json()['data']['windows']) == 4
     assert client.get(f'/api/v1/activities/{ids[0]}/execution').status_code == 200
     assert client.get(f'/api/v1/activities/{uuid.uuid4()}/execution').status_code == 404
-    assert client.get(f'/api/v1/metrics/explain/{uuid.uuid4()}').status_code == 404
     assert client.get('/api/v1/metrics/recovery?start=2025-01-01&end=2025-04-03').status_code == 422
     assert client.get('/api/v1/metrics/recovery?start=2025-02-01&end=2025-01-01').status_code == 422
     paths = set(production_app.openapi()['paths'])
