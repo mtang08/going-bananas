@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Trends } from '../src/pages/Trends'
 import type {
-  IntensityValue, LongRunValue, MetricResult, MetricWindows, RecoveryNight,
+  BenchmarkRecord, IntensityValue, LongRunValue, MetricResult, MetricWindows, RecoveryNight,
   RecoveryNights, RecoverySignal, SpacingValue, SrpeValue, VolumeValue, ZoneDistribution,
 } from '../src/api'
 
@@ -92,11 +92,13 @@ const recovery: RecoveryNights = {
     night('2026-11-07', true), night('2026-11-08', false),
   ],
 }
+let benchmarkData:{items:unknown[]}={items:[]}
 let windowData = windows
 let recoveryData = recovery
 let windowStatus = 200
 let requests: string[] = []
 beforeEach(() => {
+  benchmarkData={items:[]}
   windowData = windows
   recoveryData = recovery
   windowStatus = 200
@@ -107,7 +109,7 @@ beforeEach(() => {
     if (url.includes('/metrics/windows') && windowStatus !== 200) {
       return new Response(JSON.stringify({ error: { code: 'failed', message: 'Metrics unavailable' } }), { status: windowStatus })
     }
-    const data = url.includes('/metrics/recovery') ? recoveryData : windowData
+    const data = url.includes('/blocks/benchmarks') ? benchmarkData : url.includes('/metrics/recovery') ? recoveryData : windowData
     return new Response(JSON.stringify({ schema_version: 'v1', data_revision: 3, mode: 'demo', data }), { status: 200 })
   }))
 })
@@ -146,6 +148,23 @@ describe('Trends', () => {
     mount(); await screen.findByTestId('trend-intensity')
     expect(screen.getByTestId('trend-intensity').closest('details')).toBeNull()
     expect(screen.queryByTestId('trends-not-assessable')).toBeNull()
+  })
+  it('shows benchmark history outside the not-assessable disclosure',async()=>{
+    mount()
+    const card=await screen.findByTestId('trend-benchmarks')
+    expect(await within(card).findByText('No benchmark results yet. Each training block ends with one.')).toBeInTheDocument()
+    expect(card.closest('details')).toBeNull()
+  })
+  it('charts repeated distances and lists outcomes',async()=>{
+    const rec=(id:string,distance_m:number,local_date:string,result_s:number,outcome:BenchmarkRecord['outcome']):BenchmarkRecord=>({id,distance_m,local_date,result_s,outcome,block_uid:'b',block_version:1,objective:'Build',protocol:'5 km solo time trial',compared_with:null,match_method:'auto',activity_id:null,event_id:null})
+    benchmarkData={items:[rec('b1',5000,'2026-08-30',1300,'consolidate'),rec('b2',5000,'2026-11-10',1290,'progress'),rec('b3',10000,'2026-10-04',2700,'inconclusive'),rec('b4',5000,'2026-07-01',1400,null)]}
+    mount();const chart=await screen.findByRole('img',{name:'3.1 mi benchmark results'})
+    expect(screen.getAllByRole('img',{name:'3.1 mi benchmark results'})).toHaveLength(1)
+    expect(screen.queryByRole('img',{name:'6.2 mi benchmark results'})).toBeNull()
+    expect(within(chart).getByTestId('recovery-chart')).toHaveAttribute('data-series',JSON.stringify([{date:'2026-08-30',result_s:1300},{date:'2026-11-10',result_s:1290}]))
+    const table=screen.getByRole('table',{name:'Benchmark results'})
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(3)
+    for(const label of ['Progress','Consolidate','Inconclusive'])expect(within(table).getByText(label)).toBeInTheDocument()
   })
   it('shows 28-day volume without extrapolating missing values', async () => {
     mount()
@@ -234,7 +253,7 @@ describe('Trends', () => {
   it('queries the recovery range from server as_of only', async () => {
     mount()
     await waitFor(() => expect(requests).toContain('/api/v1/metrics/recovery?start=2026-10-15&end=2026-11-11'))
-    expect(requests.every(url => url === '/api/v1/metrics/windows' ||
+    expect(requests.every(url => url === '/api/v1/blocks/benchmarks' || url === '/api/v1/metrics/windows' ||
       url === '/api/v1/metrics/recovery?start=2026-10-15&end=2026-11-11')).toBe(true)
   })
   it('shows windows request errors', async () => {
