@@ -568,9 +568,149 @@ The base suite already tests one poor sleep night, accumulated poor recovery, sy
 
 ---
 
+## C31 — Multiweek recurrence escalates
+
+**Fictitious state and plan**
+
+- The same symptom site was reported in each of the last three 7-day periods.
+- A further narrow adjustment would leave the repeated pattern unresolved; demanding sessions remain in the committed window (days 1–7).
+
+**Operation / decision IDs:** `SYM_MULTIWEEK`, severity `escalate`; `escalation: review_training_block`.
+
+**Expected routing**
+
+- Required: exception policy › Escalation and medical scope; P018, P019.
+- Conditional: the relevant symptom topic and block workflow for the resulting block review.
+- Avoid: unrelated recipes or another isolated-session solution to the recurring pattern.
+
+**Appropriate reasoning and candidate action**
+
+- Use the app's recurrent finding and route to block review; explain why narrower changes cannot preserve coherence.
+- Keep only protective committed-window changes while the broader review is pending; do not rewrite the block here.
+- Say that outside evaluation may be needed, following P018 and current clinical constraints.
+- State separately the finding severity `escalate`, proposal field `escalation`, and P018 clinical referral; none is a synonym for another.
+
+**Prohibited inference / unsafe shortcut**
+
+- Open another narrow patch as if the recurrence had no broader implication.
+- Treat severity `escalate` as the same as a referral or infer a diagnosis from recurrence.
+
+**Deeper evidence warranted:** Only if the clinical-scope guidance is disputed or the block decision needs additional support.
+
+**Expected confidence:** High that broader review is needed; uncertain about diagnosis and the eventual block change.
+
+**Expected output fields:** finding_ids, category, severity, triggering_evidence, ladder_level, protective changes, unchanged, monitor, escalation, clinical recommendation, patch_resolutions when applicable, P018/P019.
+
+---
+
+## C32 — Post-10K review
+
+**Fictitious state and plan**
+
+- A target 10K occurred two days ago with even pacing, RPE 9, and warm conditions.
+- Mild calf soreness appeared the next day; walking is normal, with delayed response still being observed.
+
+**Operation / decision IDs:** `post_event_review`; `POST_EVENT_REVIEW_DUE`.
+
+**Expected routing**
+
+- Required: post-event review workflow; race and benchmark policy › Post-event review; P020, P027.
+- Conditional: calibration topic if a credible comparable performance later supports anchor changes; symptom topic if soreness worsens.
+- Avoid: block redesign or every race-specific recipe.
+
+**Appropriate reasoning and candidate action**
+
+- Reconstruct pacing, effort and limiter, heat, symptoms, and recovery observations; distinguish the supplied facts from missing follow-up.
+- Treat the 1–3 days after the event as an observation window; choose movement from the response, with easy running resuming when soreness settles.
+- Set recalibration to `defer` because heat confounds the performance comparison; retain current anchors.
+- State one training implication: use the delayed response to guide the next exposure rather than treating the finish time as clearance.
+
+**Prohibited inference / unsafe shortcut**
+
+- Prescribe a fixed rest period from race distance alone.
+- Reset every training zone from this race or let performance override worsening symptoms.
+
+**Deeper evidence warranted:** No unless symptoms change or a calibration claim becomes consequential.
+
+**Expected confidence:** Moderate for the recovery response; limited for recalibration in heat.
+
+**Expected output fields:** event_review event_id, activity_id if matched, outcome null, compared_with null, pacing, effort_and_limiter, conditions, symptoms, recovery_observation, recalibration defer, training_implication, committed-window changes if needed, P020/P027.
+
+---
+
+## C33 — Block-ending 5K time trial improves on the prior block
+
+**Fictitious state and plan**
+
+- The time trial matched the prior protocol: same flat loop, similar weather, and two easy days before.
+- It was 30 s faster than the prior block at RPE 9, with no symptoms, stable training response, and the pre-stated progress criterion met.
+
+**Operation / decision IDs:** `review_training_block`; completed culminating benchmark.
+
+**Expected routing**
+
+- Required: block workflow; race and benchmark policy › Block-ending benchmark and Interpreting a benchmark; P020, P028.
+- Conditional: calibration topic for the supported anchor adjustment.
+- Avoid: a separate post-event review for this block benchmark and unsupported zone conversions.
+
+**Appropriate reasoning and candidate action**
+
+- Set `event_review.outcome` to `progress` against the pre-stated criteria and training response, not the time difference alone.
+- Name the prior same-protocol result in `compared_with`; record conditions and preparation.
+- Recalibrate supported anchors in this same proposal, with method and uncertainty.
+- Give the next block its own benchmark, protocol, and progress/consolidate criteria; the example preparation is not a universal taper.
+
+**Prohibited inference / unsafe shortcut**
+
+- Reset every zone from one result or claim a universal meaningful-improvement threshold.
+- Skip the next block's benchmark because this result improved.
+
+**Deeper evidence warranted:** Only for a disputed calibration method or unsupported conversion.
+
+**Expected confidence:** Moderate for progress and supported recalibration.
+
+**Expected output fields:** event_review activity_id, outcome progress, compared_with, pacing, effort_and_limiter, conditions, symptoms, recovery_observation, recalibration propose_anchors, training_implication, anchor_changes, block_change.version_fields.benchmark, P020/P028.
+
+---
+
+## C34 — Benchmark missed through illness
+
+**Fictitious state and plan**
+
+- Respiratory illness occurred in the block's last week; the culminating time trial did not happen.
+- The benchmark is missed, without a result; readiness for a test remains uncertain.
+
+**Operation / decision IDs:** `review_training_block`; `BLOCK_BENCHMARK_MISSED`, `calendar_disruption`, `caution`.
+
+**Expected routing**
+
+- Required: race and benchmark policy › Missed or compromised benchmark; P004, P013, P028.
+- Conditional: illness guidance and block workflow for extending the block or changing its benchmark date.
+- Avoid: calibration from a nonexistent performance or loading every quality recipe.
+
+**Appropriate reasoning and candidate action**
+
+- Do not force a test; use staged illness return per P004 and preserve clinical restrictions.
+- Reschedule the benchmark within 14 days or extend the block, depending on observed recovery and a feasible test opportunity.
+- Record the missing performance as a limit on interpretation; do not fabricate a completed activity or EventReview for an unperformed trial.
+- Preserve the protocol and pre-stated criteria for the eventual comparison, adjusting the benchmark date without making up missed sessions.
+
+**Prohibited inference / unsafe shortcut**
+
+- Test while ill to satisfy the original calendar deadline.
+- Declare the block failed or recalibrate anchors without a result.
+
+**Deeper evidence warranted:** No for deferring the test; use clinical guidance if illness warrants outside evaluation.
+
+**Expected confidence:** High against a forced test; timing remains conditional on recovery.
+
+**Expected output fields:** finding ID, missed-benchmark rationale, block lifecycle decision, block_change.version_fields.benchmark, staged-return plan, uncertainty, follow-up; event_review and anchor_changes absent until supported, P004/P013/P028.
+
+---
+
 ## Coverage assertion
 
-Together with the 15 base cases, C16–C26 cover:
+Together with the 15 base cases, C16–C34 cover:
 
 - optional versus explicit block creation;
 - all lifecycle outcomes across the suite (`start`, `continue` via base favorable progression, `extend`, `consolidate`, `transition`, `replace`, `end`);
@@ -580,5 +720,8 @@ Together with the 15 base cases, C16–C26 cover:
 - low-frequency quality selection;
 - high- and low-confidence recalibration;
 - race-priority ambiguity and versioned transition;
-- minimal daily retrieval; and
+- minimal daily retrieval;
+- exception severity, minimal patch scope, and return-to-plan criteria (C27–C31);
+- post-event review as one piece of evidence (C32);
+- block-ending benchmarks, recalibration, and missed benchmarks (C33–C34); and
 - use of deeper evidence only when consequence or dispute warrants it.
