@@ -427,7 +427,7 @@ def _resulting(doc: ProposalDoc, ctx: ValidationContext) -> dict[str, dict]:
     return state
 
 
-def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+def _exception_block_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     exc = doc.exception
     last = ctx.today + timedelta(days=6)
@@ -471,6 +471,11 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
                 issues.append(_issue("V20.finding_unknown", f"exception.finding_ids.{j}"))
             elif status not in NON_TERMINAL_FINDING:
                 issues.append(_issue("V20.finding_closed", f"exception.finding_ids.{j}"))
+    return issues
+
+
+def _event_review_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     review, bench = doc.event_review, ctx.benchmark
     if review is not None and review.event_id is None and review.activity_id is None:
         issues.append(_issue("V20.event_target_invalid", "event_review"))
@@ -490,6 +495,11 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
             issues.append(_issue("V20.event_target_invalid", "event_review"))
     elif review is not None:
         issues.append(_issue("V20.event_forbidden", "event_review"))
+    return issues
+
+
+def _benchmark_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     fields = doc.block_change.version_fields if doc.block_change else None
     if fields is not None and fields.status == "active":
         planned = fields.benchmark
@@ -503,6 +513,11 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
             bad_trial = planned.kind == "time_trial" and (planned.event_id is not None or "REC009" not in fields.eligible_recipe_ids)
             if bad_event or bad_trial:
                 issues.append(_issue("V22.benchmark_event", "block_change.version_fields.benchmark"))
+    return issues
+
+
+def _patch_resolution_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     if doc.patch_resolutions and doc.operation not in RESOLUTION_OPS:
         issues.append(_issue("V21.resolution_forbidden", "patch_resolutions"))
     resolved: set[uuid.UUID] = set()
@@ -515,6 +530,14 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
         if resolution.patch_id in resolved:
             issues.append(_issue("V21.patch_duplicate", f"patch_resolutions.{j}.patch_id"))
         resolved.add(resolution.patch_id)
+    return issues
+
+
+def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues = _exception_block_rules(doc, ctx)
+    issues += _event_review_rules(doc, ctx)
+    issues += _benchmark_rules(doc, ctx)
+    issues += _patch_resolution_rules(doc, ctx)
     return issues
 
 
