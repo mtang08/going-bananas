@@ -750,55 +750,6 @@ def reject_plan(plan_id: uuid.UUID, body: DecisionInput, session: Session = Depe
     return decide_plan(plan_id, body, 'rejected', session)
 
 
-class CompletionInput(BaseModel):
-    planned_session_id: uuid.UUID
-    activity_id: uuid.UUID | None = None
-    manual_session_id: uuid.UUID | None = None
-
-    @model_validator(mode='after')
-    def one_actual(self) -> CompletionInput:
-        if (self.activity_id is None) == (self.manual_session_id is None):
-            raise ValueError('Exactly one actual session required')
-        return self
-
-
-@router.post('/completion-links', status_code=201)
-def post_completion_link(body: CompletionInput, session: Session = Depends(get_session)) -> dict:
-    from app.services.legacy_cutover import require_legacy_write
-    require_legacy_write(session)
-    planned = session.get(PlannedSession, body.planned_session_id)
-    plan = session.get(PlanVersion, planned.plan_id) if planned else None
-    from app.services.agent_plans import is_active_session
-    if not planned or not plan or (plan.status != 'accepted' and not is_active_session(session, planned.id)):
-        fail('invalid_plan', 'Accepted planned session required')
-    if body.activity_id and not session.get(Activity, body.activity_id):
-        fail('not_found', 'Actual activity not found', 404)
-    if body.manual_session_id and not session.get(ManualSession, body.manual_session_id):
-        fail('not_found', 'Manual session not found', 404)
-    existing = session.scalar(select(CompletionLink).where((CompletionLink.planned_session_id == body.planned_session_id) |
-            (CompletionLink.activity_id == body.activity_id if body.activity_id else CompletionLink.manual_session_id == body.manual_session_id)))
-    if existing:
-        fail('duplicate_completion', 'Completion already linked', 409)
-    link = CompletionLink(**body.model_dump())
-    session.add(link)
-    bump_data_revision(session)
-    session.commit()
-    return envelope(session, {'id': link.id, **body.model_dump()})
-
-
-@router.delete('/completion-links/{link_id}')
-def delete_completion_link(link_id: uuid.UUID, session: Session = Depends(get_session)) -> dict:
-    from app.services.legacy_cutover import require_legacy_write
-    require_legacy_write(session)
-    link = session.get(CompletionLink, link_id)
-    if not link:
-        fail('not_found', 'Completion link not found', 404)
-    session.delete(link)
-    bump_data_revision(session)
-    session.commit()
-    return envelope(session, {'deleted': True})
-
-
 @router.get('/conflicts')
 def get_conflicts(session: Session = Depends(get_session)) -> dict:
     rows = session.scalars(select(Conflict).order_by(desc(Conflict.id)).limit(200)).all()
