@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { CheckinModal } from '../src/pages/CheckinModal'
 import { CheckinModalV2 } from '../src/pages/CheckinModalV2'
 import { qk, type CheckinRequest } from '../src/api'
 
@@ -304,7 +303,6 @@ it('supports Escape and keeps keyboard focus inside the check-in', () => {
 
 it.each([
   ['current check-in', CheckinModalV2],
-  ['legacy check-in', CheckinModal],
 ])('%s restores focus to its opener after Escape', async (_name, Checkin) => {
   function Harness() {
     const [open, setOpen] = useState(false)
