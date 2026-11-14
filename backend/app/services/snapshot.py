@@ -607,6 +607,65 @@ def _exception_summary(inputs: SnapshotInputs) -> dict:
     }
 
 
+def _event_payload(inputs: SnapshotInputs, event: dict | None, day: date, activity_id: Any) -> dict:
+    if activity_id is not None:
+        candidates = [r for r in inputs.runs if str(r["activity_id"]) == str(activity_id)]
+    else:
+        candidates = [r for r in inputs.runs if r.get("local_date") is not None and _day(r["local_date"]) == day]
+    run = max(candidates, key=lambda r: (r.get("distance_m") or 0, str(r["activity_id"])), default=None)
+    matched = None
+    if run is not None:
+        start_at = run.get("start_at")
+        matched = {
+            "id": run["activity_id"],
+            "start_local": _instant(start_at).astimezone(ZoneInfo(inputs.timezone)).isoformat() if start_at else None,
+            "distance_m": run.get("distance_m"),
+            "duration_s": run.get("timer_s"),
+            "rpe": run.get("rpe"),
+            "rpe_source": run.get("rpe_source"),
+        }
+    last = day + timedelta(days=3)
+    checkins = [
+        {
+            **_view(c, ("observed_at", "kind", "fatigue", "illness", "gait_change")),
+            "symptoms": [
+                {"site_key": _site_key(s), "severity": s.get("severity"), "timing": s.get("timing")}
+                for s in c.get("symptoms", [])
+            ],
+        }
+        for c in inputs.checkins
+        if _between(c.get("local_date"), day, last)
+    ]
+    nights = [
+        _metric_view(m)
+        for m in inputs.metric_results
+        if m.get("metric_id") == "recovery_multisignal_summary"
+        and m.get("subject_type") == "night"
+        and str(m.get("subject_key", "")).startswith("night:")
+        and _between(str(m["subject_key"]).split(":", 1)[1], day - timedelta(days=1), last)
+    ]
+    event_keys = ("event_id", "name", "event_date", "distance_m", "priority", "status", "result_s")
+    return {
+        "event": _view(event, event_keys, names={"event_id": "id"}) if event else None,
+        "matched_activity": matched,
+        "checkins_after": checkins,
+        "recovery_nights": nights,
+    }
+
+
+def _event_section(inputs: SnapshotInputs) -> dict | None:
+    due = {
+        str(f.get("entity_key") or "").removeprefix("event:")
+        for f in inputs.exception_findings
+        if f.get("rule_code") == "POST_EVENT_REVIEW_DUE" and f.get("status") in NON_TERMINAL_FINDING
+    }
+    events = [e for e in inputs.events if str(e.get("event_id")) in due]
+    if not events:
+        return None
+    event = max(events, key=lambda e: (str(e.get("event_date")), str(e.get("event_id"))))
+    return _event_payload(inputs, event, _day(event["event_date"]), None)
+
+
 def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
     if operation not in OPERATIONS:
         raise ValueError("unsupported_operation")
@@ -762,6 +821,8 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         payload["exceptions"] = _exceptions_section(inputs)
     if operation in {ROLLING, BLOCK}:
         payload["exception_summary"] = _exception_summary(inputs)
+    if operation == POST_EVENT:
+        payload["event"] = _event_section(inputs)
     return _privacy(_wire(payload))
 
 

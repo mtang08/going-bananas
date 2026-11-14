@@ -440,7 +440,7 @@ def test_projection_sections_per_operation() -> None:
         EXCEPTION: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions",
                     "exceptions"},
         POST_EVENT: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions",
-                     "exceptions"},
+                     "exceptions", "event"},
     }
     for operation, sections in expectations.items():
         assert set(build_payload(inputs(), operation)) == common | sections
@@ -722,3 +722,42 @@ def test_exception_summary_counts() -> None:
     assert len(summary["findings"]) == 30
     assert summary["open_escalations"] == 1
     assert summary["patches"][0]["changes_count"] == 2
+
+
+def test_event_section() -> None:
+    def event(event_id: str, days: int, name: str) -> dict:
+        return {"event_id": event_id, "name": name, "event_date": AS_OF - timedelta(days=days), "distance_m": 10000,
+                "priority": "target", "status": "completed", "result_s": 2700}
+
+    runs = [
+        {"activity_id": "a10k", "local_date": AS_OF - timedelta(days=2), "sport": "running", "timer_s": 2700,
+         "distance_m": 10000, "rpe": 9.0, "rpe_source": "manual", "start_at": datetime(2026, 11, 14, 13, tzinfo=UTC)},
+        {"activity_id": "a2k", "local_date": AS_OF - timedelta(days=2), "sport": "running", "timer_s": 720,
+         "distance_m": 2000, "rpe": 3.0, "rpe_source": "manual", "start_at": datetime(2026, 11, 14, 12, tzinfo=UTC)},
+    ]
+    checkins = [
+        {"checkin_id": f"c{days}", "observed_at": NOW - timedelta(days=days), "local_date": AS_OF - timedelta(days=days),
+         "kind": "post_run", "fatigue": 6.0, "illness": "none", "gait_change": "no", "activity_id": None,
+         "symptoms": [{"site": "Calf", "side": "left", "severity": 2.0, "timing": "next_morning"}]}
+        for days in (2, 1, 7)
+    ]
+    nights = [
+        {"result_id": f"n{d}", "metric_id": "recovery_multisignal_summary", "method_version": "v1",
+         "subject_type": "night", "subject_key": f"night:{AS_OF - timedelta(days=d)}", "window_label": None,
+         "status": "available", "quality_status": "good", "value": {"flags": []}, "unit": None, "reason_codes": [],
+         "quality_flags": [], "anchor_keys": [], "calculated_at": NOW}
+        for d in range(5)
+    ]
+    source = inputs(events=[event("e1", 2, "Synthetic 10K"), event("e0", 5, "Synthetic 5K")],
+                    exception_findings=[finding(0, rule="POST_EVENT_REVIEW_DUE", entity="event:e1")],
+                    runs=runs, checkins=checkins, metric_results=nights)
+    section = build_payload(source, POST_EVENT)["event"]
+    assert section["event"]["id"] == "e1" and section["event"]["name"] == "Synthetic 10K"
+    assert section["matched_activity"]["distance_m"] == 10000
+    assert section["matched_activity"]["start_local"] == "2026-11-14T08:00:00-05:00"
+    assert len(section["checkins_after"]) == 2
+    assert section["checkins_after"][0]["symptoms"] == [
+        {"site_key": "calf|left", "severity": 2.0, "timing": "next_morning"}]
+    assert {m["subject_key"] for m in section["recovery_nights"]} == {
+        f"night:{AS_OF - timedelta(days=d)}" for d in (3, 2, 1, 0)}
+    assert build_payload(inputs(), POST_EVENT)["event"] is None
