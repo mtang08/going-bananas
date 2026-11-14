@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.domain.cycle import opportunity
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
+from app.services.block_benchmark import BenchmarkOutcome
 from app.services.calendar_structure import StructureError, expand_structure
 from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, LadderLevel, PatchCategory, Severity
@@ -130,6 +131,16 @@ class BlockConstraint(Strict):
     text: str
 
 
+class BlockBenchmark(Strict):
+    kind: Literal["time_trial", "event"]
+    event_id: uuid.UUID | None = None
+    protocol: str = Field(max_length=300)
+    distance_m: int | None = None
+    planned_date: date
+    progress_if: str = Field(max_length=300)
+    consolidate_if: str = Field(max_length=300)
+
+
 class BlockVersionFields(Strict):
     status: Literal["draft", "active", "consolidating", "completed", "replaced", "ended"]
     objective: str
@@ -144,6 +155,7 @@ class BlockVersionFields(Strict):
     completion_indicators: list[str]
     early_review_triggers: list[str]
     objective_status: Literal["unresolved", "partially_achieved", "achieved", "not_achieved"]
+    benchmark: BlockBenchmark | None = None
 
 
 class BlockChange(Strict):
@@ -204,6 +216,8 @@ class ExceptionBlock(Strict):
 class EventReview(Strict):
     event_id: uuid.UUID
     activity_id: uuid.UUID | None = None
+    outcome: BenchmarkOutcome | None = None
+    compared_with: str | None = Field(default=None, max_length=300)
     pacing: str = Field(max_length=600)
     effort_and_limiter: str = Field(max_length=600)
     conditions: str | None = Field(default=None, max_length=400)
@@ -1200,6 +1214,7 @@ def _save_block(
         session.flush()
     fields = change.version_fields.model_dump(mode="python")
     fields["constraints"] = [item.model_dump() for item in change.version_fields.constraints]
+    fields["benchmark"] = change.version_fields.benchmark.model_dump(mode="json") if change.version_fields.benchmark else None
     if old:
         previous = session.get(BlockVersion, old.version_id)
         assert previous is not None

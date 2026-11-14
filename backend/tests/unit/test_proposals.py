@@ -5,14 +5,19 @@ import uuid
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
+from typing import get_args
 from zoneinfo import ZoneInfo
 
 import pytest
 
+from app.services.block_benchmark import BenchmarkOutcome, BenchmarkSpec, benchmark_spec
 from app.services.calendar_structure import expand_structure
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, fingerprint
 from app.services.proposals import (
     ActiveBlock,
+    BlockBenchmark,
+    EventReview,
     HeadSession,
     SnapshotRef,
     ValidationContext,
@@ -176,6 +181,10 @@ def exc_ctx(op: str = "exception_review") -> ValidationContext:
 EVENT = {"event_id": str(U(500)), "activity_id": None, "pacing": "Even", "effort_and_limiter": "RPE 9, breathing",
          "conditions": None, "symptoms": None, "recovery_observation": "Normal walking", "recalibration": "defer",
          "training_implication": "Easy until fresh"}
+
+
+BENCH = {"kind": "time_trial", "protocol": "5 km solo time trial", "planned_date": "2026-12-26",
+         "progress_if": "Under 22:00", "consolidate_if": "Over 22:30"}
 
 
 def test_valid_rolling_proposal_is_pending() -> None:
@@ -715,3 +724,23 @@ def test_v14_post_event_review_allows_anchors() -> None:
     doc["anchor_changes"] = [ANCHOR]
     assert outcome(doc, exc_ctx("review_rolling_plan")) == (
         "invalid", [("V14.anchor_change_not_allowed", "anchor_changes")])
+
+
+def test_block_benchmark_round_trips_through_benchmark_spec() -> None:
+    cases = [
+        ({**BENCH, "kind": "event", "event_id": str(U(500)), "distance_m": 5000},
+         BenchmarkSpec("event", U(500), "5 km solo time trial", 5000, date(2026, 12, 26))),
+        (BENCH, BenchmarkSpec("time_trial", None, "5 km solo time trial", None, date(2026, 12, 26))),
+    ]
+    for raw, expected in cases:
+        dumped = BlockBenchmark.model_validate(raw).model_dump(mode="json")
+        assert benchmark_spec(SimpleNamespace(benchmark=dumped)) == expected
+
+
+def test_event_review_outcome_vocabulary() -> None:
+    assert BenchmarkOutcome in get_args(EventReview.model_fields["outcome"].annotation)
+    doc = valid_doc("review_training_block")
+    doc["event_review"] = {**EVENT, "outcome": "great"}
+    status, issues = outcome(doc)
+    assert status == "invalid"
+    assert issues and all(code == "V1.schema" for code, _ in issues)
