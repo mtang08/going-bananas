@@ -6,15 +6,16 @@ import re
 import statistics
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app.api.core import current_profile, fail, profile_data
 from app.domain.cycle import recurring_sessions
+from app.errors import fail
 from app.models import AppState
 from app.planning_models import StrengthRoutineSlot
+from app.services.profile import current_profile, profile_data
+from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
 LOCK_ID = 71382413
@@ -93,8 +94,7 @@ def routine_view(session: Session) -> dict:
     if version:
         return {'version': version, 'slots': [_slot_data(row) for row in _current_slots(session)],
                 'suggested': False, 'schedule': confirmed_schedule(session)}
-    profile = current_profile(session)
-    today = datetime.now(UTC).astimezone(ZoneInfo(profile.timezone if profile else 'America/New_York')).date()
+    today = datetime.now(UTC).astimezone(athlete_tz(session)).date()
     rows = session.scalars(select(StrongWorkoutRow).where(
         StrongWorkoutRow.resolution_state == 'resolved',
         StrongWorkoutRow.local_date.between(today - timedelta(days=55), today))
