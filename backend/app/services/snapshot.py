@@ -15,7 +15,6 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
-from app.api.core import coverage
 from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin as CheckinV2
 from app.checkin_models import SessionRpe, SymptomReport
@@ -34,6 +33,7 @@ from app.planning_models import (
     StrengthRoutineSlot,
 )
 from app.services.calendar import state_at
+from app.services.coverage import coverage
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection

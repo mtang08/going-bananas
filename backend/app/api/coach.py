@@ -10,9 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.api.core import envelope, fail
+from app.api.core import envelope
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachProposalRevision, CoachSnapshot
 from app.db import get_session
+from app.errors import fail
 from app.exception_models import ExceptionPatch
 from app.models import AppState
 from app.services import calendar, knowledge, proposals

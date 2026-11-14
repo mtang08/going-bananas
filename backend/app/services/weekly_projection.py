@@ -8,12 +8,12 @@ from datetime import timedelta
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.api.core import current_profile
 from app.calendar_models import SessionCompletion
 from app.metrics.engine import activities_coverage_complete, load_runs
 from app.models import AppState, ManualSession
 from app.services import calendar
 from app.services.calendar_structure import StructureError, expand_structure
+from app.services.timezone import athlete_tz
 
 
 def _positive(value: object) -> float | None:
@@ -80,8 +80,7 @@ def weekly_projection(session: Session) -> dict:
     today = calendar._today(session)
     week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)
-    profile = current_profile(session)
-    timezone = profile.timezone if profile else 'America/New_York'
+    timezone = athlete_tz(session).key
     state = session.get(AppState, 1)
     head = state.calendar_head_version if state else 0
     planned = calendar.state_at(session, head)

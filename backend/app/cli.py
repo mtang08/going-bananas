@@ -23,7 +23,7 @@ from app.models import Activity, AppState, ProfileVersion
 from app.services.backup import BackupError, create_backup, restore_backup
 from app.services.export_import import import_export
 from app.services.sync import ADVISORY_LOCK, enqueue_catchup, enqueue_sync, import_activity_page, run_one_job
-from app.services.timezone import local_date
+from app.services.timezone import DEFAULT_TIMEZONE, local_date
 
 
 def _scope() -> str:
@@ -90,7 +90,7 @@ def _parse() -> argparse.Namespace:
     restore.add_argument("--target-database-name", required=True)
     restore.add_argument("--target-private-dir", required=True, type=Path)
     profile = sub.add_parser("init-profile")
-    profile.add_argument("--timezone", default="America/New_York")
+    profile.add_argument("--timezone", default=DEFAULT_TIMEZONE)
     profile.add_argument("--facts-file", type=Path)
     metrics = sub.add_parser("metrics-recompute")
     metrics.add_argument("--metric", default="all")
@@ -310,7 +310,7 @@ def main() -> int:
                     if state.calendar_head_version == 0 and session.scalar(select(Activity.id).limit(1)):
                         raise ValueError("calendar_preview_requires_empty_activities")
                     from app.demo_seed import seed_demo
-                    today = local_date(datetime.now(UTC), ZoneInfo("America/New_York"))
+                    today = local_date(datetime.now(UTC), ZoneInfo(DEFAULT_TIMEZONE))
                     counts = seed_demo(session, settings.private_dir, today)
                 else:
                     state = session.get(AppState, 1)

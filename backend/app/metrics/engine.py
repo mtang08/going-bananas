@@ -37,6 +37,7 @@ from app.models import (
     RawObject,
     SourceRecord,
 )
+from app.services.timezone import athlete_tz
 
 METRIC_MODULES = ('volume', 'long_run', 'srpe', 'symptoms', 'intensity', 'intervals', 'recovery', 'planned_actual', 'spacing')
 
@@ -122,8 +123,7 @@ def parse_scope(scope: str) -> tuple[str, str | tuple[date, ...] | uuid.UUID | N
 
 
 def _profile_timezone(session: Session) -> str:
-    profile = session.scalar(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1))
-    return profile.timezone if profile else 'America/New_York'
+    return athlete_tz(session).key
 
 
 def _activity_sources(session: Session, activity_id: uuid.UUID) -> list[dict[str, Any]]:

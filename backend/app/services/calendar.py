@@ -7,19 +7,20 @@ import uuid
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import desc, func, select, text
 from sqlalchemy.orm import Session
 
-from app.api.core import current_profile, fail
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.config import settings
 from app.domain.cycle import opportunities
+from app.errors import fail
 from app.metrics.engine import load_runs
 from app.models import Activity, AppState, ManualSession
 from app.services.calendar_structure import StructureError, expand_structure
+from app.services.profile import current_profile
 from app.services.strength_routine import routine_occurrences
+from app.services.timezone import athlete_today, athlete_tz
 from app.strong_models import StrongWorkoutRow
 
 LOCK_ID = 71382413
@@ -32,9 +33,7 @@ SUBJECTS = {'activity_id': Activity, 'strong_workout_id': StrongWorkoutRow,
 
 
 def _today(session: Session, now: datetime | None = None) -> date:
-    profile = current_profile(session)
-    timezone = ZoneInfo(profile.timezone if profile else 'America/New_York')
-    return (now or datetime.now(UTC)).astimezone(timezone).date()
+    return athlete_today(session, now)
 
 
 def _lock(session: Session, expected_head: int | None = None) -> AppState:
@@ -210,10 +209,9 @@ def calendar_view(session: Session, start: date, end: date, version: int | None 
             if changes or protected:
                 undo = {'target_version': latest_version.parent_number,
                         'eligible': bool(changes), 'protected_session_uids': protected}
-    profile = current_profile(session)
     versions = session.scalars(select(CalendarVersion).where(CalendarVersion.number <= head)
         .order_by(desc(CalendarVersion.number)).limit(50)).all()
-    return {'today': _today(session), 'timezone': profile.timezone if profile else 'America/New_York',
+    return {'today': _today(session), 'timezone': athlete_tz(session).key,
         'start': start, 'end': end, 'version': requested, 'head': head,
         'last_planned_date': max((item['local_date'] for item in all_head), default=None),
         'sessions': in_range, 'completions': completions, 'recorded_runs': recorded_runs,

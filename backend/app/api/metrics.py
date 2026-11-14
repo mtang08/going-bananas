@@ -10,10 +10,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.api.core import envelope, fail
+from app.api.core import envelope
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.checkin_models import SessionRpe
 from app.db import get_session
+from app.errors import fail
 from app.fit_models import ActivityLap, ActivityWorkoutStep
 from app.metric_models import MetricConfig, MetricResult
 from app.metrics import engine

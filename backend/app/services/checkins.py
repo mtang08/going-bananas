@@ -7,18 +7,18 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, cast
-from zoneinfo import ZoneInfo
 
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.core import current_profile, fail
 from app.checkin_models import Checkin, CheckinRevision, SessionRpe, SymptomReport
+from app.errors import fail
 from app.metric_models import Prompt
 from app.models import Activity, ManualSession
 from app.services.calendar import _lock
+from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
 CONTEXT_TAGS = {'heat', 'travel', 'poor_sleep', 'unusual_surface', 'equipment'}
@@ -289,8 +289,7 @@ def save_manual_rpe(session: Session, *, activity_id: uuid.UUID | None = None,
         if end is None and subject.elapsed_s is not None:
             end = subject.start_at + timedelta(seconds=subject.elapsed_s)
     elif key == 'strong_workout_id' and subject.duration_s is not None:
-        profile = current_profile(session)
-        zone = ZoneInfo(profile.timezone if profile else 'America/New_York')
+        zone = athlete_tz(session)
         try:
             start = datetime.fromisoformat(subject.local_start).replace(tzinfo=zone)
         except ValueError:
@@ -298,8 +297,7 @@ def save_manual_rpe(session: Session, *, activity_id: uuid.UUID | None = None,
         if start is not None:
             end = start.astimezone(UTC) + timedelta(seconds=subject.duration_s)
     elif key == 'manual_session_id' and subject.time is not None and subject.duration_s is not None:
-        profile = current_profile(session)
-        zone = ZoneInfo(profile.timezone if profile else 'America/New_York')
+        zone = athlete_tz(session)
         start = datetime.combine(subject.date, subject.time, tzinfo=zone)
         end = start.astimezone(UTC) + timedelta(seconds=subject.duration_s)
     delay = max(0, int((now - end).total_seconds())) if end is not None and now >= end else None

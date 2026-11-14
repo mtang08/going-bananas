@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
 from fastapi.encoders import jsonable_encoder
@@ -12,9 +11,10 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import desc, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.core import current_profile, envelope, fail
+from app.api.core import envelope
 from app.checkin_models import Checkin
 from app.db import get_session
+from app.errors import fail
 from app.metric_models import Prompt
 from app.services.calendar import _lock
 from app.services.checkins import (
@@ -26,6 +26,7 @@ from app.services.checkins import (
     save_manual_rpe,
 )
 from app.services.exceptions.detector import detection_payload, run_detection
+from app.services.timezone import athlete_tz
 
 router = APIRouter()
 
@@ -64,8 +65,7 @@ def patch_checkin_route(checkin_id: uuid.UUID, body: CheckinPatch,
 @router.get('/v2/checkins')
 def get_checkins(start: date | None = None, end: date | None = None,
                  session: Session = Depends(get_session)) -> dict:
-    profile = current_profile(session)
-    zone = ZoneInfo(profile.timezone if profile else 'America/New_York')
+    zone = athlete_tz(session)
     rows = session.scalars(select(Checkin).order_by(desc(Checkin.observed_at), desc(Checkin.id))).all()
     return envelope(session, {'items': [checkin_data(session, row) for row in rows
         if (start is None or row.observed_at.astimezone(zone).date() >= start)
