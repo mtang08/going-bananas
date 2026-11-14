@@ -764,6 +764,20 @@ def test_event_section() -> None:
     assert build_payload(inputs(), POST_EVENT)["event"] is None
 
 
+def test_exception_sections_size_bounded() -> None:
+    def build(count: int) -> SnapshotInputs:
+        return replace(minimal(), exception_findings=[finding(n) for n in range(count)],
+                       exception_patches=[patch(n) for n in range(7)],
+                       review_recommended=[{"operation": "exception_review", "reason": "r", "finding_ids": ["f0"],
+                                            "prompt": "p"}])
+
+    small, large = build(40), build(120)
+    for operation in (EXCEPTION, ROLLING):
+        assert len(canonical_json(build_payload(small, operation))) == len(canonical_json(build_payload(large, operation)))
+    assert len(canonical_json(build_payload(large, EXCEPTION))) <= 21_000
+    assert len(canonical_json(build_payload(large, ROLLING))) <= 11_000
+
+
 def test_block_benchmark_sections() -> None:
     block = {
         "block_uid": "block-1",
