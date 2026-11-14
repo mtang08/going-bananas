@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { App, parseHash } from '../src/App'
 
@@ -24,7 +24,7 @@ const wrap = (data: unknown) => ({
   data,
 })
 const profile = {
-  planning_authority: 'legacy' as 'legacy' | 'calendar',
+  planning_authority: 'calendar' as 'legacy' | 'calendar',
   version: 1,
   timezone: 'America/New_York',
   cycle_anchor: '2026-11-02',
@@ -164,10 +164,14 @@ const emptyProposal = {
 let requests: { url: string; method: string; body: unknown; headers: Headers }[] = []
 let profileRecord = { ...profile }
 let activityItems: unknown[] = []
+let readyStatus = 200
+let profileStatus = 200
 beforeEach(() => {
   requests = []
   profileRecord = { ...profile }
   activityItems = []
+  readyStatus = 200
+  profileStatus = 200
   responseMode = 'demo'
   importItems = []
   window.location.hash = ''
@@ -183,6 +187,18 @@ beforeEach(() => {
         body: init?.body ? JSON.parse(String(init.body)) : null,
         headers: new Headers(init?.headers),
       })
+      if (url.includes('/health/ready') && readyStatus !== 200)
+        return {
+          ok: false,
+          status: 503,
+          json: async () => wrap({ status: 'unavailable', database: false }),
+        } as Response
+      if (url.includes('/profile') && method === 'GET' && profileStatus !== 200)
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ error: { code: 'internal_error', message: 'boom' } }),
+        } as Response
       if (url.endsWith('/calendar/weekly-projection'))
         return { ok: true, status: 200, json: async () => wrap(weeklyProjection) } as Response
       if (url.includes('/profile') && method === 'PUT')
@@ -265,221 +281,6 @@ function mount(client = new QueryClient({ defaultOptions: { queries: { retry: fa
   )
 }
 
-describe('analytics dashboard', () => {
-  it('uses summary values and discloses partial coverage and demo mode', async () => {
-    mount()
-    await waitFor(() => expect(screen.getAllByText('7.0 mi').length).toBeGreaterThan(0))
-    expect(screen.getAllByText('10.0 mi').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('DEMO DATA').length).toBeGreaterThan(0)
-    expect(screen.getByText(/Some source windows are incomplete/)).toBeInTheDocument()
-    expect(requests.filter((x) => x.url.includes('/summary'))).toHaveLength(1)
-  })
-  it('one-tap check-in sends explicit values with local mutation header and stable key', async () => {
-    mount()
-    await screen.findByRole('heading', { name: 'Your training, in context.' })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Record check-in' })[0])
-    fireEvent.click(screen.getByRole('button', { name: /No issues; usual energy/ }))
-    await waitFor(() => expect(requests.some((x) => x.method === 'POST')).toBe(true))
-    const sent = requests.find((x) => x.method === 'POST')!
-    expect(sent.url).toContain('/checkins')
-    expect(sent.body).toMatchObject({ symptoms: 'none', gait: 'normal', feeling: 'usual' })
-    expect(sent.headers.get('X-Local-Request')).toBe('1')
-    expect((sent.body as { idempotency_key: string }).idempotency_key).toBeTruthy()
-  })
-  it('keeps existing profile values when saving only the display timezone', async () => {
-    mount()
-    fireEvent.click(screen.getByRole('button', { name: 'Data & settings' }))
-    const tz = await screen.findByLabelText('Display timezone')
-    fireEvent.change(tz, { target: { value: 'America/Chicago' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
-    await waitFor(() => expect(requests.some((x) => x.method === 'PUT')).toBe(true))
-    expect(requests.find((x) => x.method === 'PUT')!.body).toMatchObject({
-      timezone: 'America/Chicago',
-      cycle_anchor: '2026-11-02',
-      anchor_confirmed: true,
-      strength_days_confirmed: true,
-      scheduled_strength_days: [0, 4],
-    })
-  })
-  it('saves a confirmed Week A/B pattern once and reloads strength and mobility days', async () => {
-    mount()
-    fireEvent.click(screen.getByRole('button', { name: 'Data & settings' }))
-    fireEvent.change(await screen.findByLabelText('Strength schedule'), {
-      target: { value: 'alternating' },
-    })
-    fireEvent.change(screen.getByLabelText('Week A Monday'), { target: { value: '2026-11-09' } })
-    const weeks = document.querySelectorAll('.schedule-week')
-    const check = (week: Element, label: string, day: string) => {
-      const heading = within(week as HTMLElement).getByText(label)
-      const picker = heading.parentElement!
-      fireEvent.click(within(picker).getByLabelText(day))
-    }
-    check(weeks[0], 'Full-body strength · two days', 'Mon')
-    check(weeks[0], 'Full-body strength · two days', 'Fri')
-    check(weeks[0], 'Required gym mobility', 'Wed')
-    check(weeks[1], 'Full-body strength · two days', 'Tue')
-    check(weeks[1], 'Full-body strength · two days', 'Sat')
-    check(weeks[1], 'Required gym mobility', 'Thu')
-    const optional = screen.getByText('Optional mobility · both weeks').parentElement!
-    fireEvent.click(within(optional).getByLabelText('Sun'))
-    fireEvent.click(screen.getByLabelText('I confirm this repeating strength and mobility pattern'))
-    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
-    await waitFor(() => expect(requests.some((x) => x.method === 'PUT')).toBe(true))
-    expect(requests.find((x) => x.method === 'PUT')!.body).toMatchObject({
-      strength_schedule_mode: 'alternating',
-      strength_week_a_start: '2026-11-09',
-      strength_week_a_days: [0, 4],
-      strength_week_b_days: [1, 5],
-      mobility_week_a_days: [2],
-      mobility_week_b_days: [3],
-      mobility_optional_days: [6],
-      strength_days_confirmed: true,
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Overview' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Data & settings' }))
-    expect(await screen.findByLabelText('Strength schedule')).toHaveValue('alternating')
-    expect(screen.getByLabelText('Week A Monday')).toHaveValue('2026-11-09')
-    expect(
-      within(
-        document.querySelectorAll('.schedule-week')[1].querySelectorAll('.field')[0] as HTMLElement,
-      ).getByLabelText('Sat'),
-    ).toBeChecked()
-  })
-  it('allows a real-mode manual sync with the local mutation header', async () => {
-    responseMode = 'real'
-    mount()
-    fireEvent.click(screen.getByRole('button', { name: 'Data & settings' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }))
-    await waitFor(() =>
-      expect(requests.some((x) => x.url.endsWith('/sync') && x.method === 'POST')).toBe(true),
-    )
-    const sent = requests.find((x) => x.url.endsWith('/sync') && x.method === 'POST')!
-    expect(sent.body).toEqual({})
-    expect(sent.headers.get('X-Local-Request')).toBe('1')
-  })
-  it('loads an archived history window and rejects windows beyond the API limit', async () => {
-    mount()
-    await screen.findByRole('heading', { name: 'Your training, in context.' })
-    fireEvent.click(screen.getByRole('button', { name: 'History' }))
-    fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2019-12-31' } })
-    fireEvent.change(screen.getByLabelText('End date'), { target: { value: '2020-12-31' } })
-    expect(screen.getByText('Choose a window of 366 dates or fewer.')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2020-01-01' } })
-    fireEvent.change(screen.getByLabelText('End date'), { target: { value: '2020-12-30' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Show dates' }))
-    await waitFor(() =>
-      expect(
-        requests.some(
-          (x) =>
-            x.url.includes('/activities?') &&
-            x.url.includes('start_date=2020-01-01') &&
-            x.url.includes('end_date=2020-12-30'),
-        ),
-      ).toBe(true),
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Previous date window' }))
-    await waitFor(() =>
-      expect(
-        requests.filter((x) => x.url.includes('/activities?')).map((x) => x.url),
-      ).toContainEqual(expect.stringContaining('end_date=2019-12-31')),
-    )
-  })
-  it('uses the selected overview year for summary and recovery', async () => {
-    mount()
-    await screen.findByRole('heading', { name: 'Your training, in context.' })
-    fireEvent.click(screen.getByRole('button', { name: '1 year' }))
-    fireEvent.change(screen.getByLabelText('Through date'), { target: { value: '2020-12-31' } })
-    await waitFor(() =>
-      expect(
-        requests.some(
-          (x) =>
-            x.url.includes('/summary?') &&
-            x.url.includes('days=365') &&
-            x.url.includes('as_of=2020-12-31'),
-        ),
-      ).toBe(true),
-    )
-    await waitFor(() =>
-      expect(
-        requests.some(
-          (x) =>
-            x.url.includes('/recovery?') &&
-            x.url.includes('end_date=2020-12-31') &&
-            x.url.includes('start_date=2020-01-02'),
-        ),
-      ).toBe(true),
-    )
-  })
-  it('shows provisional run classification with reasons and leaves manual correction available', async () => {
-    activityItems = [
-      {
-        id: 'run-1',
-        start_at: '2026-11-10T12:00:00Z',
-        local_date: '2026-11-10',
-        sport: 'running',
-        distance_m: 10000,
-        elapsed_s: 3600,
-        moving_s: 3500,
-        moving_pace_s_per_km: 350,
-        workout_label: 'long',
-        classification: {
-          method: 'historical_relative_v1',
-          suggested_label: 'long',
-          effective_label: 'long',
-          label_source: 'heuristic',
-          confidence: 'low',
-          reasons: ['Longer than recent recorded runs.'],
-          metrics: { prior_runs: 3 },
-        },
-        annotations: { version: 0, workout_label: null },
-      },
-    ]
-    mount()
-    fireEvent.click(screen.getByRole('button', { name: 'History' }))
-    expect(await screen.findByText('Auto: long')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Auto: long').closest('tr')!.querySelector('button')!)
-    fireEvent.click(await screen.findByText('Auto: long · details'))
-    expect(screen.getByText('Longer than recent recorded runs.')).toBeInTheDocument()
-    expect(screen.getByLabelText('Workout label')).toHaveValue('long')
-  })
-  it('shows only approved import counts and dates', async () => {
-    importItems = [
-      {
-        id: 'secret-id',
-        source_kind: 'garmin_export',
-        status: 'partial',
-        started_at: '2020-01-01T00:00:00Z',
-        finished_at: '2020-01-02T00:00:00Z',
-        counters: {
-          activities: { seen: 12, new_revisions: 11, changed: 1, rejected: 1 },
-          datasets: {
-            activities: {
-              first_date: '2019-01-01',
-              last_date: '2020-12-31',
-              fully_enumerated: false,
-              raw_path: '/private/secret.zip',
-            },
-          },
-          archive_sha256: 'secret-hash',
-          preserved_only: { unsupported: 2, 'private@example.com': 1 },
-        },
-        filename: 'secret.zip',
-      },
-    ]
-    mount()
-    fireEvent.click(screen.getByRole('button', { name: 'Data & settings' }))
-    expect(await screen.findByText('Garmin export')).toBeInTheDocument()
-    expect(screen.getByText(/Seen 12 · New revisions 11/)).toBeInTheDocument()
-    expect(screen.getByText(/Jan 1, 2019 – Dec 31, 2020/)).toBeInTheDocument()
-    expect(screen.getByText(/Observed dates only; completeness unverified/)).toBeInTheDocument()
-    expect(screen.getByText(/3 recovery entries were preserved/)).toBeInTheDocument()
-    expect(screen.getByText(/Import incomplete/)).toBeInTheDocument()
-    expect(
-      screen.queryByText(/secret-id|secret.zip|secret-hash|private@example.com|\/private/),
-    ).not.toBeInTheDocument()
-  })
-})
-
 describe('authority shell', () => {
   it('opens keyboard-accessible mobile navigation and restores focus on Escape', async () => {
     mount()
@@ -497,39 +298,19 @@ describe('authority shell', () => {
     await waitFor(() => expect(opener).toHaveFocus())
   })
 
-  it('parses only routes permitted by the resolved authority', () => {
-    expect(parseHash('#calendar', 'legacy')).toEqual({ page: 'overview', id: null })
-    expect(parseHash('#coach', 'legacy')).toEqual({ page: 'coach', id: null })
-    expect(parseHash('#cycle', 'calendar')).toEqual({ page: 'home', id: null })
-    expect(parseHash('#activity/run%20one', 'calendar')).toEqual({
-      page: 'activity',
-      id: 'run one',
-    })
-    expect(parseHash('#activity/%ZZ', 'calendar')).toEqual({ page: 'home', id: null })
-    expect(parseHash('#activity/%2F', 'calendar')).toEqual({ page: 'home', id: null })
-    expect(parseHash('#block', 'calendar')).toEqual({ page: 'block', id: null })
-    expect(parseHash('#guide', 'calendar')).toEqual({ page: 'guide', id: null })
-    expect(parseHash(`#proposal/${proposalId}`, 'calendar')).toEqual({
-      page: 'proposal',
-      id: proposalId,
-    })
+  it('parses current routes and sends removed pages home', () => {
+    for (const page of ['calendar', 'trends', 'block', 'settings', 'guide'])
+      expect(parseHash(`#${page}`)).toEqual({ page, id: null })
+    expect(parseHash('#activity/run%20one')).toEqual({ page: 'activity', id: 'run one' })
+    expect(parseHash('#activity/%ZZ')).toEqual({ page: 'home', id: null })
+    expect(parseHash('#activity/%2F')).toEqual({ page: 'home', id: null })
+    expect(parseHash(`#proposal/${proposalId}`)).toEqual({ page: 'proposal', id: proposalId })
     for (const hash of ['#proposal/%ZZ', '#proposal/no-id', `#proposal/${proposalId}/extra`])
-      expect(parseHash(hash, 'calendar')).toEqual({ page: 'home', id: null })
-    expect(parseHash(`#proposal/${proposalId}`, 'legacy')).toEqual({ page: 'overview', id: null })
-  })
-  it('keeps the legacy Coach and Cycle navigation and modal', async () => {
-    mount()
-    fireEvent.click(await screen.findByRole('button', { name: 'Coach' }))
-    expect(await screen.findByRole('heading', { name: 'Plan, train, review.' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Cycle' }))
-    expect(
-      await screen.findByRole('heading', { name: 'Keep the rhythm visible.' }),
-    ).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Record check-in' })[0])
-    expect(screen.getByRole('button', { name: /No issues; usual energy/ })).toBeInTheDocument()
+      expect(parseHash(hash)).toEqual({ page: 'home', id: null })
+    for (const hash of ['#history', '#strength', '#coach', '#overview', '#cycle', '#unknown', ''])
+      expect(parseHash(hash)).toEqual({ page: 'home', id: null })
   })
   it('opens calendar Home, follows navigation hashes, and uses the v2 check-in', async () => {
-    profileRecord = { ...profile, planning_authority: 'calendar' }
     mount()
     expect(await screen.findByTestId('today-card')).toBeInTheDocument()
     expect(screen.getAllByTestId('strip-day')).toHaveLength(14)
@@ -550,13 +331,12 @@ describe('authority shell', () => {
     mount()
     expect(await screen.findByRole('heading', { name: /Run ·/ })).toBeInTheDocument()
     expect(requests.some((x) => x.url.includes('/activities/run-1/execution'))).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: 'Data & settings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
     expect(await screen.findByRole('heading', { name: 'Planning settings' })).toBeInTheDocument()
     expect(await screen.findByLabelText('Display timezone')).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { name: 'Planning settings' })).toHaveLength(1)
   })
   it('opens a saved proposal without applying it and navigates to the block', async () => {
-    profileRecord = { ...profile, planning_authority: 'calendar' }
     window.location.hash = `#proposal/${proposalId}`
     mount()
     expect(await screen.findByText('Keep this plan')).toBeInTheDocument()
@@ -568,23 +348,39 @@ describe('authority shell', () => {
     ).toBeInTheDocument()
     expect(window.location.hash).toBe('#block')
   })
-  it('discards old planning caches and closes the old check-in when authority changes', async () => {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
-    })
-    mount(client)
-    await screen.findByRole('heading', { name: 'Your training, in context.' })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Record check-in' })[0])
-    client.setQueryData(['v2', 'sentinel'], { old: true })
-    client.setQueryData(['legacy', 'sentinel'], { old: true })
-    await act(async () => {
-      client.setQueryData(['profile'], wrap({ ...profile, planning_authority: 'calendar' }))
-    })
-    expect(await screen.findByTestId('today-card')).toBeInTheDocument()
-    expect(client.getQueryData(['v2', 'sentinel'])).toBeUndefined()
-    expect(client.getQueryData(['legacy', 'sentinel'])).toBeUndefined()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(requests.some((request) => request.url.endsWith('/calendar'))).toBe(true)
-    client.clear()
+  it('shows only the five lean navigation items and a Guide link', async () => {
+    mount()
+    await screen.findByTestId('today-card')
+    const primary = screen.getByRole('navigation', { name: 'Primary navigation' })
+    expect(
+      within(primary)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Home', 'Calendar', 'Trends', 'Training block', 'Settings'])
+    expect(screen.getByRole('link', { name: 'Guide' })).toHaveAttribute('href', '#guide')
+    for (const name of ['History', 'Strength', 'Coaching history'])
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+  })
+  it('shows the database banner when readiness fails', async () => {
+    readyStatus = 503
+    mount()
+    expect(
+      await screen.findByText('Database unavailable — start it with make db-start'),
+    ).toBeInTheDocument()
+  })
+  it('shows profile load errors instead of loading forever', async () => {
+    profileStatus = 500
+    mount()
+    expect(
+      await screen.findByText(/Could not load the training workspace: boom/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Loading training workspace…')).not.toBeInTheDocument()
+  })
+  it('asks for the cutover in a legacy workspace', async () => {
+    profileRecord = { ...profile, planning_authority: 'legacy' }
+    mount()
+    expect(await screen.findByTestId('cutover-required')).toBeInTheDocument()
+    expect(screen.queryByTestId('today-card')).not.toBeInTheDocument()
+    expect(requests.some((request) => request.url.endsWith('/calendar'))).toBe(false)
   })
 })

@@ -4,24 +4,9 @@ import type { Completion, ExpandedStep, PlannedStep, SessionKind, SessionMarker,
 import type { DailyGuidance } from './api/types/coach'
 export type Mode = 'demo' | 'real' | 'test'
 export interface Envelope<T> { schema_version: string; data_revision: number; mode: Mode; data: T }
-export interface Coverage { dataset: string; status: string; start_date?: string | null; end_date?: string | null; completed_at?: string | null; reason?: string | null; last_success?: string | null; latest_observation?: string | null; fully_enumerated?: boolean | null }
 export interface RunClassification { method:string; suggested_label:'easy'|'quality'|'long'|'other'|null; effective_label:'easy'|'quality'|'long'|'other'|'unknown'; label_source:'manual'|'source'|'heuristic'|'unknown'; confidence:'confirmed'|'medium'|'low'|'insufficient'; reasons:string[]; metrics?:Record<string,number|string|null> }
 export interface Activity { id: string; start_at: string; local_date: string; sport: string; subtype?: string | null; distance_m: number | null; elapsed_s: number | null; moving_s: number | null; moving_pace_s_per_km: number | null; workout_label?: string | null; classification?:RunClassification; resolution_state?: string; source?: string | null; provenance?: Record<string, unknown>; annotations?: { version: number; workout_label?: string | null; notes?: string | null; excluded?: boolean }; sources?: unknown[] }
-export interface SummaryTotal { distance_m: number; run_count: number; missing_distance_count: number }
-export interface StrengthCoverage { source: string; status: string; reason: string; complete: boolean; observed_manual_count: number; observed_imported_count: number }
-export interface Summary { as_of: string; timezone: string; metric_version: string; window: { start_date: string; end_date: string }; current_week: SummaryTotal; rolling_7: SummaryTotal; rolling_14: SummaryTotal; selected: SummaryTotal & { longest_elapsed_s: number | null; strength_count: number; strength_duration_s: number; strength_unknown_duration_count: number; low_impact_count: number; low_impact_duration_s: number; workout_distribution: Record<string, number> }; weekly: { start_date: string; end_date: string; distance_m: number; run_count: number; missing_distance_count: number; strength_count: number }[]; recent_runs: Activity[]; coverage: Coverage[]; strength_coverage?: StrengthCoverage }
-export interface RecoveryPoint { date: string; value: number; unit: string; statistic: string }
-export interface Recovery { timezone: string; series: Record<'sleep' | 'hrv' | 'resting_hr', RecoveryPoint[]>; trailing_7: Record<'sleep' | 'hrv' | 'resting_hr', { mean: number | null; n: number; days: number }>; coverage: Coverage[] }
-export interface Checkin { id: string; version: number; observed_at: string; recorded_at: string; symptoms: 'none' | 'mild' | 'moderate' | 'severe'; change: string | null; gait: string; feeling: string; effort: number | null; activity_id: string | null; note: string | null; associations: { activity_id: string; kind: string; elapsed_hours: number | null; timing_uncertain: boolean; day_label: string }[] }
 export interface Profile { planning_authority: 'legacy' | 'calendar'; version: number; timezone: string; cycle_anchor: string | null; anchor_confirmed: boolean; strength_days_confirmed: boolean; scheduled_strength_days: number[]; strength_schedule_mode: 'weekly' | 'alternating'; strength_week_a_start: string | null; strength_week_a_days: number[]; strength_week_b_days: number[]; mobility_week_a_days: number[]; mobility_week_b_days: number[]; mobility_optional_days: number[]; facts: Record<string, unknown>; preferences: Record<string, unknown>; unknowns: string[] }
-export interface ManualSession { id: string; version: number; date: string; time: string | null; kind: string; duration_s: number | null; effort: number | null; note: string | null; linked_activity_id: string | null }
-export interface Prescription { intent?: 'easy'|'quality'|'long'|'rest'; purpose?: string; prescription?: string; intensity?: string; duration_minutes?: number; distance_km?: number; steps?: string[]; reason?: string; locked?: boolean; provenance?: string; revision_id?: string; source?: string; optional?: boolean }
-export interface PlanSession { id: string; date: string; kind: string; target?: Prescription | string | null; completion_link_id?: string | null; completion_activity_id?: string | null; completion_manual_session_id?: string | null }
-export interface Plan { id: string; version: number; status: string; start_date: string; end_date: string; profile_version: number; parent_id?: string | null; reason?: string | null; sessions: PlanSession[] }
-export interface AgentReview { actual_vs_plan: string; progression: string; recovery: string; symptoms: string; strength: string; weekly_strategy: string; uncertainty: string[]; follow_up: string[] }
-export interface AgentRevision { id: string; workflow: 'weekly'|'daily'|'rollback'; as_of: string; created_at: string; summary: string; rationale: string; diff: {date: string; kind: string; before: Prescription | null; after: Prescription | null; reason: string}[]; plan_id: string | null; parent_revision_id: string | null; rollback_of_id?: string | null; status: string; engine?: string; source_ids: string[]; review?: AgentReview; warnings?: string[] }
-export interface AgentRevisions { current_revision_id: string | null; revertible_revision_id?: string | null; items: AgentRevision[] }
-export interface Plans { items: Plan[]; opportunities: { date: string; fortnight_index: number; slot: number; kind?:'run';source?:'run_cycle';intent?:'easy'|'quality'|'long';conditional?:boolean;optional?:false }[]; recurring_sessions: {date:string;kind:'strength'|'mobility';source:'recurring_schedule';optional:boolean}[]; unscheduled: boolean }
 export interface SyncDataset { dataset: string; status?: string; last_attempt_at?: string | null; last_success_at?: string | null; newest_observation_at?: string | null; requested_start?: string | null; requested_end?: string | null; fully_enumerated?: boolean | null; reason?: string | null }
 export interface SyncJob { id: string; dataset: string; status: 'queued' | 'running' | 'retry_wait' | 'succeeded' | 'failed'; error_code?: string | null }
 export interface SyncStatus { datasets?: SyncDataset[]; active_jobs?: SyncJob[] }
@@ -34,9 +19,6 @@ export function validDate(value: string): boolean {
   const [year, month, day] = value.split('-').map(Number)
   const date = new Date(Date.UTC(year, month - 1, day))
   return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day
-}
-export function windowDays(start: string, end: string): number {
-  return Math.round((Date.parse(`${end}T12:00:00Z`) - Date.parse(`${start}T12:00:00Z`)) / 86400000) + 1
 }
 
 export interface ApiFieldError { code?:string; path?:string; field?:string; message:string }
