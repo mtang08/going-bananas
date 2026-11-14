@@ -6,6 +6,7 @@ import {
   fmtDistance,
   fmtDuration,
   MARKER_LABELS,
+  pageHref,
   sessionMarker,
   sessionTitle,
   type CalendarView,
@@ -131,6 +132,8 @@ export function SessionSummary({
 }
 export function WeekOverview({ view, unit }: { view: CalendarView; unit: Unit }) {
   const start = mondayOfWeek(view.today)
+  const plannedUids = new Set(view.sessions.filter((s) => !s.deleted).map((s) => s.session_uid))
+  const linkedActivityIds = new Set(view.completions.map((c) => c.activity_id).filter(Boolean))
   return (
     <div className="plan-overview space-y-5">
       {[0, 1].map((week) => (
@@ -147,6 +150,13 @@ export function WeekOverview({ view, unit }: { view: CalendarView; unit: Unit })
               const sessions = view.sessions
                 .filter((s) => !s.deleted && s.local_date === day)
                 .sort((a, b) => a.slot - b.slot)
+              const extra = view.completions.filter(
+                (c) =>
+                  c.status === 'extra' && c.local_date === day && !plannedUids.has(c.session_uid),
+              )
+              const recorded = (view.recorded_runs ?? []).filter(
+                (run) => run.local_date === day && !linkedActivityIds.has(run.activity_id),
+              )
               return (
                 <div
                   className={`plan-day${day === view.today ? ' is-today' : ''}`}
@@ -158,7 +168,9 @@ export function WeekOverview({ view, unit }: { view: CalendarView; unit: Unit })
                     {dateLabel(day, { weekday: 'short', day: 'numeric' })}
                     {day === view.today && <small>Today</small>}
                   </h3>
-                  {sessions.length === 0 && <span className="day-empty">No session</span>}
+                  {sessions.length === 0 && extra.length === 0 && recorded.length === 0 && (
+                    <span className="day-empty">No session</span>
+                  )}
                   {sessions.map((s) => (
                     <SessionSummary
                       key={s.session_uid}
@@ -167,6 +179,26 @@ export function WeekOverview({ view, unit }: { view: CalendarView; unit: Unit })
                       today={view.today}
                       unit={unit}
                     />
+                  ))}
+                  {recorded.map((run) => (
+                    <article className="plan-session kind-run" key={run.activity_id}>
+                      <strong>Recorded run</strong>
+                      <div className="plan-session-amounts">
+                        <span>{fmtDistance(run.distance_m, unit)}</span>
+                        <span>{fmtDuration(run.timer_s)}</span>
+                      </div>
+                      <a href={pageHref.activity(run.activity_id)}>Open run</a>
+                    </article>
+                  ))}
+                  {extra.map((c) => (
+                    <article className="plan-session" key={c.id}>
+                      <strong>
+                        {c.activity_id
+                          ? 'Extra run (not in the plan)'
+                          : 'Extra workout (not in the plan)'}
+                      </strong>
+                      {c.activity_id && <a href={pageHref.activity(c.activity_id)}>Open run</a>}
+                    </article>
                   ))}
                 </div>
               )

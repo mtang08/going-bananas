@@ -373,6 +373,7 @@ export function sessionMarker(
   if (c?.status === 'partial') return 'partial'
   if (c?.status === 'moved') return 'moved'
   if (c?.status === 'skipped') return 'missed'
+  if (c?.activity_id || c?.strong_workout_id || c?.manual_session_id) return 'recorded'
   return s.local_date < today ? 'not_recorded' : 'planned'
 }
 export function invalidateKeys(qc: QueryClient, keys: readonly (readonly unknown[])[]): void {
