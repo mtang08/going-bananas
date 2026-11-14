@@ -1009,31 +1009,9 @@ def _load_strong_workouts(strong_rows: Sequence[StrongWorkoutRow], rpe_rows: Seq
     return strong
 
 
-def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInputs:
-    from app.calendar_models import LegacyImportMap
+def _load_runs(session: Session, first: date, as_of: date, rpe_rows: Sequence[SessionRpe]) -> list[dict]:
     from app.metrics.engine import load_runs
-    from app.models import Checkin as LegacyCheckin
 
-    zone = athlete_tz(session)
-    state = session.get(AppState, 1)
-    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
-    head = state.calendar_head_version if state else 0
-    first = as_of - timedelta(days=120)
-    sessions = _load_sessions(session, head, first, as_of)
-    completions = _load_completions(session)
-    slots = _load_strength_slots(session)
-    strong_rows = session.scalars(
-        select(StrongWorkoutRow)
-        .where(
-            StrongWorkoutRow.local_date >= first,
-            StrongWorkoutRow.local_date <= as_of,
-            StrongWorkoutRow.resolution_state == "resolved",
-        )
-        .order_by(StrongWorkoutRow.local_date, StrongWorkoutRow.id)
-    ).all()
-    rpe_rows = session.scalars(select(SessionRpe).order_by(SessionRpe.collected_at, SessionRpe.id)).all()
-
-    strong = _load_strong_workouts(strong_rows, rpe_rows)
     run_facts = load_runs(session, first, as_of + timedelta(days=1))
     activities = (
         {
@@ -1064,6 +1042,12 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for f in run_facts
     ]
+    return runs
+
+
+def _load_checkins(session: Session, now: datetime, zone: ZoneInfo) -> list[dict]:
+    from app.calendar_models import LegacyImportMap
+
     imported_ids = {
         row.target_id
         for row in session.scalars(select(LegacyImportMap).where(LegacyImportMap.source_table == "checkins"))
@@ -1099,6 +1083,12 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in checkin_rows
     ]
+    return checkins
+
+
+def _load_legacy_checkins(session: Session, now: datetime) -> list[dict]:
+    from app.models import Checkin as LegacyCheckin
+
     legacy_rows = session.scalars(
         select(LegacyCheckin)
         .where(LegacyCheckin.observed_at >= now - timedelta(hours=72), LegacyCheckin.observed_at <= now)
@@ -1120,6 +1110,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in legacy_rows
     ]
+    return legacy
+
+
+def _load_prompts(session: Session, now: datetime) -> list[dict]:
     prompt_rows = session.scalars(
         select(Prompt)
         .where(Prompt.opens_at >= now - timedelta(days=120), Prompt.opens_at <= now)
@@ -1129,6 +1123,34 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         _view(row, ("id", "kind", "activity_id", "status", "opens_at", "closes_at"), names={"id": "prompt_id"})
         for row in prompt_rows
     ]
+    return prompts
+
+
+def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInputs:
+    zone = athlete_tz(session)
+    state = session.get(AppState, 1)
+    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
+    head = state.calendar_head_version if state else 0
+    first = as_of - timedelta(days=120)
+    sessions = _load_sessions(session, head, first, as_of)
+    completions = _load_completions(session)
+    slots = _load_strength_slots(session)
+    strong_rows = session.scalars(
+        select(StrongWorkoutRow)
+        .where(
+            StrongWorkoutRow.local_date >= first,
+            StrongWorkoutRow.local_date <= as_of,
+            StrongWorkoutRow.resolution_state == "resolved",
+        )
+        .order_by(StrongWorkoutRow.local_date, StrongWorkoutRow.id)
+    ).all()
+    rpe_rows = session.scalars(select(SessionRpe).order_by(SessionRpe.collected_at, SessionRpe.id)).all()
+
+    strong = _load_strong_workouts(strong_rows, rpe_rows)
+    runs = _load_runs(session, first, as_of, rpe_rows)
+    checkins = _load_checkins(session, now, zone)
+    legacy = _load_legacy_checkins(session, now)
+    prompts = _load_prompts(session, now)
     metric_keys = (
         {f"w{n}:{as_of.isoformat()}" for n in (7, 14, 28, 56, 84)}
         | {f"w{n}:{as_of.isoformat()}:{kind}" for n in (7, 14, 28, 56, 84) for kind in ("run", "strength")}
