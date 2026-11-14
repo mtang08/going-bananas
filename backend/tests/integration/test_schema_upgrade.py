@@ -449,3 +449,77 @@ def test_single_open_upgrade_archives_older_drafts_and_preserves_history(isolate
     with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
         _migration(connection, '0016_proposal_revisions', down=True)
     connection.rollback()
+
+
+def test_exception_schema_constraints_and_downgrade_guard(isolated_schema):
+    connection = isolated_schema
+    _migration(connection, HEAD)
+    connection.commit()
+    snapshot = dict(as_of=STAMP.date(), generated_at=STAMP, calendar_version_number=0, data_revision=0, payload='{}',
+        source_fingerprint='a'*64, source_versions='{}', kb_digest='b'*64, payload_sha256='c'*64,
+        kb_package_version='test', kb_routes='[]', approx_tokens=0)
+    snapshot_id = _insert(connection, 'coach_snapshots', operation='exception_review', **snapshot)
+    proposal_id = _insert(connection, 'coach_proposals', operation='post_event_review', escalation='exception_review',
+        snapshot_id=snapshot_id, base_calendar_version=0, status='accepted', submitted_at=STAMP, summary='s',
+        rationale='r', confidence='{}', payload='{"changes":[]}', skill_version='running-coach.v1', input_hash='e'*64)
+    patch_id = _insert(connection, 'exception_patches', proposal_id=proposal_id, calendar_version_number=1,
+        category='training_response', severity='caution', ladder_level='next_session',
+        window_start=STAMP.date(), window_end=STAMP.date(), reassess_on=STAMP.date())
+    row = connection.execute(text('SELECT status, version, monitor, unchanged FROM exception_patches WHERE id=:id'), {'id': patch_id}).one()
+    assert (row.status, row.version, row.monitor, row.unchanged) == ('open', 1, [], [])
+    finding = dict(rule_code='FATIGUE_HIGH', rule_version='exceptions.v1', category='accumulated_fatigue',
+        severity='observe', entity_key='fatigue', summary='synthetic', evidence='[]', evidence_at=STAMP,
+        first_seen_at=STAMP, last_seen_at=STAMP)
+    _insert(connection, 'exception_findings', **finding, patch_id=patch_id)
+    with pytest.raises(IntegrityError) as caught:
+        with connection.begin_nested():
+            _insert(connection, 'exception_findings', **finding, status='addressed')
+    assert caught.value.orig.diag.constraint_name == 'uq_exception_findings_active'
+    _insert(connection, 'exception_findings', **finding, status='dismissed', closed_at=STAMP)
+    for column, value in [('category', 'other'), ('severity', 'urgent'), ('status', 'closed')]:
+        with pytest.raises(IntegrityError) as caught:
+            with connection.begin_nested():
+                _insert(connection, 'exception_findings', **{**finding, 'entity_key': 'x', column: value})
+        assert caught.value.orig.diag.constraint_name == f'ck_exception_findings_{column}'
+    block_uid = uuid.uuid4()
+    _insert(connection, 'blocks', block_uid=block_uid)
+    _insert(connection, 'block_versions', block_uid=block_uid, version=1, status='active', objective='o', rationale='r',
+        progression_dimension='none', constraints='{}', start_date=STAMP.date(), review_date=STAMP.date(),
+        objective_status='unresolved', benchmark='{"kind":"time_trial","protocol":"5 km solo"}')
+    result = dict(block_uid=block_uid, block_version=1, protocol='5 km solo')
+    _insert(connection, 'block_benchmarks', **result, match_method='manual')
+    for values, name in [(dict(match_method='auto'), 'uq_block_benchmarks_block_version'),
+                         (dict(block_version=2, match_method='auto', outcome='great'), 'ck_block_benchmarks_outcome'),
+                         (dict(block_version=3, match_method='guess'), 'ck_block_benchmarks_match_method')]:
+        with pytest.raises(IntegrityError) as caught:
+            with connection.begin_nested():
+                _insert(connection, 'block_benchmarks', **{**result, **values})
+        assert caught.value.orig.diag.constraint_name == name
+    connection.commit()
+    with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
+        _migration(connection, '0017_single_open_proposal', down=True)
+    connection.rollback()
+    connection.execute(text('DELETE FROM exception_findings'))
+    connection.execute(text('DELETE FROM exception_patches'))
+    connection.execute(text('DELETE FROM block_benchmarks'))
+    connection.execute(text('UPDATE block_versions SET benchmark = NULL'))
+    connection.commit()
+    with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
+        _migration(connection, '0017_single_open_proposal', down=True)
+    connection.rollback()
+    connection.execute(text('DELETE FROM coach_proposals'))
+    connection.execute(text('DELETE FROM coach_snapshots'))
+    connection.commit()
+    _migration(connection, '0017_single_open_proposal', down=True)
+    connection.commit()
+    assert not connection.execute(text("SELECT to_regclass('exception_findings') IS NOT NULL")).scalar_one()
+    assert not connection.execute(text("SELECT to_regclass('block_benchmarks') IS NOT NULL")).scalar_one()
+    assert not connection.execute(text("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='block_versions' AND column_name='benchmark' AND table_schema=current_schema())")).scalar_one()
+    with pytest.raises(IntegrityError) as caught:
+        with connection.begin_nested():
+            _insert(connection, 'coach_snapshots', operation='exception_review', **snapshot)
+    assert caught.value.orig.diag.constraint_name == 'ck_coach_snapshots_operation'
+    connection.rollback()
+    _migration(connection, HEAD)
+    connection.commit()
+    assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == HEAD
