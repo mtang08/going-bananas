@@ -160,3 +160,49 @@ def test_sym_multiweek():
     for days in ((2, 9, 16), (6, 13, 20), (0, 7, 14)):
         assert hits(inp(checkins=tuple(chk(d, symptoms=(sym(),)) for d in days)), code) == [('site:achilles|left', 'escalate')]
     assert hits(inp(checkins=tuple(chk(d, symptoms=(sym(),)) for d in (2, 9, 21))), code) == []
+
+
+def test_gait_change():
+    assert hits(inp(checkins=(chk(2, gait='yes'),)), 'GAIT_CHANGE') == [('gait', 'hold')]
+    assert hits(inp(checkins=(chk(3, gait='yes'),)), 'GAIT_CHANGE') == []
+    assert hits(inp(checkins=(chk(gait='unsure'),)), 'GAIT_CHANGE') == []
+
+
+def test_gait_persisting():
+    code = 'GAIT_PERSISTING'
+    assert hits(inp(checkins=(chk(1, 9, gait='yes'), chk(0, 9, gait='yes'))), code) == [('gait', 'escalate')]
+    assert hits(inp(checkins=(chk(0, 8, gait='yes'), chk(0, 20, gait='yes'))), code) == []
+    assert hits(inp(checkins=(chk(1, 13, gait='yes'), chk(0, 9, gait='yes'))), code)
+    assert hits(inp(checkins=(chk(7, gait='yes'), chk(0, gait='yes'))), code) == []
+
+
+def test_illness_possible():
+    code = 'ILLNESS_POSSIBLE'
+    assert hits(inp(checkins=(chk(1, illness='possible'),)), code) == [('illness', 'caution')]
+    assert hits(inp(checkins=(chk(1, illness='possible'), chk(0, illness='none'))), code) == []
+    assert hits(inp(checkins=(chk(2, illness='possible'),)), code) == []
+    assert hits(inp(checkins=(chk(1, illness='possible'), chk(0))), code)
+
+
+def test_illness_present():
+    code = 'ILLNESS_PRESENT'
+    assert hits(inp(checkins=(chk(2, illness='present'),)), code) == [('illness', 'hold')]
+    assert hits(inp(checkins=(chk(3, illness='present'),)), code) == []
+    assert hits(inp(checkins=(chk(2, illness='present'), chk(1, illness='none'))), code) == []
+
+
+def test_illness_prolonged():
+    code = 'ILLNESS_PROLONGED'
+    assert hits(inp(checkins=(chk(9, illness='present'), chk(3, illness='present'))), code) == [('illness', 'escalate')]
+    assert hits(inp(checkins=(chk(8, illness='present'), chk(3, illness='present'))), code) == []
+    assert hits(inp(checkins=(chk(10, illness='present'), chk(0, illness='present'))), code) == []
+
+
+def test_clinician_restriction():
+    code = 'CLINICIAN_RESTRICTION'
+    inputs = inp(clinician_restriction='No running', clinician_restriction_at=at(40))
+    assert hits(inputs, code) == [('clinician_restriction', 'escalate')]
+    assert one(inputs, code).evidence_at == at(40)
+    assert one(inputs, code).summary == 'Clinician restriction on file: No running.'
+    assert hits(inp(), code) == []
+    assert hits(inp(clinician_restriction='No running'), code) == []

@@ -298,12 +298,74 @@ def _sym_multiweek(inputs: DetectionInputs) -> list[Candidate]:
     return out
 
 
+def _gait_change(inputs: DetectionInputs) -> list[Candidate]:
+    checks = [c for c in _ordered(inputs) if c.gait_change == 'yes' and _in_last(c.local_date, inputs.today, 3)]
+    if not checks:
+        return []
+    return [_candidate('GAIT_CHANGE', 'symptoms_illness', 'hold', 'gait', [_ev_checkin(c) for c in checks],
+                       f'Gait change reported on {_d(checks[-1].local_date)}.')]
+
+
+def _gait_persisting(inputs: DetectionInputs) -> list[Candidate]:
+    checks = [c for c in _ordered(inputs) if c.gait_change == 'yes' and _in_last(c.local_date, inputs.today, 7)]
+    if len(checks) < 2 or checks[-1].observed_at - checks[0].observed_at < GAIT_REPEAT_GAP:
+        return []
+    return [_candidate('GAIT_PERSISTING', 'symptoms_illness', 'escalate', 'gait', [_ev_checkin(c) for c in checks],
+                       f'Gait change reported on {len(checks)} check-ins at least 20 hours apart in the last 7 days.')]
+
+
+def _latest_illness(inputs: DetectionInputs, days: int) -> CheckinFact | None:
+    known = [c for c in _ordered(inputs) if c.illness is not None and _in_last(c.local_date, inputs.today, days)]
+    return known[-1] if known else None
+
+
+def _illness_possible(inputs: DetectionInputs) -> list[Candidate]:
+    c = _latest_illness(inputs, 2)
+    if c is None or c.illness != 'possible':
+        return []
+    return [_candidate('ILLNESS_POSSIBLE', 'symptoms_illness', 'caution', 'illness', [_ev_checkin(c)],
+                       f'Possible illness reported on {_d(c.local_date)}.')]
+
+
+def _illness_present(inputs: DetectionInputs) -> list[Candidate]:
+    c = _latest_illness(inputs, 3)
+    if c is None or c.illness != 'present':
+        return []
+    return [_candidate('ILLNESS_PRESENT', 'symptoms_illness', 'hold', 'illness', [_ev_checkin(c)],
+                       f'Illness reported on {_d(c.local_date)}.')]
+
+
+def _illness_prolonged(inputs: DetectionInputs) -> list[Candidate]:
+    checks = [c for c in _ordered(inputs) if c.illness == 'present' and _in_last(c.local_date, inputs.today, 10)]
+    if not checks:
+        return []
+    first, last = min(c.local_date for c in checks), max(c.local_date for c in checks)
+    if (last - first).days < 6:
+        return []
+    return [_candidate('ILLNESS_PROLONGED', 'symptoms_illness', 'escalate', 'illness', [_ev_checkin(c) for c in checks],
+                       f'Illness reported from {_d(first)} to {_d(last)}.')]
+
+
+def _clinician_restriction(inputs: DetectionInputs) -> list[Candidate]:
+    v = inputs.clinician_restriction
+    if v is None or inputs.clinician_restriction_at is None:
+        return []
+    return [_candidate('CLINICIAN_RESTRICTION', 'symptoms_illness', 'escalate', 'clinician_restriction',
+                       [_ev_profile(inputs, inputs.clinician_restriction_at)], f'Clinician restriction on file: {v[:160]}.')]
+
+
 RULES: tuple[tuple[str, Rule], ...] = (
     ('SYM_NEW_SITE', _sym_new_site),
     ('SYM_WORSENING', _sym_worsening),
     ('SYM_PERSISTING', _sym_persisting),
     ('SYM_RECURRENT', _sym_recurrent),
     ('SYM_MULTIWEEK', _sym_multiweek),
+    ('GAIT_CHANGE', _gait_change),
+    ('GAIT_PERSISTING', _gait_persisting),
+    ('ILLNESS_POSSIBLE', _illness_possible),
+    ('ILLNESS_PRESENT', _illness_present),
+    ('ILLNESS_PROLONGED', _illness_prolonged),
+    ('CLINICIAN_RESTRICTION', _clinician_restriction),
 )
 
 
