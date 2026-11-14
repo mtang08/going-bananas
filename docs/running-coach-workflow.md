@@ -128,4 +128,4 @@ research/behavioral evaluation remain deferred.
 See [P0 implementation and verification](p0-implementation.md) for the current
 checkpoint; [live progress](live-progress.md) preserves release history and
 verified evidence. Setup, invocation and rollback commands are in [README](../README.md)
-and the skill's [app-access contract](../skills/going-bananas-coach/references/app-access.md).
+and the skill's [app-access contract](../.codex/skills/going-bananas-coach/references/app-access.md).
