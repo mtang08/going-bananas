@@ -20,13 +20,13 @@ from app.checkin_models import Checkin as CheckinV2
 from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachSnapshot
 from app.domain.athlete_facts import clinical_restriction
-from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
+from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
 from app.metric_models import MetricResult, Prompt
 from app.models import Activity, AppState, ProfileVersion
 from app.planning_models import BlockDecision, BlockVersion, Event, Goal, IntensityAnchor, StrengthRoutineSlot
 from app.services.calendar import state_at
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
-from app.services.exceptions.vocab import NON_TERMINAL_FINDING
+from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection
 from app.services.operations import OPERATIONS
 from app.services.proposals import DecisionError, derive_certainty, is_quality_slot, scope
@@ -449,6 +449,68 @@ def _prior_decisions(inputs: SnapshotInputs, operation: str) -> list[dict]:
     return result
 
 
+def _site_key(symptom: dict) -> str:
+    return f"{str(symptom.get('site') or '').strip().lower()}|{symptom.get('side')}"
+
+
+def _rpe_rows(inputs: SnapshotInputs) -> list[dict]:
+    start = inputs.as_of - timedelta(days=SUMMARY_DAYS - 1)
+    by_activity = {str(c["activity_id"]): c for c in inputs.completions if c.get("activity_id")}
+    sessions = {str(s["session_uid"]): s for s in inputs.sessions}
+    rows = []
+    for run in inputs.runs:
+        if not _between(run.get("local_date"), start, inputs.as_of):
+            continue
+        completion = by_activity.get(str(run["activity_id"]))
+        planned = sessions.get(str(completion["session_uid"])) if completion else None
+        recipe = planned.get("recipe_id") if planned else None
+        cls = classify(planned["kind"], recipe, planned.get("intent")) if planned else None
+        rpe = float(run["rpe"]) if run.get("rpe") is not None else None
+        expected = expected_rpe(recipe, cls) if cls else None
+        rows.append({"activity_id": run["activity_id"], "local_date": run["local_date"], "class": cls, "rpe": rpe,
+                     "rpe_source": run.get("rpe_source"), "expected_rpe": list(expected) if expected else None,
+                     "mismatch": rpe_mismatch(cls, recipe, rpe) if cls else None})
+    rows.sort(key=lambda r: (str(r["local_date"]), str(r["activity_id"])), reverse=True)
+    return rows
+
+
+def _exceptions_section(inputs: SnapshotInputs) -> dict:
+    last = inputs.as_of + timedelta(days=6)
+    findings = sorted(
+        (f for f in inputs.exception_findings if f.get("status") in NON_TERMINAL_FINDING),
+        key=lambda f: (str(f.get("first_seen_at")), str(f.get("id"))),
+        reverse=True,
+    )[:OPEN_FINDINGS_MAX]
+    patches = sorted(
+        (p for p in inputs.exception_patches if p.get("status") in LIVE_PATCH),
+        key=lambda p: (str(p.get("created_at")), str(p.get("id"))),
+        reverse=True,
+    )[:OPEN_PATCHES_MAX]
+    upcoming = []
+    for row in sorted(
+        (s for s in inputs.sessions if _between(s.get("local_date"), inputs.as_of, last)),
+        key=lambda s: (str(s["local_date"]), s.get("slot") or 0, str(s["session_uid"])),
+    ):
+        cls = classify(row.get("kind") or "", row.get("recipe_id"), row.get("intent"))
+        expected = expected_rpe(row.get("recipe_id"), cls)
+        upcoming.append({
+            "session_uid": row["session_uid"],
+            "local_date": row["local_date"],
+            "kind": row.get("kind"),
+            "class": cls,
+            "expected_rpe": list(expected) if expected else None,
+            "certainty": row.get("certainty"),
+        })
+    return {
+        "rule_version": RULE_VERSION,
+        "review_recommended": list(inputs.review_recommended),
+        "open_findings": [{**f, "evidence": list(f.get("evidence") or [])[:FINDING_EVIDENCE_MAX]} for f in findings],
+        "open_patches": patches,
+        "upcoming": upcoming,
+        "recent_rpe": _rpe_rows(inputs)[:RECENT_RPE_MAX],
+    }
+
+
 def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
     if operation not in OPERATIONS:
         raise ValueError("unsupported_operation")
@@ -600,6 +662,8 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         ]
     if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, CALIB, EXCEPTION, POST_EVENT}:
         payload["prior_decisions"] = _prior_decisions(inputs, operation)
+    if operation in {EXCEPTION, POST_EVENT}:
+        payload["exceptions"] = _exceptions_section(inputs)
     return _privacy(_wire(payload))
 
 

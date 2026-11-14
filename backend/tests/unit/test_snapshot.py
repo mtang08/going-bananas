@@ -435,8 +435,10 @@ def test_projection_sections_per_operation() -> None:
         },
         CALIB: {"execution", "prior_decisions"},
         RACE: {"goals_and_constraints", "calendar", "load_shape", "symptoms"},
-        EXCEPTION: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions"},
-        POST_EVENT: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions"},
+        EXCEPTION: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions",
+                    "exceptions"},
+        POST_EVENT: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions",
+                     "exceptions"},
     }
     for operation, sections in expectations.items():
         assert set(build_payload(inputs(), operation)) == common | sections
@@ -646,3 +648,21 @@ def test_prior_decisions_include_exception_reviews() -> None:
     assert [p["proposal_id"] for p in prior] == ["p_r0", "p_r1", "p_e0", "p_e1", "p_e2"]
     assert prior[2]["patch_status"] == "open"
     assert prior[3]["patch_status"] is None
+
+
+
+def test_exception_section_bounded() -> None:
+    findings = [finding(n) for n in range(25)] + [finding(n, status="dismissed") for n in range(25, 28)]
+    recommended = [{"operation": "exception_review", "reason": "r", "finding_ids": ["f0"], "prompt": "p"}]
+    source = replace(minimal(), exception_findings=findings, exception_patches=[patch(n) for n in range(7)],
+                     review_recommended=recommended)
+    section = build_payload(source, EXCEPTION)["exceptions"]
+    assert section["rule_version"] == "exceptions.v1"
+    assert [f["id"] for f in section["open_findings"]] == [f"f{n}" for n in range(20)]
+    assert all(len(f["evidence"]) == 5 for f in section["open_findings"])
+    assert len(section["open_patches"]) == 5
+    assert section["review_recommended"] == recommended
+    assert [(u["kind"], u["class"]) for u in section["upcoming"]] == [
+        ("run", "easy"), ("strength", "strength"), ("run", "easy"), ("strength", "strength")]
+    assert all(u["expected_rpe"] == [2.0, 4.0] for u in section["upcoming"] if u["kind"] == "run")
+    assert all(u["expected_rpe"] is None for u in section["upcoming"] if u["kind"] == "strength")
