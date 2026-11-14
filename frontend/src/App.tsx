@@ -250,9 +250,7 @@ export function App() {
             {page === 'activity' && route.id && (
               <Activity activityId={route.id} unit={unit} onCheckin={openCheckin} />
             )}
-            {page === 'settings' && (
-              <PlanningSettings unit={unit} setUnit={setUnit} onCheckin={openCheckin} />
-            )}
+            {page === 'settings' && <PlanningSettings unit={unit} setUnit={setUnit} />}
           </>
         )}
         <footer className="border-t px-6 py-5 text-center text-xs text-muted-foreground">

@@ -332,9 +332,9 @@ describe('authority shell', () => {
     expect(await screen.findByRole('heading', { name: /Run ·/ })).toBeInTheDocument()
     expect(requests.some((x) => x.url.includes('/activities/run-1/execution'))).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
-    expect(await screen.findByRole('heading', { name: 'Planning settings' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Settings', level: 1 })).toBeInTheDocument()
     expect(await screen.findByLabelText('Display timezone')).toBeInTheDocument()
-    expect(screen.getAllByRole('heading', { name: 'Planning settings' })).toHaveLength(1)
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
   it('opens a saved proposal without applying it and navigates to the block', async () => {
     window.location.hash = `#proposal/${proposalId}`

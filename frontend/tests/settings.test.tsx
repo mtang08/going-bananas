@@ -27,9 +27,9 @@ beforeEach(() => {
   }))
 })
 afterEach(() => { cleanup(); clients.forEach(c => c.clear()); clients.length = 0; vi.unstubAllGlobals() })
-function mount() {
+function mount(setUnit = vi.fn()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); clients.push(client)
-  render(<QueryClientProvider client={client}><PlanningSettings unit="mi" setUnit={vi.fn()} onCheckin={vi.fn()} /></QueryClientProvider>)
+  render(<QueryClientProvider client={client}><PlanningSettings unit="mi" setUnit={setUnit} /></QueryClientProvider>)
   return client
 }
 const input = (id: string, value: string) => fireEvent.change(document.getElementById(id)!, { target: { value } })
@@ -59,8 +59,7 @@ it('reports bootstrap conflict clearly', async () => {
 
 it('preserves alternating recurrence and changes only strength templates after setup', async () => {
   head = 4; profile = { ...profile, strength_schedule_mode: 'alternating', strength_week_a_start: '2026-11-02', strength_week_a_days: [0, 4], strength_week_b_days: [1, 5], mobility_week_a_days: [2], mobility_week_b_days: [3] }; routine.schedule = { ...profile }
-  mount(); await screen.findByTestId('setup-done')
-  expect(screen.getByText(/Calendar created. Current version 4./)).toBeInTheDocument()
+  mount(); await screen.findByRole('heading', { name: 'Strength routine' })
   expect(screen.queryByTestId('setup-wizard')).not.toBeInTheDocument()
   expect(screen.getByText('Week A: Monday, Friday; Week B: Tuesday, Saturday')).toBeInTheDocument()
   input('slot-1-label', 'Full body B revised'); fireEvent.click(screen.getByRole('button', { name: 'Save strength routine' }))
@@ -120,9 +119,13 @@ it('saves review day without losing other profile preferences or recurrence', as
   expect(writes()[0].body).toMatchObject({ preferences: { existing: 'kept', weekly_review_weekday: 0 }, mobility_week_a_days: [2] })
 })
 
-it('keeps existing settings controls available', async () => {
-  mount(); expect(await screen.findByLabelText('Display timezone')).toBeInTheDocument()
+it('saves the display timezone without changing other profile fields', async () => {
+  mount(); await screen.findByLabelText('Display timezone'); input('timezone', 'America/Chicago')
+  fireEvent.click(screen.getByRole('button', { name: 'Save timezone' })); await screen.findByText('Timezone saved.')
+  expect(writes().map(r => [r.method, r.url])).toEqual([['PUT', '/api/v1/profile']])
+  expect(writes()[0].body).toMatchObject({ expected_version: 3, timezone: 'America/Chicago', strength_days_confirmed: true, scheduled_strength_days: [0, 4] })
 })
+
 
 it('shows version conflicts without submitting further setup writes', async () => {
   conflict = 'version_conflict'; mount(); await setup(); await screen.findByText('Settings changed in another tab. Reload and try again.')
@@ -130,7 +133,7 @@ it('shows version conflicts without submitting further setup writes', async () =
 })
 
 it('resets stale routine drafts when a newer saved version arrives', async () => {
-  head = 4; const client = mount(); await screen.findByTestId('setup-done')
+  head = 4; const client = mount(); await screen.findByRole('heading', { name: 'Strength routine' })
   input('slot-0-label', 'Unsaved stale label')
   routine = { ...routine, version: 2, slots: routine.slots.map((s, i) => i === 0 ? { ...s, label: 'Newly saved elsewhere' } : s) }
   await client.invalidateQueries({ queryKey: qk.strengthRoutine })
@@ -146,4 +149,23 @@ it('resets setup drafts when profile or routine versions change', async () => {
   await waitFor(() => expect(document.getElementById('slot-0-label')).toHaveValue('Full body A'))
   expect(document.getElementById('setup-anchor')).toHaveValue('2026-11-09')
   expect(writes()).toHaveLength(0)
+})
+
+it('renders one Settings page without legacy sections', async () => {
+  head = 4; mount(); await screen.findByRole('heading', { name: 'Strength routine' })
+  const h1 = screen.getAllByRole('heading', { level: 1 })
+  expect(h1).toHaveLength(1); expect(h1[0]).toHaveTextContent('Settings')
+  expect(screen.getByRole('link', { name: 'User guide' })).toHaveAttribute('href', '#guide')
+  expect(screen.getByTestId('sync-card')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Record check-in/ })).toBeNull()
+  expect(screen.queryByText('Historical imports')).toBeNull()
+  expect(screen.queryByText('Resolution queue')).toBeNull()
+  expect(screen.queryByText('Import & backup')).toBeNull()
+  expect(screen.getByTestId('anchors-disclosure')).not.toHaveAttribute('open')
+})
+
+it('switches display units', async () => {
+  const setUnit = vi.fn(); mount(setUnit)
+  fireEvent.click(await screen.findByRole('button', { name: 'Kilometers' }))
+  expect(setUnit).toHaveBeenCalledWith('km')
 })

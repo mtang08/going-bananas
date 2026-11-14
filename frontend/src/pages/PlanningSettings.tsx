@@ -1,4 +1,4 @@
-import { Button, Card, Input, NativeSelect } from '../components/ui'
+import { Button, Card, Disclosure, Input, NativeSelect } from '../components/ui'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -38,10 +38,9 @@ import {
   type AnchorProtocol,
   type AnchorConfidence,
   type Unit,
-  type CheckinRequest,
 } from '../api'
 import { QueryState } from '../components/QueryState'
-import { Settings } from './Settings'
+import { SyncCard } from '../components/SyncCard'
 
 type SlotDraft = Omit<StrengthRoutineSlot, 'id' | 'version'>
 const defaults: SlotDraft[] = [0, 4].map((day, i) => ({
@@ -845,8 +844,7 @@ function Anchors({ unit, today, timezone }: { unit: Unit; today: string; timezon
     },
   })
   return (
-    <Card>
-      <h2>Intensity anchors</h2>
+    <>
       <div className="notice muted">
         The app never converts a race time into zones. Zones use the aerobic-upper and
         threshold-lower anchors you enter. Intensity metrics stay not assessable until both anchors
@@ -949,17 +947,72 @@ function Anchors({ unit, today, timezone }: { unit: Unit; today: string; timezon
           </p>
         )}
       </QueryState>
+    </>
+  )
+}
+function Preferences({
+  profile,
+  unit,
+  setUnit,
+}: {
+  profile: Profile
+  unit: Unit
+  setUnit: (u: Unit) => void
+}) {
+  const qc = useQueryClient(),
+    [timezone, setTimezone] = useState(profile.timezone)
+  const save = useMutation({
+    mutationFn: () => put('/profile', { ...profileBody(profile), timezone: timezone.trim() }),
+    onSuccess: () => invalidateKeys(qc, [qk.profile]),
+  })
+  return (
+    <Card>
+      <h2>Preferences</h2>
+      <div className="field">
+        <label htmlFor="timezone">Display timezone</label>
+        <Input id="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+        <small>Use an IANA name, for example America/New_York.</small>
+      </div>
+      <Button variant="outline" disabled={save.isPending} onClick={() => save.mutate()}>
+        Save timezone
+      </Button>
+      <ErrorText error={save.error} />
+      {save.isSuccess && (
+        <p className="success-text" role="status">
+          Timezone saved.
+        </p>
+      )}
+      <h3>Display units</h3>
+      <div className="segmented">
+        <Button
+          variant="ghost"
+          className={
+            unit === 'mi' ? 'active bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+          }
+          onClick={() => setUnit('mi')}
+        >
+          Miles
+        </Button>
+        <Button
+          variant="ghost"
+          className={
+            unit === 'km' ? 'active bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+          }
+          onClick={() => setUnit('km')}
+        >
+          Kilometers
+        </Button>
+      </div>
     </Card>
   )
 }
+
 export function PlanningSettings({
   unit,
   setUnit,
-  onCheckin,
 }: {
   unit: Unit
   setUnit: (unit: Unit) => void
-  onCheckin: (request: CheckinRequest) => void
 }) {
   const calendar = useQuery({
     queryKey: qk.calendarView('head'),
@@ -976,33 +1029,35 @@ export function PlanningSettings({
     p = profile.data?.data,
     r = routine.data?.data
   return (
-    <>
-      <section className="page-content">
-        <div className="page-heading">
-          <h1>Planning settings</h1>
-        </div>
-        {created !== null && (
-          <p className="success-text" role="status">
-            Calendar created (version {created}). Open Home to see today.{' '}
-            <a href={pageHref.home}>Open Home</a>
-          </p>
-        )}
-        {routineSaved && (
-          <p className="success-text" role="status">
-            Strength routine saved.
-          </p>
-        )}
-        <QueryState
-          loading={calendar.isPending || profile.isPending || routine.isPending}
-          error={calendar.error || profile.error || routine.error}
-          stale={!!(view && p && r)}
-          retry={() => {
-            void calendar.refetch()
-            void profile.refetch()
-            void routine.refetch()
-          }}
-        >
-          {view && p && r && (
+    <section className="page-content space-y-5">
+      <div className="page-heading">
+        <h1>Settings</h1>
+        <a href="#guide">User guide</a>
+      </div>
+      {created !== null && (
+        <p className="success-text" role="status">
+          Calendar created (version {created}). Open Home to see today.{' '}
+          <a href={pageHref.home}>Open Home</a>
+        </p>
+      )}
+      {routineSaved && (
+        <p className="success-text" role="status">
+          Strength routine saved.
+        </p>
+      )}
+      <SyncCard />
+      <QueryState
+        loading={calendar.isPending || profile.isPending || routine.isPending}
+        error={calendar.error || profile.error || routine.error}
+        stale={!!(view && p && r)}
+        retry={() => {
+          void calendar.refetch()
+          void profile.refetch()
+          void routine.refetch()
+        }}
+      >
+        {view && p && r && (
+          <>
             <div className="grid halves">
               {view.head === 0 ? (
                 <Setup
@@ -1013,33 +1068,24 @@ export function PlanningSettings({
                   onCreated={setCreated}
                 />
               ) : (
-                <>
-                  <Card data-testid="setup-done">
-                    <h2>Plan setup</h2>
-                    <p>
-                      Calendar created. Current version {view.head}. Change sessions on the Calendar
-                      page.
-                    </p>
-                    <a href={pageHref.calendar}>Open calendar</a>
-                  </Card>
-                  <Routine key={r.version} routine={r} onSaved={() => setRoutineSaved(true)} />
-                </>
+                <Routine key={r.version} routine={r} onSaved={() => setRoutineSaved(true)} />
               )}
+              <Preferences key={p.version} profile={p} unit={unit} setUnit={setUnit} />
               <ReviewDay profile={p} />
               <Goals />
               <Events unit={unit} />
-              <Anchors unit={unit} today={view.today} timezone={p.timezone} />
             </div>
-          )}
-        </QueryState>
-      </section>
-      <div id="existing-settings">
-        <Settings
-          unit={unit}
-          setUnit={setUnit}
-          onCheckin={() => onCheckin({ kind: 'exception', prompt: null, activityId: null })}
-        />
-      </div>
-    </>
+            <Disclosure
+              variant="card"
+              className="training-disclosure"
+              data-testid="anchors-disclosure"
+            >
+              <summary>Intensity anchors</summary>
+              <Anchors unit={unit} today={view.today} timezone={p.timezone} />
+            </Disclosure>
+          </>
+        )}
+      </QueryState>
+    </section>
   )
 }
