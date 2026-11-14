@@ -9,7 +9,6 @@ from typing import Any, Literal, NoReturn
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
@@ -19,7 +18,6 @@ from app.db import bump_data_revision, get_revision, get_session
 from app.domain.analytics import (
     RUN_SPORTS,
     ActivityFact,
-    aggregate,
     pace_s_per_km,
     summary,
     trailing_mean,
@@ -36,7 +34,6 @@ from app.models import (
     Checkin,
     CheckinRevision,
     CompletionLink,
-    Conflict,
     CoverageInterval,
     ImportBatch,
     ManualSession,
@@ -44,11 +41,10 @@ from app.models import (
     PlanVersion,
     ProfileVersion,
     RecoveryObservation,
-    WeeklySnapshot,
 )
 from app.services.coaching import run_intent
 from app.services.run_classification import RunObservation, classify_history
-from app.services.strength_history import recent_strong_context, strong_history
+from app.services.strength_history import strong_history
 from app.services.sync import detect_import_conflicts_for_manual
 from app.strong_models import StrongWorkoutRow
 
@@ -748,230 +744,3 @@ def accept_plan(plan_id: uuid.UUID, body: DecisionInput, session: Session = Depe
 @router.post('/plans/{plan_id}/reject')
 def reject_plan(plan_id: uuid.UUID, body: DecisionInput, session: Session = Depends(get_session)) -> dict:
     return decide_plan(plan_id, body, 'rejected', session)
-
-
-@router.get('/conflicts')
-def get_conflicts(session: Session = Depends(get_session)) -> dict:
-    rows = session.scalars(select(Conflict).order_by(desc(Conflict.id)).limit(200)).all()
-    return envelope(session, {'items': [{'id': c.id, 'kind': c.kind, 'status': c.status,
-        'activity_ids': c.activity_ids, 'manual_session_id': c.manual_session_id,
-        'details': c.details, 'resolution': c.resolution} for c in rows]})
-
-
-class ConflictInput(BaseModel):
-    resolution: Literal['merge','keep_separate','reverse']
-    canonical_activity_id: uuid.UUID | None = None
-
-
-@router.post('/conflicts/{conflict_id}/resolve')
-def resolve_conflict(conflict_id: uuid.UUID, body: ConflictInput, session: Session = Depends(get_session)) -> dict:
-    row = session.get(Conflict, conflict_id, with_for_update=True)
-    if not row:
-        fail('not_found', 'Conflict not found', 404)
-    if body.resolution == 'merge' and not body.canonical_activity_id:
-        fail('canonical_required', 'Choose canonical activity')
-    if body.canonical_activity_id and str(body.canonical_activity_id) not in row.activity_ids:
-        fail('invalid_canonical', 'Canonical activity must be a conflict candidate')
-    candidates = [session.get(Activity, uuid.UUID(activity_id)) for activity_id in row.activity_ids]
-    if body.resolution == 'merge':
-        if not row.details.get('prior_states'):
-            row.details = {**row.details, 'prior_states': {str(a.id): a.resolution_state for a in candidates if a}}
-        for activity in candidates:
-            if activity:
-                activity.resolution_state = 'resolved' if activity.id == body.canonical_activity_id else 'merged'
-        if row.manual_session_id:
-            manual = session.get(ManualSession, row.manual_session_id)
-            if manual:
-                manual.linked_activity_id = body.canonical_activity_id
-    elif body.resolution == 'keep_separate':
-        if not row.details.get('prior_states'):
-            row.details = {**row.details, 'prior_states': {str(a.id): a.resolution_state for a in candidates if a}}
-        for activity in candidates:
-            if activity:
-                activity.resolution_state = 'resolved'
-        if row.manual_session_id:
-            manual = session.get(ManualSession, row.manual_session_id)
-            if manual:
-                manual.linked_activity_id = None
-    else:
-        prior = row.details.get('prior_states', {})
-        for activity in candidates:
-            if activity:
-                activity.resolution_state = prior.get(str(activity.id), 'pending')
-        if row.manual_session_id:
-            manual = session.get(ManualSession, row.manual_session_id)
-            if manual:
-                manual.linked_activity_id = None
-    row.resolution = body.resolution
-    row.status = 'open' if body.resolution == 'reverse' else 'resolved'
-    row.resolved_at = datetime.now(UTC)
-    bump_data_revision(session)
-    session.commit()
-    return envelope(session, {'id': row.id, 'status': row.status, 'resolution': row.resolution})
-
-
-def weekly_data(session: Session, start: date) -> dict:
-    end = start + timedelta(days=6)
-    selected = facts(session, start, end)
-    aggregate_data = aggregate(selected, start, end)
-    zone = ZoneInfo(tz(session))
-    lo = datetime.combine(start, datetime.min.time(), zone).astimezone(UTC)
-    hi = datetime.combine(end+timedelta(days=1), datetime.min.time(), zone).astimezone(UTC)
-    checkins = session.scalars(select(Checkin).where(Checkin.observed_at >= lo, Checkin.observed_at < hi)).all()
-    accepted = session.scalars(select(PlanVersion).where(PlanVersion.status == 'accepted',
-                    PlanVersion.end_date >= start, PlanVersion.start_date <= end)).all()
-    plans = [plan_data(session, p) for p in accepted]
-    planned_sessions = [item for plan in plans for item in plan['sessions'] if start <= item['date'] <= end]
-    comparison: dict[str, Any] = {'planned': {}, 'completed': {}, 'unlinked': {}, 'sessions': []}
-    for item in planned_sessions:
-        kind = item['kind']
-        linked = bool(item['completion_activity_id'] or item['completion_manual_session_id'])
-        comparison['planned'][kind] = comparison['planned'].get(kind, 0) + 1
-        bucket = 'completed' if linked else 'unlinked'
-        comparison[bucket][kind] = comparison[bucket].get(kind, 0) + 1
-        comparison['sessions'].append({'planned_session_id': item['id'], 'date': item['date'],
-                                       'kind': kind, 'status': 'completed' if linked else 'unlinked'})
-    recovery_data = get_recovery(start_date=start, end_date=end, session=session)['data']
-    recovery_missing = {metric: 7-len({point['date'] for point in points})
-                        for metric, points in recovery_data['series'].items()}
-    week_coverage = coverage(session, start, end)
-    questions = []
-    if all(missing == 7 for missing in recovery_missing.values()):
-        questions.append('Recovery data unavailable for this week')
-    if comparison['unlinked']:
-        questions.append('Planned sessions have no confirmed completion link')
-    return {'week_start': start, 'week_end': end, 'timezone': tz(session), 'metric_version': 'analytics.v1',
-            'summary': aggregate_data, 'plan_comparison': comparison,
-            'strength_coverage': strength_coverage(session, start, end),
-            'recovery': recovery_data,
-            'missingness': {'run_distance_count': aggregate_data['missing_distance_count'],
-                            'run_elapsed_count': aggregate_data['missing_elapsed_count'],
-                            'recovery_missing_dates': recovery_missing,
-                            'coverage_incomplete': [c['dataset'] for c in week_coverage if not c['fully_enumerated']]},
-            'checkins': [{'observed_at': c.observed_at, 'symptoms': c.symptoms, 'gait': c.gait, 'feeling': c.feeling}
-                         for c in checkins],
-            'plan': plans, 'coverage': week_coverage, 'questions': questions}
-
-
-@router.get('/weekly-summary')
-def get_weekly_summary(week_start_date: date | None = Query(None, alias='week_start'),
-                       session: Session = Depends(get_session)) -> dict:
-    today = datetime.now(ZoneInfo(tz(session))).date()
-    start = week_start_date or week_start(today)
-    if start.weekday() != 0:
-        fail('invalid_week', 'week_start must be Monday')
-    return envelope(session, weekly_data(session, start))
-
-
-class SnapshotInput(BaseModel):
-    week_start: date
-
-
-@router.post('/weekly-snapshots', status_code=201)
-def post_weekly_snapshot(body: SnapshotInput, session: Session = Depends(get_session)) -> dict:
-    from app.services.legacy_cutover import require_legacy_write
-    require_legacy_write(session)
-    if body.week_start.weekday() != 0:
-        fail('invalid_week', 'week_start must be Monday')
-    profile = current_profile(session)
-    latest_plan = session.scalar(select(PlanVersion).where(PlanVersion.status == 'accepted')
-                                 .order_by(desc(PlanVersion.decided_at)).limit(1))
-    payload = weekly_data(session, body.week_start)
-    row = WeeklySnapshot(week_start=body.week_start, week_end=body.week_start+timedelta(days=6),
-                         data_revision=get_revision(session), profile_version=profile.version if profile else 0,
-                         plan_version=latest_plan.version if latest_plan else 0, summary=jsonable_encoder(payload))
-    session.add(row)
-    session.commit()
-    return envelope(session, {'id': row.id, 'generated_at': row.generated_at,
-        'data_revision': row.data_revision, 'profile_version': row.profile_version,
-        'plan_version': row.plan_version, 'summary': row.summary})
-
-
-@router.get('/context')
-def get_context(as_of: date | None = None, include_notes: bool = False,
-                session: Session = Depends(get_session)) -> dict:
-    today = as_of or datetime.now(ZoneInfo(tz(session))).date()
-    profile = current_profile(session)
-    recent = facts(session, today-timedelta(days=13), today)
-    prior = facts(session, today-timedelta(days=83), today)
-    weeks = []
-    cursor = week_start(today-timedelta(days=83))
-    while cursor <= today:
-        weeks.append({'week_start': cursor, **aggregate(prior, cursor, cursor+timedelta(days=6)),
-                      'coverage': coverage(session, cursor, cursor+timedelta(days=6))})
-        cursor += timedelta(days=7)
-    recent_lower, recent_upper = utc_date_bounds(today-timedelta(days=13), today, tz(session))
-    activities = session.scalars(select(Activity).where(Activity.start_at >= recent_lower,
-                  Activity.start_at < recent_upper).order_by(desc(Activity.start_at)).limit(100)).all()
-    lower, upper = utc_date_bounds(today-timedelta(days=13), today, tz(session))
-    checkins = session.scalars(select(Checkin).where(Checkin.observed_at >= lower, Checkin.observed_at < upper)
-                  .order_by(desc(Checkin.observed_at)).limit(100)).all()
-    accepted = session.scalars(select(PlanVersion).where(PlanVersion.status == 'accepted',
-                     PlanVersion.end_date >= today, PlanVersion.start_date <= today+timedelta(days=13))).all()
-    recurring = recurring_sessions(
-        today, today+timedelta(days=13), profile,
-        [(p.start_date, p.end_date) for p in accepted],
-    )
-    latest_plan = session.scalar(select(PlanVersion).where(PlanVersion.status == 'accepted')
-                                 .order_by(desc(PlanVersion.decided_at)).limit(1))
-    recovery_data = get_recovery(start_date=today-timedelta(days=13), end_date=today, session=session)['data']
-    manual_rows = session.scalars(select(ManualSession).where(ManualSession.date >= today-timedelta(days=13),
-                  ManualSession.date <= today).order_by(desc(ManualSession.date)).limit(100)).all()
-    classifications = run_classifications(session, activities)
-    recent_activities = [activity_data(session, a, classifications=classifications) for a in activities]
-    recent_activities.extend({'id': m.id, 'local_date': m.date, 'start_at': None, 'sport': m.kind,
-                              'distance_m': None, 'elapsed_s': m.duration_s, 'moving_s': None,
-                              'workout_label': 'unknown', 'resolution_state': 'resolved', 'source': 'manual',
-                              'linked_activity_id': m.linked_activity_id}
-                             for m in manual_rows if m.linked_activity_id is None)
-    recent_activities.extend({'id': item['id'], 'local_date': item['date'],
-                              'start_at': datetime.fromisoformat(item['local_start']).replace(tzinfo=ZoneInfo(tz(session))),
-                              'sport': 'strength', 'distance_m': None, 'elapsed_s': item['duration_s'],
-                              'moving_s': None, 'workout_label': 'unknown', 'resolution_state': 'resolved',
-                              'source': 'strong_csv', 'timestamp_quality': 'timezone_assumed_from_profile'}
-                             for item in strong_history(session, today-timedelta(days=13), today)['sessions'])
-    prior_plans = session.scalars(select(PlanVersion).where(PlanVersion.status == 'accepted',
-                     PlanVersion.end_date >= today-timedelta(days=13), PlanVersion.start_date <= today)).all()
-    out = {'context_version': 'coach_context.v1', 'generated_at': datetime.now(UTC),
-           'as_of': today, 'timezone': tz(session), 'data_revision': get_revision(session),
-           'profile_version': profile.version if profile else 0,
-           'plan_version': latest_plan.version if latest_plan else 0,
-           'profile': profile_data(profile), 'last_14_days': summary(recent, today, 14),
-           'strength_coverage': strength_coverage(session, today-timedelta(days=13), today),
-           'strength_history': recent_strong_context(session, today),
-           'prior_12_weeks': weeks,
-           'recent_activities': recent_activities,
-           'recent_manual_sessions': [manual_data(m) for m in manual_rows],
-           'recovery': recovery_data,
-           'recent_checkins': [checkin_data(session, c) for c in checkins],
-           'next_14_days_plan': [plan_data(session, p) for p in accepted],
-           'recurring_sessions': recurring,
-           'recent_14_days_plan': [plan_data(session, p) for p in prior_plans],
-           'conflicts': [{'id': c.id, 'kind': c.kind, 'status': c.status} for c in
-                         session.scalars(select(Conflict).where(Conflict.status == 'open').limit(100)).all()],
-           'omitted': ['coordinates','raw_payloads','credentials'], 'metric_version': 'analytics.v1'}
-    if not include_notes:
-        out['omitted'].append('notes')
-        def strip_notes(value):
-            if isinstance(value, dict):
-                return {k: strip_notes(v) for k, v in value.items() if 'note' not in k.lower()}
-            if isinstance(value, list):
-                return [strip_notes(v) for v in value]
-            return value
-        out = strip_notes(out)
-    return envelope(session, out)
-
-
-@router.get('/weekly-snapshots')
-def get_weekly_snapshots(session: Session = Depends(get_session)) -> dict:
-    rows = session.scalars(select(WeeklySnapshot).order_by(desc(WeeklySnapshot.generated_at)).limit(100)).all()
-    profile = current_profile(session)
-    latest_plan = session.scalar(select(PlanVersion).where(PlanVersion.status == 'accepted')
-                                 .order_by(desc(PlanVersion.decided_at)).limit(1))
-    return envelope(session, {'items': [{'id': r.id, 'week_start': r.week_start, 'week_end': r.week_end,
-             'generated_at': r.generated_at, 'data_revision': r.data_revision,
-             'profile_version': r.profile_version, 'plan_version': r.plan_version,
-             'stale': r.data_revision != get_revision(session) or
-                      r.profile_version != (profile.version if profile else 0) or
-                      r.plan_version != (latest_plan.version if latest_plan else 0),
-             'summary': r.summary} for r in rows]})
