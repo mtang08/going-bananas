@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Home } from '../src/pages/Home'
+import type { ProposalSummary } from '../src/api/types/coach'
 import type { CalendarView, DailyGuidance, SessionState } from '../src/api'
 
 const session = (id: string, day: string, overrides: Partial<SessionState> = {}): SessionState => ({
@@ -13,6 +14,8 @@ const session = (id: string, day: string, overrides: Partial<SessionState> = {})
 })
 const baseSessions = () => [session('s1', '2026-11-11'), session('s2', '2026-11-13', { recipe_id: null, placeholder: true, is_original: false }),
   session('s3', '2026-11-19', { recipe_id: 'REC002', certainty: 'provisional' })]
+let proposalItems: ProposalSummary[]
+let promptItems: unknown[]
 let calendar: CalendarView
 let guidance: DailyGuidance | null
 let error = false
@@ -20,6 +23,11 @@ let requests: { url: string; method: string; body: unknown; headers: Headers }[]
 const onCheckin = vi.fn()
 const clients: QueryClient[] = []
 beforeEach(() => {
+  proposalItems = []
+  promptItems = [
+      { id: 'p1', kind: 'rpe', activity_id: 'a1', session_uid: null, status: 'open' },
+      { id: 'p2', kind: 'delayed_symptom', activity_id: 'a1', session_uid: null, status: 'open' },
+    ]
   requests = []; error = false; guidance = null; onCheckin.mockReset()
   calendar = { today: '2026-11-11', timezone: 'America/New_York', start: '2026-11-04', end: '2026-11-24',
     head: 2, version: 2, undo: null, last_planned_date: null, sessions: baseSessions(), completions: [] }
@@ -27,10 +35,9 @@ beforeEach(() => {
     const url = String(input), method = init?.method ?? 'GET'
     requests.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : null, headers: new Headers(init?.headers) })
     if (url.endsWith('/calendar') && error) return { ok: false, status: 500, json: async () => ({ error: { code: 'request_failed', message: 'boom' } }) }
-    const data = url.endsWith('/calendar') ? calendar : url.endsWith('/prompts') ? { items: [
-      { id: 'p1', kind: 'rpe', activity_id: 'a1', session_uid: null, status: 'open' },
-      { id: 'p2', kind: 'delayed_symptom', activity_id: 'a1', session_uid: null, status: 'open' },
-    ] } : url.endsWith('/activities/a1') ? { id: 'a1', local_date: '2026-11-10', distance_m: 6437.376, sport: 'running' }
+    const data = url.endsWith('/sync/status') ? { datasets: [], active_jobs: [] }
+      : url.includes('/coach/proposals') ? { items: proposalItems }
+      : url.endsWith('/calendar') ? calendar : url.endsWith('/prompts') ? { items: promptItems } : url.endsWith('/activities/a1') ? { id: 'a1', local_date: '2026-11-10', distance_m: 6437.376, sport: 'running' }
       : url.endsWith('/coach/v2/daily') ? guidance : null
     return { ok: true, status: 200, json: async () => ({ schema_version: 'v1', data_revision: 1, mode: 'demo', data }) }
   }))
@@ -63,8 +70,6 @@ describe('training home', () => {
     expect(onCheckin).toHaveBeenCalledWith({ kind: 'post_run', prompt: expect.objectContaining({ id: 'p1' }), activityId: 'a1' })
     fireEvent.click(screen.getByRole('button', { name: 'Answer check' }))
     expect(onCheckin).toHaveBeenCalledWith({ kind: 'delayed_followup', prompt: expect.objectContaining({ id: 'p2' }), activityId: 'a1' })
-    fireEvent.click(screen.getByRole('button', { name: 'Record check-in' }))
-    expect(onCheckin).toHaveBeenCalledWith({ kind: 'exception', prompt: null, activityId: null })
     expect(requests.filter(r => r.url.endsWith('/activities/a1'))).toHaveLength(1)
   })
   it('dismiss posts and refetches prompts', async () => {
@@ -79,8 +84,9 @@ describe('training home', () => {
   it('shows empty guidance and block', async () => {
     mount()
     expect(await screen.findByText(/No guidance today/)).toBeInTheDocument()
-    expect(await screen.findByText(/No active block/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Training guide' })).toHaveAttribute('href', '#guide')
+    const blockLine = await screen.findByTestId('block-line')
+    expect(blockLine).toHaveTextContent('No active training block. Training block')
+    expect(within(blockLine).getByRole('link', { name: 'Training block' })).toHaveAttribute('href', '#block')
     expect(screen.getByText(/No guidance today/).closest('.home-quiet-state')).toBeInTheDocument()
   })
   it('shows guidance with coach review', async () => {
@@ -140,17 +146,28 @@ describe('training home', () => {
     expect(within(card).getByText('Structured comparison unavailable')).toBeInTheDocument()
     expect(within(card).queryByText('Quality slot')).not.toBeInTheDocument()
   })
-})
+  it('lists open proposals in Needs attention without deciding', async () => {
+    proposalItems = [{ id: 'p1', status: 'stale', operation: 'review_rolling_plan', submitted_at: new Date(Date.now() - 2 * 3600_000).toISOString(), change_count: 3, summary: 'Keep tomorrow easy' } as ProposalSummary]
+    mount(); await screen.findByText('Weekly review')
+    const row = document.querySelector('[data-kind="proposal"]')!
+    for (const text of ['Stale — ask the coach to refresh', 'Weekly review', '2 h ago', '3 changes']) expect(row).toHaveTextContent(text)
+    expect(within(row as HTMLElement).getByRole('link', { name: 'Review' })).toHaveAttribute('href', '#proposal/p1')
+    expect(row.compareDocumentPosition(screen.getByRole('heading', { name: 'Daily guidance' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(requests.every(r => r.method === 'GET')).toBe(true)
+  })
+  it('orders Home sections', async () => {
+    mount(); await screen.findByTestId('today-card')
+    const sections = ['Needs attention', 'Daily guidance', "Today's plan", 'This week'].map(name => screen.getByRole('heading', { name }))
+    for (let i = 0; i < sections.length - 1; i++) expect(sections[i].compareDocumentPosition(sections[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByTestId('home-status').compareDocumentPosition(sections[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+  it('hides Needs attention when nothing needs it', async () => {
+    promptItems = []; mount(); await screen.findByTestId('today-card')
+    expect(screen.queryByTestId('needs-attention')).toBeNull()
+  })
+  it('has no page-level check-in button', async () => {
+    mount(); await screen.findByTestId('today-card')
+    expect(screen.queryByRole('button', { name: 'Record check-in' })).toBeNull()
+  })
 
-it('links pending proposals to explicit review without making a decision', async () => {
-  const previous = globalThis.fetch
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input).includes('/coach/proposals?status=open')) return {ok:true,status:200,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:{items:[{id:'p1',status:'stale',summary:'Keep tomorrow easy'}]}})}
-    return previous(input, init)
-  }))
-  mount()
-  expect(await screen.findByRole('link',{name:'Review proposal'})).toHaveAttribute('href','#proposal/p1')
-  expect(screen.getByText('Keep tomorrow easy')).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'Review proposal' }).compareDocumentPosition(screen.getByRole('heading', { name: 'This week' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  expect(requests.every(request=>request.method==='GET')).toBe(true)
 })
