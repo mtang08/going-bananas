@@ -1,6 +1,7 @@
 """Synthetic API preservation checks; all writes roll back beneath one outer transaction."""
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, date, datetime
 from urllib.parse import urlsplit
@@ -25,7 +26,7 @@ from app.services.strength_routine import confirmed_schedule, routine_occurrence
 def planning_fixture():
     parsed = urlsplit(settings.database_url)
     assert settings.app_mode == 'test'
-    assert parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 55439
+    assert parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == int(os.environ.get('TEST_DATABASE_PORT', '55439'))
     assert parsed.path == '/garmin_test'
     with engine.connect() as connection:
         transaction = connection.begin()

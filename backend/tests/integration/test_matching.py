@@ -25,7 +25,7 @@ def _guard_url() -> str:
     assert settings.app_mode == "test"
     assert parsed.drivername in ("postgresql+psycopg", "postgresql")
     assert parsed.host in ("localhost", "127.0.0.1")
-    assert parsed.port == 55439 and parsed.database == "mvp1_migration_test"
+    assert parsed.port == int(os.environ.get('TEST_DATABASE_PORT', '55439')) and parsed.database == "mvp1_migration_test"
     return url
 
 

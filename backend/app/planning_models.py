@@ -51,6 +51,7 @@ class BlockVersion(Base):
     objective_status: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     proposal_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    benchmark: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     __table_args__ = (UniqueConstraint('block_uid','version'), CheckConstraint("status IN ('draft','active','consolidating','completed','replaced','ended')", name='ck_block_versions_status'), CheckConstraint("progression_dimension IN ('duration','frequency','long_run','quality_volume','intensity','none')", name='ck_block_versions_progression_dimension'), CheckConstraint("objective_status IN ('unresolved','partially_achieved','achieved','not_achieved')", name='ck_block_versions_objective_status'),)
 
 class BlockDecision(Base):
@@ -123,3 +124,22 @@ class IntensityAnchor(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     supersedes_key: Mapped[str | None] = mapped_column(String(40))
     __table_args__ = (CheckConstraint('value_high IS NULL OR value_low <= value_high', name='ck_intensity_anchors_value_high'), CheckConstraint("(kind LIKE 'hr_%' AND unit='bpm') OR (kind LIKE 'speed_%' AND unit='mps') OR (kind IN ('performance_5k','performance_1mile') AND unit='s') OR (kind='performance_3min' AND unit='m') OR (kind='performance_20_30min' AND unit='mps')", name='ck_intensity_anchors_unit_kind'), CheckConstraint("kind IN ('hr_aerobic_upper','hr_threshold_lower','speed_aerobic_upper','speed_threshold_lower','performance_5k','performance_1mile','performance_3min','performance_20_30min')", name='ck_intensity_anchors_kind'), CheckConstraint("unit IN ('bpm','mps','s','m')", name='ck_intensity_anchors_unit'), CheckConstraint("protocol IN ('race_5k','time_trial_5k','time_trial_1mile','time_trial_3min','time_trial_20_30min','workout_derived','lab_test','manual')", name='ck_intensity_anchors_protocol'), CheckConstraint("confidence IN ('high','moderate','low','insufficient')", name='ck_intensity_anchors_confidence'), CheckConstraint("status IN ('provisional','active','expired','invalid')", name='ck_intensity_anchors_status'))
+
+
+class BlockBenchmarkResult(Base):
+    __tablename__ = 'block_benchmarks'
+    id: Mapped[uuid.UUID] = uuid_pk()
+    block_uid: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('blocks.block_uid'), nullable=False)
+    block_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    match_method: Mapped[str] = mapped_column(String(8), nullable=False)
+    activity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('activities.id'))
+    event_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('events.id'))
+    protocol: Mapped[str] = mapped_column(String(300), nullable=False)
+    distance_m: Mapped[int | None] = mapped_column(Integer)
+    local_date: Mapped[date | None] = mapped_column(Date)
+    result_s: Mapped[int | None] = mapped_column(Integer)
+    outcome: Mapped[str | None] = mapped_column(String(20))
+    compared_with: Mapped[str | None] = mapped_column(String(300))
+    proposal_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('coach_proposals.id'))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    __table_args__ = (UniqueConstraint('block_uid', 'block_version', name='uq_block_benchmarks_block_version'), CheckConstraint("match_method IN ('auto','manual')", name='ck_block_benchmarks_match_method'), CheckConstraint("outcome IN ('progress','consolidate','recalibrate_only','inconclusive')", name='ck_block_benchmarks_outcome'))

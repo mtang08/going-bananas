@@ -8,6 +8,7 @@ import app.calendar_models  # noqa: F401
 import app.checkin_models  # noqa: F401
 import app.coach_v2_models  # noqa: F401
 import app.coaching_models  # noqa: F401
+import app.exception_models  # noqa: F401
 import app.fit_models  # noqa: F401
 import app.metric_models  # noqa: F401
 import app.models  # noqa: F401

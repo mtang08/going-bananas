@@ -42,7 +42,7 @@ class CoachSnapshot(Base):
     kb_package_version: Mapped[str] = mapped_column(String(30), nullable=False)
     kb_routes: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     approx_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
-    __table_args__ = (CheckConstraint("operation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change')", name='ck_coach_snapshots_operation'),)
+    __table_args__ = (CheckConstraint("operation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change','exception_review','post_event_review')", name='ck_coach_snapshots_operation'),)
 
 class CoachProposal(Base):
     __tablename__ = 'coach_proposals'
@@ -73,7 +73,7 @@ class CoachProposal(Base):
     validation_errors: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     skill_version: Mapped[str] = mapped_column(String(20), nullable=False)
     input_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    __table_args__ = (CheckConstraint("operation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change')", name='ck_coach_proposals_operation'), CheckConstraint("status IN ('pending','accepted','partially_accepted','rejected','stale','invalid','discarded')", name='ck_coach_proposals_status'), CheckConstraint("escalation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change')", name='ck_coach_proposals_escalation'), Index('uq_coach_proposals_one_open', text('(true)'), unique=True, postgresql_where=text("status IN ('pending','stale','invalid')")))
+    __table_args__ = (CheckConstraint("operation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change','exception_review','post_event_review')", name='ck_coach_proposals_operation'), CheckConstraint("status IN ('pending','accepted','partially_accepted','rejected','stale','invalid','discarded')", name='ck_coach_proposals_status'), CheckConstraint("escalation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change','exception_review','post_event_review')", name='ck_coach_proposals_escalation'), Index('uq_coach_proposals_one_open', text('(true)'), unique=True, postgresql_where=text("status IN ('pending','stale','invalid')")))
 
 class CoachProposalRevision(Base):
     __tablename__ = 'coach_proposal_revisions'
