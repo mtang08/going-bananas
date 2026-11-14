@@ -1,0 +1,5 @@
+export type Category = 'symptoms_illness' | 'training_response' | 'accumulated_fatigue' | 'calendar_disruption' | 'post_event'
+export type Severity = 'observe' | 'caution' | 'hold' | 'escalate'
+export type FindingStatus = 'open' | 'addressed' | 'reviewed' | 'resolved' | 'dismissed' | 'expired'
+export type PatchStatus = 'open' | 'resolved' | 'escalated' | 'superseded'
+export type Ladder = 'current_session' | 'next_session' | 'next_days' | 'committed_window' | 'block'
