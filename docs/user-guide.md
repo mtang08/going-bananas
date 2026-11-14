@@ -12,7 +12,7 @@ Open [Home](#home) to see what needs attention, today's accepted session, weekly
 
 Record actual effort and post-run response when prompted. Report fatigue, illness, symptoms, or gait changes when relevant. Missing observations stay unknown, so a blank check-in does not mean everything was normal.
 
-Each check-in, post-run RPE, and recorded outcome runs the exception check. One observation on its own is logged for your Sunday review. Repeated or converging signals, symptoms, illness, or a gait change raise a finding on Home; see **Exception review**.
+Each check-in, post-run RPE, and recorded outcome runs the exception check. An isolated HRV, resting-HR, sleep, or pace reading on its own is logged for your Sunday review. Repeated or converging signals may raise a finding on Home; a new symptom, illness, or gait change can raise one immediately. See **Exception review**.
 
 ## Sunday review
 

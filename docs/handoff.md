@@ -4,7 +4,10 @@
 
 The loop: the Sunday weekly review rolls 14 days (days 1–7 committed, days 8–14 provisional). Between Sundays, the exception detector raises findings, and caution or hold findings lead to an exception review that patches only the committed week. Each block ends with a benchmark that drives the block review, which also handles findings that need a bigger review. Other races get a post-race review. The legacy coach (`local_rules.v1`), daily guidance (`local_rules.v2`), legacy agent plans, the `skills/` package, `make context`, and the History, Strength, and Coaching history pages are removed; their tables remain. Older sections are historical context.
 
-Verified with `make check`, `make test-integration`, `python3 scripts/test_coach_skill_v2.py`, and the p0a, p0b, and p1-exceptions browser suites on a fresh demo database. Next: O2 and O3 in [backlog](backlog.md).
+Final AC-21 verification is pending AC-21f. That gate will record the results of
+`make check`, `make test-integration`, `python3 scripts/test_coach_skill_v2.py`,
+and the p0a, p0b, and p1-exceptions browser suites on a fresh demo database.
+Next: O2 and O3 in [backlog](backlog.md).
 
 ## Agent-plan completion checkpoint — November 11, 2026
 

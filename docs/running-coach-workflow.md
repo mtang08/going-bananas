@@ -1,11 +1,11 @@
 # Living plan — usable running-coach workflow
 
-Updated November 11, 2026. The latest user instruction permits automatic
-persistence of validated AI coaching decisions. This supersedes the older
-proposal → routine athlete acceptance gate and the earlier no-automatic-plan-
-mutation constraint. Read-only and exploratory conversations still do not
-activate plans; goals, cadence, and strength configuration remain explicit
-athlete decisions.
+Historical note — November 11, 2026: an instruction at that time permitted
+automatic persistence of validated AI coaching decisions. That design is not
+current: coaching changes remain pending proposals until the athlete reviews and
+accepts them in the app. Read-only or exploratory conversations do not create a
+proposal; goals, cadence, and strength configuration remain explicit athlete
+decisions.
 
 ## Current state
 
