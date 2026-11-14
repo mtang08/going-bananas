@@ -254,3 +254,30 @@ describe('training home', () => {
   })
 
 })
+
+it('shows a synced recorded run on an otherwise unplanned Home day', async () => {
+  calendar.recorded_runs = [{ activity_id: 'recorded-run', local_date: '2026-11-10', distance_m: 5000, timer_s: 1800 }]
+  mount(); await screen.findByTestId('today-card')
+  const day = document.querySelector('[data-testid="strip-day"][data-date="2026-11-10"]') as HTMLElement
+  expect(within(day).getByText('Recorded run')).toBeInTheDocument()
+  expect(within(day).getByRole('link', { name: 'Open run' })).toHaveAttribute('href', '#activity/recorded-run')
+  expect(within(day).queryByText('No session')).toBeNull()
+})
+
+it('shows extra completions once and does not repeat linked runs as recorded runs', async () => {
+  const completion = { id: 'extra', session_uid: 'extra-session', activity_id: 'extra-run', strong_workout_id: null,
+    manual_session_id: null, status: 'extra' as const, match_method: 'none' as const, modification_reason: null,
+    reason_note: null, version: 1, input_version: 1, updated_at: '2026-11-10T12:00:00Z', local_date: '2026-11-10' }
+  calendar.completions = [completion, { ...completion, id: 'linked', session_uid: 's1', activity_id: 'linked-run',
+    status: 'unknown', match_method: 'auto_same_day', local_date: '2026-11-11' }]
+  calendar.recorded_runs = [
+    { activity_id: 'extra-run', local_date: '2026-11-10', distance_m: 5000, timer_s: 1800 },
+    { activity_id: 'linked-run', local_date: '2026-11-11', distance_m: 5000, timer_s: 1800 },
+  ]
+  mount(); await screen.findByTestId('today-card')
+  const day = document.querySelector('[data-testid="strip-day"][data-date="2026-11-10"]') as HTMLElement
+  expect(within(day).getAllByText('Extra run (not in the plan)')).toHaveLength(1)
+  expect(within(day).getByRole('link', { name: 'Open run' })).toHaveAttribute('href', '#activity/extra-run')
+  expect(within(day).queryByText('No session')).toBeNull()
+  expect(screen.queryByText('Recorded run')).toBeNull()
+})

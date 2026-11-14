@@ -80,3 +80,35 @@ describe('session status badges', () => {
     expect(screen.queryByText('Benchmark')).toBeNull()
   })
 })
+
+it('distinguishes a recorded run with unknown comparison from an unrecorded plan', () => {
+  const completion = {
+    id: 'c1',
+    session_uid: base.session_uid,
+    activity_id: 'a1',
+    strong_workout_id: null,
+    manual_session_id: null,
+    status: 'unknown' as const,
+    match_method: 'auto_same_day' as const,
+    modification_reason: null,
+    reason_note: null,
+    version: 1,
+    input_version: 1,
+    updated_at: '2026-11-19T12:00:00Z',
+    local_date: base.local_date,
+  }
+  render(<SessionSummary session={base} completion={completion} today="2026-11-20" unit="mi" />)
+  expect(screen.getByText('Recorded · comparison unavailable')).toBeInTheDocument()
+  expect(screen.queryByText('Not recorded')).toBeNull()
+  expect(screen.queryByText('Completed')).toBeNull()
+  cleanup()
+  render(
+    <SessionSummary
+      session={base}
+      completion={{ ...completion, activity_id: null }}
+      today="2026-11-20"
+      unit="mi"
+    />,
+  )
+  expect(screen.getByText('Not recorded')).toBeInTheDocument()
+})

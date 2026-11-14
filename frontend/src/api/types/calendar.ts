@@ -190,7 +190,14 @@ export const RECIPE_LABELS: Record<string, string> = {
   REC010: 'Low-impact substitution',
 }
 export type SessionMarker =
-  'planned' | 'completed' | 'modified' | 'partial' | 'moved' | 'missed' | 'not_recorded'
+  | 'planned'
+  | 'completed'
+  | 'modified'
+  | 'partial'
+  | 'moved'
+  | 'missed'
+  | 'recorded'
+  | 'not_recorded'
 export const MARKER_LABELS: Record<SessionMarker, string> = {
   planned: 'Planned',
   completed: 'Completed',
@@ -198,5 +205,6 @@ export const MARKER_LABELS: Record<SessionMarker, string> = {
   partial: 'Partial',
   moved: 'Moved',
   missed: 'Missed',
+  recorded: 'Recorded · comparison unavailable',
   not_recorded: 'Not recorded',
 }
