@@ -176,6 +176,15 @@ def calendar_view(session: Session, start: date, end: date, version: int | None 
     all_head = state_at(session, head)
     selected = state_at(session, requested)
     in_range = [item for item in selected if start <= item['local_date'] <= end]
+    from app.exception_models import ExceptionPatch
+
+    numbers = {item['calendar_version_number'] for item in in_range}
+    patches = {row.calendar_version_number: row for row in session.scalars(
+        select(ExceptionPatch).where(ExceptionPatch.calendar_version_number.in_(numbers)))} if numbers else {}
+    for item in in_range:
+        patch = patches.get(item['calendar_version_number'])
+        item['exception_patch'] = ({'patch_id': patch.id, 'proposal_id': patch.proposal_id,
+            'reassess_on': patch.reassess_on, 'status': patch.status} if patch else None)
     planned = {item['session_uid']: item for item in selected}
     completions = []
     for row in session.scalars(select(SessionCompletion).order_by(SessionCompletion.updated_at, SessionCompletion.id)):
