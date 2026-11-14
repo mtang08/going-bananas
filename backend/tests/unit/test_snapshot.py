@@ -574,3 +574,11 @@ def test_new_operation_windows_and_topics() -> None:
         "topics/periodization_and_training_blocks.md", "topics/races_tapers_and_transitions.md"]
     assert select_recipe_ids(source, EXCEPTION) == ["REC001"]
     assert scope(EXCEPTION, AS_OF) == (AS_OF, AS_OF + timedelta(days=6))
+
+
+def test_session_view_modification_reason() -> None:
+    row = session(AS_OF - timedelta(days=1), "run", "REC003")
+    completion = {"session_uid": row["session_uid"], "status": "completed_modified", "modification_reason": "fatigue",
+                  "activity_id": None, "strong_workout_id": None}
+    payload = build_payload(inputs(sessions=[row], completions=[completion]), ROLLING)
+    assert payload["calendar"]["sessions"][0]["modification_reason"] == "fatigue"

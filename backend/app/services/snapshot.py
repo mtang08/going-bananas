@@ -19,6 +19,7 @@ from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin as CheckinV2
 from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachSnapshot
+from app.domain.athlete_facts import clinical_restriction
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.metric_models import MetricResult, Prompt
 from app.models import Activity, AppState, ProfileVersion
@@ -28,6 +29,7 @@ from app.services.decision_inputs import VerifiedKnowledge, canonical_json, coll
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection
 from app.services.operations import OPERATIONS
 from app.services.proposals import DecisionError, derive_certainty, is_quality_slot, scope
+from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
@@ -44,6 +46,15 @@ CALIB = "recalibrate_intensity"
 RACE = "handle_goal_or_race_change"
 EXCEPTION = "exception_review"
 POST_EVENT = "post_event_review"
+OPEN_FINDINGS_MAX = 20
+FINDING_EVIDENCE_MAX = 5
+OPEN_PATCHES_MAX = 5
+RECENT_RPE_MAX = 14
+SUMMARY_FINDINGS_MAX = 30
+SUMMARY_PATCHES_MAX = 10
+SUMMARY_DAYS = 14
+LIVE_PATCH = ("open", "escalated")
+BENCHMARK_HISTORY_MAX = 6
 
 
 def _view(row: Any, keys: tuple[str, ...], *, names: dict[str, str] | None = None) -> dict:
@@ -140,6 +151,10 @@ class SnapshotInputs:
     anchors: list[dict] = field(default_factory=list)
     proposals: list[dict] = field(default_factory=list)
     coverage: list[dict] = field(default_factory=list)
+    exception_findings: list[dict] = field(default_factory=list)
+    exception_patches: list[dict] = field(default_factory=list)
+    review_recommended: list[dict] = field(default_factory=list)
+    benchmark_history: list[dict] = field(default_factory=list)
 
 
 def _window(operation: str, section: str, inputs: SnapshotInputs) -> tuple[date, date]:
@@ -256,6 +271,7 @@ def _session_view(row: dict, completion: dict | None) -> dict:
     )
     result["is_original"] = row["revision"] == 1
     result["completion_status"] = completion["status"] if completion else None
+    result["modification_reason"] = completion.get("modification_reason") if completion else None
     return result
 
 
@@ -705,7 +721,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     ]
     completion_rows = session.scalars(select(SessionCompletion)).all()
     completions = [
-        _view(row, ("session_uid", "status", "activity_id", "strong_workout_id", "manual_session_id"))
+        _view(row, ("session_uid", "status", "activity_id", "strong_workout_id", "manual_session_id", "modification_reason"))
         for row in completion_rows
     ]
     slots = [
@@ -731,26 +747,18 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     ).all()
     rpe_rows = session.scalars(select(SessionRpe).order_by(SessionRpe.collected_at, SessionRpe.id)).all()
 
-    def effective_rpe(activity_id: Any = None, strong_id: Any = None, fallback: Any = None) -> tuple[Any, str | None]:
-        matched = [
-            r
-            for r in rpe_rows
-            if (activity_id and r.activity_id == activity_id) or (strong_id and r.strong_workout_id == strong_id)
-        ]
+    def effective_rpe(strong_id: Any) -> Any:
+        matched = [r for r in rpe_rows if r.strong_workout_id == strong_id]
         preferred = next((r for r in reversed(matched) if r.source == "manual"), None) or next(
             (r for r in reversed(matched) if r.source == "garmin_fit"), None
         )
-        return (
-            (preferred.rpe, preferred.source)
-            if preferred
-            else (fallback, "garmin_fit" if fallback is not None else None)
-        )
+        return preferred.rpe if preferred else None
 
     strong = [
         dict(
             _view(row, ("local_date", "workout_name", "duration_s")),
             strong_workout_id=row.id,
-            rpe=effective_rpe(strong_id=row.id)[0],
+            rpe=effective_rpe(row.id),
         )
         for row in strong_rows
     ]
@@ -763,6 +771,14 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         if run_facts
         else {}
     )
+    rpe_by_activity: dict[Any, list[Any]] = {}
+    for rpe_row in rpe_rows:
+        if rpe_row.activity_id is not None:
+            rpe_by_activity.setdefault(rpe_row.activity_id, []).append(rpe_row)
+    run_rpe = {
+        f.activity_id: effective_run_rpe(rpe_by_activity.get(f.activity_id, []), activities[f.activity_id].workout_rpe)
+        for f in run_facts
+    }
     runs = [
         dict(
             activity_id=f.activity_id,
@@ -770,8 +786,9 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
             sport=f.sport,
             timer_s=f.timer_s,
             distance_m=f.distance_m,
-            rpe=effective_rpe(activity_id=f.activity_id, fallback=activities[f.activity_id].workout_rpe)[0],
-            rpe_source=effective_rpe(activity_id=f.activity_id, fallback=activities[f.activity_id].workout_rpe)[1],
+            rpe=run_rpe[f.activity_id][0],
+            rpe_source=run_rpe[f.activity_id][1],
+            start_at=f.start_at,
         )
         for f in run_facts
     ]
@@ -996,7 +1013,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         state.data_revision if state else 0,
         profile.cycle_anchor if profile else None,
         bool(profile.anchor_confirmed) if profile else False,
-        (profile.facts or {}).get("clinical_restriction") if profile else None,
+        clinical_restriction(profile.facts) if profile else None,
         sessions,
         completions,
         slots,
