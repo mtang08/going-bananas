@@ -73,6 +73,7 @@ test('p0a: manual edit versions', async ({ page, request }) => {
   const after = await data(await request.get('/api/v1/calendar'))
   expect(after.sessions.find((s: {session_uid:string}) => s.session_uid === original.session_uid)?.local_date).toBe(movedDate)
   await page.goto('/#calendar')
+  await page.getByText('Calendar history', {exact:true}).click()
   await expect(page.getByTestId('version-row').filter({hasText:`v${edited.version} · Manual edit`})).toBeVisible()
   const rollback = await request.post('/api/v1/calendar/rollback', {headers:{'X-Local-Request':'1'}, data:{expected_head:edited.version,to_version:before.head}})
   expect(rollback.status()).toBe(201)
