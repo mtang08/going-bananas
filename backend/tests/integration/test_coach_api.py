@@ -15,6 +15,7 @@ from app.calendar_models import CalendarSessionRevision, CalendarVersion, Sessio
 from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
 from app.config import settings
 from app.db import engine
+from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.models import AppState, ProfileVersion
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
@@ -42,6 +43,8 @@ def proposal_session(monkeypatch):
         try:
             with Session(bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False) as session:
                 session.info['metrics_now'] = NOW
+                session.execute(delete(ExceptionFinding))
+                session.execute(delete(ExceptionPatch))
                 session.execute(delete(CoachDecisionKey))
                 session.execute(delete(CoachProposalChange))
                 session.execute(delete(CoachProposal))
@@ -401,3 +404,36 @@ def test_invalid_revision_api_preserves_current_draft(api):
     current = client.get(base).json()['data']
     assert current['revision'] == 1 and current['status'] == 'pending'
     assert current['changes'][0]['after'] == {'planned_duration_s': 2400}
+
+
+def test_detail_exposes_exception_fields_and_patch(api):
+    client, session = api
+    seen = NOW - timedelta(hours=2)
+    finding = ExceptionFinding(rule_code='FATIGUE_PERSISTING', rule_version='exceptions.v1',
+        category='accumulated_fatigue', severity='caution', entity_key='fatigue_persisting', status='open',
+        summary='Synthetic', evidence=[], evidence_at=seen, first_seen_at=seen, last_seen_at=seen)
+    session.add(finding)
+    session.flush()
+    snapshot, uid = _snapshot(session, 'exception_review')
+    doc = _doc(snapshot, uid)
+    doc['changes'][0]['after'] = {'planned_duration_s': 1200}
+    doc['exception'] = {
+        'finding_ids': [str(finding.id)], 'category': 'accumulated_fatigue', 'severity': 'caution',
+        'confidence': 'moderate', 'triggering_evidence': 'Fatigue 8 on two mornings', 'relevant_context': None,
+        'ladder_level': 'next_session', 'patch_window': {'start': '2026-11-16', 'end': '2026-11-18'},
+        'unchanged': [], 'reassess_on': '2026-11-19', 'monitor': ['Morning fatigue'],
+        'return_criteria': ['Usual fatigue twice'], 'escalate_criteria': ['High through Saturday']}
+    result = submit_proposal(session, doc, now=NOW, resolve_kb=_resolve)
+    assert result.status == 'pending', result.issues
+    session.commit()
+    response = client.post(f'/api/v1/coach/proposals/{result.proposal_id}/decision',
+                           json=decision(snapshot.calendar_version_number, accept=['c1']))
+    assert response.status_code == 200, response.text
+    data = client.get(f'/api/v1/coach/proposals/{result.proposal_id}').json()['data']
+    assert data['exception']['ladder_level'] == 'next_session'
+    assert data['event_review'] is None
+    assert data['patch_resolutions'] == []
+    assert data['patch']['status'] == 'open'
+    assert data['patch']['calendar_version_number'] == 2
+    rolling_id, _, _ = pending(session)
+    assert client.get(f'/api/v1/coach/proposals/{rolling_id}').json()['data']['patch'] is None
