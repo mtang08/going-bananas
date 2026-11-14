@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo
@@ -16,11 +16,9 @@ from sqlalchemy.orm import Session
 
 from app.api.core import current_profile, fail
 from app.checkin_models import Checkin, CheckinRevision, SessionRpe, SymptomReport
-from app.coach_v2_models import DailyGuidance
 from app.metric_models import Prompt
 from app.models import Activity, ManualSession
 from app.services.calendar import _lock
-from app.services.daily_guidance import guidance_data, persist_daily_guidance
 from app.strong_models import StrongWorkoutRow
 
 CONTEXT_TAGS = {'heat', 'travel', 'poor_sleep', 'unusual_surface', 'equipment'}
@@ -150,16 +148,13 @@ def _symptom_data(row: SymptomReport) -> dict:
 
 
 def checkin_data(session: Session, row: Checkin) -> dict:
-    guidance = session.scalar(select(DailyGuidance).where(DailyGuidance.checkin_id == row.id)
-        .order_by(DailyGuidance.created_at.desc(), DailyGuidance.id.desc()).limit(1))
     return {'id': row.id, 'idempotency_key': row.idempotency_key, 'version': row.version,
         'kind': row.kind, 'observed_at': row.observed_at.astimezone(UTC),
         'recorded_at': row.recorded_at.astimezone(UTC),
         'fatigue': row.fatigue, 'illness': row.illness, 'gait_change': row.gait_change,
         'context_tags': row.context_tags, 'activity_id': row.activity_id,
         'prompt_id': row.prompt_id, 'note': row.note, 'schema_version': row.schema_version,
-        'symptoms': [_symptom_data(item) for item in _symptoms(session, row.id)],
-        'daily_guidance': guidance_data(guidance) if guidance else None}
+        'symptoms': [_symptom_data(item) for item in _symptoms(session, row.id)]}
 
 
 def _creation_request(value: dict) -> dict:
@@ -214,11 +209,6 @@ def _check_related(session: Session, body: dict, *, owner_prompt_id: uuid.UUID |
     return prompt
 
 
-def _today(session: Session, observed_at: datetime) -> date:
-    profile = current_profile(session)
-    return observed_at.astimezone(ZoneInfo(profile.timezone if profile else 'America/New_York')).date()
-
-
 def create_checkin(session: Session, body: dict) -> tuple[dict, bool]:
     data = CheckinCreate.model_validate(body).model_dump()
     _lock(session)
@@ -226,7 +216,7 @@ def create_checkin(session: Session, body: dict) -> tuple[dict, bool]:
     if existing:
         original = session.scalar(select(CheckinRevision).where(CheckinRevision.checkin_id == existing.id)
             .order_by(CheckinRevision.version).limit(1))
-        original_data = original.payload if original else checkin_data(session, existing)
+        original_data = {k: v for k, v in original.payload.items() if k != 'daily_guidance'} if original else checkin_data(session, existing)
         if _hash(data) != _hash(original_data):
             fail('idempotency_conflict', 'Check-in key was used for a different body', 409)
         return original_data, False
@@ -239,9 +229,6 @@ def create_checkin(session: Session, body: dict) -> tuple[dict, bool]:
     if prompt:
         prompt.status = 'answered'
     session.flush()
-    if row.kind == 'exception':
-        persist_daily_guidance(session, today=_today(session, row.observed_at),
-            checkin_id=row.id, now=datetime.now(UTC))
     return checkin_data(session, row), True
 
 
@@ -260,7 +247,6 @@ def patch_checkin(session: Session, id: uuid.UUID, body: dict) -> dict:
         or candidate.get('context_tags') is None or candidate.get('symptoms') is None):
         fail('invalid_checkin', 'Required check-in fields cannot be null')
     prompt = _check_related(session, candidate, owner_prompt_id=row.prompt_id)
-    changed = _hash(candidate) != _hash(prior)
     session.add(CheckinRevision(checkin_id=row.id, version=row.version,
         payload=jsonable_encoder(prior)))
     symptoms = changes.pop('symptoms', None)
@@ -275,9 +261,6 @@ def patch_checkin(session: Session, id: uuid.UUID, body: dict) -> dict:
         prompt.status = 'answered'
     row.version += 1
     session.flush()
-    if changed and row.kind == 'exception':
-        persist_daily_guidance(session, today=_today(session, row.observed_at),
-            checkin_id=row.id, now=datetime.now(UTC))
     return checkin_data(session, row)
 
 
