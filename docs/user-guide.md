@@ -8,15 +8,11 @@ If the app is already running, just open http://127.0.0.1:8000; do not start a s
 
 ## Daily check-in
 
-Open [Home](#home) to see today's accepted session, effort and response prompts, weekly mileage, and the next two weeks. Open a session for its full prescription, including warm-up, intervals, recovery, targets, and notes. In a rolling proposal, the first seven days are committed planning and days 8–14 are provisional. The grid uses Monday–Sunday rows, which may not match those seven-day windows; use each session’s saved provisional badge as the authority.
+Open [Home](#home) to see what needs attention, today's accepted session, weekly mileage, and the next two weeks. Open a session for its full prescription, including warm-up, intervals, recovery, targets, and notes. In a rolling proposal, days 1–7 are committed planning and days 8–14 are provisional. The grid uses Monday–Sunday rows, which may not match those seven-day windows; use each session’s saved provisional badge as the authority.
 
 Record actual effort and post-run response when prompted. Report fatigue, illness, symptoms, or gait changes when relevant. Missing observations stay unknown, so a blank check-in does not mean everything was normal.
 
-If today's situation changes, ask for a focused adjustment:
-
-> Use $going-bananas-coach to review today's session in real mode. Here is what has changed: …
-
-Daily adjustments preserve the training block and established strength schedule. They still arrive as a pending proposal for your review.
+Each check-in, post-run RPE, and recorded outcome runs the exception check. One observation on its own is logged for your Sunday review. Repeated or converging signals, symptoms, illness, or a gait change raise a finding on Home; see **Exception review**.
 
 ## Sunday review
 
@@ -28,6 +24,50 @@ The coach checks the active block and its review date. With no block, it helps e
 
 This cadence is manual. No coaching review or proposal runs automatically on Sunday. Extra reviews are useful after a material change, symptoms, or a new goal.
 
+## Exception review
+
+The Sunday review is the normal control loop. Between Sundays, the app checks check-ins, post-run RPE against each session's intent, completions, and races. One HRV, resting-HR, sleep, or pace value never raises a concern on its own.
+
+- **Logged**: kept for your Sunday review. Home lists these under **Logged for Sunday review**.
+- **Caution** or **Hold**: Home shows the finding under **Needs attention** and recommends an exception review.
+- **Needs bigger review**: Home recommends a block review instead of another patch. For symptoms or illness, outside evaluation may be needed.
+
+When Home recommends an exception review, copy its prompt:
+
+> Use $going-bananas-coach for an exception review. Read the open findings in the app and patch only what they require.
+
+The coach makes the smallest change that works: today's session, the next session, the next few days, and at most this committed week (days 1–7). It never edits the provisional second week (days 8–14). The proposal lists the sessions it leaves unchanged, a reassess date, what to watch for, when to return to plan, and when to escalate. Accepted changes show **Patched · reassess** with the day on Home and in Calendar.
+
+On the reassess day, Home shows **Reassess due**. Choose **Mark resolved** when you are back to normal, or **Still not right** to keep it for the coach. To ask the coach to reassess:
+
+> Use $going-bananas-coach to reassess the open exception patch.
+
+When a finding needs a bigger review:
+
+> Use $going-bananas-coach for a block review. An exception needs a bigger review.
+
+Use **Dismiss** on a finding that is wrong or already handled. A finding never closes just because a metric returns to normal; a review, a resolved patch, or your dismissal closes it.
+
+## After a race
+
+A completed target, benchmark, or supported-exposure race puts a race review on Home for 7 days. Treat the 1–3 days after it as an observation window, not a fixed rest prescription. Copy the prompt from Home, which names the race, or use:
+
+> Use $going-bananas-coach for a post-race review of … on ….
+
+The review records pacing, effort and the limiting factor, conditions, symptoms, and recovery. It may propose new intensity anchors and changes inside the committed week. A race that is the block's ending benchmark is reviewed in the block review instead.
+
+## Block-ending benchmark
+
+Every training block ends with a benchmark in its last 7 days: a time trial or a race. The block review that sets the block also sets the benchmark protocol, its date, and what counts as progress or consolidation. The weekly review places the time trial; it shows a **Benchmark** badge.
+
+The app matches the benchmark run automatically. If it chose the wrong run, open [Training block](#block) and use **Choose activity** in the Block benchmark card. **Use automatic match** undoes your choice.
+
+When the benchmark is complete, Home recommends a block review:
+
+> Use $going-bananas-coach for a block review. Review the block benchmark.
+
+That review compares the result with earlier benchmarks of the same protocol, decides whether to progress, consolidate, or only recalibrate, and recalibrates intensity anchors. Results stay in [Trends](#trends) under **Benchmark history**. A missed benchmark also leads to a block review; never force a test through illness or symptoms.
+
 ## Training blocks and weekly plans
 
 A block gives the weekly plan direction: an objective, start date, review date, progression dimension, and observable completion indicators. It also records qualities to maintain, constraints, and reasons to review early. A weekly plan chooses the sessions that serve that accepted objective over the next 14 days.
@@ -38,16 +78,17 @@ To establish your first block now:
 
 The proposed block becomes active only after you select and accept its block change in the app. Creating or revising the draft does not activate it.
 
-Open [Block](#block) to inspect the current direction and review timing. The timeline shows elapsed calendar time; it does not prove that you have achieved the objective. A block review considers actual response and indicators before continuing, consolidating, or changing direction. A regular weekly review cannot silently change the block.
+Open [Training block](#block) to inspect the current direction, review timing, and block benchmark. The timeline shows elapsed calendar time; it does not prove that you have achieved the objective. A block review considers actual response and indicators before continuing, consolidating, or changing direction. A regular weekly review cannot silently change the block.
 
 ## Review and revise a proposal
 
-The coach saves a draft and provides its review link. **Pending your review; nothing applied.** Open **Open proposal → Review proposal** to inspect the rationale and each proposed change, including workout details, block changes, and calibration anchors when present.
+The coach saves a draft and provides its review link. **Pending your review; nothing applied.** On Home, open **Needs attention → Review** to inspect the rationale and each proposed change, including workout details, block changes, and calibration anchors when present.
 
 - Select the changes you want to accept. Unselected session changes are rejected when you submit your decision.
 - Review related calibration anchors with any targets that depend on them.
 - For a no-change review, the app records your acknowledgment.
 - Opening a proposal or receiving it in chat does not apply it.
+- Exception reviews add an **Exception** card: why now, plan impact, sessions left unchanged, the reassess date, and what to watch for. Race and benchmark reviews add a **Race review** card, and settled patches appear under **Patch updates**.
 
 To refine an open draft, keep its link and ask:
 
@@ -65,14 +106,13 @@ Missing data and incomplete plan coverage are labeled. Treat the projection as a
 
 ## Find your way around
 
-- [Home](#home): today's plan, check-ins, weekly mileage, and the next two weeks.
-- [Calendar](#calendar): accepted sessions, workout details, and revision history. Completed, historical, and locked sessions are protected during undo.
-- [Trends](#trends): volume, effort load, long runs, intensity, execution, and recovery. Open activity details and metric explanations to see the supporting evidence and gaps.
-- [Block](#block): the current objective, timeline, and review indicators.
-- [Strength](#strength): imported lifting history and recorded sets. Keep using Strong for lifting; the app reads its export.
-- [Data & settings](#settings): sync status, source coverage, profile, and confirmed weekly or alternating strength/mobility schedules.
-- [History](#history): activity, check-in, and manual-session history.
-- [Coaching history](#coach): earlier coaching records retained for reference.
+- [Home](#home): sync status, **Needs attention** (open proposals, coach recommendations, findings, patch reassessments, and check-in prompts), today's plan, the next two weeks, weekly mileage, the block line, and **Logged for Sunday review**.
+- [Calendar](#calendar): accepted sessions, workout details, patch and benchmark badges, and revision history with a link to the proposal behind each coach change. Completed, historical, and locked sessions are protected during undo.
+- [Trends](#trends): volume, effort load, long runs, intensity, recovery, and benchmark history. Panels without enough data wait under **Not yet assessable**.
+- [Training block](#block): the current objective, timeline, review indicators, and block benchmark.
+- [Settings](#settings): sync, setup or strength routine, display timezone and units, weekly review day, goals, events, and intensity anchors.
+
+The **Guide** link in the header opens this guide. Lifting stays in Strong; the app reads its export for running context.
 
 If you need to undo an accepted calendar change, inspect Calendar's revision history or explicitly ask the coach for an undo. Protected sessions remain protected.
 
