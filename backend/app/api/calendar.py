@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from importlib import import_module
 from typing import Annotated, Literal
 
@@ -16,6 +16,7 @@ from app.api.core import envelope
 from app.calendar_models import CalendarVersion
 from app.db import get_session
 from app.services import calendar, weekly_projection
+from app.services.exceptions.detector import run_detection
 
 router = APIRouter()
 
@@ -127,6 +128,8 @@ def put_completion(session_uid: uuid.UUID, body: CompletionInput,
                    assess: Callable[[Session, uuid.UUID], None] = Depends(get_completion_assessor),
                    session: Session = Depends(get_session)) -> dict:
     row = calendar.put_completion(session, session_uid, body.model_dump(exclude_unset=True), assess=assess)
+    session.commit()
+    run_detection(session, datetime.now(UTC))
     session.commit()
     session.refresh(row)
     return envelope(session, calendar.completion_data(session, row))

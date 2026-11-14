@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import LegacyImportMap, LegacyImportRun, SessionCompletion
 from app.checkin_models import SessionRpe
+from app.domain.athlete_facts import clinical_restriction
 from app.fit_models import FitFile
 from app.metrics.contract import completion_association_hash
 from app.models import (
@@ -141,7 +142,7 @@ def collect_decision_inputs(
     max_severity = max((float(row.severity) for row in recent_symptoms if row.severity is not None), default=None)
     gait_yes = any(getattr(row, "gait_change", None) == "yes" for row in checkins if row.id in recent_ids)
     illness = any(getattr(row, "illness", None) == "present" for row in checkins if row.id in recent_ids)
-    clinical = bool((profile.facts or {}).get("clinical_restriction_active")) if profile else False
+    clinical = clinical_restriction(profile.facts) is not None if profile else False
     guard = {
         "window_hours": 72,
         "gait_change_yes": gait_yes,

@@ -15,6 +15,7 @@ from app.api.calendar import router as calendar_router
 from app.api.checkins import router as checkins_router
 from app.api.coach import router as coach_router
 from app.api.core import router as core_router
+from app.api.exceptions import router as exceptions_router
 from app.api.metrics import router as metrics_router
 from app.api.planning import router as planning_router
 from app.api.sync import router as sync_router
@@ -111,6 +112,7 @@ app.include_router(core_router, prefix='/api/v1', dependencies=[Depends(serializ
 app.include_router(anchors_router, prefix='/api/v1')
 app.include_router(calendar_router, prefix='/api/v1')
 app.include_router(checkins_router, prefix='/api/v1')
+app.include_router(exceptions_router, prefix='/api/v1')
 app.include_router(planning_router, prefix='/api/v1')
 app.include_router(metrics_router, prefix='/api/v1')
 app.include_router(sync_router, prefix='/api/v1')
