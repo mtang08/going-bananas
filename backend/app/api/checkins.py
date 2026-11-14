@@ -27,6 +27,7 @@ from app.services.checkins import (
     save_manual_rpe,
 )
 from app.services.daily_guidance import guidance_data, persist_daily_guidance
+from app.services.exceptions.detector import detection_payload, run_detection
 
 router = APIRouter()
 
@@ -55,8 +56,10 @@ def _today(session: Session) -> date:
 def post_checkin(body: CheckinCreate, session: Session = Depends(get_session)) -> JSONResponse:
     result, created = create_checkin(session, body.model_dump())
     session.commit()
+    detection = run_detection(session, datetime.now(UTC))
+    session.commit()
     return JSONResponse(status_code=201 if created else 200,
-        content=jsonable_encoder(envelope(session, result)))
+        content=jsonable_encoder(envelope(session, {**result, 'exceptions': detection_payload(detection)})))
 
 
 @router.patch('/v2/checkins/{checkin_id}')
@@ -64,7 +67,9 @@ def patch_checkin_route(checkin_id: uuid.UUID, body: CheckinPatch,
                         session: Session = Depends(get_session)) -> dict:
     result = patch_checkin(session, checkin_id, body.model_dump(exclude_unset=True))
     session.commit()
-    return envelope(session, result)
+    detection = run_detection(session, datetime.now(UTC))
+    session.commit()
+    return envelope(session, {**result, 'exceptions': detection_payload(detection)})
 
 
 @router.get('/v2/checkins')
@@ -97,6 +102,8 @@ def request_daily(body: EmptyRequest, session: Session = Depends(get_session)) -
 def put_activity_rpe(activity_id: uuid.UUID, body: RpeInput,
                      session: Session = Depends(get_session)) -> dict:
     result = save_manual_rpe(session, activity_id=activity_id, rpe=body.rpe, now=datetime.now(UTC))
+    session.commit()
+    run_detection(session, datetime.now(UTC))
     session.commit()
     return envelope(session, result)
 

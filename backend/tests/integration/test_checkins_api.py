@@ -19,6 +19,7 @@ from app.checkin_models import Checkin, CheckinRevision, SessionRpe, SymptomRepo
 from app.coach_v2_models import DailyGuidance
 from app.config import settings
 from app.db import engine, get_session
+from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.main import handle_http, handle_validation
 from app.metric_models import Prompt
 from app.models import Activity, AppState, ProfileVersion
@@ -34,6 +35,8 @@ def api_fixture():
         outer = connection.begin()
         try:
             with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+                session.execute(delete(ExceptionFinding))
+                session.execute(delete(ExceptionPatch))
                 session.execute(delete(DailyGuidance))
                 session.execute(delete(CheckinRevision))
                 session.execute(delete(SymptomReport))
@@ -113,7 +116,9 @@ def test_create_replay_patch_snapshot_and_guidance_reload(api_fixture):
     assert client.patch(f"/api/v1/v2/checkins/{original['id']}", json={
         'expected_version': 1, 'fatigue': 6}).status_code == 409
     again = client.post('/api/v1/v2/checkins', json=body)
-    assert again.status_code == 200 and again.json()['data'] == original
+    assert again.status_code == 200
+    assert {k: v for k, v in again.json()['data'].items() if k != 'exceptions'} == {k: v for k, v in original.items() if k != 'exceptions'}
+    assert again.json()['data']['exceptions']['new_finding_ids'] == []
     with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
         revision = session.scalar(select(CheckinRevision).where(CheckinRevision.checkin_id == uuid.UUID(original['id'])))
         assert revision.payload['symptoms'][0]['severity'] == 3.0
