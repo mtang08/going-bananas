@@ -1,4 +1,4 @@
-import type { Category, Ladder, Severity } from './api/types/exceptions'
+import type { BenchmarkOutcome, Category, Ladder, Severity } from './api/types/exceptions'
 import type { ProposalStatus } from './api/types/coach'
 
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -39,3 +39,15 @@ export const PROPOSAL_CHIP_LABELS: Partial<Record<ProposalStatus, string>> = {
 }
 export const operationLabel = (op: string): string =>
   OPERATION_LABELS[op] ?? op.replaceAll('_', ' ')
+
+export const OUTCOME_LABELS: Record<BenchmarkOutcome, string> = {
+  progress: 'Progress',
+  consolidate: 'Consolidate',
+  recalibrate_only: 'Recalibrate paces only',
+  inconclusive: 'Inconclusive',
+}
+export const RECALIBRATION_LABELS: Record<'none' | 'propose_anchors' | 'defer', string> = {
+  none: 'No pace change',
+  propose_anchors: 'New paces proposed',
+  defer: 'Recalibrate later',
+}

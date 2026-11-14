@@ -9,3 +9,8 @@ export interface Patch { id: string; proposal_id: string; calendar_version_numbe
 export interface Recommendation { operation: 'exception_review' | 'review_training_block' | 'post_event_review'; reason: string; finding_ids: string[]; prompt: string }
 export interface ExceptionsView { rule_version: string; findings: Finding[]; patches: Patch[]; review_recommended: Recommendation[]; counts: Record<Severity, number> }
 export interface CheckinExceptions { new_finding_ids: string[]; review_recommended: Recommendation[] }
+export interface SessionPatchRef { patch_id: string; proposal_id: string; reassess_on: string; status: PatchStatus }
+export type BenchmarkOutcome = 'progress' | 'consolidate' | 'recalibrate_only' | 'inconclusive'
+export interface ProposalException { finding_ids: string[]; category: Exclude<Category, 'post_event'>; severity: Severity; confidence: 'low' | 'moderate' | 'high'; triggering_evidence: string; relevant_context: string | null; ladder_level: Ladder; patch_window: { start: string; end: string }; unchanged: { session_uid: string; reason: string }[]; reassess_on: string; monitor: string[]; return_criteria: string[]; escalate_criteria: string[] }
+export interface ProposalEventReview { event_id: string | null; activity_id: string | null; outcome: BenchmarkOutcome | null; compared_with: string | null; pacing: string; effort_and_limiter: string; conditions: string | null; symptoms: string | null; recovery_observation: string; recalibration: 'none' | 'propose_anchors' | 'defer'; training_implication: string }
+export interface ProposalPatchResolution { patch_id: string; status: 'resolved' | 'escalated'; note: string }
