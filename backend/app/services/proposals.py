@@ -685,14 +685,16 @@ def _change_issues(doc: ProposalDoc, ctx: ValidationContext, i: int, change: Cha
     return issues
 
 
-def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool = True) -> list[ValidationIssue]:
+def _preserved_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
-    start, end = scope(doc.operation, ctx.today)
-    state = _resulting(doc, ctx)
-    issues += _change_rules(doc, ctx, start=start, end=end, state=state)
     for j, uid in enumerate(doc.preserved):
         if uid not in ctx.head_sessions:
             issues.append(_issue("V4.unknown_preserved", f"preserved.{j}"))
+    return issues
+
+
+def _calendar_shape_rules(state: dict[str, dict], *, start: date, end: date) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     for day_offset in range((end - start).days + 1):
         day = start + timedelta(days=day_offset)
         if sum(row["kind"] == "run" and row["local_date"] == day for row in state.values()) > 1:
@@ -705,6 +707,11 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
         if sum(row["kind"] == "run" and row.get("recipe_id") == LONG_RECIPE for row in rows) > 1:
             issues.append(_issue("V10.multiple_long", "changes"))
         week += timedelta(days=7)
+    return issues
+
+
+def _kb_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     for field, allowed in [
         ("policy_ids", ctx.kb.policy_ids),
         ("recipe_ids", ctx.kb.recipe_ids),
@@ -713,6 +720,11 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
         for j, value in enumerate(getattr(doc, field)):
             if value not in allowed:
                 issues.append(_issue("V11.unknown_kb_id", f"{field}.{j}"))
+    return issues
+
+
+def _block_change_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     block = doc.block_change
     if block:
         if doc.operation not in BLOCK_OPS:
@@ -735,6 +747,11 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
                     issues.append(
                         _issue("V13.block_change_invalid", f"block_change.version_fields.eligible_recipe_ids.{j}")
                     )
+    return issues
+
+
+def _anchor_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     if doc.anchor_changes and not _anchors_allowed(doc):
         issues.append(_issue("V14.anchor_change_not_allowed", "anchor_changes"))
     anchor_keys: set[str] = set()
@@ -753,8 +770,20 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
         if key in anchor_keys:
             issues.append(_issue("V14.anchor_invalid", f"{path}.kind"))
         anchor_keys.add(key)
+    return issues
+
+
+def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool = True) -> list[ValidationIssue]:
+    start, end = scope(doc.operation, ctx.today)
+    state = _resulting(doc, ctx)
+    issues = _change_rules(doc, ctx, start=start, end=end, state=state)
+    issues += _preserved_rules(doc, ctx)
+    issues += _calendar_shape_rules(state, start=start, end=end)
+    issues += _kb_rules(doc, ctx)
+    issues += _block_change_rules(doc, ctx)
+    issues += _anchor_rules(doc, ctx)
     if exception_checks:
-        issues.extend(_exception_rules(doc, ctx))
+        issues += _exception_rules(doc, ctx)
     return issues
 
 
