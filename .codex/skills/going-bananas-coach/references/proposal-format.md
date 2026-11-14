@@ -27,6 +27,24 @@ for every changed session. Keep it brief when the top-level rationale already
 explains the decision; the app may collapse session-level details in its review
 display.
 
+## Exception, race, and benchmark fields
+
+These fields appear only in exception, post-event, and benchmark block reviews.
+The same plain-text rules apply.
+
+| Field | Populate with | Length target |
+| --- | --- | --- |
+| `exception.triggering_evidence` | The observations that triggered the finding, in plain words. | At most 600 characters; aim for 2 sentences. |
+| `exception.relevant_context` | Confounders and current safety status. | At most 600 characters. |
+| `exception.confidence` | `low`, `moderate`, or `high`. | One value. |
+| `exception.unchanged[].reason` | Why that committed session stays as planned. | At most 200 characters; one clause. |
+| `monitor`, `return_criteria`, `escalate_criteria` | Observable signs to watch, conditions for returning to the plan, and conditions for escalating. | 1–3 items each; at most 200 characters per item. |
+| `event_review.*` | Pacing, effort and limiter, conditions, symptoms, recovery observation, recalibration, and training implication. | One or two sentences each; at most 600 characters (`conditions` and `symptoms` at most 400). |
+| `event_review.outcome`, `event_review.compared_with` | Block reviews only: the benchmark outcome and the prior result with the same protocol. | One value; `compared_with` at most 300 characters. |
+| `patch_resolutions[].note` | What changed since the patch was set. | At most 300 characters. |
+
+`exception.confidence` uses `moderate`, matching the top-level `confidence`.
+
 ## Repeated workout steps
 
 Represent identical intervals with the schema's `repeat` block instead of
@@ -79,3 +97,82 @@ empty sections. For a no-change proposal, say “Keep the current plan” and
 explain that the app records the athlete's acknowledgment. Use the pending
 wording only after submission succeeds. Never imply that a proposal has been
 applied.
+
+## Exception and race templates
+
+For an exception review, insert these blocks between the rationale paragraphs
+and the "Pending your review" line of the base template. Use the labels the app
+shows (for example, severity `caution` is "Caution" and `escalate` is "Needs
+bigger review"). Omit lines whose field is empty.
+
+```markdown
+### Exception classification
+- Category: <category label>
+- Severity: <severity label>
+- Triggering evidence: <triggering_evidence>
+- Relevant context: <relevant_context>
+- Confidence: <confidence>
+
+### Plan impact
+- Sessions affected: <day, date — session>
+- Exact changes: <one line per change: was → now>
+- Patch window: <start>–<end> (<ladder label>)
+- Sessions explicitly unchanged: <day, date — session — reason>
+
+### Reassessment
+- What to monitor: <monitor>
+- Return conditions: <return_criteria>
+- Escalation conditions: <escalate_criteria>
+
+### Plan history
+- Patch relative to plan version <base_calendar_version>; days 8–14 untouched.
+- Reason per change: <day, date — changes[].reason>
+```
+
+For a post-event review, insert this block in the same place. For a block review
+with a completed benchmark, title it `### Benchmark review` and include the
+outcome and compared-with lines; omit them otherwise.
+
+```markdown
+### Race review
+- Outcome: <outcome label>
+- Compared with: <compared_with>
+- Pacing: <pacing>
+- Effort and limiter: <effort_and_limiter>
+- Conditions: <conditions>
+- Symptoms: <symptoms>
+- Recovery observation: <recovery_observation>
+- Recalibration: <recalibration label>
+- Training implication: <training_implication>
+```
+
+Example; use the saved proposal's real values.
+
+```markdown
+Caution: unexpected recovery disruption.
+Tuesday's easy run was substantially harder than intended, fatigue has remained elevated for two days, and sleep has been below normal. No injury symptoms are reported. Replace Wednesday's interval session with easy running or rest, retain Friday's plan provisionally, and reassess after Wednesday's response. Do not move the interval session automatically to Thursday.
+
+### Exception classification
+- Category: Fatigue and recovery
+- Severity: Caution
+- Triggering evidence: Tuesday's easy run felt much harder than its expected effort; fatigue elevated for two days; sleep below normal.
+- Relevant context: No injury symptoms reported.
+- Confidence: Moderate
+
+### Plan impact
+- Sessions affected: Wednesday — interval session
+- Exact changes: Wednesday: intervals → easy running or rest
+- Patch window: Wednesday (Next session only)
+- Sessions explicitly unchanged: Friday — retained provisionally; Thursday — the interval session is not moved there
+
+### Reassessment
+- What to monitor: Wednesday's response, fatigue, sleep
+- Return conditions: fatigue and sleep back to usual after Wednesday's easy response
+- Escalation conditions: fatigue or poor sleep persisting past Wednesday, or any symptom or illness
+
+### Plan history
+- Patch relative to plan version <base_calendar_version>; days 8–14 untouched.
+- Wednesday: replace intervals — repeated fatigue, poor sleep, and an easy run above its intended effort.
+
+Pending your review; nothing applied. [Review proposal](<returned app link>)
+```
