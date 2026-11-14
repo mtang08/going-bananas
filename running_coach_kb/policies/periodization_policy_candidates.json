@@ -239,6 +239,215 @@
         "The athlete has an adverse or successful taper response to record",
         "New sport- and population-specific taper evidence"
       ]
+    },
+    {
+      "policy_id": "P024",
+      "title": "Judge session RPE against the intended session class",
+      "decision_question": "Does a session's effort signal a training-response problem?",
+      "trigger": [
+        "A planned easy, long, or quality run has whole-session RPE at least two points above the expected range for its session class.",
+        "Several such mismatches occur within the committed window or coincide with fatigue, illness, poor sleep, travel, or adverse recovery nights."
+      ],
+      "required_inputs": [
+        "planned_session_class_and_expected_rpe",
+        "effective_session_rpe_and_source",
+        "environment_terrain_and_context_tags",
+        "recent_fatigue_illness_and_sleep",
+        "recent_mismatch_history"
+      ],
+      "suggested_action": [
+        "Treat one mismatch as an observation to log, not a reason to change the plan.",
+        "When mismatches repeat or converge with other signals, reduce the next demanding exposure first.",
+        "Name heat, hills, travel, and sensor or recall problems as confounders before interpreting effort."
+      ],
+      "alternatives": [
+        "Keep the plan and ask for RPE on the next comparable easy run.",
+        "Shorten the next easy run while keeping frequency."
+      ],
+      "do_not_apply_when": [
+        "The session has no planned class or no expected range, such as a benchmark, race, or cross-training.",
+        "RPE is missing; missing effort is unknown, not normal.",
+        "Symptoms, gait change, or illness already define the response."
+      ],
+      "rationale": "Session RPE is practical for broad load monitoring but shifts with heat, terrain, fatigue, psychology, and session type, so a mismatch against intent is more informative than an absolute value, and repetition more than one session.",
+      "evidence_ids": ["E-DATA-01", "E-DATA-02", "E-REC-02"],
+      "source_ids": ["S049", "S050", "S051", "S041"],
+      "evidence_certainty": "Moderate for session-RPE validity; low for mismatch thresholds",
+      "athlete_applicability": "High when RPE is logged consistently",
+      "threshold_basis": "Expected ranges and the two-point margin are coaching conventions in the application rule set, not validated cutoffs",
+      "calibration_needed": "Tune expected ranges after several weeks of the athlete's RPE against intent.",
+      "uncertainty": "Recall bias and scale use vary; a mismatch does not identify its cause.",
+      "review_triggers": [
+        "Mismatches persist after easier sessions",
+        "The athlete reports a change in how they use the RPE scale",
+        "New evidence on RPE-intent discrepancy"
+      ]
+    },
+    {
+      "policy_id": "P025",
+      "title": "Patch the smallest scope inside the committed window",
+      "decision_question": "How much of the plan should an exception change?",
+      "trigger": [
+        "An open caution or hold finding, or a due patch reassessment, needs a plan response between weekly reviews."
+      ],
+      "required_inputs": [
+        "open_findings_with_category_severity_and_evidence",
+        "committed_window_sessions_days_0_to_6",
+        "session_classes_and_spacing",
+        "strength_schedule",
+        "open_patches"
+      ],
+      "suggested_action": [
+        "Choose the lowest ladder level that addresses the finding: current session, next session, next days (up to 3), then the committed window (days 1–7).",
+        "Change only sessions inside a stated patch window and list the committed sessions deliberately left unchanged.",
+        "Never edit provisional days 8–14; the next weekly review owns them.",
+        "Record a reassess date within 7 days with monitoring, return, and escalation criteria."
+      ],
+      "alternatives": [
+        "Make no change and monitor when the finding is observe-level.",
+        "Escalate to a block review when narrower patches cannot preserve coherence."
+      ],
+      "do_not_apply_when": [
+        "A clinician instruction or red-flag symptom requires assessment first.",
+        "An escalate-severity pattern needs a block review rather than another patch.",
+        "A different proposal is already open."
+      ],
+      "rationale": "Daily-layer changes normally stay within the next one to three days and preserve the broader plan; escalating only when narrower layers fail avoids overreacting to noise while keeping an auditable record.",
+      "evidence_ids": ["E-REC-04", "E-AER-02"],
+      "source_ids": ["S043", "S002"],
+      "evidence_certainty": "Low; coaching convention consistent with evidence against rigid universal rules",
+      "athlete_applicability": "High",
+      "threshold_basis": "Window lengths and the reassess interval are product conventions",
+      "calibration_needed": "Review whether patch windows were too short or too long after several exceptions.",
+      "uncertainty": "No trial compares patch scopes; the ladder is a planning convention.",
+      "review_triggers": [
+        "Patches recur in consecutive committed windows",
+        "Patches routinely reach their escalation criteria"
+      ]
+    },
+    {
+      "policy_id": "P026",
+      "title": "Return to plan by stated criteria, not one normal metric",
+      "decision_question": "When should a patched plan return to its original intent?",
+      "trigger": [
+        "A patch reaches its reassess date.",
+        "A metric that motivated a patch returns to normal."
+      ],
+      "required_inputs": [
+        "patch_return_and_escalation_criteria",
+        "symptom_and_function_course_through_delayed_window",
+        "illness_status",
+        "recent_easy_exposure_response",
+        "fatigue_trend"
+      ],
+      "suggested_action": [
+        "Resolve the patch only when its return criteria are met through at least one comparable easy exposure and its delayed window.",
+        "Restore one demanding exposure first; do not compress the removed work.",
+        "Open a new narrow patch when criteria are partly met; escalate when escalation criteria are met."
+      ],
+      "alternatives": [
+        "Keep easy running a few more days while monitoring.",
+        "Substitute low-impact aerobic work when impact remains the concern."
+      ],
+      "do_not_apply_when": [
+        "A clinician provides different return criteria.",
+        "Symptoms are worsening or gait has changed; use P018."
+      ],
+      "rationale": "Return after illness is staged and symptom-led, and tendon pain-monitoring evidence supports tracking response over time rather than one value; short interruptions cost less than a premature return.",
+      "evidence_ids": ["E-AER-05", "E-PTT-06", "E-TRANS-01"],
+      "source_ids": ["S006", "S007", "S034", "S072"],
+      "evidence_certainty": "Moderate clinical guidance for illness return; low for generic return criteria",
+      "athlete_applicability": "Very high",
+      "threshold_basis": "Athlete-specific criteria written into each patch; no numeric pain threshold",
+      "calibration_needed": "Learn which return criteria preceded a stable return for this athlete.",
+      "uncertainty": "Return criteria are judgment-based; one normal day can precede relapse.",
+      "review_triggers": [
+        "The same finding reopens within 14 days of a resolved patch",
+        "Return criteria are repeatedly unmet"
+      ]
+    },
+    {
+      "policy_id": "P027",
+      "title": "Treat a completed race as one piece of evidence",
+      "decision_question": "How should a completed race or benchmark change training and anchors?",
+      "trigger": [
+        "A target, benchmark, or supported-exposure event was completed in the last 7 days."
+      ],
+      "required_inputs": [
+        "event_priority_distance_and_result",
+        "pacing_and_effort",
+        "conditions_course_and_fueling",
+        "symptoms_gait_and_illness_after_event",
+        "next_day_and_delayed_response",
+        "current_anchors_and_block_objective"
+      ],
+      "suggested_action": [
+        "Record pacing, effort and limiter, conditions, symptoms, recovery observation, a recalibration decision, and one training implication.",
+        "Treat the first one to three days as an observation window and choose easy movement, rest, or cross-training from the observed response.",
+        "Propose anchor updates only from a comparable, credible performance that agrees with other evidence; otherwise defer."
+      ],
+      "alternatives": [
+        "Defer recalibration until a comparable benchmark or workout confirms the result.",
+        "Escalate to a block review when the result changes the objective or an event priority."
+      ],
+      "do_not_apply_when": [
+        "Symptoms or illness after the event need exception or clinical guidance first.",
+        "The event was a training run that was not raced."
+      ],
+      "rationale": "Races reveal capability but carry recovery cost and context-specific error; single tests can misclassify response, and recovery depends on the whole response rather than distance alone.",
+      "evidence_ids": ["E-CAL-04", "E-DATA-02"],
+      "source_ids": ["S067", "S068", "S050", "S051"],
+      "evidence_certainty": "Low-moderate",
+      "athlete_applicability": "High",
+      "threshold_basis": "No fixed recovery-day count or automatic anchor conversion",
+      "calibration_needed": "Record this athlete's post-event recovery pattern by event type.",
+      "uncertainty": "Conditions, pacing, and motivation limit comparability across events.",
+      "review_triggers": [
+        "Post-event symptoms persist beyond the observation window",
+        "Race results repeatedly disagree with workout-derived anchors"
+      ]
+    },
+    {
+      "policy_id": "P028",
+      "title": "Close each block with a standardized benchmark and recalibrate in the same review",
+      "decision_question": "How should a block's progress and intensity anchors be judged at its end?",
+      "trigger": [
+        "A block version is active or is being started.",
+        "The block's culminating benchmark was completed, missed, or compromised."
+      ],
+      "required_inputs": [
+        "block_benchmark_protocol_and_planned_date",
+        "progress_if_and_consolidate_if",
+        "benchmark_result_and_conditions",
+        "prior_result_with_same_protocol",
+        "training_response_during_block",
+        "current_anchors"
+      ],
+      "suggested_action": [
+        "Set one benchmark in the last 7 days of every block: a time trial or an existing event, with a repeatable protocol and progress and consolidate criteria stated in advance.",
+        "At the block review, choose progress, consolidate, recalibrate_only, or inconclusive from the result compared with the same protocol, together with the training response.",
+        "Recalibrate anchors in the same review when the result is credible and comparable."
+      ],
+      "alternatives": [
+        "Use an existing event as the benchmark when it fits the last 7 days.",
+        "Reschedule within 14 days or extend the block when the benchmark is missed."
+      ],
+      "do_not_apply_when": [
+        "Illness, symptoms, or a clinician instruction make a maximal effort inappropriate.",
+        "Conditions or protocol differ so much that the result is not comparable; record it as inconclusive."
+      ],
+      "rationale": "Repeated comparable field tests can anchor intensity and track change, but single tests carry measurement and day-to-day error, so a fixed protocol, pre-stated criteria, and the training response together give a more defensible block decision.",
+      "evidence_ids": ["E-CAL-01", "E-CAL-04", "E-DATA-02"],
+      "source_ids": ["S064", "S067", "S068", "S050", "S051"],
+      "evidence_certainty": "Low-moderate",
+      "athlete_applicability": "High",
+      "threshold_basis": "Progress and consolidate criteria are athlete-specific and written into each block; no universal improvement threshold",
+      "calibration_needed": "Review after several blocks whether the chosen protocol and criteria were repeatable.",
+      "uncertainty": "Benchmark results vary with conditions, pacing, and motivation; one result cannot establish a trend.",
+      "review_triggers": [
+        "Benchmarks are repeatedly missed or compromised",
+        "Results disagree with the training response for two blocks"
+      ]
     }
   ]
 }
