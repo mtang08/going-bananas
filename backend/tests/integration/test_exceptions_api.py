@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.api.calendar import get_completion_assessor
 from app.api.calendar import router as calendar_router
 from app.api.checkins import router as checkins_router
+from app.api.exceptions import router as exceptions_router
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.checkin_models import Checkin, CheckinRevision, SessionRpe, SymptomReport
 from app.coach_v2_models import (
@@ -35,6 +36,7 @@ from app.metric_models import Prompt
 from app.models import AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, Event, IntensityAnchor
 from app.services.exceptions.detector import (
+    PROMPTS,
     REASON_BENCHMARK,
     REASON_BLOCK_SYMPTOMS,
     REASON_EXCEPTION,
@@ -97,6 +99,7 @@ def exc_fixture(monkeypatch):
                     scheduled_strength_days=[0, 4], facts={}, preferences={}, unknowns=[]))
                 session.commit()
             api = FastAPI()
+            api.include_router(exceptions_router, prefix='/api/v1')
             api.include_router(checkins_router, prefix='/api/v1')
             api.include_router(calendar_router, prefix='/api/v1')
             api.add_exception_handler(HTTPException, handle_http)
@@ -295,3 +298,56 @@ def test_clinician_restriction_reader(exc_fixture):
         assert finding.evidence_at == NOW - timedelta(days=3)
         assert any(r['operation'] == 'review_training_block' and r['reason'] == REASON_BLOCK_SYMPTOMS
                    for r in wire(result))
+
+
+def test_patch_resolve_flow(exc_fixture):
+    client, connection = exc_fixture
+    now = datetime.now(UTC)
+    today = now.astimezone(ZoneInfo('America/New_York')).date()
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        snapshot = CoachSnapshot(operation='exception_review', as_of=today, generated_at=now,
+            calendar_version_number=0, data_revision=0, payload={}, source_fingerprint='a'*64,
+            source_versions={}, kb_digest='b'*64, payload_sha256='c'*64, kb_package_version='test',
+            kb_routes=[], approx_tokens=0)
+        session.add(snapshot)
+        session.flush()
+        proposal = CoachProposal(snapshot_id=snapshot.id, operation='exception_review', status='accepted',
+            decided_at=now, input_hash='d'*64, payload={'changes': []}, confidence={}, summary='s', rationale='r',
+            skill_version='running-coach.v1', base_calendar_version=0, submitted_at=now)
+        session.add(proposal)
+        session.flush()
+        patch = ExceptionPatch(proposal_id=proposal.id, category='accumulated_fatigue', severity='caution',
+            ladder_level='next_days', window_start=today, window_end=today + timedelta(days=1), reassess_on=today,
+            calendar_version_number=0, monitor=['Fatigue'], return_criteria=['Fatigue below 5'],
+            escalate_criteria=['Fatigue rising'])
+        session.add(patch)
+        session.flush()
+        finding = ExceptionFinding(rule_code='FATIGUE_PERSISTING', rule_version='exceptions.v1',
+            category='accumulated_fatigue', severity='caution', entity_key='fatigue_persisting', status='addressed',
+            summary='synthetic', evidence=[], evidence_at=now, first_seen_at=now, last_seen_at=now, patch_id=patch.id)
+        session.add(finding)
+        session.commit()
+        patch_id, finding_id = patch.id, finding.id
+    data = client.get('/api/v1/exceptions').json()['data']
+    assert data['patches'][0]['reassess_due'] is True
+    assert data['patches'][0]['session_uids'] == []
+    assert {'operation': 'exception_review', 'reason': 'Patch reassessment due', 'finding_ids': [str(finding_id)],
+            'prompt': PROMPTS['reassess']} in data['review_recommended']
+    url = f'/api/v1/exception-patches/{patch_id}/resolve'
+    headers = {'X-Local-Request': '1', 'Origin': 'http://testserver'}
+    response = client.post(url, json={'expected_version': 2, 'status': 'escalated'}, headers=headers)
+    assert response.status_code == 409 and response.json()['error']['code'] == 'version_conflict'
+    response = client.post(url, json={'expected_version': 1, 'status': 'escalated'}, headers=headers)
+    assert response.status_code == 200
+    data = response.json()['data']
+    assert (data['status'], data['resolved_by'], data['version']) == ('escalated', 'athlete', 2)
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        assert session.get(ExceptionFinding, finding_id).status == 'addressed'
+    response = client.post(url, json={'expected_version': 2, 'status': 'escalated'}, headers=headers)
+    assert response.status_code == 409 and response.json()['error']['code'] == 'patch_closed'
+    response = client.post(url, json={'expected_version': 2, 'status': 'resolved'}, headers=headers)
+    assert response.status_code == 200 and response.json()['data']['version'] == 3
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        finding = session.get(ExceptionFinding, finding_id)
+        assert finding.status == 'resolved' and finding.closed_at is not None and finding.version == 2
+    assert client.get('/api/v1/exceptions').json()['data']['patches'][0]['status'] == 'resolved'
