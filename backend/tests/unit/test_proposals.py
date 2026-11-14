@@ -832,3 +832,68 @@ def test_v14_block_review_anchor_needs_event_review() -> None:
     assert outcome(doc, bench_ctx()) == ("pending", [])
     del doc["event_review"]
     assert outcome(doc, bench_ctx(frozenset())) == ("invalid", [("V14.anchor_change_not_allowed", "anchor_changes")])
+
+
+def test_rule_issue_order_is_pinned() -> None:
+    doc = valid_doc()
+    doc["changes"] = [
+        change("c1", "modify", 3, {"recipe_id": "REC099"}),
+        change("c1", "move", 11, {"local_date": "2026-11-17"}),
+        change("c3", "add", None, {"local_date": "2026-12-30", "kind": "run", "recipe_id": "REC001",
+                                   "intent": "Easy", "planned_duration_s": 1800}),
+        change("c4", "modify", 99, {"intent": "Unknown"}),
+        change("c5", "modify", 3, {"intent": "Again"}),
+    ]
+    doc["preserved"] = [str(U(98))]
+    doc["evidence_ids"] = ["E-NOPE-01"]
+    EXPECTED = ("invalid", [
+        ('V6.unknown_recipe', 'changes.0.after.recipe_id'),
+        ('V4.duplicate_change_id', 'changes.1.change_id'),
+        ('V9.strength_move_flag', 'changes.1'),
+        ('V5.out_of_scope', 'changes.2'),
+        ('V4.unknown_session', 'changes.3.session_uid'),
+        ('V4.session_in_multiple_changes', 'changes.4.session_uid'),
+        ('V4.unknown_preserved', 'preserved.0'),
+        ('V11.unknown_kb_id', 'evidence_ids.0'),
+    ])
+    assert outcome(doc) == EXPECTED
+    assert [(issue.code, issue.path, issue.message)
+            for issue in validate_document(doc, context()).issues] == [
+        ('V6.unknown_recipe', 'changes.0.after.recipe_id', 'V6.unknown_recipe'),
+        ('V4.duplicate_change_id', 'changes.1.change_id', 'V4.duplicate_change_id'),
+        ('V9.strength_move_flag', 'changes.1', 'V9.strength_move_flag'),
+        ('V5.out_of_scope', 'changes.2', 'V5.out_of_scope'),
+        ('V4.unknown_session', 'changes.3.session_uid', 'V4.unknown_session'),
+        ('V4.session_in_multiple_changes', 'changes.4.session_uid', 'V4.session_in_multiple_changes'),
+        ('V4.unknown_preserved', 'preserved.0', 'V4.unknown_preserved'),
+        ('V11.unknown_kb_id', 'evidence_ids.0', 'V11.unknown_kb_id'),
+    ]
+
+
+def test_exception_rule_issue_order_is_pinned() -> None:
+    doc = valid_doc("exception_review")
+    doc["exception"] = {
+        "finding_ids": [str(U(500))], "category": "accumulated_fatigue", "severity": "caution",
+        "confidence": "moderate", "triggering_evidence": "Fatigue", "ladder_level": "current_session",
+        "patch_window": {"start": "2026-11-16", "end": "2026-11-21"},
+        "unchanged": [{"session_uid": str(U(3)), "reason": "Touched"}],
+        "reassess_on": "2026-11-30", "monitor": ["Fatigue"], "return_criteria": ["Fatigue below 5"],
+        "escalate_criteria": ["Fatigue rising"],
+    }
+    doc["patch_resolutions"] = [{"patch_id": str(U(600)), "status": "resolved", "note": "Done"}]
+    EXPECTED = ("invalid", [
+        ('V17.window_too_long', 'exception.patch_window'),
+        ('V17.reassess_out_of_range', 'exception.reassess_on'),
+        ('V19.unchanged_invalid', 'exception.unchanged.0'),
+        ('V20.finding_unknown', 'exception.finding_ids.0'),
+        ('V21.patch_unknown', 'patch_resolutions.0.patch_id'),
+    ])
+    assert outcome(doc, context("exception_review")) == EXPECTED
+    assert [(issue.code, issue.path, issue.message)
+            for issue in validate_document(doc, context("exception_review")).issues] == [
+        ('V17.window_too_long', 'exception.patch_window', 'V17.window_too_long'),
+        ('V17.reassess_out_of_range', 'exception.reassess_on', 'V17.reassess_out_of_range'),
+        ('V19.unchanged_invalid', 'exception.unchanged.0', 'V19.unchanged_invalid'),
+        ('V20.finding_unknown', 'exception.finding_ids.0', 'V20.finding_unknown'),
+        ('V21.patch_unknown', 'patch_resolutions.0.patch_id', 'V21.patch_unknown'),
+    ]
