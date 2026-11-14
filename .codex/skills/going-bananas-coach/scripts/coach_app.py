@@ -16,7 +16,8 @@ from uuid import UUID, uuid4
 UTC = timezone.utc
 
 OPERATIONS = ('proceed_or_modify_today', 'review_rolling_plan', 'review_training_block',
-              'select_quality_session', 'recalibrate_intensity', 'handle_goal_or_race_change')
+              'select_quality_session', 'recalibrate_intensity', 'handle_goal_or_race_change',
+              'exception_review', 'post_event_review')
 QUERIES = ('activity_execution', 'long_run_history', 'recovery_nights', 'calendar_diff', 'explain_metric')
 MODES = ('real', 'demo', 'test')
 
@@ -155,6 +156,8 @@ def main(argv=None):
     revise.add_argument('--file', type=Path, required=True)
     sub.add_parser('history')
     sub.add_parser('active-proposal')
+    exceptions = sub.add_parser('exceptions')
+    exceptions.add_argument('--include', choices=('active', 'recent'), default='active')
     proposal = sub.add_parser('proposal')
     proposal.add_argument('id', type=UUID)
     proposal.add_argument('--document', action='store_true')
@@ -176,7 +179,7 @@ def main(argv=None):
             raise HelperError('invalid_revision_request', 2)
         # Validate configured origin even for commands using the local CLI.
         client = Client(args.base_url, args.mode)
-        if args.command in {'history', 'proposal', 'active-proposal', 'undo'}:
+        if args.command in {'history', 'proposal', 'active-proposal', 'exceptions', 'undo'}:
             if args.command == 'history':
                 result = client.request('GET', '/calendar/versions')
             elif args.command == 'proposal':
@@ -185,6 +188,8 @@ def main(argv=None):
                 result = client.request('GET', path)
             elif args.command == 'active-proposal':
                 result = client.request('GET', '/coach/proposals/active')
+            elif args.command == 'exceptions':
+                result = client.request('GET', f'/exceptions?include={args.include}')
             else:
                 result = client.undo(args.expected_head, args.target_version, args.reason)
             code = 0

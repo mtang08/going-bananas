@@ -12,6 +12,7 @@ Commands:
 - `query calendar_diff --from N --to N`
 - `query explain_metric --result-id UUID`
 - `active-proposal`: read the current open proposal summary, or `data.proposal: null` when none exists.
+- `exceptions [--include active|recent]`: open findings, tracked patches, review recommendations, and counts (GET `/exceptions`). Each read runs the app's deterministic detector, which records findings but never changes the plan.
 - `submit --file PATH`: save under `private/MODE/coach/proposals` and submit pending. The server validates linkage and source freshness. The helper never changes proposal source fields.
 - `revise UUID --expected-revision N --reason TEXT --file PATH`: save a replacement draft privately and revise the same pending proposal. Returns the revision number and stable review link. A concurrent edit returns `proposal_revision_conflict`.
 - `history`: saved calendar versions.
@@ -22,11 +23,11 @@ Commands:
 
 Exit codes: 0 success; 1 sanitized runtime failure; 2 invalid input/protocol; 3 stale proposal; 4 unavailable verified research or missing query subject. Read structured errors and apply the bounded retries in SKILL.md. A successful submission must say `pending`; any other successful response is treated as a protocol error.
 
-Snapshot/query/submit/revise invoke the repository CLI through `scripts/with-mode` using subprocess argument arrays. `active-proposal`, `history`, and `proposal` use read-only API GET requests. There is no automatic mode switch, shell command interpolation, direct SQL, accept command, or fallback to `/coach/agent/proposals`. Plans are accepted in the app review page. This package is installed from its verified manifest during the app's calendar-authority cutover.
+Snapshot/query/submit/revise invoke the repository CLI through `scripts/with-mode` using subprocess argument arrays. `active-proposal`, `exceptions`, `history`, and `proposal` use read-only API GET requests. There is no automatic mode switch, shell command interpolation, direct SQL, accept command, or fallback to `/coach/agent/proposals`. Plans are accepted in the app review page. This package is installed from its verified manifest during the app's calendar-authority cutover.
 
 ## Reusable access without repeated prompts
 
-For `schema`, `snapshot`, `query`, `active-proposal`, `history`, and `proposal`, use this stable command prefix:
+For `schema`, `snapshot`, `query`, `active-proposal`, `exceptions`, `history`, and `proposal`, use this stable command prefix:
 
 `python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real --read-only`
 
