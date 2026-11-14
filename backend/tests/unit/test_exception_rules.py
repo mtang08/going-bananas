@@ -267,3 +267,34 @@ def test_response_multiweek():
     failed = tuple(ses(d, 'REC003', status='partial') for d in (8, 9))
     runs = tuple(run(d, 6, uid=str(d)) for d in (1, 2))
     assert hits(inp(sessions=easy + failed, runs=runs), code) == [('training_response', 'escalate')]
+
+
+def test_fatigue_high():
+    code = 'FATIGUE_HIGH'
+    assert hits(inp(checkins=(chk(1, fatigue=7),)), code) == [('fatigue', 'observe')]
+    assert hits(inp(checkins=(chk(1, fatigue=6.9),)), code) == []
+    assert hits(inp(checkins=(chk(2, fatigue=7),)), code) == []
+
+
+def test_fatigue_persisting():
+    code = 'FATIGUE_PERSISTING'
+    assert hits(inp(checkins=(chk(0, fatigue=7), chk(3, fatigue=7))), code) == [('fatigue_persisting', 'caution')]
+    assert hits(inp(checkins=(chk(0, fatigue=7), chk(4, fatigue=7))), code) == []
+    assert hits(inp(checkins=(chk(0, fatigue=7), chk(0, fatigue=7))), code) == []
+
+
+def test_signals_converging():
+    code = 'SIGNALS_CONVERGING'
+    assert hits(inp(checkins=(chk(0, fatigue=7), chk(2, tags=('poor_sleep',)))), code) == [('converging', 'caution')]
+    assert hits(inp(checkins=(chk(0, tags=('poor_sleep',)), chk(2, tags=('travel',)))), code) == []
+    nights = frozenset({TODAY, TODAY - timedelta(days=1)})
+    inputs = inp(checkins=(chk(0, fatigue=7),), recovery_adverse_dates=nights)
+    assert hits(inputs, code) == [('converging', 'caution')]
+    assert hits(dataclasses.replace(inputs, recovery_adverse_dates=frozenset({TODAY})), code) == []
+    assert hits(inp(checkins=(chk(0, tags=('poor_sleep',)),), recovery_adverse_dates=nights), code) == []
+
+
+def test_fatigue_prolonged():
+    code = 'FATIGUE_PROLONGED'
+    assert hits(inp(checkins=tuple(chk(d, fatigue=7) for d in (0, 3, 6, 9))), code) == [('fatigue_prolonged', 'hold')]
+    assert hits(inp(checkins=tuple(chk(d, fatigue=7) for d in (0, 3, 6, 10))), code) == []

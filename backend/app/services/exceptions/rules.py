@@ -432,6 +432,63 @@ def _response_multiweek(inputs: DetectionInputs) -> list[Candidate]:
                        'Training response flags repeated in both of the last two 7-day periods.')]
 
 
+def _high_fatigue(inputs: DetectionInputs, days: int) -> list[CheckinFact]:
+    return [c for c in _ordered(inputs)
+            if c.fatigue is not None and c.fatigue >= FATIGUE_HIGH and _in_last(c.local_date, inputs.today, days)]
+
+
+def _fatigue_high(inputs: DetectionInputs) -> list[Candidate]:
+    rows = _high_fatigue(inputs, 2)
+    if not rows:
+        return []
+    latest = rows[-1]
+    return [_candidate('FATIGUE_HIGH', 'accumulated_fatigue', 'observe', 'fatigue', [_ev_checkin(c) for c in rows],
+                       f'High fatigue ({_n(latest.fatigue or 0)}/10) reported on {_d(latest.local_date)}.')]
+
+
+def _fatigue_persisting(inputs: DetectionInputs) -> list[Candidate]:
+    rows = _high_fatigue(inputs, 4)
+    days = {c.local_date for c in rows}
+    if len(days) < 2:
+        return []
+    return [_candidate('FATIGUE_PERSISTING', 'accumulated_fatigue', 'caution', 'fatigue_persisting',
+                       [_ev_checkin(c) for c in rows], f'High fatigue reported on {len(days)} days in the last 4 days.')]
+
+
+_SIGNAL_LABELS = (('fatigue_high', 'high fatigue'), ('rpe_above', 'run harder than intended'),
+                  ('poor_sleep', 'poor sleep'), ('travel', 'travel'), ('adverse_recovery', 'recovery markers off'),
+                  ('illness_possible', 'possible illness'))
+
+
+def _signals_converging(inputs: DetectionInputs) -> list[Candidate]:
+    recent = [c for c in _ordered(inputs) if _in_last(c.local_date, inputs.today, 4)]
+    nights = sorted(d for d in inputs.recovery_adverse_dates if _in_last(d, inputs.today, 4))
+    found: dict[str, list[Item]] = {
+        'fatigue_high': [_ev_checkin(c) for c in _high_fatigue(inputs, 4)],
+        'rpe_above': [_ev_rpe(r, s, _tags_near(inputs, r)) for r, s in _above(inputs, 4)],
+        'poor_sleep': [_ev_checkin(c) for c in recent if 'poor_sleep' in c.context_tags],
+        'travel': [_ev_checkin(c) for c in recent if 'travel' in c.context_tags],
+        'adverse_recovery': [_ev_night(inputs, d) for d in nights] if len(nights) >= 2 else [],
+        'illness_possible': [_ev_checkin(c) for c in recent if c.illness == 'possible'],
+    }
+    present = [(name, label) for name, label in _SIGNAL_LABELS if found[name]]
+    names = {name for name, _ in present}
+    if len(present) < 2 or not names & {'fatigue_high', 'rpe_above'}:
+        return []
+    unique = {(d['type'], d['id'], d['at']): (at, d) for name, _ in present for at, d in found[name]}
+    return [_candidate('SIGNALS_CONVERGING', 'accumulated_fatigue', 'caution', 'converging', list(unique.values()),
+                       f"Signals converging in the last 4 days: {', '.join(label for _, label in present)}.")]
+
+
+def _fatigue_prolonged(inputs: DetectionInputs) -> list[Candidate]:
+    rows = _high_fatigue(inputs, 10)
+    days = {c.local_date for c in rows}
+    if len(days) < 4:
+        return []
+    return [_candidate('FATIGUE_PROLONGED', 'accumulated_fatigue', 'hold', 'fatigue_prolonged',
+                       [_ev_checkin(c) for c in rows], f'High fatigue reported on {len(days)} days in the last 10 days.')]
+
+
 RULES: tuple[tuple[str, Rule], ...] = (
     ('SYM_NEW_SITE', _sym_new_site),
     ('SYM_WORSENING', _sym_worsening),
@@ -449,6 +506,10 @@ RULES: tuple[tuple[str, Rule], ...] = (
     ('SESSION_FAILED', _session_failed),
     ('SESSION_FAILED_REPEATED', _session_failed_repeated),
     ('RESPONSE_MULTIWEEK', _response_multiweek),
+    ('FATIGUE_HIGH', _fatigue_high),
+    ('FATIGUE_PERSISTING', _fatigue_persisting),
+    ('SIGNALS_CONVERGING', _signals_converging),
+    ('FATIGUE_PROLONGED', _fatigue_prolonged),
 )
 
 
