@@ -1,3 +1,5 @@
+import { CATEGORY_LABELS, LADDER_LABELS, SEVERITY_LABELS } from '../coachLabels'
+import type { ProposalException } from '../api/types/exceptions'
 import {
   Badge,
   Button,
@@ -13,6 +15,10 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  qk,
+  sessionTitle,
+  type CalendarView,
+  type SessionState,
   ApiError,
   api,
   dateLabel,
@@ -146,6 +152,82 @@ function SessionView({
   )
 }
 
+const shortDate = (d: string) => dateLabel(d, { weekday: 'short', month: 'short', day: 'numeric' })
+function TextList({
+  title,
+  items,
+  plain,
+}: {
+  title: string
+  items: string[]
+  plain: (t: string) => string
+}) {
+  return (
+    <>
+      <h3>{title}</h3>
+      <ul>
+        {items.map((item, i) => (
+          <li key={i}>{plain(item)}</li>
+        ))}
+      </ul>
+    </>
+  )
+}
+function ExceptionCard({
+  exc,
+  sessions,
+  plain,
+}: {
+  exc: ProposalException
+  sessions: SessionState[]
+  plain: (t: string) => string
+}) {
+  return (
+    <Card className="proposal-exception" data-testid="proposal-exception">
+      <h2>Exception</h2>
+      <p>
+        <Badge>{CATEGORY_LABELS[exc.category]}</Badge>{' '}
+        <Badge>{SEVERITY_LABELS[exc.severity]}</Badge> <span>Confidence: {exc.confidence}</span>
+      </p>
+      <h3>Why now</h3>
+      <CoachText text={plain(exc.triggering_evidence)} />
+      {exc.relevant_context && (
+        <>
+          <h3>Context</h3>
+          <CoachText text={plain(exc.relevant_context)} />
+        </>
+      )}
+      <h3>Plan impact</h3>
+      <p>
+        {LADDER_LABELS[exc.ladder_level]} · {shortDate(exc.patch_window.start)}–
+        {shortDate(exc.patch_window.end)}
+      </p>
+      {exc.unchanged.length > 0 && (
+        <>
+          <h4>Unchanged</h4>
+          <ul>
+            {exc.unchanged.map((item) => {
+              const s = sessions.find((row) => row.session_uid === item.session_uid)
+              return (
+                <li key={item.session_uid}>
+                  {s ? `${shortDate(s.local_date)} · ${sessionTitle(s)}` : 'Session'} —{' '}
+                  {plain(item.reason)}
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
+      <p>
+        <strong>Reassess on {shortDate(exc.reassess_on)}</strong>
+      </p>
+      <TextList title="Watch for" items={exc.monitor} plain={plain} />
+      <TextList title="Back to plan when" items={exc.return_criteria} plain={plain} />
+      <TextList title="Escalate if" items={exc.escalate_criteria} plain={plain} />
+    </Card>
+  )
+}
+
 export function ProposalReview({ proposalId }: { proposalId: string }) {
   return <ReviewForm key={proposalId} proposalId={proposalId} />
 }
@@ -167,6 +249,13 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
   const [reviewedRevision, setReviewedRevision] = useState<number | null>(null)
   const frozen = useRef<{ signature: string; body: ProposalDecision } | null>(null)
   const proposal = detail.data?.data
+  const needsSessions = (proposal?.exception?.unchanged.length ?? 0) > 0
+  const head = useQuery({
+    queryKey: qk.calendarView('head'),
+    enabled: needsSessions,
+    queryFn: () => api<CalendarView>('/calendar'),
+  })
+
   useEffect(() => {
     if (!proposal || reviewedRevision === proposal.revision) return
     setSelected([])
@@ -424,6 +513,13 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                 </dl>
               </Disclosure>
             </Card>
+            {proposal.exception && (
+              <ExceptionCard
+                exc={proposal.exception}
+                sessions={head.data?.data.sessions ?? []}
+                plain={plain}
+              />
+            )}
             {changes.length > 0 && (
               <>
                 <Card className="proposal-plan">

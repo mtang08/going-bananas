@@ -1,10 +1,14 @@
+import type { ProposalException } from '../src/api/types/exceptions'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ProposalReview } from '../src/pages/ProposalReview'
 import type { ProposalDecision, ProposalDetail } from '../src/api/types/coach'
-import type { PlannedStep } from '../src/api/types/calendar'
+import type { PlannedStep, SessionState } from '../src/api/types/calendar'
 
+const unchangedSession:SessionState={id:'s7-rev',session_uid:'s7',revision:1,calendar_version_number:2,deleted:false,local_date:'2026-11-18',slot:0,kind:'run',recipe_id:'REC001',custom:false,locked:false,legacy_unstructured:false,legacy_payload:null,placeholder:false,intent:'Easy',certainty:'committed',planned_duration_s:1800,planned_distance_m:null,structure:null,strength_slot_id:null,notes:null,is_original:true,changed_by_version:2}
+const EXCEPTION:ProposalException={finding_ids:[],category:'accumulated_fatigue',severity:'caution',confidence:'moderate',triggering_evidence:'Fatigue 8 on two mornings',relevant_context:'Heat this week',ladder_level:'next_session',patch_window:{start:'2026-11-16',end:'2026-11-18'},unchanged:[{session_uid:'s7',reason:'Easy run stays'}],reassess_on:'2026-11-19',monitor:['Morning fatigue'],return_criteria:['Usual fatigue twice'],escalate_criteria:['High through Saturday']}
+let requests:string[]=[]
 let proposal:ProposalDetail
 let failure:'network'|'subset'|'stale'|'revision'|null=null
 let failReload=false
@@ -12,6 +16,7 @@ let writes:ProposalDecision[]=[]
 let deletes:number[]=[]
 const clients:QueryClient[]=[]
 beforeEach(()=>{
+  requests=[]
   failure=null;failReload=false;writes=[];deletes=[]
   proposal={id:'p1',operation:'review_rolling_plan',status:'pending',submitted_at:'2026-11-12T12:00:00Z',decided_at:null,
     summary:'Adjust the next week',rationale:'Keep the run manageable',confidence:{decision:'moderate',evidence:'high',data:'moderate'},
@@ -23,6 +28,7 @@ beforeEach(()=>{
       reason:`Adjustment ${index+1}`,decision:'pending',material_flags:[]}))}
   vi.stubGlobal('fetch',vi.fn(async(input:string,options?:RequestInit)=>{
     const url=String(input)
+    requests.push(url)
     if(options?.method==='DELETE'){
       deletes.push(Number(new URL(url,'http://localhost').searchParams.get('expected_revision')))
       if(failure==='revision')return {ok:false,status:409,json:async()=>({error:{code:'proposal_revision_conflict',message:'Revision changed',fields:[]}})}
@@ -38,6 +44,7 @@ beforeEach(()=>{
       return {ok:true,json:async()=>({schema_version:'v1',mode:'demo',data_revision:2,data:{proposal_id:'p1',status,calendar_version:body.accept_change_ids.length?8:null,block_version_id:null,anchor_keys:[],stale_proposals:[]}})}
     }
     if(failReload && url.includes('/coach/proposals/')) throw new Error('offline')
+    if(url.endsWith('/calendar'))return {ok:true,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:{today:'2026-11-16',sessions:[unchangedSession]}})}
     return {ok:true,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:url.endsWith('/profile')?{planning_authority:'calendar'}:proposal})}
   }))
 })
@@ -319,4 +326,18 @@ it('separates discard from reject and drops the legacy link',async()=>{
   expect(secondary.getByText(/Discard removes it without a decision/)).toBeInTheDocument()
   expect(screen.queryByRole('link',{name:'Legacy coaching history'})).toBeNull()
   expect(screen.queryByText('Planning upgrade required')).toBeNull()
+})
+
+it('shows the exception card after the intro',async()=>{
+  proposal.exception=EXCEPTION;mount()
+  const card=await screen.findByTestId('proposal-exception')
+  for(const text of ['Exception','Fatigue and recovery','Caution','Confidence: moderate','Why now','Fatigue 8 on two mornings','Context','Next session only · Mon, Nov 16–Wed, Nov 18','Reassess on Thu, Nov 19','Watch for','Morning fatigue','Back to plan when','Usual fatigue twice','Escalate if','High through Saturday'])expect(within(card).getByText(text)).toBeInTheDocument()
+  expect(await within(card).findByText('Wed, Nov 18 · Easy run — Easy run stays')).toBeInTheDocument()
+  expect(screen.getByRole('heading',{name:'Plan focus'}).compareDocumentPosition(card)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(screen.getByRole('heading',{name:'Proposed plan changes'}).compareDocumentPosition(card)&Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+})
+it('old proposals without the new fields render unchanged',async()=>{
+  mount();await screen.findByText('Adjust the next week')
+  expect(screen.queryByTestId('proposal-exception')).toBeNull()
+  expect(requests.some(u=>u.endsWith('/calendar'))).toBe(false)
 })
