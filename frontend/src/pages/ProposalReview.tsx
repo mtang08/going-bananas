@@ -1,5 +1,15 @@
-import { CATEGORY_LABELS, LADDER_LABELS, SEVERITY_LABELS } from '../coachLabels'
-import type { ProposalException } from '../api/types/exceptions'
+import {
+  CATEGORY_LABELS,
+  LADDER_LABELS,
+  OUTCOME_LABELS,
+  RECALIBRATION_LABELS,
+  SEVERITY_LABELS,
+} from '../coachLabels'
+import type {
+  ProposalEventReview,
+  ProposalException,
+  ProposalPatchResolution,
+} from '../api/types/exceptions'
 import {
   Badge,
   Button,
@@ -224,6 +234,66 @@ function ExceptionCard({
       <TextList title="Watch for" items={exc.monitor} plain={plain} />
       <TextList title="Back to plan when" items={exc.return_criteria} plain={plain} />
       <TextList title="Escalate if" items={exc.escalate_criteria} plain={plain} />
+    </Card>
+  )
+}
+
+function EventReviewCard({
+  review,
+  operation,
+  plain,
+}: {
+  review: ProposalEventReview
+  operation: string
+  plain: (t: string) => string
+}) {
+  const rows: [string, string | null][] = [
+    ['Outcome', review.outcome ? OUTCOME_LABELS[review.outcome] : null],
+    ['Compared with', review.compared_with],
+    ['Pacing', review.pacing],
+    ['Effort and limiter', review.effort_and_limiter],
+    ['Conditions', review.conditions],
+    ['Symptoms', review.symptoms],
+    ['Recovery observation', review.recovery_observation],
+    ['Recalibration', RECALIBRATION_LABELS[review.recalibration]],
+    ['Training implication', review.training_implication],
+  ]
+  return (
+    <Card className="proposal-event-review" data-testid="proposal-event-review">
+      <h2>{operation === 'review_training_block' ? 'Benchmark review' : 'Race review'}</h2>
+      <dl>
+        {rows
+          .filter(([, value]) => value)
+          .map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>
+                <CoachText text={plain(value!)} />
+              </dd>
+            </div>
+          ))}
+      </dl>
+    </Card>
+  )
+}
+function PatchUpdates({
+  items,
+  plain,
+}: {
+  items: ProposalPatchResolution[]
+  plain: (t: string) => string
+}) {
+  return (
+    <Card className="proposal-patch-updates" data-testid="proposal-patch-updates">
+      <h2>Patch updates</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.patch_id}>
+            <Badge>{item.status === 'resolved' ? 'Resolved' : 'Escalated'}</Badge>
+            <CoachText text={plain(item.note)} />
+          </li>
+        ))}
+      </ul>
     </Card>
   )
 }
@@ -835,6 +905,16 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                 )}
               </Card>
             ))}
+            {proposal.event_review && (
+              <EventReviewCard
+                review={proposal.event_review}
+                operation={proposal.operation}
+                plain={plain}
+              />
+            )}
+            {(proposal.patch_resolutions?.length ?? 0) > 0 && (
+              <PatchUpdates items={proposal.patch_resolutions!} plain={plain} />
+            )}
             {(proposal.follow_up || proposal.escalation) && (
               <Card className="proposal-next-check">
                 <h2>Next check-in</h2>

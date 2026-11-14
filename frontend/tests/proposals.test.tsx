@@ -338,6 +338,24 @@ it('shows the exception card after the intro',async()=>{
 })
 it('old proposals without the new fields render unchanged',async()=>{
   mount();await screen.findByText('Adjust the next week')
-  expect(screen.queryByTestId('proposal-exception')).toBeNull()
+  for(const id of ['proposal-exception','proposal-event-review','proposal-patch-updates'])expect(screen.queryByTestId(id)).toBeNull()
   expect(requests.some(u=>u.endsWith('/calendar'))).toBe(false)
+})
+
+it('shows outcome and comparison in the race review',async()=>{
+  proposal.operation='review_training_block'
+  proposal.event_review={event_id:null,activity_id:'a1',outcome:'progress',compared_with:'5K TT 21:40 last block',pacing:'Even splits',effort_and_limiter:'RPE 9, breathing',conditions:null,symptoms:null,recovery_observation:'Normal next day',recalibration:'propose_anchors',training_implication:'Progress volume'}
+  mount();const card=await screen.findByTestId('proposal-event-review')
+  expect(Array.from(card.querySelectorAll('dt')).map(x=>x.textContent)).toEqual(['Outcome','Compared with','Pacing','Effort and limiter','Recovery observation','Recalibration','Training implication'])
+  for(const text of ['Progress','5K TT 21:40 last block','New paces proposed'])expect(within(card).getByText(text)).toBeInTheDocument()
+  expect(card.querySelector('h2')).toHaveTextContent('Benchmark review')
+  cleanup();proposal.operation='post_event_review';mount()
+  expect((await screen.findByTestId('proposal-event-review')).querySelector('h2')).toHaveTextContent('Race review')
+})
+it('lists patch updates',async()=>{
+  proposal.patch_resolutions=[{patch_id:'pa1',status:'resolved',note:'Fatigue settled'}]
+  mount();const card=await screen.findByTestId('proposal-patch-updates')
+  for(const text of ['Patch updates','Resolved','Fatigue settled'])expect(within(card).getByText(text)).toBeInTheDocument()
+  cleanup();proposal.patch_resolutions=[];mount();await screen.findByText('Adjust the next week')
+  expect(screen.queryByTestId('proposal-patch-updates')).toBeNull()
 })
