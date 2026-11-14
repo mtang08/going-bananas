@@ -1329,6 +1329,30 @@ def _apply_exception_effects(session: Session, doc: ProposalDoc, proposal_id: uu
     session.flush()
 
 
+def _apply_benchmark_effects(session: Session, doc: ProposalDoc, proposal_id: uuid.UUID, status: str,
+                             ctx: ValidationContext) -> None:
+    from app.planning_models import BlockBenchmarkResult, BlockVersion
+
+    reviewed, bench, review = ctx.active_block, ctx.benchmark, doc.event_review
+    if (status not in {"accepted", "partially_accepted"} or doc.operation != "review_training_block" or review is None
+            or reviewed is None or bench is None or bench.status != "completed"):
+        return
+    row = session.scalar(select(BlockBenchmarkResult).where(
+        BlockBenchmarkResult.block_uid == reviewed.block_uid,
+        BlockBenchmarkResult.block_version == reviewed.version).with_for_update())
+    if row is None:
+        row = BlockBenchmarkResult(block_uid=reviewed.block_uid, block_version=reviewed.version,
+                                   match_method=bench.match_method or "auto")
+        session.add(row)
+    version_row = session.get(BlockVersion, reviewed.version_id)
+    assert version_row is not None
+    row.protocol = (version_row.benchmark or {}).get("protocol", "")
+    row.activity_id, row.event_id, row.distance_m = bench.activity_id, bench.event_id, bench.distance_m
+    row.local_date, row.result_s = bench.local_date, bench.result_s
+    row.outcome, row.compared_with, row.proposal_id = review.outcome, review.compared_with, proposal_id
+    session.flush()
+
+
 def decide_proposal(
     session: Session, proposal_id: uuid.UUID, req: DecisionRequest, *, now: datetime, resolve_kb: KnowledgeResolver
 ) -> DecisionResult:
@@ -1508,6 +1532,7 @@ def decide_proposal(
     proposal.decision_idempotency_key = req.idempotency_key
     proposal.decision_hash = decision_hash
     _apply_exception_effects(session, doc, proposal_id, snapshot.generated_at, status, calendar_version, now)
+    _apply_benchmark_effects(session, doc, proposal_id, status, ctx)
     if changed:
         stale = list(dict.fromkeys([*stale, *mark_pending_stale(session, except_id=proposal_id)]))
     decision_result = DecisionResult(
