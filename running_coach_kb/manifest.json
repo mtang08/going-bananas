@@ -177,9 +177,9 @@
         "untriggered daily recovery corpus"
       ],
       "measured_minimum": {
-        "characters": 15899,
-        "words": 2116,
-        "approx_token_proxy_char_div_4": 3975
+        "characters": 19139,
+        "words": 2583,
+        "approx_token_proxy_char_div_4": 4785
       },
       "common_total_estimate": "about 4,000-6,500 proxy tokens with one recipe/conditional section"
     },
