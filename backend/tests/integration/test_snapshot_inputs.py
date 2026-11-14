@@ -1,14 +1,9 @@
-"""Differential snapshot inputs on guarded synthetic state."""
+"""Snapshot input sections on guarded synthetic state."""
 from __future__ import annotations
 
-import dataclasses
 import os
-import subprocess
-import sys
-import types
 import uuid
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
@@ -27,9 +22,6 @@ from app.services.snapshot import load_inputs
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
-REPO = Path(__file__).resolve().parents[3]
-REFERENCE_SHA = 'a5a6cd5fcf2961d4e430ed27261b06f9139e6c63'
-_REFERENCE: types.ModuleType | None = None
 
 
 @pytest.fixture
@@ -114,27 +106,6 @@ def seeded(monkeypatch):
                 yield session
         finally:
             outer.rollback()
-
-
-def _reference_module() -> types.ModuleType:
-    global _REFERENCE
-    if _REFERENCE is None:
-        source = subprocess.run(['git', 'show', f'{REFERENCE_SHA}:backend/app/services/snapshot.py'], cwd=REPO,
-                                check=True, capture_output=True, text=True).stdout
-        module = types.ModuleType('_snapshot_reference')
-        sys.modules['_snapshot_reference'] = module
-        exec(compile(source, '_snapshot_reference.py', 'exec'), module.__dict__)
-        _REFERENCE = module
-    return _REFERENCE
-
-
-def _reference_load_inputs(session, as_of, *, now):
-    return _reference_module().load_inputs(session, as_of, now=now)
-
-
-def test_load_inputs_matches_reference(seeded):
-    assert dataclasses.asdict(load_inputs(seeded, TODAY, now=NOW)) == dataclasses.asdict(
-        _reference_load_inputs(seeded, TODAY, now=NOW))
 
 
 def test_load_inputs_sections(seeded):

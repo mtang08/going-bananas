@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.domain.cycle import opportunity
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
-from app.services.block_benchmark import BenchmarkOutcome
+from app.services.block_benchmark import BenchmarkOutcome, active_block_version
 from app.services.calendar_structure import StructureError, expand_structure
 from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, LadderLevel, PatchCategory, Severity
@@ -963,17 +963,8 @@ def _snapshot_ref(row: Any) -> SnapshotRef:
 
 
 def _active_block(session: Session) -> ActiveBlock | None:
-    from app.planning_models import BlockVersion
-
-    rows = list(session.scalars(select(BlockVersion).order_by(BlockVersion.block_uid, BlockVersion.version.desc())))
-    latest_by_uid: dict[uuid.UUID, Any] = {}
-    for row in rows:
-        latest_by_uid.setdefault(row.block_uid, row)
-    active = [row for row in latest_by_uid.values() if row.status in {"active", "consolidating"}]
-    if not active:
-        return None
-    row = max(active, key=lambda item: (item.created_at, item.version, str(item.id)))
-    return ActiveBlock(row.block_uid, row.id, row.version, tuple(row.eligible_recipe_ids))
+    row = active_block_version(session)
+    return ActiveBlock(row.block_uid, row.id, row.version, tuple(row.eligible_recipe_ids)) if row else None
 
 
 def load_context(

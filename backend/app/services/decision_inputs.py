@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -31,7 +30,8 @@ from app.models import (
     SourceRecord,
 )
 from app.models import Checkin as LegacyCheckin
-from app.planning_models import BlockVersion, Event, Goal, IntensityAnchor, StrengthRoutineSlot
+from app.planning_models import Event, Goal, IntensityAnchor, StrengthRoutineSlot
+from app.services.block_benchmark import active_block_version
 from app.strong_models import StrongWorkoutRow
 
 
@@ -300,14 +300,8 @@ def collect_decision_inputs(
     events = _sorted(session, Event, Event.id)
     if events:
         source_versions["events"] = _project(events, ("id", "version", "event_date", "status", "priority"))
-    block_rows = _sorted(session, BlockVersion, BlockVersion.block_uid)
-    latest_by_uid: dict[uuid.UUID, Any] = {}
-    for row in block_rows:
-        if row.block_uid not in latest_by_uid or row.version > latest_by_uid[row.block_uid].version:
-            latest_by_uid[row.block_uid] = row
-    active_blocks = [row for row in latest_by_uid.values() if row.status in {"active", "consolidating"}]
-    if active_blocks:
-        block = max(active_blocks, key=lambda row: (row.created_at, row.version, str(row.id)))
+    block = active_block_version(session)
+    if block:
         source_versions["block"] = {"id": block.id, "version": block.version, "status": block.status}
     if profile:
         source_versions["profile"]["recurrence"] = {

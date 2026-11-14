@@ -33,6 +33,7 @@ from app.planning_models import (
     IntensityAnchor,
     StrengthRoutineSlot,
 )
+from app.services.block_benchmark import active_block_version
 from app.services.calendar import state_at
 from app.services.coverage import coverage
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
@@ -1197,11 +1198,7 @@ def _load_active_block(session: Session, as_of: date) -> tuple[Sequence[BlockVer
     block_rows = session.scalars(
         select(BlockVersion).order_by(BlockVersion.block_uid, BlockVersion.version.desc())
     ).all()
-    latest_by_uid: dict[uuid.UUID, BlockVersion] = {}
-    for block_row in block_rows:
-        latest_by_uid.setdefault(block_row.block_uid, block_row)
-    active_rows = [row for row in latest_by_uid.values() if row.status in {"active", "consolidating"}]
-    active_row = max(active_rows, key=lambda row: (row.created_at, row.version, str(row.id))) if active_rows else None
+    active_row = active_block_version(session)
     block_keys = (
         "status",
         "objective",
