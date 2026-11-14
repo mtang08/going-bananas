@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PlanningSettings } from '../src/pages/PlanningSettings'
 import { qk, type Profile, type StrengthRoutine, type IntensityAnchor, type RaceEvent } from '../src/api'
@@ -162,10 +162,52 @@ it('renders one Settings page without legacy sections', async () => {
   expect(screen.queryByText('Resolution queue')).toBeNull()
   expect(screen.queryByText('Import & backup')).toBeNull()
   expect(screen.getByTestId('anchors-disclosure')).not.toHaveAttribute('open')
+  const schedule = screen.getByTestId('strength-schedule')
+  expect(schedule).not.toHaveAttribute('open')
+  expect(schedule.querySelector('summary')).toHaveTextContent('Strength schedule (weekly or alternating)')
+  const routineCard = screen.getByRole('heading', { name: 'Strength routine' }).parentElement!
+  expect(routineCard.nextElementSibling).toBe(schedule)
+  expect(routineCard.compareDocumentPosition(schedule) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })
 
 it('switches display units', async () => {
   const setUnit = vi.fn(); mount(setUnit)
   fireEvent.click(await screen.findByRole('button', { name: 'Kilometers' }))
   expect(setUnit).toHaveBeenCalledWith('km')
+})
+
+it('saves a confirmed Week A/B pattern from the strength schedule editor', async () => {
+  head = 4; mount(); await screen.findByRole('heading', { name: 'Strength routine' })
+  input('schedule-mode', 'alternating'); input('week-a-start', '2026-11-09')
+  const weeks = document.querySelectorAll('.schedule-week')
+  const check = (week: Element, label: string, day: string) => {
+    const picker = within(week as HTMLElement).getByText(label).parentElement!
+    fireEvent.click(within(picker).getByLabelText(day))
+  }
+  check(weeks[0], 'Full-body strength · two days', 'Mon')
+  check(weeks[0], 'Full-body strength · two days', 'Fri')
+  check(weeks[0], 'Required gym mobility', 'Wed')
+  check(weeks[1], 'Full-body strength · two days', 'Tue')
+  check(weeks[1], 'Full-body strength · two days', 'Sat')
+  check(weeks[1], 'Required gym mobility', 'Thu')
+  fireEvent.click(within(screen.getByText('Optional mobility · both weeks').parentElement!).getByLabelText('Sun'))
+  fireEvent.click(screen.getByLabelText('I confirm this repeating strength and mobility pattern'))
+  fireEvent.click(screen.getByRole('button', { name: 'Save strength schedule' }))
+  await screen.findByText('Strength schedule saved as a new profile version.')
+  expect(writes().map(r => [r.method, r.url])).toEqual([['PUT', '/api/v1/profile']])
+  expect(writes()[0].body).toMatchObject({ strength_schedule_mode: 'alternating', strength_week_a_start: '2026-11-09', strength_week_a_days: [0, 4], strength_week_b_days: [1, 5], mobility_week_a_days: [2], mobility_week_b_days: [3], mobility_optional_days: [6], strength_days_confirmed: true, timezone: 'America/New_York', expected_version: 3 })
+})
+
+it('blocks an unconfirmable schedule', async () => {
+  head = 4; mount(); await screen.findByRole('heading', { name: 'Strength routine' })
+  input('schedule-mode', 'alternating')
+  fireEvent.click(screen.getByLabelText('I confirm this repeating strength and mobility pattern'))
+  expect(await screen.findByText(/Choose exactly two full-body strength days per week and a valid Week A Monday/)).toHaveAttribute('role', 'alert')
+  expect(screen.getByRole('button', { name: 'Save strength schedule' })).toBeDisabled()
+})
+
+it('opens the strength schedule editor from the schedule link', async () => {
+  Element.prototype.scrollIntoView = vi.fn()
+  mount(); fireEvent.click(await screen.findByText('Edit confirmed strength schedule'))
+  expect(screen.getByTestId('strength-schedule')).toHaveAttribute('open')
 })
