@@ -15,7 +15,7 @@ from app.services.exceptions.facts import (
     SessionFact,
     SymptomFact,
 )
-from app.services.exceptions.rules import _clock, detect
+from app.services.exceptions.rules import RULES, _clock, detect
 from app.services.exceptions.vocab import (
     CATEGORY,
     FINDING_STATUS,
@@ -380,3 +380,69 @@ def test_post_event_review_due():
         assert bool(hits(inp(events=(ev(d),)), code)) == expected
     assert one(inputs, code).evidence_at == datetime(2026, 11, 13, 23, 59, tzinfo=ZoneInfo(TZ))
     assert one(inp(events=(ev(3, ran=True, run_end=at(3, 10)),)), code).evidence_at == at(3, 10)
+
+
+TABLE = [
+    ('SYM_NEW_SITE', 'symptoms_illness'), ('SYM_WORSENING', 'symptoms_illness'), ('SYM_PERSISTING', 'symptoms_illness'),
+    ('SYM_RECURRENT', 'symptoms_illness'), ('SYM_MULTIWEEK', 'symptoms_illness'), ('GAIT_CHANGE', 'symptoms_illness'),
+    ('GAIT_PERSISTING', 'symptoms_illness'), ('ILLNESS_POSSIBLE', 'symptoms_illness'), ('ILLNESS_PRESENT', 'symptoms_illness'),
+    ('ILLNESS_PROLONGED', 'symptoms_illness'), ('CLINICIAN_RESTRICTION', 'symptoms_illness'),
+    ('RPE_ABOVE_INTENT', 'training_response'), ('RPE_ABOVE_INTENT_REPEATED', 'training_response'),
+    ('SESSION_FAILED', 'training_response'), ('SESSION_FAILED_REPEATED', 'training_response'),
+    ('RESPONSE_MULTIWEEK', 'training_response'),
+    ('FATIGUE_HIGH', 'accumulated_fatigue'), ('FATIGUE_PERSISTING', 'accumulated_fatigue'),
+    ('SIGNALS_CONVERGING', 'accumulated_fatigue'), ('FATIGUE_PROLONGED', 'accumulated_fatigue'),
+    ('KEY_SESSION_MISSED', 'calendar_disruption'), ('RUNS_MISSED_REPEATED', 'calendar_disruption'),
+    ('HARD_SPACING_TIGHT', 'calendar_disruption'), ('TRAVEL_REPORTED', 'calendar_disruption'),
+    ('BLOCK_BENCHMARK_MISSING', 'post_event'), ('BLOCK_BENCHMARK_COMPLETED', 'post_event'),
+    ('BLOCK_BENCHMARK_MISSED', 'calendar_disruption'), ('POST_EVENT_REVIEW_DUE', 'post_event'),
+]
+
+
+def test_hard_rules():
+    assert detect(inp(recovery_adverse_dates=frozenset(TODAY - timedelta(days=i) for i in range(14)))) == []
+    symptom = detect(inp(checkins=(chk(0, symptoms=(sym(severity=10.0),)),)))
+    assert max_severity(*[candidate.severity for candidate in symptom]) == 'caution'
+    fatigue = detect(inp(checkins=(chk(0, fatigue=10),)))
+    assert all(candidate.severity == 'observe' for candidate in fatigue)
+
+
+def test_registry_order():
+    assert [code for code, _ in RULES] == [code for code, _ in TABLE]
+
+
+def test_busy_input_invariants():
+    inputs = inp(
+        checkins=(
+            chk(1, symptoms=(sym(severity=7.0),)),
+            chk(0, fatigue=8, tags=('travel', 'poor_sleep')),
+            chk(2, gait='yes', illness='possible'),
+        ),
+        runs=(run(2, 6.0, uid='s1', aid='a1'),),
+        sessions=(
+            ses(2, 'REC001', status='completed_as_planned', aid='a1', uid='s1'),
+            ses(3, 'REC003', status='partial'),
+            ses(2, 'REC002', status='skipped'),
+        ),
+        events=(ev(3),),
+        block_benchmark=bb('missed'),
+        clinician_restriction='Walk only',
+        clinician_restriction_at=at(40),
+    )
+    candidates = detect(inputs)
+    categories = dict(TABLE)
+    assert all(candidate.rule_code in categories for candidate in candidates)
+    assert all(candidate.category == categories[candidate.rule_code] for candidate in candidates)
+    keys = [(candidate.rule_code, candidate.entity_key) for candidate in candidates]
+    assert len(keys) == len(set(keys))
+    assert all(len(candidate.summary) <= 240 for candidate in candidates)
+    assert detect(inputs) == detect(inputs)
+
+
+def test_evidence_cap_and_order():
+    candidates = detect(inp(checkins=tuple(chk(day, fatigue=8) for day in range(10))))
+    candidate = next(item for item in candidates if item.rule_code == 'FATIGUE_PROLONGED')
+    assert len(candidate.evidence) == 8
+    times = [item['at'] for item in candidate.evidence]
+    assert all(newer > older for newer, older in zip(times, times[1:]))
+    assert candidate.evidence_at == at(0)
