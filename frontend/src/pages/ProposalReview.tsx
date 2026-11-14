@@ -21,7 +21,6 @@ import {
   formatStep,
   post,
   RECIPE_LABELS,
-  type Profile,
 } from '../api'
 import type {
   ProposalDecision,
@@ -157,7 +156,6 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
     queryKey: ['v2', 'proposals', proposalId],
     queryFn: () => api<ProposalDetail>(`/coach/proposals/${encodeURIComponent(proposalId)}`),
   })
-  const profile = useQuery({ queryKey: ['profile'], queryFn: () => api<Profile>('/profile') })
   const [selected, setSelected] = useState<string[]>([])
   const [anchors, setAnchors] = useState<string[]>([])
   const [block, setBlock] = useState(false)
@@ -221,10 +219,6 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
         setRevisionConflict(true)
     },
   })
-  const authorityError =
-    mutation.error instanceof ApiError &&
-    ['planning_not_active', 'legacy_write_disabled'].includes(mutation.error.code)
-  const active = profile.data?.data.planning_authority === 'calendar' && !authorityError
   const decision = result ?? proposal?.decision_result
   const isDiscarded = discarded || proposal?.status === 'discarded'
   const terminal = Boolean(
@@ -242,7 +236,6 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
     discard.isPending ||
     detail.isFetching ||
     terminal ||
-    !active ||
     isStale ||
     revisionConflict ||
     reviewedRevision !== proposal?.revision ||
@@ -323,21 +316,15 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
         <a href="#calendar">Calendar</a>
       </div>
       <QueryState
-        loading={detail.isPending || profile.isPending}
-        error={detail.error || profile.error}
+        loading={detail.isPending}
+        error={detail.error}
         stale={!!proposal}
         retry={() => {
           void detail.refetch()
-          void profile.refetch()
         }}
       >
         {proposal && (
           <>
-            {(profile.data?.data.planning_authority === 'legacy' || authorityError) && (
-              <div className="notice warning" role="alert">
-                Planning upgrade required
-              </div>
-            )}
             {isStale && (
               <div className="notice warning" role="alert">
                 This proposal is stale. Ask the coach for a fresh review; the saved changes remain
@@ -446,6 +433,40 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                       ? 'These are the changes saved with this proposal.'
                       : 'Review the sessions below. Only changed sessions are shown; unchecked changes will be rejected.'}
                   </p>
+                  {!terminal && (
+                    <div className="proposal-select-controls">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={() => {
+                          setSelected(
+                            changes
+                              .filter((c) => !invalidChanges.has(c.change_id))
+                              .map((c) => c.change_id),
+                          )
+                          mutation.reset()
+                          frozen.current = null
+                        }}
+                      >
+                        Select all
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled || selected.length === 0}
+                        onClick={() => {
+                          setSelected([])
+                          mutation.reset()
+                          frozen.current = null
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  )}
                   <div
                     className="table-scroll"
                     role="region"
@@ -559,6 +580,9 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                                       }
                                     />
                                     <span className="sr-only">Include session {index + 1}</span>
+                                    <span className="proposal-choice-mobile" aria-hidden="true">
+                                      Accept
+                                    </span>
                                   </label>
                                 )}
                               </TableCell>
@@ -736,7 +760,7 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                     ))}
                   </ul>
                 )}
-                {!isStale && !authorityError && (
+                {!isStale && (
                   <p>Your selections are preserved. Review the issue before trying again.</p>
                 )}
               </div>
@@ -752,9 +776,14 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
             )}
             {decision && (
               <div className="notice" role="status">
-                {decision.calendar_version != null
-                  ? `Accepted — calendar version ${decision.calendar_version}`
-                  : 'Decision recorded — calendar unchanged'}
+                <p>
+                  {decision.calendar_version != null
+                    ? `Accepted — calendar version ${decision.calendar_version}`
+                    : 'Decision recorded — calendar unchanged'}
+                </p>
+                <p>
+                  <a href="#calendar">Open calendar</a> · <a href="#home">Return home</a>
+                </p>
               </div>
             )}
             {isDiscarded && (
@@ -787,7 +816,10 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
               </div>
             )}
             {!terminal && (
-              <div className="proposal-actions">
+              <div className="proposal-secondary" data-testid="proposal-secondary">
+                <p className="fineprint">
+                  Reject all keeps this proposal in history. Discard removes it without a decision.
+                </p>
                 {confirmDiscard ? (
                   <div className="notice warning">
                     <p>
@@ -813,7 +845,7 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                   </div>
                 ) : (
                   <Button
-                    variant="outline"
+                    variant="link"
                     disabled={discardDisabled}
                     onClick={() => setConfirmDiscard(true)}
                   >
@@ -823,7 +855,6 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
               </div>
             )}
             <p>
-              <a href="#coach">Legacy coaching history</a> ·{' '}
               <a href="#calendar">Calendar history and protected undo</a>
             </p>
           </>

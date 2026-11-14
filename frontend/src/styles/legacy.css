@@ -1442,6 +1442,10 @@
   margin: 1.5rem 0;
 }
 
+.proposal-select-controls { display: flex; gap: 0.5rem; margin: 0.75rem 0 0; }
+.proposal-secondary { margin: 0.5rem 0 1.5rem; }
+.proposal-choice-mobile { display: none; }
+
 .proposal-session p {
   white-space: pre-wrap;
 }
@@ -1457,9 +1461,7 @@
     grid-template-columns: 1fr;
   }
 
-  .proposal-actions .button {
-    flex: 1;
-  }
+  .proposal-actions > button { flex: 1 1 auto; }
 }
 
 /* Calendar preview surfaces */
@@ -1794,4 +1796,14 @@
 .workout-notes > summary {
   cursor: pointer;
   font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .proposal-table { min-width: 0; table-layout: auto; }
+  .proposal-table thead { display: none; }
+  .proposal-table tbody, .proposal-table tr, .proposal-table th, .proposal-table td { display: block; width: 100%; }
+  .proposal-table tr { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding: 10px; border: 1px solid var(--border, #d8ddd6); border-radius: 8px; }
+  .proposal-table td:last-child { order: -1; }
+  .proposal-table .proposal-choice { justify-content: flex-start; gap: 8px; }
+  .proposal-choice-mobile { display: inline; font-weight: 600; }
 }

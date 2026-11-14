@@ -6,14 +6,13 @@ import type { ProposalDecision, ProposalDetail } from '../src/api/types/coach'
 import type { PlannedStep } from '../src/api/types/calendar'
 
 let proposal:ProposalDetail
-let authority='calendar'
 let failure:'network'|'subset'|'stale'|'revision'|null=null
 let failReload=false
 let writes:ProposalDecision[]=[]
 let deletes:number[]=[]
 const clients:QueryClient[]=[]
 beforeEach(()=>{
-  authority='calendar';failure=null;failReload=false;writes=[];deletes=[]
+  failure=null;failReload=false;writes=[];deletes=[]
   proposal={id:'p1',operation:'review_rolling_plan',status:'pending',submitted_at:'2026-11-12T12:00:00Z',decided_at:null,
     summary:'Adjust the next week',rationale:'Keep the run manageable',confidence:{decision:'moderate',evidence:'high',data:'moderate'},
     base_calendar_version:7,base_block_version_id:null,snapshot_id:'snapshot',head:7,is_current:true,revision:1,revisions:[],
@@ -39,7 +38,7 @@ beforeEach(()=>{
       return {ok:true,json:async()=>({schema_version:'v1',mode:'demo',data_revision:2,data:{proposal_id:'p1',status,calendar_version:body.accept_change_ids.length?8:null,block_version_id:null,anchor_keys:[],stale_proposals:[]}})}
     }
     if(failReload && url.includes('/coach/proposals/')) throw new Error('offline')
-    return {ok:true,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:url.endsWith('/profile')?{planning_authority:authority}:proposal})}
+    return {ok:true,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:url.endsWith('/profile')?{planning_authority:'calendar'}:proposal})}
   }))
 })
 afterEach(()=>{cleanup();clients.forEach(client=>client.clear());clients.length=0;vi.unstubAllGlobals()})
@@ -149,10 +148,7 @@ it('records explicit empty acknowledgment with no ambiguous rejection',async()=>
   await screen.findByText('Decision recorded — calendar unchanged');expect(writes[0].accept_change_ids).toEqual([])
   expect(screen.queryByRole('button',{name:'Reject all'})).not.toBeInTheDocument()
 })
-it('requires calendar authority',async()=>{
-  authority='legacy';mount();await screen.findByText('Planning upgrade required')
-  expect(screen.getByLabelText('Accept change c1')).toBeDisabled();expect(writes).toHaveLength(0)
-})
+
 it('keeps imported prose visible without inventing structured reps',async()=>{
   proposal.changes[0].before={intent:'Imported easy prescription',notes:'Walk breaks as needed',legacy_unstructured:true,structure:null}
   mount();expect((await screen.findAllByText('Walk breaks as needed')).length).toBeGreaterThan(0);expect(screen.getAllByText(/Imported prescription/).length).toBeGreaterThan(0)
@@ -294,4 +290,33 @@ it('blocks discard after a revision conflict until an explicit reload',async()=>
 it.each(['accepted','rejected','discarded'] as const)('hides discard for %s proposals',async status=>{
   proposal.status=status;mount();await screen.findByText(/Adjust the next week/)
   expect(screen.queryByRole('button',{name:'Discard proposal'})).not.toBeInTheDocument()
+})
+
+it('selects all valid changes and clears them',async()=>{
+  mount();fireEvent.click(await screen.findByRole('button',{name:'Select all'}))
+  for(const id of ['c1','c2','c3'])expect(screen.getByLabelText(`Accept change ${id}`)).toBeChecked()
+  fireEvent.click(screen.getByRole('button',{name:'Clear'}))
+  for(const id of ['c1','c2','c3'])expect(screen.getByLabelText(`Accept change ${id}`)).not.toBeChecked()
+  expect(screen.getByRole('button',{name:'Clear'})).toBeDisabled();expect(writes).toHaveLength(0)
+})
+it('select all skips changes with invalid saved workouts',async()=>{
+  const bad:PlannedStep={type:'work',duration_type:'time',duration_value:180,target:{modality:'effort',low:6,high:7,effort_cue:'Controlled'}}
+  proposal.changes[0].after={intent:'Controlled intervals',notes:'Keep the run days',structure:[{type:'repeat',count:5,steps:[bad]}]}
+  mount();await screen.findByText('Controlled intervals');fireEvent.click(screen.getByRole('button',{name:'Select all'}))
+  expect(screen.getByLabelText('Accept change c1')).not.toBeChecked()
+  for(const id of ['c2','c3'])expect(screen.getByLabelText(`Accept change ${id}`)).toBeChecked()
+})
+it('links to Calendar and Home after a decision',async()=>{
+  mount();await select('c1');fireEvent.click(screen.getByRole('button',{name:'Accept selected'}))
+  await screen.findByText('Accepted — calendar version 8')
+  expect(screen.getByRole('link',{name:'Open calendar'})).toHaveAttribute('href','#calendar')
+  expect(screen.getByRole('link',{name:'Return home'})).toHaveAttribute('href','#home')
+})
+it('separates discard from reject and drops the legacy link',async()=>{
+  mount();await screen.findByRole('button',{name:'Select all'})
+  const secondary=within(screen.getByTestId('proposal-secondary'))
+  expect(secondary.getByRole('button',{name:'Discard proposal'})).toBeInTheDocument()
+  expect(secondary.getByText(/Discard removes it without a decision/)).toBeInTheDocument()
+  expect(screen.queryByRole('link',{name:'Legacy coaching history'})).toBeNull()
+  expect(screen.queryByText('Planning upgrade required')).toBeNull()
 })
