@@ -3,10 +3,10 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
-from typing import Any, Literal, NoReturn
+from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -18,15 +18,18 @@ from app.domain.analytics import (
     pace_s_per_km,
     utc_date_bounds,
 )
+from app.errors import fail
 from app.models import (
     Activity,
     ActivityAnnotation,
     ActivitySource,
     AppState,
-    CoverageInterval,
     ProfileVersion,
 )
+from app.services.coverage import coverage
+from app.services.profile import current_profile, profile_data
 from app.services.run_classification import RunObservation, classify_history
+from app.services.timezone import DEFAULT_TIMEZONE, athlete_today, athlete_tz
 
 router = APIRouter()
 
@@ -35,54 +38,18 @@ def envelope(session: Session, data: Any) -> dict:
     return {'schema_version': 'v1', 'data_revision': get_revision(session), 'mode': settings.app_mode, 'data': data}
 
 
-def fail(code: str, message: str, status: int = 422) -> NoReturn:
-    raise HTTPException(status_code=status, detail={'code': code, 'message': message})
-
-
-def current_profile(session: Session) -> ProfileVersion | None:
-    return session.scalar(select(ProfileVersion).order_by(desc(ProfileVersion.version)).limit(1))
-
-
 def _profile_authority(session: Session) -> str:
     state = session.get(AppState, 1)
     return state.planning_authority if state else 'legacy'
 
 
-def profile_data(profile: ProfileVersion | None, planning_authority: str = 'legacy') -> dict:
-    if profile is None:
-        return {'version': 0, 'planning_authority': planning_authority, 'timezone': 'America/New_York', 'cycle_anchor': None,
-                'anchor_confirmed': False, 'strength_days_confirmed': False,
-                'scheduled_strength_days': [], 'strength_schedule_mode': 'weekly',
-                'strength_week_a_start': None, 'strength_week_a_days': [], 'strength_week_b_days': [],
-                'mobility_week_a_days': [], 'mobility_week_b_days': [], 'mobility_optional_days': [],
-                'facts': {}, 'preferences': {}, 'unknowns': []}
-    return {'planning_authority': planning_authority, **{key: getattr(profile, key) for key in ('version', 'timezone', 'cycle_anchor', 'anchor_confirmed',
-            'strength_days_confirmed', 'scheduled_strength_days', 'strength_schedule_mode',
-            'strength_week_a_start', 'strength_week_a_days', 'strength_week_b_days',
-            'mobility_week_a_days', 'mobility_week_b_days', 'mobility_optional_days',
-            'facts', 'preferences', 'unknowns')}}
-
-
-def tz(session: Session) -> str:
-    profile = current_profile(session)
-    return profile.timezone if profile else 'America/New_York'
-
-
 def date_window(session: Session, start_date: date | None, end_date: date | None) -> tuple[date, date]:
-    today = datetime.now(ZoneInfo(tz(session))).date()
+    today = athlete_today(session)
     end = end_date or today
     start = start_date or end - timedelta(days=27)
     if start > end or (end-start).days >= 366:
         fail('invalid_date_range', 'Date range must be ordered and at most 366 days')
     return start, end
-
-
-def coverage(session: Session, start: date, end: date) -> list[dict]:
-    rows = session.scalars(select(CoverageInterval).where(CoverageInterval.end_date >= start,
-                    CoverageInterval.start_date <= end).order_by(CoverageInterval.dataset, CoverageInterval.start_date)).all()
-    return [{'dataset': x.dataset, 'start_date': x.start_date, 'end_date': x.end_date,
-             'status': x.status, 'fully_enumerated': x.fully_enumerated, 'completed_at': x.completed_at,
-             'reason': x.reason} for x in rows]
 
 
 def annotation(session: Session, activity_id: uuid.UUID) -> ActivityAnnotation | None:
@@ -98,7 +65,7 @@ def run_classifications(session: Session, rows: Sequence[Activity]) -> dict[str,
     last = max(a.start_at for a in targets)
     history = session.scalars(select(Activity).where(Activity.start_at >= first, Activity.start_at <= last,
                               Activity.sport.in_(RUN_SPORTS)).order_by(Activity.start_at)).all()
-    zone = ZoneInfo(tz(session))
+    zone = athlete_tz(session)
     observations = []
     for a in history:
         ann = annotation(session, a.id)
@@ -123,7 +90,7 @@ def activity_data(session: Session, a: Activity, detail: bool = False,
     label = classification['effective_label'] if classification else (
         ann.workout_label if ann and ann.workout_label else a.source_workout_label)
     result = {'id': a.id, 'start_at': a.start_at, 'original_start': a.original_start,
-              'local_date': a.start_at.astimezone(ZoneInfo(tz(session))).date(), 'source_local_date': a.local_date, 'sport': a.sport, 'subtype': a.subtype,
+              'local_date': a.start_at.astimezone(athlete_tz(session)).date(), 'source_local_date': a.local_date, 'sport': a.sport, 'subtype': a.subtype,
               'distance_m': a.distance_m, 'elapsed_s': a.elapsed_s, 'moving_s': a.moving_s,
               'moving_pace_s_per_km': pace_s_per_km(a.distance_m, a.moving_s),
               'avg_hr_bpm': a.avg_hr_bpm,
@@ -142,7 +109,7 @@ def activity_data(session: Session, a: Activity, detail: bool = False,
 
 class ProfileInput(BaseModel):
     expected_version: int = Field(ge=0)
-    timezone: str = 'America/New_York'
+    timezone: str = DEFAULT_TIMEZONE
     cycle_anchor: date | None = None
     anchor_confirmed: bool = False
     strength_days_confirmed: bool = False
@@ -215,7 +182,7 @@ def get_activities(start_date: date | None = None, end_date: date | None = None,
                    sport: str | None = None, cursor: str | None = None, limit: int = Query(50, ge=1, le=200),
                    session: Session = Depends(get_session)) -> dict:
     start, end = date_window(session, start_date, end_date)
-    lower, upper = utc_date_bounds(start, end, tz(session))
+    lower, upper = utc_date_bounds(start, end, athlete_tz(session).key)
     q = select(Activity).where(Activity.start_at >= lower, Activity.start_at < upper)
     if sport:
         q = q.where(Activity.sport == sport)
@@ -232,7 +199,7 @@ def get_activities(start_date: date | None = None, end_date: date | None = None,
     next_cursor = f'{rows[limit-1].start_at.isoformat()}|{rows[limit-1].id}' if len(rows) > limit else None
     classifications = run_classifications(session, rows[:limit])
     return envelope(session, {'items': [activity_data(session, a, classifications=classifications) for a in rows[:limit]],
-                              'next_cursor': next_cursor, 'timezone': tz(session), 'coverage': coverage(session, start, end)})
+                              'next_cursor': next_cursor, 'timezone': athlete_tz(session).key, 'coverage': coverage(session, start, end)})
 
 
 @router.get('/activities/{activity_id}')
