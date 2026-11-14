@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.api.core import envelope
 from app.calendar_models import CalendarVersion
 from app.db import get_session
+from app.errors import fail
 from app.services import calendar, weekly_projection
 from app.services.exceptions.detector import run_detection
 
@@ -101,7 +102,6 @@ def get_diff(from_version: Annotated[int, Query(alias='from')],
 @router.post('/calendar/bootstrap', status_code=201)
 def post_bootstrap(body: BootstrapInput, session: Session = Depends(get_session)) -> dict:
     if body.pattern != {'quality': 1, 'long': 1}:
-        from app.api.core import fail
         fail('invalid_bootstrap_pattern', 'Bootstrap pattern must have one quality and one long run')
     result = calendar.write_bootstrap(session, body.anchor_date, body.start_date)
     session.commit()
