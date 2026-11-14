@@ -17,18 +17,12 @@ from app.domain.cycle import opportunity
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.services.calendar_structure import StructureError, expand_structure
 from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
+from app.services.operations import Operation
 
-OPERATIONS = (
-    "proceed_or_modify_today",
-    "review_rolling_plan",
-    "review_training_block",
-    "select_quality_session",
-    "recalibrate_intensity",
-    "handle_goal_or_race_change",
-)
 RECIPE_IDS = {f"REC{n:03d}" for n in range(1, 11)}
 BLOCK_OPS = {"review_training_block", "handle_goal_or_race_change"}
 OFF_CYCLE_OPS = {"review_rolling_plan", "review_training_block", "handle_goal_or_race_change"}
+PATCH_SCOPE_OPS = {"exception_review", "post_event_review"}
 ANCHOR_UNIT = {
     "hr_aerobic_upper": "bpm",
     "hr_threshold_lower": "bpm",
@@ -171,7 +165,7 @@ class AnchorChange(Strict):
 
 class ProposalDoc(Strict):
     schema_version: Literal["coach_proposal.v1"]
-    operation: Literal[*OPERATIONS]  # type: ignore[valid-type]
+    operation: Operation
     snapshot_id: uuid.UUID
     base_calendar_version: int = Field(ge=0)
     base_block_version_id: uuid.UUID | None
@@ -187,7 +181,7 @@ class ProposalDoc(Strict):
     recipe_ids: list[str]
     observations_used: list[str] = Field(default_factory=list)
     follow_up: str | None = None
-    escalation: Literal[*OPERATIONS] | None = None  # type: ignore[valid-type]
+    escalation: Operation | None = None
     skill_version: Literal["running-coach.v1"]
 
 
@@ -315,7 +309,8 @@ def is_quality_slot(kind: str, recipe_id: str | None, placeholder: bool) -> bool
 
 
 def scope(operation: str, today: date) -> tuple[date, date]:
-    return today, today + timedelta(days=3 if operation == "proceed_or_modify_today" else 13)
+    days = 3 if operation == "proceed_or_modify_today" else 6 if operation in PATCH_SCOPE_OPS else 13
+    return today, today + timedelta(days=days)
 
 
 def derive_certainty(day: date, today: date) -> str:
