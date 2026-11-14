@@ -166,6 +166,24 @@ class HelperTests(unittest.TestCase):
         request.assert_called_once_with('GET','/coach/proposals/active')
         self.assertEqual(json.loads(output.getvalue()), envelope)
 
+    def test_exceptions_is_read_only_get(self):
+        for extra, endpoint in [([], '/exceptions?include=active'), (['--include', 'recent'], '/exceptions?include=recent')]:
+            with self.subTest(extra=extra), patch.object(helper.Client, 'request',
+                    return_value={'mode': 'real', 'data': {}}) as request, \
+                 patch('sys.stdout', new_callable=io.StringIO):
+                self.assertEqual(helper.main(['--mode', 'real', '--read-only', 'exceptions', *extra]), 0)
+            request.assert_called_once_with('GET', endpoint)
+
+    def test_new_review_operations_pass_through(self):
+        self.assertEqual(helper.OPERATIONS[-2:], ('exception_review', 'post_event_review'))
+        payload = {'snapshot_id': UID, 'payload': {'snapshot_meta': {'source_fingerprint': 'a' * 64}}}
+        for operation in ('exception_review', 'post_event_review'):
+            with self.subTest(operation=operation), patch.object(helper, 'repo_root', return_value=ROOT), \
+                 patch.object(helper, 'run_cli', side_effect=[(0, SCHEMA), (0, payload)]) as cli, \
+                 patch('sys.stdout', new_callable=io.StringIO):
+                self.assertEqual(helper.main(['--mode', 'real', '--read-only', 'snapshot', '--operation', operation]), 0)
+            self.assertEqual(cli.call_args.args[2], ['snapshot', '--operation', operation])
+
     def test_snapshot_requires_source_linkage(self):
         for payload, expected in [({'snapshot_id':UID,'payload':{}},1),
                 ({'snapshot_id':UID,'payload':{'snapshot_meta':{'source_fingerprint':'a'*64}}},0)]:
