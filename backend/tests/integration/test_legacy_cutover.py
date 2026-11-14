@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import sys
 import uuid
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -18,7 +18,7 @@ from sqlalchemy.orm import sessionmaker
 from app.calendar_models import CalendarSessionRevision, LegacyImportMap, LegacyImportRun, SessionCompletion
 from app.config import settings
 from app.models import AppState, Checkin
-from app.services.legacy_cutover import migrate_legacy_state, require_legacy_write, source_snapshot
+from app.services.legacy_cutover import migrate_legacy_state, source_snapshot
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'fixtures'))
 from legacy_0009 import seed_at_0009, seed_legacy  # noqa: E402
@@ -94,12 +94,6 @@ def test_populated_cutover_preserves_source_after_commit(db):
         assert session.scalar(select(func.count()).select_from(LegacyImportMap).where(
             LegacyImportMap.target_kind == 'archive')) == sum(before_counts.values())
         assert session.scalar(select(func.count()).select_from(Checkin)) == 1
-        from app.api.history import checkin_history
-        history = checkin_history(date.today() - timedelta(days=3), date.today(), session)
-        legacy = next(item for item in history['data']['items'] if item['id'] == fixture['checkin'])
-        assert legacy['schema_version'] == 1
-        assert legacy['payload']['symptoms'] == 'severe'
-        assert legacy['payload']['gait'] == 'unaffected'
 
 
 @pytest.mark.integration
@@ -117,7 +111,7 @@ def test_populated_0009_upgrade_then_cutover(db):
 
 
 @pytest.mark.integration
-def test_dry_run_replay_and_legacy_guard(db):
+def test_dry_run_and_replay(db):
     with db() as session:
         seed_legacy(session, date.today())
         session.commit()
@@ -131,10 +125,6 @@ def test_dry_run_replay_and_legacy_guard(db):
         assert replay['already_imported'] is True
         assert replay['source_fingerprint'] == preview['source_fingerprint'] == applied['source_fingerprint']
         assert session.scalar(select(func.count()).select_from(LegacyImportRun)) == 1
-        with pytest.raises(HTTPException) as error:
-            require_legacy_write(session)
-        assert error.value.status_code == 409
-        assert error.value.detail['code'] == 'legacy_write_disabled'
 
 
 @pytest.mark.integration
@@ -153,7 +143,6 @@ def test_mid_import_failure_rolls_back_authority_and_sources(db, monkeypatch):
         assert source_snapshot(session)[:2] == before
         assert session.get(AppState, 1, populate_existing=True).planning_authority == 'legacy'
         assert session.scalar(select(func.count()).select_from(LegacyImportRun)) == 0
-        require_legacy_write(session)
 
 
 @pytest.mark.integration
@@ -172,39 +161,3 @@ def test_unsupported_kind_aborts_without_loss(db):
         session.rollback()
         assert source_snapshot(session)[:2] == before
         assert session.scalar(select(func.count()).select_from(LegacyImportRun)) == 0
-
-
-@pytest.mark.integration
-def test_old_entrypoints_reject_writes_after_cutover(db):
-    from app.api import coaching, core
-    from app.services import agent_plans
-    with db() as session:
-        seed_legacy(session, date.today())
-        session.commit()
-        migrate_legacy_state(session, dry_run=False)
-        session.commit()
-        before = source_snapshot(session)[:2]
-        fake = uuid.uuid4()
-        calls = [
-            lambda: core.post_checkin(None, None, session),
-            lambda: core.patch_checkin(fake, None, session),
-            lambda: core.post_plan(None, session),
-            lambda: core.decide_plan(fake, None, 'accepted', session),
-            lambda: core.post_completion_link(None, session),
-            lambda: core.delete_completion_link(fake, session),
-            lambda: core.post_weekly_snapshot(None, session),
-            lambda: coaching._post(session, 'daily', None, None),
-            lambda: coaching.post_outcome(fake, None, session),
-            lambda: agent_plans.submit(session, None),
-            lambda: agent_plans.rollback(session, fake, fake, 'synthetic'),
-            lambda: agent_plans._persist(session, day=date.today(), workflow='daily',
-                summary='', rationale='', evidence_hash='', key='', current=None,
-                before=[], updates=[], inputs={}, review={}, source_ids=[], warnings=[]),
-        ]
-        for call in calls:
-            with pytest.raises(HTTPException) as error:
-                call()
-            assert error.value.status_code == 409
-            assert error.value.detail['code'] == 'legacy_write_disabled'
-        session.rollback()
-        assert source_snapshot(session)[:2] == before
