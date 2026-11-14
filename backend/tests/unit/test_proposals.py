@@ -149,6 +149,24 @@ def change(change_id: str, op: str, uid: int | None, after: dict | None = None, 
     }
 
 
+def exception_block(**overrides) -> dict:
+    block = {"finding_ids": [str(U(300))], "category": "accumulated_fatigue", "severity": "caution",
+             "confidence": "moderate", "triggering_evidence": "Fatigue 8 on two mornings", "relevant_context": None,
+             "ladder_level": "next_session", "patch_window": {"start": "2026-11-16", "end": "2026-11-18"},
+             "unchanged": [{"session_uid": str(U(1)), "reason": "Easy run stays"}], "reassess_on": "2026-11-19",
+             "monitor": ["Morning fatigue"], "return_criteria": ["Usual fatigue twice"],
+             "escalate_criteria": ["High through Saturday"]}
+    block.update(overrides)
+    return block
+
+
+def exception_doc(**overrides) -> dict:
+    doc = valid_doc("exception_review")
+    doc["changes"] = [change("c1", "modify", 2, {"intent": "Easy instead of quality"})]
+    doc["exception"] = exception_block(**overrides)
+    return doc
+
+
 def test_valid_rolling_proposal_is_pending() -> None:
     assert outcome(valid_doc()) == ("pending", [])
     doc = valid_doc()
@@ -513,3 +531,17 @@ def test_subset_unchanged_numeric_target_needs_no_anchor() -> None:
                                      ("exception_review", 6), ("post_event_review", 6)])
 def test_scope_by_operation(op: str, days: int) -> None:
     assert scope(op, TODAY) == (TODAY, TODAY + timedelta(days=days))
+
+
+def test_exception_schema_errors() -> None:
+    for doc in (exception_doc(monitor=[]), exception_doc(category="post_event"),
+                exception_doc(confidence="medium"), exception_doc(extra=1)):
+        status, issues = outcome(doc)
+        assert status == "invalid"
+        assert issues and all(code == "V1.schema" for code, _ in issues)
+
+
+def test_old_payload_without_new_fields_still_parses() -> None:
+    result = validate_document(valid_doc(), context())
+    assert result.doc is not None
+    assert result.doc.exception is None and result.doc.event_review is None and result.doc.patch_resolutions == []

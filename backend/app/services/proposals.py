@@ -6,7 +6,7 @@ import hashlib
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Any, Literal, cast
+from typing import Annotated, Any, Literal, cast
 from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -17,6 +17,7 @@ from app.domain.cycle import opportunity
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.services.calendar_structure import StructureError, expand_structure
 from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
+from app.services.exceptions.vocab import LadderLevel, PatchCategory, Severity
 from app.services.operations import Operation
 
 RECIPE_IDS = {f"REC{n:03d}" for n in range(1, 11)}
@@ -163,6 +164,60 @@ class AnchorChange(Strict):
     supersedes_key: str | None = Field(None, max_length=40)
 
 
+RESOLUTION_OPS = {"exception_review", "review_rolling_plan", "review_training_block", "post_event_review"}
+ANCHOR_OPS = {"recalibrate_intensity", "post_event_review"}
+NO_STRENGTH_EDIT_OPS = {"proceed_or_modify_today", "exception_review"}
+Criterion = Annotated[str, Field(max_length=200)]
+
+
+def _anchors_allowed(doc: ProposalDoc) -> bool:
+    return doc.operation in ANCHOR_OPS
+
+
+class PatchWindow(Strict):
+    start: date
+    end: date
+
+
+class UnchangedSession(Strict):
+    session_uid: uuid.UUID
+    reason: str = Field(max_length=200)
+
+
+class ExceptionBlock(Strict):
+    finding_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
+    category: PatchCategory
+    severity: Severity
+    confidence: Literal["low", "moderate", "high"]
+    triggering_evidence: str = Field(max_length=600)
+    relevant_context: str | None = Field(default=None, max_length=600)
+    ladder_level: LadderLevel
+    patch_window: PatchWindow
+    unchanged: list[UnchangedSession] = Field(default_factory=list, max_length=14)
+    reassess_on: date
+    monitor: list[Criterion] = Field(min_length=1, max_length=6)
+    return_criteria: list[Criterion] = Field(min_length=1, max_length=6)
+    escalate_criteria: list[Criterion] = Field(min_length=1, max_length=6)
+
+
+class EventReview(Strict):
+    event_id: uuid.UUID
+    activity_id: uuid.UUID | None = None
+    pacing: str = Field(max_length=600)
+    effort_and_limiter: str = Field(max_length=600)
+    conditions: str | None = Field(default=None, max_length=400)
+    symptoms: str | None = Field(default=None, max_length=400)
+    recovery_observation: str = Field(max_length=600)
+    recalibration: Literal["none", "propose_anchors", "defer"]
+    training_implication: str = Field(max_length=600)
+
+
+class PatchResolution(Strict):
+    patch_id: uuid.UUID
+    status: Literal["resolved", "escalated"]
+    note: str = Field(max_length=300)
+
+
 class ProposalDoc(Strict):
     schema_version: Literal["coach_proposal.v1"]
     operation: Operation
@@ -182,6 +237,9 @@ class ProposalDoc(Strict):
     observations_used: list[str] = Field(default_factory=list)
     follow_up: str | None = None
     escalation: Operation | None = None
+    exception: ExceptionBlock | None = None
+    event_review: EventReview | None = None
+    patch_resolutions: list[PatchResolution] = Field(default_factory=list, max_length=10)
     skill_version: Literal["running-coach.v1"]
 
 
