@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -32,6 +33,7 @@ from app.planning_models import (
     IntensityAnchor,
     StrengthRoutineSlot,
 )
+from app.services.block_benchmark import active_block_version
 from app.services.calendar import state_at
 from app.services.coverage import coverage
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
@@ -933,16 +935,15 @@ def select_recipe_ids(inputs: SnapshotInputs, operation: str) -> list[str]:
     return sorted(ids)
 
 
-def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInputs:
-    from app.calendar_models import LegacyImportMap
-    from app.metrics.engine import load_runs
-    from app.models import Checkin as LegacyCheckin
+def _effective_rpe(rpe_rows: Sequence[SessionRpe], strong_id: Any) -> Any:
+    matched = [r for r in rpe_rows if r.strong_workout_id == strong_id]
+    preferred = next((r for r in reversed(matched) if r.source == "manual"), None) or next(
+        (r for r in reversed(matched) if r.source == "garmin_fit"), None
+    )
+    return preferred.rpe if preferred else None
 
-    zone = athlete_tz(session)
-    state = session.get(AppState, 1)
-    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
-    head = state.calendar_head_version if state else 0
-    first = as_of - timedelta(days=120)
+
+def _load_sessions(session: Session, head: int, first: date, as_of: date) -> list[dict]:
     sessions = [
         dict(
             _view(
@@ -969,11 +970,19 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         for row in state_at(session, head)
         if first <= row["local_date"] <= as_of + timedelta(days=13)
     ]
+    return sessions
+
+
+def _load_completions(session: Session) -> list[dict]:
     completion_rows = session.scalars(select(SessionCompletion)).all()
     completions = [
         _view(row, ("session_uid", "status", "activity_id", "strong_workout_id", "manual_session_id", "modification_reason"))
         for row in completion_rows
     ]
+    return completions
+
+
+def _load_strength_slots(session: Session) -> list[dict]:
     slots = [
         _view(
             row,
@@ -986,32 +995,24 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
             .order_by(StrengthRoutineSlot.default_weekday, StrengthRoutineSlot.id)
         )
     ]
-    strong_rows = session.scalars(
-        select(StrongWorkoutRow)
-        .where(
-            StrongWorkoutRow.local_date >= first,
-            StrongWorkoutRow.local_date <= as_of,
-            StrongWorkoutRow.resolution_state == "resolved",
-        )
-        .order_by(StrongWorkoutRow.local_date, StrongWorkoutRow.id)
-    ).all()
-    rpe_rows = session.scalars(select(SessionRpe).order_by(SessionRpe.collected_at, SessionRpe.id)).all()
+    return slots
 
-    def effective_rpe(strong_id: Any) -> Any:
-        matched = [r for r in rpe_rows if r.strong_workout_id == strong_id]
-        preferred = next((r for r in reversed(matched) if r.source == "manual"), None) or next(
-            (r for r in reversed(matched) if r.source == "garmin_fit"), None
-        )
-        return preferred.rpe if preferred else None
 
+def _load_strong_workouts(strong_rows: Sequence[StrongWorkoutRow], rpe_rows: Sequence[SessionRpe]) -> list[dict]:
     strong = [
         dict(
             _view(row, ("local_date", "workout_name", "duration_s")),
             strong_workout_id=row.id,
-            rpe=effective_rpe(row.id),
+            rpe=_effective_rpe(rpe_rows, row.id),
         )
         for row in strong_rows
     ]
+    return strong
+
+
+def _load_runs(session: Session, first: date, as_of: date, rpe_rows: Sequence[SessionRpe]) -> list[dict]:
+    from app.metrics.engine import load_runs
+
     run_facts = load_runs(session, first, as_of + timedelta(days=1))
     activities = (
         {
@@ -1042,6 +1043,12 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for f in run_facts
     ]
+    return runs
+
+
+def _load_checkins(session: Session, now: datetime, zone: ZoneInfo) -> list[dict]:
+    from app.calendar_models import LegacyImportMap
+
     imported_ids = {
         row.target_id
         for row in session.scalars(select(LegacyImportMap).where(LegacyImportMap.source_table == "checkins"))
@@ -1077,6 +1084,12 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in checkin_rows
     ]
+    return checkins
+
+
+def _load_legacy_checkins(session: Session, now: datetime) -> list[dict]:
+    from app.models import Checkin as LegacyCheckin
+
     legacy_rows = session.scalars(
         select(LegacyCheckin)
         .where(LegacyCheckin.observed_at >= now - timedelta(hours=72), LegacyCheckin.observed_at <= now)
@@ -1098,6 +1111,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in legacy_rows
     ]
+    return legacy
+
+
+def _load_prompts(session: Session, now: datetime) -> list[dict]:
     prompt_rows = session.scalars(
         select(Prompt)
         .where(Prompt.opens_at >= now - timedelta(days=120), Prompt.opens_at <= now)
@@ -1107,6 +1124,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         _view(row, ("id", "kind", "activity_id", "status", "opens_at", "closes_at"), names={"id": "prompt_id"})
         for row in prompt_rows
     ]
+    return prompts
+
+
+def _load_metrics(session: Session, as_of: date, runs: list[dict]) -> list[dict]:
     metric_keys = (
         {f"w{n}:{as_of.isoformat()}" for n in (7, 14, 28, 56, 84)}
         | {f"w{n}:{as_of.isoformat()}:{kind}" for n in (7, 14, 28, 56, 84) for kind in ("run", "strength")}
@@ -1141,6 +1162,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in metric_rows
     ]
+    return metrics
+
+
+def _load_anchors(session: Session) -> list[dict]:
     anchor_rows = session.scalars(
         select(IntensityAnchor).order_by(
             IntensityAnchor.valid_from, IntensityAnchor.calibrated_at, IntensityAnchor.anchor_key
@@ -1166,14 +1191,14 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in anchor_rows
     ]
+    return anchors
+
+
+def _load_active_block(session: Session, as_of: date) -> tuple[Sequence[BlockVersion], dict | None]:
     block_rows = session.scalars(
         select(BlockVersion).order_by(BlockVersion.block_uid, BlockVersion.version.desc())
     ).all()
-    latest_by_uid: dict[uuid.UUID, BlockVersion] = {}
-    for block_row in block_rows:
-        latest_by_uid.setdefault(block_row.block_uid, block_row)
-    active_rows = [row for row in latest_by_uid.values() if row.status in {"active", "consolidating"}]
-    active_row = max(active_rows, key=lambda row: (row.created_at, row.version, str(row.id))) if active_rows else None
+    active_row = active_block_version(session)
     block_keys = (
         "status",
         "objective",
@@ -1203,6 +1228,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         if active_row
         else None
     )
+    return block_rows, active_block
+
+
+def _load_block_decisions(session: Session) -> list[dict]:
     decisions = [
         _view(
             row,
@@ -1219,6 +1248,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in session.scalars(select(BlockDecision).order_by(BlockDecision.decided_at, BlockDecision.id))
     ]
+    return decisions
+
+
+def _load_proposals(session: Session) -> list[dict]:
     proposal_rows = session.scalars(
         select(CoachProposal)
         .where(CoachProposal.status != "invalid")
@@ -1247,10 +1280,18 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         )
         for row in proposal_rows
     ]
+    return proposals
+
+
+def _load_goals(session: Session) -> list[dict]:
     goals = [
         _view(row, ("id", "text", "horizon", "priority", "status"), names={"id": "goal_id"})
         for row in session.scalars(select(Goal).where(Goal.status == "active").order_by(Goal.priority, Goal.id))
     ]
+    return goals
+
+
+def _load_events(session: Session, as_of: date) -> list[dict]:
     events = [
         _view(
             row, ("id", "name", "event_date", "distance_m", "priority", "status", "result_s"), names={"id": "event_id"}
@@ -1259,8 +1300,12 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
             select(Event).where(Event.event_date >= as_of - timedelta(days=28)).order_by(Event.event_date, Event.id)
         )
     ]
+    return events
+
+
+def _load_exception_state(session: Session, as_of: date, now: datetime) -> tuple[list[dict], list[dict]]:
     from app.exception_models import ExceptionFinding, ExceptionPatch
-    from app.services.exceptions.detector import finding_data, last_review_at, patch_data, review_recommended
+    from app.services.exceptions.detector import finding_data, last_review_at, patch_data
 
     last_review = last_review_at(session)
     exception_findings = [finding_data(row, last_review) for row in session.scalars(
@@ -1273,6 +1318,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         .where(or_(ExceptionPatch.status.in_(LIVE_PATCH),
                    ExceptionPatch.window_end >= as_of - timedelta(days=SUMMARY_DAYS - 1)))
         .order_by(ExceptionPatch.created_at.desc(), ExceptionPatch.id))]
+    return exception_findings, exception_patches
+
+
+def _load_benchmark_history(session: Session, block_rows: Sequence[BlockVersion]) -> list[dict]:
     versions = {(row.block_uid, row.version): row.objective for row in block_rows}
     benchmark_history = [
         {"block_uid": row.block_uid, "objective": versions.get((row.block_uid, row.block_version)),
@@ -1285,35 +1334,55 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
             .limit(BENCHMARK_HISTORY_MAX)
         )
     ]
+    return benchmark_history
+
+
+def _load_review_recommended(session: Session, as_of: date) -> list[dict]:
+    from app.services.exceptions.detector import review_recommended
+
+    return [r.to_wire() for r in review_recommended(session, as_of)]
+
+
+def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInputs:
+    zone = athlete_tz(session)
+    state = session.get(AppState, 1)
+    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
+    head = state.calendar_head_version if state else 0
+    first = as_of - timedelta(days=120)
+    sessions = _load_sessions(session, head, first, as_of)
+    completions = _load_completions(session)
+    slots = _load_strength_slots(session)
+    strong_rows = session.scalars(select(StrongWorkoutRow).where(
+        StrongWorkoutRow.local_date >= first, StrongWorkoutRow.local_date <= as_of,
+        StrongWorkoutRow.resolution_state == "resolved",
+    ).order_by(StrongWorkoutRow.local_date, StrongWorkoutRow.id)).all()
+    rpe_rows = session.scalars(select(SessionRpe).order_by(SessionRpe.collected_at, SessionRpe.id)).all()
+    strong = _load_strong_workouts(strong_rows, rpe_rows)
+    runs = _load_runs(session, first, as_of, rpe_rows)
+    checkins = _load_checkins(session, now, zone)
+    legacy = _load_legacy_checkins(session, now)
+    prompts = _load_prompts(session, now)
+    metrics = _load_metrics(session, as_of, runs)
+    anchors = _load_anchors(session)
+    block_rows, active_block = _load_active_block(session, as_of)
+    decisions = _load_block_decisions(session)
+    proposals = _load_proposals(session)
+    goals = _load_goals(session)
+    events = _load_events(session, as_of)
+    exception_findings, exception_patches = _load_exception_state(session, as_of, now)
+    benchmark_history = _load_benchmark_history(session, block_rows)
     return SnapshotInputs(
-        as_of,
-        now,
-        zone.key,
-        head,
-        state.data_revision if state else 0,
-        profile.cycle_anchor if profile else None,
-        bool(profile.anchor_confirmed) if profile else False,
-        clinical_restriction(profile.facts) if profile else None,
-        sessions,
-        completions,
-        slots,
-        strong,
-        goals,
-        events,
-        active_block,
-        decisions,
-        runs,
-        checkins,
-        legacy,
-        prompts,
-        metrics,
-        anchors,
-        proposals,
-        coverage(session, first, as_of),
-        exception_findings=exception_findings,
-        exception_patches=exception_patches,
-        review_recommended=[r.to_wire() for r in review_recommended(session, as_of)],
-        benchmark_history=benchmark_history,
+        as_of=as_of, now=now, timezone=zone.key, calendar_version=head,
+        data_revision=state.data_revision if state else 0,
+        cycle_anchor=profile.cycle_anchor if profile else None,
+        anchor_confirmed=bool(profile.anchor_confirmed) if profile else False,
+        clinical_restriction=clinical_restriction(profile.facts) if profile else None,
+        sessions=sessions, completions=completions, strength_slots=slots, strong_workouts=strong,
+        goals=goals, events=events, active_block=active_block, block_decisions=decisions,
+        runs=runs, checkins=checkins, legacy_checkins=legacy, prompts=prompts,
+        metric_results=metrics, anchors=anchors, proposals=proposals, coverage=coverage(session, first, as_of),
+        exception_findings=exception_findings, exception_patches=exception_patches,
+        review_recommended=_load_review_recommended(session, as_of), benchmark_history=benchmark_history,
     )
 
 
