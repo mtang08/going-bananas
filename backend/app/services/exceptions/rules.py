@@ -536,6 +536,50 @@ def _travel_reported(inputs: DetectionInputs) -> list[Candidate]:
                        f'Travel reported on {_d(rows[-1].local_date)}.')]
 
 
+def _block_benchmark_missing(inputs: DetectionInputs) -> list[Candidate]:
+    b = inputs.block_benchmark
+    if b is None or b.status != 'not_set':
+        return []
+    return [_candidate('BLOCK_BENCHMARK_MISSING', 'post_event', 'observe', f'block_benchmark_missing:{b.block_uid}',
+                       [_ev_block(b, b.version_created_at)], 'Training block has no ending benchmark.')]
+
+
+def _block_benchmark_completed(inputs: DetectionInputs) -> list[Candidate]:
+    b = inputs.block_benchmark
+    if b is None or b.status != 'completed' or b.evidence_at is None or b.local_date is None:
+        return []
+    summary = f'Block benchmark completed on {_d(b.local_date)}.'
+    if b.result_s:
+        summary += f' Time {_clock(b.result_s)}.'
+    return [_candidate('BLOCK_BENCHMARK_COMPLETED', 'post_event', 'observe',
+                       f'block_benchmark_done:{b.block_uid}:{b.version}', [_ev_benchmark(b, b.evidence_at)], summary)]
+
+
+def _block_benchmark_missed(inputs: DetectionInputs) -> list[Candidate]:
+    b = inputs.block_benchmark
+    if b is None or b.status != 'missed' or b.planned_date is None:
+        return []
+    at = _local(inputs, b.review_date + timedelta(days=3), 0, 0)
+    return [_candidate('BLOCK_BENCHMARK_MISSED', 'calendar_disruption', 'caution',
+                       f'block_benchmark_missed:{b.block_uid}:{b.version}', [_ev_block(b, at)],
+                       f'Block benchmark planned for {_d(b.planned_date)} was not completed.')]
+
+
+_REVIEW_PRIORITIES = frozenset({'target', 'benchmark', 'supported_exposure'})
+
+
+def _post_event_review_due(inputs: DetectionInputs) -> list[Candidate]:
+    today = inputs.today
+    bench = inputs.block_benchmark
+    excluded = bench.event_id if bench is not None else None
+    return [_candidate('POST_EVENT_REVIEW_DUE', 'post_event', 'observe', f'event:{e.id}', [_ev_event(inputs, e)],
+                       f'Race review due for {e.name} on {_d(e.event_date)}.')
+            for e in sorted(inputs.events, key=lambda x: (x.event_date, x.id))
+            if (excluded is None or e.id != excluded) and e.priority in _REVIEW_PRIORITIES
+            and e.status != 'cancelled' and today - timedelta(days=EVENT_REVIEW_DAYS) <= e.event_date <= today - timedelta(days=1)
+            and (e.status == 'completed' or e.has_run_on_date)]
+
+
 RULES: tuple[tuple[str, Rule], ...] = (
     ('SYM_NEW_SITE', _sym_new_site),
     ('SYM_WORSENING', _sym_worsening),
@@ -561,6 +605,10 @@ RULES: tuple[tuple[str, Rule], ...] = (
     ('RUNS_MISSED_REPEATED', _runs_missed_repeated),
     ('HARD_SPACING_TIGHT', _hard_spacing_tight),
     ('TRAVEL_REPORTED', _travel_reported),
+    ('BLOCK_BENCHMARK_MISSING', _block_benchmark_missing),
+    ('BLOCK_BENCHMARK_COMPLETED', _block_benchmark_completed),
+    ('BLOCK_BENCHMARK_MISSED', _block_benchmark_missed),
+    ('POST_EVENT_REVIEW_DUE', _post_event_review_due),
 )
 
 

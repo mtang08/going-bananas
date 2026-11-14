@@ -343,3 +343,40 @@ def test_hard_spacing_tight():
 def test_travel_reported():
     assert hits(inp(checkins=(chk(1, tags=('travel',)),)), 'TRAVEL_REPORTED') == [('travel', 'observe')]
     assert hits(inp(checkins=(chk(2, tags=('travel',)),)), 'TRAVEL_REPORTED') == []
+
+
+def test_block_benchmark_rules():
+    missing, completed, missed = ('BLOCK_BENCHMARK_' + suffix for suffix in ('MISSING', 'COMPLETED', 'MISSED'))
+    inputs = inp(block_benchmark=bb('not_set'))
+    assert hits(inputs, missing) == [('block_benchmark_missing:b1', 'observe')]
+    assert one(inputs, missing).evidence_at == at(40)
+    assert one(inputs, missing).evidence[0]['type'] == 'block'
+    for block in (bb('pending'), None):
+        for code in (missing, completed, missed):
+            assert hits(inp(block_benchmark=block), code) == []
+    inputs = inp(block_benchmark=bb('completed', match_method='auto', activity_id='a9',
+                 local_date=TODAY - timedelta(days=5), result_s=1470, evidence_at=at(5, 8)))
+    assert hits(inputs, completed) == [('block_benchmark_done:b1:2', 'observe')]
+    assert one(inputs, completed).summary == 'Block benchmark completed on Wed Nov 11. Time 24:30.'
+    assert one(inputs, completed).evidence_at == at(5, 8)
+    inputs = inp(block_benchmark=bb('missed'))
+    assert hits(inputs, missed) == [('block_benchmark_missed:b1:2', 'caution')]
+    assert one(inputs, missed).category == 'calendar_disruption'
+    assert one(inputs, missed).evidence_at == datetime(2026, 11, 15, 0, 0, tzinfo=ZoneInfo(TZ))
+
+
+def test_post_event_review_due():
+    code = 'POST_EVENT_REVIEW_DUE'
+    assert hits(inp(events=(ev(3),), block_benchmark=bb('pending', event_id='e1')), code) == []
+    assert hits(inp(events=(ev(3),), block_benchmark=bb('pending', event_id='other')), code)
+    inputs = inp(events=(ev(3),))
+    assert hits(inputs, code) == [('event:e1', 'observe')]
+    assert one(inputs, code).summary == 'Race review due for Synthetic 10K on Fri Nov 13.'
+    assert hits(inp(events=(ev(3, priority='optional'),)), code) == []
+    assert hits(inp(events=(ev(3, status='cancelled'),)), code) == []
+    assert hits(inp(events=(ev(3, status='registered', ran=True),)), code)
+    assert hits(inp(events=(ev(3, status='registered'),)), code) == []
+    for d, expected in ((0, False), (7, True), (8, False)):
+        assert bool(hits(inp(events=(ev(d),)), code)) == expected
+    assert one(inputs, code).evidence_at == datetime(2026, 11, 13, 23, 59, tzinfo=ZoneInfo(TZ))
+    assert one(inp(events=(ev(3, ran=True, run_end=at(3, 10)),)), code).evidence_at == at(3, 10)
