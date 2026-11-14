@@ -298,3 +298,48 @@ def test_fatigue_prolonged():
     code = 'FATIGUE_PROLONGED'
     assert hits(inp(checkins=tuple(chk(d, fatigue=7) for d in (0, 3, 6, 9))), code) == [('fatigue_prolonged', 'hold')]
     assert hits(inp(checkins=tuple(chk(d, fatigue=7) for d in (0, 3, 6, 10))), code) == []
+
+
+def test_key_session_missed():
+    code = 'KEY_SESSION_MISSED'
+    s = ses(2, 'REC002', status='skipped', uid='s1')
+    assert hits(inp(sessions=(s,)), code) == [('session:s1', 'observe')]
+    assert hits(inp(sessions=(dataclasses.replace(s, completion_status='unknown'),)), code)
+    missing = dataclasses.replace(s, completion_status=None)
+    assert hits(inp(sessions=(missing,), planned_actual={'s1': PlannedActualFact(('NO_ACTIVITY_FOUND',), None)}), code)
+    assert hits(inp(sessions=(missing,)), code) == []
+    assert hits(inp(sessions=(ses(2, 'REC001', status='skipped'),)), code) == []
+    for d, expected in ((0, False), (7, True), (8, False)):
+        assert bool(hits(inp(sessions=(ses(d, 'REC002', status='skipped'),)), code)) == expected
+    assert one(inp(sessions=(dataclasses.replace(s, completion_updated_at=at(1, 10)),)), code).evidence_at == at(1, 10)
+    assert one(inp(sessions=(s,)), code).evidence_at == at(30)
+
+
+def test_runs_missed_repeated():
+    code = 'RUNS_MISSED_REPEATED'
+    sessions = tuple(ses(d, status='skipped') for d in (1, 6))
+    assert hits(inp(sessions=sessions), code) == [('runs_missed', 'caution')]
+    assert hits(inp(sessions=sessions[:1]), code) == []
+    assert hits(inp(sessions=tuple(ses(d, None, kind='strength', status='skipped') for d in (1, 6))), code) == []
+
+
+def test_hard_spacing_tight():
+    code = 'HARD_SPACING_TIGHT'
+    future = (ses(-2, 'REC003', uid='u-b'), ses(-3, 'REC002', uid='u-a'))
+    assert hits(inp(sessions=future), code) == [('spacing:u-a:u-b', 'caution')]
+    assert hits(inp(sessions=(ses(-2, 'REC003'), ses(-4, 'REC002'))), code) == []
+    today = ses(0, 'REC002', uid='u-a')
+    yesterday = ses(1, 'REC003', status='completed_as_planned', uid='u-b')
+    assert hits(inp(sessions=(yesterday, today)), code)
+    assert hits(inp(sessions=(dataclasses.replace(yesterday, completion_status=None), today)), code) == []
+    assert hits(inp(sessions=(dataclasses.replace(yesterday, completion_status='skipped'), today)), code) == []
+    assert hits(inp(sessions=(ses(-6, 'REC003'), ses(-7, 'REC002'))), code) == []
+    timed = dataclasses.replace(future[0], planned_at=at(20))
+    assert one(inp(sessions=(timed, future[1])), code).evidence_at == at(20)
+    yesterday = dataclasses.replace(yesterday, completion_updated_at=at(1, 20))
+    assert one(inp(sessions=(yesterday, today)), code).evidence_at == at(1, 20)
+
+
+def test_travel_reported():
+    assert hits(inp(checkins=(chk(1, tags=('travel',)),)), 'TRAVEL_REPORTED') == [('travel', 'observe')]
+    assert hits(inp(checkins=(chk(2, tags=('travel',)),)), 'TRAVEL_REPORTED') == []

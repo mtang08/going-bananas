@@ -6,8 +6,8 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from app.domain.session_class import HARD_CLASSES, QUALITY_CLASSES, rpe_mismatch
 from app.domain.session_class import MISMATCH_MARGIN as MISMATCH_MARGIN
-from app.domain.session_class import QUALITY_CLASSES, rpe_mismatch
 from app.services.exceptions.facts import (
     BlockBenchmarkFact,
     Candidate,
@@ -489,6 +489,53 @@ def _fatigue_prolonged(inputs: DetectionInputs) -> list[Candidate]:
                        [_ev_checkin(c) for c in rows], f'High fatigue reported on {len(days)} days in the last 10 days.')]
 
 
+def _by_date(inputs: DetectionInputs) -> list[SessionFact]:
+    return sorted(inputs.sessions, key=lambda s: (s.local_date, s.session_uid))
+
+
+def _key_session_missed(inputs: DetectionInputs) -> list[Candidate]:
+    return [_candidate('KEY_SESSION_MISSED', 'calendar_disruption', 'observe', f'session:{s.session_uid}',
+                       [_ev_session(s)], f'{_cap(s.session_class)} session on {_d(s.local_date)} was missed.')
+            for s in _by_date(inputs) if s.session_class in HARD_CLASSES and _missed(inputs, s)]
+
+
+def _runs_missed_repeated(inputs: DetectionInputs) -> list[Candidate]:
+    missed = [s for s in _by_date(inputs) if s.kind == 'run' and _missed(inputs, s)]
+    if len(missed) < 2:
+        return []
+    return [_candidate('RUNS_MISSED_REPEATED', 'calendar_disruption', 'caution', 'runs_missed',
+                       [_ev_session(s) for s in missed], f'{len(missed)} planned runs were missed in the last 7 days.')]
+
+
+_DONE = frozenset({'completed_as_planned', 'completed_modified', 'partial'})
+
+
+def _hard_spacing_tight(inputs: DetectionInputs) -> list[Candidate]:
+    today = inputs.today
+    yesterday = today - timedelta(days=1)
+    eligible = [s for s in _by_date(inputs)
+                if s.session_class in HARD_CLASSES and yesterday <= s.local_date <= today + timedelta(days=6)
+                and (s.completion_status in _DONE if s.local_date == yesterday else s.completion_status != 'skipped')]
+    out: list[Candidate] = []
+    for i, a in enumerate(eligible):
+        for b in eligible[i + 1:]:
+            if (b.local_date - a.local_date).days <= 1:
+                low, high = sorted((a.session_uid, b.session_uid))
+                out.append(_candidate('HARD_SPACING_TIGHT', 'calendar_disruption', 'caution', f'spacing:{low}:{high}',
+                                      [_ev_session(a), _ev_session(b)],
+                                      f'Hard sessions on {_d(a.local_date)} and {_d(b.local_date)} are within one day '
+                                      'of each other.'))
+    return out
+
+
+def _travel_reported(inputs: DetectionInputs) -> list[Candidate]:
+    rows = [c for c in _ordered(inputs) if 'travel' in c.context_tags and _in_last(c.local_date, inputs.today, 2)]
+    if not rows:
+        return []
+    return [_candidate('TRAVEL_REPORTED', 'calendar_disruption', 'observe', 'travel', [_ev_checkin(c) for c in rows],
+                       f'Travel reported on {_d(rows[-1].local_date)}.')]
+
+
 RULES: tuple[tuple[str, Rule], ...] = (
     ('SYM_NEW_SITE', _sym_new_site),
     ('SYM_WORSENING', _sym_worsening),
@@ -510,6 +557,10 @@ RULES: tuple[tuple[str, Rule], ...] = (
     ('FATIGUE_PERSISTING', _fatigue_persisting),
     ('SIGNALS_CONVERGING', _signals_converging),
     ('FATIGUE_PROLONGED', _fatigue_prolonged),
+    ('KEY_SESSION_MISSED', _key_session_missed),
+    ('RUNS_MISSED_REPEATED', _runs_missed_repeated),
+    ('HARD_SPACING_TIGHT', _hard_spacing_tight),
+    ('TRAVEL_REPORTED', _travel_reported),
 )
 
 
