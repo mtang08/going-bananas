@@ -244,7 +244,7 @@ export function App() {
             {page === 'home' && <Home unit={unit} onCheckin={openCheckin} />}
             {page === 'calendar' && <Calendar unit={unit} />}
             {page === 'trends' && <Trends unit={unit} />}
-            {page === 'block' && <Block />}
+            {page === 'block' && <Block unit={unit} />}
             {page === 'guide' && <Guide />}
             {page === 'proposal' && route.id && <ProposalReview proposalId={route.id} />}
             {page === 'activity' && route.id && (

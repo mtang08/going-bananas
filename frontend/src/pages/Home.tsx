@@ -4,6 +4,7 @@ import { SyncCard } from '../components/SyncCard'
 import { relativeTime } from '../components/shared'
 import {
   CATEGORY_LABELS,
+  benchmarkStatusLabel,
   operationLabel,
   PROPOSAL_CHIP_LABELS,
   SEVERITY_LABELS,
@@ -115,6 +116,14 @@ export function Home({
       .at(-1)
   const title = (s: SessionState) => (s.legacy_unstructured ? 'Imported run' : sessionTitle(s))
   const b = block.data?.data
+  const bm = b?.benchmark ?? null
+  const daysTo =
+    bm && today
+      ? Math.round(
+          (Date.parse(`${bm.planned_date}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) /
+            86400000,
+        )
+      : null
   const openProposals = pending.data?.data.items ?? []
   const attentionCount =
     openProposals.length + recommended.length + flagged.length + due.length + open.length
@@ -381,8 +390,19 @@ export function Home({
         <p className="home-block-line" data-testid="block-line">
           {b ? (
             <>
-              Block: {b.objective} · Next review {dateLabel(b.review_date)} ·{' '}
-              <a href="#block">View training block</a>
+              Block: {b.objective} ·{' '}
+              {bm ? (
+                <>
+                  Ends with {bm.protocol} on {dateLabel(bm.planned_date)}
+                  {daysTo !== null && daysTo > 0
+                    ? ` (${daysTo} ${daysTo === 1 ? 'day' : 'days'})`
+                    : ''}{' '}
+                  · {benchmarkStatusLabel(b.benchmark_status, null)}
+                </>
+              ) : (
+                'No ending benchmark — run a block review'
+              )}{' '}
+              · <a href="#block">View training block</a>
             </>
           ) : (
             <>

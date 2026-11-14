@@ -208,5 +208,6 @@ export const qk = {
   anchors: ['v2', 'anchors'] as const,
   strengthRoutine: ['v2', 'strength-routine'] as const,
   blocksActive: ['v2', 'blocks', 'active'] as const,
+  blockBenchmarks: ['v2', 'blocks', 'benchmarks'] as const,
   profile: ['profile'] as const,
 }

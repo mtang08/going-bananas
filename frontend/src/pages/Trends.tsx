@@ -1,3 +1,4 @@
+import { OUTCOME_LABELS } from '../coachLabels'
 import {
   Button,
   Card,
@@ -33,6 +34,7 @@ import {
   statusText,
 } from '../api'
 import type {
+  BenchmarkRecord,
   HardClass,
   MetricResult,
   MetricWindows,
@@ -293,6 +295,70 @@ function Recovery({ nights }: { nights: RecoveryNight[] }) {
     </>
   )
 }
+function BenchmarkHistory({ items, unit }: { items: BenchmarkRecord[]; unit: Unit }) {
+  if (!items.length) return <p>No benchmark results yet. Each training block ends with one.</p>
+  const groups = new Map<number, BenchmarkRecord[]>()
+  for (const item of items)
+    if (item.distance_m != null && item.local_date && item.result_s != null)
+      groups.set(item.distance_m, [...(groups.get(item.distance_m) ?? []), item])
+  return (
+    <>
+      {[...groups.entries()]
+        .filter(([, rows]) => rows.length >= 2)
+        .map(([meters, rows]) => (
+          <div
+            className="chart"
+            role="img"
+            aria-label={`${fmtDistance(meters, unit)} benchmark results`}
+            key={meters}
+          >
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart
+                data={[...rows]
+                  .sort((a, b) => a.local_date!.localeCompare(b.local_date!))
+                  .map((r) => ({ date: r.local_date, result_s: r.result_s }))}
+              >
+                <CartesianGrid vertical={false} stroke="#e9e7df" />
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value: string) => dateLabel(value)}
+                  fontSize={11}
+                />
+                <YAxis
+                  fontSize={11}
+                  width={45}
+                  tickFormatter={(value: number) => fmtDuration(value)}
+                />
+                <Tooltip />
+                <Line dataKey="result_s" name="Result" stroke="#5b754d" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ))}
+      <Table aria-label="Benchmark results">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Date</TableHead>
+            <TableHead>Protocol</TableHead>
+            <TableHead>Result</TableHead>
+            <TableHead>Outcome</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((item) => (
+            <TableRow key={item.id}>
+              <TableCell>{item.local_date ? dateLabel(item.local_date) : MISSING}</TableCell>
+              <TableCell>{item.protocol}</TableCell>
+              <TableCell>{fmtDuration(item.result_s)}</TableCell>
+              <TableCell>{item.outcome ? OUTCOME_LABELS[item.outcome] : MISSING}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </>
+  )
+}
+
 const assessable = <V,>(result: MetricResult<V> | null): boolean =>
   result !== null && result.value !== null
 const zoneShown = (zone: ZoneDistribution) =>
@@ -311,6 +377,10 @@ export function Trends({ unit }: { unit: Unit }) {
     queryKey: qk.metricsRecovery(start, end),
     enabled: Boolean(asOf),
     queryFn: () => api<RecoveryNights>(`/metrics/recovery${query({ start, end })}`),
+  })
+  const benchmarks = useQuery({
+    queryKey: qk.blockBenchmarks,
+    queryFn: () => api<{ items: BenchmarkRecord[] }>('/blocks/benchmarks'),
   })
   const data = windows.data?.data
   const selected = data?.windows.find((window) => window.days === days) ?? null
@@ -526,6 +596,20 @@ export function Trends({ unit }: { unit: Unit }) {
           retry={() => void recovery.refetch()}
         >
           {recovery.data && <Recovery nights={recovery.data.data.nights} />}
+        </QueryState>
+      </Card>
+      <Card data-testid="trend-benchmarks">
+        <h2>Benchmark history</h2>
+        <QueryState
+          loading={benchmarks.isPending}
+          error={benchmarks.error}
+          stale={Boolean(benchmarks.data)}
+          retry={() => void benchmarks.refetch()}
+        >
+          <BenchmarkHistory
+            items={(benchmarks.data?.data?.items ?? []).filter((item) => item.outcome !== null)}
+            unit={unit}
+          />
         </QueryState>
       </Card>
     </section>
