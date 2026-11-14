@@ -197,4 +197,22 @@ describe('Activity execution', () => {
     expect(screen.getByText('Structured comparison unavailable')).toBeInTheDocument()
   })
 
+  it('collapses laps, intensity and data quality by default', async () => {
+    mount()
+    await screen.findByRole('heading', { name: 'Run · Sunday, November 8' })
+
+    for (const [testId, label] of [
+      ['activity-laps', 'Laps'],
+      ['activity-intensity', 'Intensity time'],
+      ['activity-data-quality', 'Data quality'],
+    ]) {
+      const disclosure = screen.getByTestId(testId)
+      expect(disclosure.tagName).toBe('DETAILS')
+      expect(disclosure).not.toHaveAttribute('open')
+      expect(within(disclosure).getByText(label, { selector: 'summary' })).toBeInTheDocument()
+    }
+
+    expect(screen.getByRole('heading', { name: 'Session RPE' }).tagName).toBe('H2')
+  })
+
 })

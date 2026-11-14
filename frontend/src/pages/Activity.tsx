@@ -355,8 +355,8 @@ export function Activity({
                 )}
               </Card>
             )}
-            <Card>
-              <h2>Laps</h2>
+            <Disclosure variant="card" className="training-disclosure" data-testid="activity-laps">
+              <summary>Laps</summary>
               {activity.fit_status !== 'decoded' ? (
                 <p>Laps are not assessable without a decoded FIT file.</p>
               ) : laps.length === 0 ? (
@@ -397,9 +397,13 @@ export function Activity({
                   </TableBody>
                 </Table>
               )}
-            </Card>
-            <Card>
-              <h2>Intensity time</h2>
+            </Disclosure>
+            <Disclosure
+              variant="card"
+              className="training-disclosure"
+              data-testid="activity-intensity"
+            >
+              <summary>Intensity time</summary>
               {intensity === null ? (
                 <p>Intensity: missing</p>
               ) : intensity.value === null ? (
@@ -410,7 +414,7 @@ export function Activity({
                   <p>{intensityText(intensity.value.speed, 'Pace')}</p>
                 </>
               )}
-            </Card>
+            </Disclosure>
             <Card>
               <h2>Session RPE</h2>
               <p>
@@ -456,8 +460,12 @@ export function Activity({
                 </ul>
               )}
             </Card>
-            <Card>
-              <h2>Data quality</h2>
+            <Disclosure
+              variant="card"
+              className="training-disclosure"
+              data-testid="activity-data-quality"
+            >
+              <summary>Data quality</summary>
               {flags.length ? (
                 <ul>
                   {flags.map((flag) => (
@@ -469,7 +477,7 @@ export function Activity({
               ) : (
                 <p>No data-quality flags.</p>
               )}
-            </Card>
+            </Disclosure>
           </>
         )}
       </QueryState>
