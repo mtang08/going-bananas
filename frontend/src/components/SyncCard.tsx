@@ -17,13 +17,14 @@ const OUTCOME = ['sync', 'outcome'] as const
 
 function useCached<T>(key: readonly unknown[], fallback: T): T {
   const qc = useQueryClient()
-  return useQuery({
+  const { data } = useQuery({
     queryKey: key,
     queryFn: () => qc.getQueryData<T>(key) ?? fallback,
     initialData: fallback,
     staleTime: Infinity,
     gcTime: Infinity,
-  }).data
+  })
+  return data === undefined ? fallback : data
 }
 
 export function SyncCard({ compact = false }: { compact?: boolean }) {
