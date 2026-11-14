@@ -1,9 +1,9 @@
 {
   "schema_version": "1.1",
   "package_name": "running_coach_kb",
-  "package_version": "1.1.1+privacy1",
+  "package_version": "1.2.0+privacy1",
   "created_on": "2026-11-10",
-  "updated_on": "2026-11-12",
+  "updated_on": "2026-11-13",
   "searched_through": "2026-11-11",
   "completion_status": "complete_incremental_extension_with_explicit_gaps",
   "scope_note": "Public generalizable running-coach knowledge base. No public athlete snapshot, application implementation, live Garmin integration, medical diagnosis, activated policy, or personalized training calendar.",
@@ -17,13 +17,13 @@
     "public_privacy_transform_preserved": true
   },
   "counts": {
-    "files_excluding_manifest": 28,
+    "files_excluding_manifest": 33,
     "sources": 72,
     "evidence_findings": 55,
-    "policy_candidates": 23,
-    "evaluation_cases": 26,
+    "policy_candidates": 28,
+    "evaluation_cases": 34,
     "topic_guides": 11,
-    "workflows": 3,
+    "workflows": 5,
     "session_recipes": 10,
     "method_comparison_entries": 15
   },
@@ -152,6 +152,14 @@
           ]
         },
         {
+          "path": "adaptive_coaching/race_and_benchmark_policy.md",
+          "sections": [
+            "Block-ending benchmark",
+            "Interpreting a benchmark",
+            "Missed or compromised benchmark"
+          ]
+        },
+        {
           "state": "current block definition/history, exposure, adaptation, tolerance, goals/constraints"
         }
       ],
@@ -160,7 +168,8 @@
         "topics/intensity_calibration_and_testing.md",
         "topics/races_tapers_and_transitions.md",
         "triggered base topics",
-        "P019-P023"
+        "P019-P023",
+        "P028 record"
       ],
       "avoid_routinely": [
         "all recipes",
@@ -333,6 +342,118 @@
         "evaluation/periodization_cases.md"
       ],
       "assertion": "route must retrieve every exact document/record named by each case and must flag omitted conditional context when the expected reasoning depends on it"
+    },
+    "exception_review": {
+      "minimum": [
+        {
+          "path": "COACHING_GUIDE.md",
+          "sections": [
+            "2. Decision authority by layer",
+            "3. Decision hierarchy",
+            "7. Missing data and uncertainty",
+            "8. Output and audit contracts"
+          ]
+        },
+        {
+          "path": "workflows/exception_review.md",
+          "sections": [
+            "Scope and entry",
+            "Review sequence",
+            "Output contract",
+            "Prohibited actions"
+          ]
+        },
+        {
+          "path": "adaptive_coaching/exception_policy.md",
+          "sections": [
+            "Categories and severity",
+            "Evidence requirements",
+            "Minimal-change ladder",
+            "Return to plan",
+            "Escalation and medical scope",
+            "Missed sessions and spacing"
+          ]
+        },
+        {
+          "state": "open findings and patches, committed-window sessions with session class and expected RPE, recent RPE versus intent"
+        }
+      ],
+      "conditional": [
+        "one triggered recovery/symptom/strength topic",
+        "planned recipe record",
+        "matching P001-P026 records"
+      ],
+      "avoid_routinely": [
+        "workflows/block_review.md",
+        "topics/periodization_and_training_blocks.md",
+        "all recipes",
+        "evidence matrices/source registry"
+      ],
+      "measured_minimum": {
+        "characters": 15492,
+        "words": 2116,
+        "approx_token_proxy_char_div_4": 3873
+      }
+    },
+    "post_event_review": {
+      "minimum": [
+        {
+          "path": "COACHING_GUIDE.md",
+          "sections": [
+            "3. Decision hierarchy",
+            "6. Calibrate without false precision",
+            "7. Missing data and uncertainty",
+            "8. Output and audit contracts"
+          ]
+        },
+        {
+          "path": "workflows/post_event_review.md",
+          "sections": [
+            "Scope and entry",
+            "Review sequence",
+            "Output contract",
+            "Prohibited inferences"
+          ]
+        },
+        {
+          "path": "adaptive_coaching/race_and_benchmark_policy.md",
+          "sections": [
+            "Block-ending benchmark",
+            "Interpreting a benchmark",
+            "Post-event review",
+            "Missed or compromised benchmark"
+          ]
+        },
+        {
+          "path": "topics/races_tapers_and_transitions.md",
+          "sections": [
+            "Post-race transition"
+          ]
+        },
+        {
+          "path": "adaptive_coaching/exception_policy.md",
+          "sections": [
+            "Escalation and medical scope"
+          ]
+        },
+        {
+          "state": "event, matched activity, check-ins and recovery nights from event day to event day +3, open findings"
+        }
+      ],
+      "conditional": [
+        "topics/intensity_calibration_and_testing.md when recalibration is considered",
+        "P020-P021 records"
+      ],
+      "avoid_routinely": [
+        "workflows/block_review.md",
+        "all recipes",
+        "evidence matrices/source registry"
+      ],
+      "measured_minimum": {
+        "characters": 12750,
+        "words": 1711,
+        "approx_token_proxy_char_div_4": 3188
+      }
     }
   },
   "known_gaps": [
@@ -376,8 +497,8 @@
     {
       "path": "README.md",
       "status": "changed",
-      "bytes": 9944,
-      "sha256": "6b6c1e1ad57bb18f1b4469b70641dfa8d445b2cf0b2de85a3642cb284391b4d9"
+      "bytes": 10547,
+      "sha256": "a8891293e6c095f8e8c23cc8bc5a1525673abfad271dcca03fa754ad783238ee"
     },
     {
       "path": "evaluation/coaching_cases.md",
@@ -388,8 +509,8 @@
     {
       "path": "evaluation/periodization_cases.md",
       "status": "added",
-      "bytes": 23144,
-      "sha256": "f8bc3476d3a376d3ceeba06a380558b47b66c5142e65ae60fe3fd322f9929043"
+      "bytes": 37976,
+      "sha256": "639dab371217b8542b3f0c0cfdf79b30818138b8a6ff00912ebe3a1b2159d500"
     },
     {
       "path": "policies/coaching_policy_candidates.json",
@@ -400,8 +521,8 @@
     {
       "path": "policies/periodization_policy_candidates.json",
       "status": "added",
-      "bytes": 16172,
-      "sha256": "03a42d8711fda61aa40d84bfd6f50dfe9b153a6bc09d275c98e2c1c0b294f2d4"
+      "bytes": 28481,
+      "sha256": "9e4dee6131dde53425511b776c9c6248f65dc98c9a0a30c94f9b976609c755ca"
     },
     {
       "path": "recipes/running_session_families.json",
@@ -502,8 +623,8 @@
     {
       "path": "topics/races_tapers_and_transitions.md",
       "status": "added",
-      "bytes": 8895,
-      "sha256": "503b80483592cb595265ace0742c9ab601597ddb1143ab224c64cf770b72a7b3"
+      "bytes": 9003,
+      "sha256": "edbfc97f8f4c21a7c7b8d5bd258f7491c580e7790631e13356dbb6c32dbc6c0c"
     },
     {
       "path": "topics/recovery_and_daily_adaptation.md",
@@ -540,6 +661,30 @@
       "status": "added",
       "bytes": 2820,
       "sha256": "6503989953542aecd09f88f540b7e6f447fb5c70cb17191843d7bb7e0b8bbe20"
+    },
+    {
+      "path": "adaptive_coaching/exception_policy.md",
+      "status": "added",
+      "bytes": 10473,
+      "sha256": "df5098dfd6f3c950aee646711b07013664cc7622c0ee9fa82f5d3a25eb9d0bd6"
+    },
+    {
+      "path": "adaptive_coaching/race_and_benchmark_policy.md",
+      "status": "added",
+      "bytes": 5160,
+      "sha256": "538e8c45f212cee4f4c7a55b0b621741cd4fa8a84ea107af5cb5c6c5bfb4dca6"
+    },
+    {
+      "path": "workflows/exception_review.md",
+      "status": "added",
+      "bytes": 3701,
+      "sha256": "e1d19db31635d782692167e2ab515cd378e689dbb19da56bdbece51b89abac8a"
+    },
+    {
+      "path": "workflows/post_event_review.md",
+      "status": "added",
+      "bytes": 3496,
+      "sha256": "e9a136b54ab1c71583209de4785e2e609edd61e52044decb08fc35171d3fe333"
     }
   ],
   "manifest_self": {
@@ -673,6 +818,11 @@
       "date": "2026-11-12",
       "version": "1.1.1+privacy1",
       "scope": "KB-first workflow and outside-research intake audit. No new verified physiological evidence or activated policies; searched_through remains unchanged."
+    },
+    {
+      "date": "2026-11-13",
+      "version": "1.2.0+privacy1",
+      "scope": "Adaptive-coaching candidate guidance: exception policy, race and benchmark policy, exception and post-event review workflows, candidate policies P024-P028, and evaluation cases C27-C34. No new verified physiological evidence or activated policies; searched_through remains unchanged."
     }
   ]
 }

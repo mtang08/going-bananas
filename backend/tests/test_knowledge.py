@@ -14,7 +14,7 @@ def test_selective_context_order_and_metadata():
         "daily", topics=["ptt_and_load_tolerance"], policy_ids=["P005"], source_ids=["S028"]
     )
     assert context.integrity_ok
-    assert context.package_version == "1.1.1+privacy1"
+    assert context.package_version == "1.2.0+privacy1"
     assert context.selected_files == (
         "COACHING_GUIDE.md",
         "workflows/daily_recommendation.md",
@@ -112,7 +112,7 @@ def test_incremental_ids_are_unique_and_references_resolve():
     policies = []
     for path in sorted((DEFAULT_ROOT / "policies").glob("*.json")):
         policies.extend(json.loads(path.read_text())["policies"])
-    assert len({p["policy_id"] for p in policies}) == len(policies) == 23
+    assert len({p["policy_id"] for p in policies}) == len(policies) == 28
     recipes = json.loads((DEFAULT_ROOT / "recipes/running_session_families.json").read_text())["recipes"]
     assert len({r["recipe_id"] for r in recipes}) == len(recipes) == 10
     evidence = set()
@@ -157,8 +157,8 @@ def tmp_kb(tmp_path):
 def test_overlay_matches_manifest():
     manifest = load_manifest()
     assert manifest["schema_version"] == "1.1"
-    assert manifest["package_version"] == "1.1.1+privacy1"
-    assert len(manifest["files"]) == 29
+    assert manifest["package_version"] == "1.2.0+privacy1"
+    assert len(manifest["files"]) == 33
     assert manifest["baseline_revision"]["public_privacy_transform_preserved"] is True
 
 
@@ -182,7 +182,7 @@ def test_extract_section_bounds():
 
 
 @pytest.mark.parametrize("operation,count,chars", list(zip(
-    SUPPORTED_OPERATIONS, (6, 7, 9, 11, 9, 11), (6090, 8399, 10423, 15878, 8645, 14462), strict=True,
+    SUPPORTED_OPERATIONS, (6, 7, 9, 14, 9, 11), (6090, 8399, 10423, 19139, 8645, 14462), strict=True,
 )))
 def test_route_minimum_sections(operation, count, chars):
     bundle = load_route(operation)
@@ -298,7 +298,7 @@ def test_manifest_missing_or_malformed(tmp_kb, contents):
 
 def test_kb_index():
     index = kb_index()
-    assert len(index.policy_ids) == 23 and {"P011", "P023"} <= index.policy_ids
+    assert len(index.policy_ids) == 28 and {"P011", "P023", "P028"} <= index.policy_ids
     assert index.recipe_ids == {f"REC{i:03}" for i in range(1, 11)}
     assert len(index.evidence_ids) == 55 and {"E-AER-01", "E-PER-02"} <= index.evidence_ids
 
@@ -355,3 +355,18 @@ def test_routed_context_hard_limit_never_truncates(monkeypatch):
         load_route("review_training_block", conditional_topics=CONDITIONAL_TOPICS)
     with pytest.raises(KnowledgeIntegrityError, match="exceeds bound"):
         verify_selection(({"path": "COACHING_GUIDE.md", "sections": ["*"] * 20},))
+
+
+
+def test_adaptive_coaching_routes_resolve_exactly_once():
+    manifest = load_manifest()
+    for operation in ("exception_review", "post_event_review"):
+        for item in manifest["routing"][operation]["minimum"]:
+            if "sections" in item:
+                text = (DEFAULT_ROOT / item["path"]).read_text()
+                for heading in item["sections"]:
+                    assert extract_section(text, heading, item["path"]).startswith("## " + heading)
+    policy = (DEFAULT_ROOT / "adaptive_coaching/exception_policy.md").read_text()
+    assert extract_section(policy, "Worked examples", "policy")
+    block = manifest["routing"]["review_training_block"]["minimum"]
+    assert sum(item.get("path") == "adaptive_coaching/race_and_benchmark_policy.md" for item in block) == 1
