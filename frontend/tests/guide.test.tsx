@@ -1,6 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Guide } from '../src/pages/Guide'
+import guide from 'virtual:user-guide'
+import { BENCHMARK_PROMPT, BLOCK_PROMPT, EXCEPTION_PROMPT, REASSESS_PROMPT, WEEKLY_PROMPT, racePrompt } from '../src/coachPrompts'
 
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
@@ -37,4 +39,14 @@ it('opens a chosen topic without changing the app route', () => {
     expect(window.location.hash).toBe('#guide')
     expect(document.activeElement).toBe(heading.closest('summary'))
   } finally { Element.prototype.scrollIntoView = original }
+})
+
+
+it('repeats every coach prompt and drops removed pages', () => {
+  for (const prompt of [WEEKLY_PROMPT, EXCEPTION_PROMPT, BLOCK_PROMPT, BENCHMARK_PROMPT, REASSESS_PROMPT, racePrompt('…', '…')])
+    expect(guide.includes('> ' + prompt)).toBe(true)
+  for (const heading of ['## Exception review', '## After a race', '## Block-ending benchmark'])
+    expect(guide).toContain(heading)
+  for (const removed of ['(#history)', '(#strength)', '(#coach)', 'Data & settings'])
+    expect(guide).not.toContain(removed)
 })

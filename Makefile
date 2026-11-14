@@ -14,7 +14,7 @@ db-stop:
 migrate:
 	$(RUN) bash -c 'cd backend && uv run alembic upgrade head'
 seed-demo:
-	$(RUN) bash -c 'cd backend && uv run python -m app.cli seed-demo'
+	./scripts/with-mode demo bash -c 'cd backend && uv run alembic upgrade head && uv run python -m app.cli seed-demo --calendar-preview'
 dev:
 	$(RUN) python3 scripts/serve.py --dev
 build:

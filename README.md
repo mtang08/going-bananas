@@ -16,17 +16,17 @@ imports, metrics, and validation run locally without model calls.
 
 Frontend implementation conventions are in [the UI system guide](docs/ui-system.md).
 
-Open **User guide** in the app for copyable coaching prompts and the daily,
-Sunday, and training-block workflows. The same guide is maintained in
+Open **User guide** in the app for copyable coaching prompts and the Sunday,
+exception, race, and training-block workflows. The same guide is maintained in
 [docs/user-guide.md](docs/user-guide.md) and can be downloaded from the app.
 
-1. Open **http://127.0.0.1:8000**. Home shows today's plan, open effort/response
-   prompts, projected weekly mileage, and the next two weeks. Record check-ins
-   and actual effort there.
-2. Ask Codex to use **`$going-bananas-coach`** for a weekly review, today's
-   adjustment, a block review, calibration, or a race/goal change. If there is no
-   training block yet, start with a block review.
-3. Open **Pending proposal → Review proposal**. Select the session changes,
+1. Open **http://127.0.0.1:8000**. Home shows sync status, what needs attention,
+   today's plan, projected weekly mileage, the next two weeks, and the training
+   block. Record check-ins and actual effort there.
+2. Ask Codex to use **`$going-bananas-coach`** for a weekly review, an
+   exception review, a block review, a post-race review, calibration, or a goal
+   change. If there is no training block yet, start with a block review.
+3. On Home, open **Needs attention → Review**. Select the session changes,
    block change, and calibration anchors you want to accept. Unselected session
    changes are rejected. Nothing applies when you open the page or submit a
    proposal from Codex.
@@ -55,10 +55,10 @@ Only one draft can be open at a time, including stale or invalid drafts. Use
 removes it from the open list and preserves its history; it does not change the
 calendar. The coach checks for the active draft before submitting a new one.
 
+Between Sunday reviews, a deterministic detector turns check-ins, post-run RPE against the session's intent, completions, and races into findings with a category, a severity, and evidence. One HRV, resting-HR, sleep, or pace value never raises a finding above **Logged**. Logged findings wait for the Sunday review. **Caution** or **Hold** findings put an exception-review prompt on Home; the coach then patches only the committed week (days 1–7), leaving days 8–14 provisional, with the smallest change, and each accepted patch is tracked until it is resolved, escalated, or superseded. Every block ends with a benchmark (a time trial or a race) whose result drives the block review and anchor recalibration. The user guide has the prompts.
+
 Strength stays in Strong; import its CSV snapshot in the local app. Confirm the
-weekly or alternating strength/mobility schedule in Data & settings. Plans,
-source observations, and legacy coaching history are retained during the
-calendar migration. New coaching changes always require explicit review.
+strength routine in Settings. New coaching changes always require explicit review.
 
 FIT decoding supplies timer segments, laps, steps, streams, and watch RPE when
 available. Source coverage, calibration, and stream quality determine whether a
@@ -67,11 +67,7 @@ Garmin sample decoding and timer/RPE comparisons have passed; broader repeat/lap
 mapping and non-worn-night behavior remain explicitly unverified. The app shows
 unavailable or partial evidence rather than filling those gaps.
 
-Historical Strong sessions and exact recorded sets are in Strength. The app
-uses only the preceding **18 calendar months** of Strong sessions for current
-running context; older workouts remain browsable. The export has no verified
-weight unit or dumbbell convention-change date, so the app does not compare
-weights or derive PR targets across that change.
+Strong sessions stay in the database. The app uses the preceding **18 calendar months** for current running context and has no Strength browsing page. The export has no verified weight unit or dumbbell convention-change date, so the app does not compare weights or derive PR targets across that change.
 
 ## Run on this Mac
 
@@ -137,8 +133,9 @@ Switching modes for a single command does not rewrite `.env`:
 ./scripts/with-mode real python3 scripts/serve.py
 ```
 
-The real-mode Data & settings screen offers manual sync. `make sync` runs a
-standalone sync for the mode configured in `.env`. Explicit historical window:
+In real mode, **Sync now** is on Home's status strip and in Settings. `make sync`
+runs a standalone sync for the mode configured in `.env`. Explicit historical
+window:
 
 ```sh
 ./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli sync --start 2026-10-14 --end 2026-11-10'
@@ -193,11 +190,9 @@ supports the inspected Strong format, not arbitrary CSVs.
 
 ## Feedback and planning
 
-The reviewed skill source is `.codex/skills/going-bananas-coach`. Install that
-package during the calendar migration using the manifest and backup procedure in
-[operations](docs/operations.md); the older `skills/` package belongs to the
-legacy workflow. Start a new Codex session after installation if skill discovery
-needs refreshing.
+The reviewed skill source is `.codex/skills/going-bananas-coach`. Install it
+using the manifest and backup procedure in [operations](docs/operations.md).
+Start a new Codex session after installation if skill discovery needs refreshing.
 
 Invoke `$going-bananas-coach` and describe the review you want. The invoking
 Codex model supplies the reasoning; the app does not need a separate model key
@@ -208,7 +203,7 @@ The helper also provides explicit read commands:
 
 ```sh
 python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real schema
-python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real snapshot --operation proceed_or_modify_today
+python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real snapshot --operation exception_review
 python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real history
 ```
 
@@ -221,9 +216,7 @@ Exception and post-run check-ins record fatigue, illness, gait change, symptoms,
 and effort when supplied. Unreported observations remain unknown. Associations
 show preceding sessions and elapsed time; they do not establish causation.
 Confirmed weekly or alternating strength/mobility schedules survive migration.
-Inspect or update them in Data & settings; optional manual strength entries are
-available, but duplicate entry from Strong is not required. Coaching history
-remains readable through the navigation link.
+Inspect or update them in Settings.
 
 ## Verification
 
@@ -244,12 +237,17 @@ APP_PORT=18000 ./scripts/with-mode demo bash -c 'cd backend && uv run uvicorn ap
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:18000 make test-e2e
 ```
 
-The P0-A and P0-B suites use calendar-mode fixtures. Run the older legacy suite
-against a separate ordinary demo seed. Browser and API requests use the same
+The demo database must be fresh; on an empty synthetic database,
+`seed-demo --calendar-preview` initializes calendar authority at head 0 before
+creating the preview data. It refuses databases that already contain user data.
+
+The P0-A, P0-B, and P1 exception suites run in that order against one fresh
+calendar preview database. Browser and API requests use the same
 origin and verify demo mode before mutations.
 
 Browser tests refuse non-demo mode before mutations. They create synthetic
-feedback/plans/manual sessions in the demo database. `scripts/verify-demo.py`
+check-ins, proposals, findings, patches, and a block benchmark in the demo
+database. `scripts/verify-demo.py`
 provides additional API acceptance checks; `scripts/smoke.py --mode real` is
 read-only except for an intentionally rejected foreign-origin request.
 
@@ -260,8 +258,8 @@ Never run tests with real data substituted for synthetic fixtures.
 
 `make backup` writes a private PostgreSQL/raw/profile archive with checksums,
 excluding credentials. `coach snapshot` writes a privacy-filtered, versioned
-training snapshot for the selected operation. The retained `make context` command
-exports the legacy format. Restore only into a new target; commands are in [operations](docs/operations.md).
+training snapshot for the selected operation. Restore only into a new target;
+commands are in [operations](docs/operations.md).
 
 The reviewed `running_coach_kb/` loads selectively: guide, requested workflow,
 and relevant topics/policies/sources. The AI coach must distinguish observed

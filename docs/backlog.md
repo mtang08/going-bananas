@@ -32,6 +32,8 @@ the app retains revision history and highlights changed sessions, and acceptance
 requires the reviewed revision. Invalid edits preserve the saved draft;
 accepted/rejected proposals remain fixed. Manual counterproposals are IDEA-007.
 
+Implemented (AC-1, adaptive coaching and lean UI; plan in the external planning workspace at `adaptive_coaching/README.md`): the five-page app; the deterministic exception detector (`exceptions.v1`), which replaces daily guidance; exception review with tracked patches; the weekly and block `exception_summary`; post-race review; and the block-ending benchmark with a manual match and benchmark history. Follow-ups: **O2** — a default cross-training mode for low-impact substitutions (REC010) is not modeled; the coach asks. **O3** — tune the expected-RPE ranges and detector thresholds (`session_class.v1`, `exceptions.v1`) after 2–3 weeks of real findings.
+
 ## Feature ideas inbox
 
 Capture new ideas here over time. These entries record desired behavior, not
@@ -86,7 +88,7 @@ rule or saved athlete-profile setting.
 
 ### IDEA-005 — Vacation, travel, and temporary schedule exceptions
 
-Recorded 2026-11-11. Status: idea.
+Recorded 2026-11-11. Status: idea. AC-1 logs a `travel` context tag as a finding; date-range travel planning is not built.
 
 Allow the athlete to enter vacation/travel date ranges and other temporary
 schedule disruptions. Capture relevant constraints when known: available
