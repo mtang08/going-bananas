@@ -12,10 +12,13 @@ from typing import Any, cast
 
 from app.services.decision_inputs import canonical_json
 from app.services.knowledge import POLICY_MAP, load_manifest, load_route
+from app.services.proposals import scope
 from app.services.snapshot import (
     BLOCK,
     CALIB,
     DAILY,
+    EXCEPTION,
+    POST_EVENT,
     QUALITY_OP,
     RACE,
     ROLLING,
@@ -227,7 +230,7 @@ def test_no_vendor_scores_in_payload() -> None:
         "body_battery": 95,
         "readiness_score": 100,
     }
-    for operation in (DAILY, ROLLING, QUALITY_OP, BLOCK, CALIB, RACE):
+    for operation in (DAILY, ROLLING, QUALITY_OP, BLOCK, CALIB, RACE, EXCEPTION, POST_EVENT):
         payload = build_payload(inputs(runs=[run], metric_results=[metric]), operation)
         encoded = json.dumps(payload).lower()
         assert all(term not in encoded for term in ("vo2max", "training_status", "body_battery", "readiness"))
@@ -386,6 +389,8 @@ def test_projection_sections_per_operation() -> None:
         },
         CALIB: {"execution", "prior_decisions"},
         RACE: {"goals_and_constraints", "calendar", "load_shape", "symptoms"},
+        EXCEPTION: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions"},
+        POST_EVENT: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions"},
     }
     for operation, sections in expectations.items():
         assert set(build_payload(inputs(), operation)) == common | sections
@@ -551,3 +556,21 @@ def test_snapshot_rejects_legacy_authority_before_refresh(monkeypatch) -> None:
         module.build_snapshot(cast(Any, session), DAILY, AS_OF, now=NOW)
     assert (error.value.code, error.value.http_status) == ("planning_not_active", 409)
     assert session.calls == ["SELECT pg_advisory_xact_lock(71382413)"]
+
+
+def test_new_operation_windows_and_topics() -> None:
+    source = minimal()
+    exc = build_payload(source, EXCEPTION)
+    assert (exc["calendar"]["start"], exc["calendar"]["end"]) == ("2026-11-09", "2026-11-22")
+    assert exc["completed_exposures"]["window_days"] == 3
+    assert set(exc["goals_and_constraints"]) == {"strength_routine", "latest_strong_sessions", "run_cycle", "clinical_restriction"}
+    post = build_payload(source, POST_EVENT)
+    assert (post["calendar"]["start"], post["calendar"]["end"]) == ("2026-11-16", "2026-11-29")
+    assert post["completed_exposures"]["window_days"] == 14
+    assert {"goals", "events"} <= set(post["goals_and_constraints"])
+    assert exc["snapshot_meta"]["scope"] == post["snapshot_meta"]["scope"] == {"start": "2026-11-16", "end": "2026-11-22"}
+    assert select_conditional_topics(source, EXCEPTION) == []
+    assert select_conditional_topics(source, POST_EVENT) == [
+        "topics/periodization_and_training_blocks.md", "topics/races_tapers_and_transitions.md"]
+    assert select_recipe_ids(source, EXCEPTION) == ["REC001"]
+    assert scope(EXCEPTION, AS_OF) == (AS_OF, AS_OF + timedelta(days=6))
