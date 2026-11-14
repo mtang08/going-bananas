@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from urllib.parse import urlsplit
@@ -36,7 +37,7 @@ def _resolve(selection: tuple[dict, ...]) -> VerifiedKnowledge:
 def proposal_session(monkeypatch):
     parsed = urlsplit(settings.database_url)
     assert settings.app_mode == "test"
-    assert parsed.hostname in {"127.0.0.1", "localhost"} and parsed.port == 55439
+    assert parsed.hostname in {"127.0.0.1", "localhost"} and parsed.port == int(os.environ.get('TEST_DATABASE_PORT', '55439'))
     assert parsed.path == "/garmin_test"
     monkeypatch.setattr(calendar, "_today", lambda session, now=None: TODAY)
     install_triggers()
