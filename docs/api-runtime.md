@@ -49,10 +49,11 @@ Derived-only reads do not increment the source revision.
   nights; maximum 92 dates.
 - `GET /activities/UUID/execution`: actual, planned, completion, laps/steps,
   execution metrics, RPE and linked symptom facts.
-- `GET /metrics/explain/UUID`: immutable stored metric evidence/configuration.
 - `GET/POST /v2/checkins`, `PATCH /v2/checkins/UUID`, and subject RPE endpoints
   retain explicit unknowns and manual precedence.
-- `GET /coach/v2/daily`: saved deterministic daily guidance.
+- `GET /exceptions[?include=recent]`: runs the deterministic detector, then returns findings, patches, `review_recommended`, and counts. Check-in responses carry `exceptions: {new_finding_ids, review_recommended}`.
+- `POST /exceptions/UUID/dismiss` and `POST /exception-patches/UUID/resolve`: athlete decisions guarded by `expected_version`.
+- `GET /blocks/active` includes the block benchmark and its status; `GET /blocks/benchmarks` lists reviewed results; `PUT /blocks/UUID/benchmark-activity` sets or clears the manual match.
 - `GET /coach/proposals[?status=pending]` and `GET /coach/proposals/UUID`: saved
   changesets, before/after/current fields, source freshness and decisions.
 - `POST /coach/proposals/UUID/decision`: explicit selection plus idempotency key
