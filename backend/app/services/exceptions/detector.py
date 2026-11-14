@@ -6,16 +6,27 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Literal, cast
 
-from sqlalchemy import desc, select, text
+from sqlalchemy import and_, desc, func, or_, select, text
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
-from app.exception_models import ExceptionFinding
+from app.calendar_models import CalendarSessionRevision
+from app.coach_v2_models import CoachProposal
+from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.planning_models import Event
 from app.services.calendar import LOCK_ID
 from app.services.exceptions.inputs import collect_detection_inputs
 from app.services.exceptions.lifecycle import close_finding
 from app.services.exceptions.rules import EVENT_REVIEW_DAYS, OBSERVE_EXPIRY_DAYS, detect
-from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION, Severity, max_severity
+from app.services.exceptions.vocab import (
+    NON_TERMINAL_FINDING,
+    RULE_VERSION,
+    SEVERITY,
+    Severity,
+    max_severity,
+    severity_rank,
+)
+from app.services.timezone import athlete_today
 
 PROMPTS = {'exception': 'Use $going-bananas-coach for an exception review. Read the open findings in the app and patch only what they require.',
            'block': 'Use $going-bananas-coach for a block review. An exception needs a bigger review.',
@@ -69,7 +80,33 @@ def _event_for(session: Session, entity_key: str) -> Event | None:
 
 
 def review_recommended(session: Session, today: date) -> list[Recommendation]:
-    return []
+    findings = session.scalars(select(ExceptionFinding).where(ExceptionFinding.status.in_(NON_TERMINAL_FINDING))
+                               .order_by(ExceptionFinding.first_seen_at, ExceptionFinding.id)).all()
+    open_rows = [f for f in findings if f.status == 'open']
+    out: list[Recommendation] = []
+    caution = tuple(f.id for f in open_rows if f.severity in ('caution', 'hold'))
+    if caution:
+        out.append(Recommendation('exception_review', REASON_EXCEPTION, caution, PROMPTS['exception']))
+    escalate = [f for f in findings if f.severity == 'escalate']
+    if escalate:
+        reason = REASON_BLOCK_SYMPTOMS if any(f.category == 'symptoms_illness' for f in escalate) else REASON_BLOCK
+        out.append(Recommendation('review_training_block', reason, tuple(f.id for f in escalate), PROMPTS['block']))
+    for f in open_rows:
+        event = _event_for(session, f.entity_key) if f.rule_code == 'POST_EVENT_REVIEW_DUE' else None
+        if event is not None:
+            day = event.event_date.isoformat()
+            out.append(Recommendation('post_event_review', f'Race review due for {event.name} on {day}', (f.id,),
+                                      PROMPTS['race'].format(event_name=event.name, event_date=day)))
+    for code, reason in REASON_BENCHMARK.items():
+        ids = tuple(f.id for f in open_rows if f.rule_code == code)
+        if ids:
+            out.append(Recommendation('review_training_block', reason, ids, PROMPTS['benchmark']))
+    due = set(session.scalars(select(ExceptionPatch.id).where(ExceptionPatch.status == 'open',
+                                                              ExceptionPatch.reassess_on <= today)).all())
+    if due:
+        out.append(Recommendation('exception_review', REASON_PATCH,
+                                  tuple(f.id for f in findings if f.patch_id in due), PROMPTS['reassess']))
+    return out
 
 
 def run_detection(session: Session, now: datetime) -> DetectionResult:
@@ -106,3 +143,48 @@ def run_detection(session: Session, now: datetime) -> DetectionResult:
             close_finding(row, 'expired', now=now)
     session.flush()
     return DetectionResult(tuple(new_ids), tuple(review_recommended(session, inputs.today)))
+
+
+def last_review_at(session: Session) -> datetime | None:
+    return session.scalar(select(func.max(CoachProposal.decided_at)).where(
+        CoachProposal.status.in_(('accepted', 'partially_accepted')), CoachProposal.operation.in_(REVIEW_OPERATIONS),
+        CoachProposal.decided_at.is_not(None)))
+
+
+def finding_data(row: ExceptionFinding, last_review: datetime | None) -> dict[str, Any]:
+    return {**{key: getattr(row, key) for key in FINDING_FIELDS},
+            'is_new_since_last_review': last_review is None or row.first_seen_at > last_review}
+
+
+def patch_data(session: Session, row: ExceptionPatch, today: date) -> dict[str, Any]:
+    uids = sorted({str(uid) for uid in session.scalars(select(CalendarSessionRevision.session_uid).where(
+        CalendarSessionRevision.calendar_version_number == row.calendar_version_number))})
+    return {**{key: getattr(row, key) for key in PATCH_FIELDS}, 'session_uids': uids,
+            'reassess_due': row.status == 'open' and row.reassess_on <= today}
+
+
+def exceptions_view(session: Session, now: datetime, include: str) -> dict[str, Any]:
+    today = athlete_today(session, now)
+    last_review = last_review_at(session)
+    wanted: ColumnElement[bool] = ExceptionFinding.status.in_(NON_TERMINAL_FINDING)
+    if include == 'recent':
+        wanted = or_(wanted, ExceptionFinding.closed_at >= now - timedelta(days=RECENT_FINDING_DAYS))
+    rows = session.scalars(select(ExceptionFinding).where(wanted)
+                           .order_by(desc(ExceptionFinding.evidence_at), ExceptionFinding.id)).all()
+    rows = sorted(rows, key=lambda f: -severity_rank(cast(Severity, f.severity)))
+    patches = session.scalars(select(ExceptionPatch).where(or_(
+        ExceptionPatch.status.in_(('open', 'escalated')),
+        and_(ExceptionPatch.status == 'resolved', ExceptionPatch.resolved_at >= now - timedelta(days=RECENT_PATCH_DAYS))))
+        .order_by(desc(ExceptionPatch.created_at), ExceptionPatch.id)).all()
+    counts = {s: 0 for s in SEVERITY}
+    for f in rows:
+        if f.status == 'open':
+            counts[cast(Severity, f.severity)] += 1
+    return {'rule_version': RULE_VERSION, 'findings': [finding_data(f, last_review) for f in rows],
+            'patches': [patch_data(session, p, today) for p in patches],
+            'review_recommended': [r.to_wire() for r in review_recommended(session, today)], 'counts': counts}
+
+
+def detection_payload(result: DetectionResult) -> dict[str, Any]:
+    return {'new_finding_ids': [str(i) for i in result.new_finding_ids],
+            'review_recommended': [r.to_wire() for r in result.review_recommended]}

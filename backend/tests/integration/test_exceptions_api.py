@@ -34,7 +34,14 @@ from app.main import handle_http, handle_validation
 from app.metric_models import Prompt
 from app.models import AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, Event, IntensityAnchor
-from app.services.exceptions.detector import run_detection
+from app.services.exceptions.detector import (
+    REASON_BENCHMARK,
+    REASON_BLOCK_SYMPTOMS,
+    REASON_EXCEPTION,
+    finding_data,
+    last_review_at,
+    run_detection,
+)
 from app.services.exceptions.inputs import collect_detection_inputs
 from app.services.exceptions.lifecycle import close_finding
 
@@ -180,3 +187,111 @@ def test_collect_sessions_and_key_session_missed(exc_fixture):
         run_detection(session, NOW)
         finding = findings(session, 'KEY_SESSION_MISSED')[0]
         assert finding.entity_key == f'session:{uid}' and finding.evidence_at == NOW
+
+
+def test_expiry_and_post_event(exc_fixture):
+    _, connection = exc_fixture
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        old = NOW - timedelta(days=15)
+        travel = ExceptionFinding(rule_code='TRAVEL_REPORTED', category='calendar_disruption', entity_key='travel',
+            severity='observe', status='open', last_seen_at=old, first_seen_at=old, evidence_at=old,
+            evidence=[], summary='synthetic', rule_version='exceptions.v1', version=1)
+        gait = ExceptionFinding(rule_code='GAIT_CHANGE', category='symptoms_illness', entity_key='gait',
+            severity='hold', status='open', last_seen_at=old, first_seen_at=old, evidence_at=old,
+            evidence=[], summary='synthetic', rule_version='exceptions.v1', version=1)
+        old_event = Event(name='Old 5K', event_date=TODAY - timedelta(days=8), priority='target', status='completed')
+        event = Event(name='Synthetic 10K', event_date=TODAY - timedelta(days=3), priority='target', status='completed')
+        session.add_all([travel, gait, old_event, event])
+        session.flush()
+        stale_event = ExceptionFinding(rule_code='POST_EVENT_REVIEW_DUE', category='post_event',
+            entity_key=f'event:{old_event.id}', severity='observe', status='open',
+            last_seen_at=NOW - timedelta(days=1), first_seen_at=old, evidence_at=old,
+            evidence=[], summary='synthetic', rule_version='exceptions.v1', version=1)
+        session.add(stale_event)
+        session.flush()
+        result = run_detection(session, NOW)
+        assert (travel.status, travel.closed_at, travel.version) == ('expired', NOW, 2)
+        assert gait.status == 'open' and stale_event.status == 'expired'
+        new = next(r for r in findings(session, 'POST_EVENT_REVIEW_DUE') if r.entity_key == f'event:{event.id}')
+        assert new.status == 'open'
+        recommendations = wire(result)
+        assert {'operation': 'post_event_review', 'reason': 'Race review due for Synthetic 10K on 2026-11-13',
+                'finding_ids': [str(new.id)],
+                'prompt': 'Use $going-bananas-coach for a post-race review of Synthetic 10K on 2026-11-13.'} in recommendations
+        assert any(r['operation'] == 'exception_review' and r['reason'] == REASON_EXCEPTION
+                   and r['finding_ids'] == [str(gait.id)] for r in recommendations)
+
+
+def test_is_new_since_last_review(exc_fixture):
+    _, connection = exc_fixture
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        session.add(checkin(local(0, 8), fatigue=8.0))
+        session.flush()
+        run_detection(session, NOW)
+        row = findings(session, 'FATIGUE_HIGH')[0]
+        assert finding_data(row, last_review_at(session))['is_new_since_last_review'] is True
+        snapshot = CoachSnapshot(operation='review_rolling_plan', as_of=TODAY, generated_at=NOW,
+            calendar_version_number=0, data_revision=0, payload={}, source_fingerprint='a'*64,
+            source_versions={}, kb_digest='b'*64, payload_sha256='c'*64, kb_package_version='test',
+            kb_routes=[], approx_tokens=0)
+        session.add(snapshot)
+        session.flush()
+        session.add(CoachProposal(snapshot_id=snapshot.id, operation='review_rolling_plan', status='accepted',
+            decided_at=NOW + timedelta(hours=1), input_hash='d'*64, payload={'changes': []}, confidence={},
+            summary='s', rationale='r', skill_version='running-coach.v1', base_calendar_version=0, submitted_at=NOW))
+        session.flush()
+        assert last_review_at(session) == NOW + timedelta(hours=1)
+        assert finding_data(row, last_review_at(session))['is_new_since_last_review'] is False
+
+
+def test_block_benchmark_rules_and_event_exclusion(exc_fixture):
+    _, connection = exc_fixture
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        uid = uuid4()
+        session.add(Block(block_uid=uid))
+        session.flush()
+        version = BlockVersion(block_uid=uid, version=1, status='active', objective='o', rationale='r',
+            maintained_qualities=[], non_goals=[], eligible_recipe_ids=[], progression_dimension='none', constraints={},
+            start_date=TODAY - timedelta(days=40), review_date=TODAY - timedelta(days=4), completion_indicators=[],
+            early_review_triggers=[], objective_status='unresolved', benchmark=None)
+        session.add(version)
+        session.flush()
+        result = run_detection(session, NOW)
+        missing = findings(session, 'BLOCK_BENCHMARK_MISSING')[0]
+        assert missing.status == 'open' and missing.entity_key == f'block_benchmark_missing:{uid}'
+        assert any(r['reason'] == REASON_BENCHMARK['BLOCK_BENCHMARK_MISSING'] for r in wire(result))
+        event = Event(name='Synthetic 10K', event_date=TODAY - timedelta(days=5), priority='target', status='completed')
+        session.add(event)
+        session.flush()
+        version.benchmark = {'kind': 'event', 'event_id': str(event.id), 'protocol': 'Synthetic 10K race',
+            'distance_m': 10000, 'planned_date': (TODAY - timedelta(days=5)).isoformat(),
+            'progress_if': 'faster', 'consolidate_if': 'similar'}
+        session.flush()
+        result = run_detection(session, NOW)
+        missed = findings(session, 'BLOCK_BENCHMARK_MISSED')[0]
+        assert (missed.status, missed.entity_key, missed.severity) == ('open', f'block_benchmark_missed:{uid}:1', 'caution')
+        assert not any(r.entity_key == f'event:{event.id}' for r in findings(session, 'POST_EVENT_REVIEW_DUE'))
+        assert missing.status == 'open'
+        assert any(r['reason'] == REASON_BENCHMARK['BLOCK_BENCHMARK_MISSED'] for r in wire(result))
+
+
+def test_clinician_restriction_reader(exc_fixture):
+    _, connection = exc_fixture
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        base = session.scalar(select(func.max(ProfileVersion.version)))
+        for number, days, facts in ((base + 1, 3, {'clinician_restriction': 'Walk only'}),
+                                     (base + 2, 1, {'clinical_restriction': 'Walk only'})):
+            session.add(ProfileVersion(version=number, effective_at=NOW - timedelta(days=days),
+                recorded_at=NOW - timedelta(days=days), timezone='America/New_York', facts=facts,
+                cycle_anchor=TODAY, anchor_confirmed=True, strength_days_confirmed=True,
+                scheduled_strength_days=[0, 4], preferences={}, unknowns=[]))
+        session.flush()
+        inputs = collect_detection_inputs(session, NOW)
+        assert inputs.clinician_restriction == 'Walk only'
+        assert inputs.clinician_restriction_at == NOW - timedelta(days=3)
+        result = run_detection(session, NOW)
+        finding = findings(session, 'CLINICIAN_RESTRICTION')[0]
+        assert (finding.severity, finding.entity_key) == ('escalate', 'clinician_restriction')
+        assert finding.evidence_at == NOW - timedelta(days=3)
+        assert any(r['operation'] == 'review_training_block' and r['reason'] == REASON_BLOCK_SYMPTOMS
+                   for r in wire(result))
