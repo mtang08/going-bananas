@@ -610,3 +610,52 @@ def test_subset_skips_exception_rules() -> None:
     result = validate_document(doc, ctx)
     assert (result.status, result.issues) == ("pending", [])
     assert validate_subset(result.doc, set(), False, set(), replace(ctx, findings={})) == []
+
+
+LADDER_MISMATCH = ("invalid", [("V18.ladder_mismatch", "exception.ladder_level")])
+
+
+def test_v18_next_session_allows_one_change() -> None:
+    doc = exception_doc(severity="hold", patch_window={"start": "2026-11-16", "end": "2026-11-20"})
+    doc["changes"].append(change("c2", "modify", 3, {"intent": "Easy"}))
+    assert outcome(doc, exc_ctx()) == LADDER_MISMATCH
+
+
+def test_v18_current_session_zero_changes_only_for_observe() -> None:
+    doc = exception_doc(ladder_level="current_session")
+    doc["changes"] = []
+    assert outcome(doc, exc_ctx()) == LADDER_MISMATCH
+    doc = exception_doc(ladder_level="current_session", severity="observe")
+    doc["changes"] = []
+    assert outcome(doc, exc_ctx()) == ("pending", [])
+
+
+def test_v18_committed_window_and_next_days() -> None:
+    assert outcome(exception_doc(ladder_level="committed_window"), exc_ctx()) == LADDER_MISMATCH
+    doc = exception_doc(severity="hold", ladder_level="next_days", patch_window={"start": "2026-11-16", "end": "2026-11-19"})
+    assert outcome(doc, exc_ctx()) == LADDER_MISMATCH
+
+
+def test_v18_block_needs_escalate_and_escalation() -> None:
+    doc = exception_doc(severity="escalate", ladder_level="block")
+    assert outcome(doc, exc_ctx()) == LADDER_MISMATCH
+    doc["escalation"] = "review_training_block"
+    assert outcome(doc, exc_ctx()) == ("pending", [])
+
+
+def test_v19_unchanged_touched_session() -> None:
+    doc = exception_doc(unchanged=[{"session_uid": str(U(2)), "reason": "x"}])
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V19.unchanged_invalid", "exception.unchanged.0")])
+
+
+def test_v19_unchanged_outside_window_or_unknown() -> None:
+    doc = exception_doc(unchanged=[{"session_uid": str(U(7)), "reason": "x"},
+                                   {"session_uid": str(U(999)), "reason": "x"}])
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V19.unchanged_invalid", "exception.unchanged.0"),
+                                                    ("V19.unchanged_invalid", "exception.unchanged.1")])
+
+
+def test_v19_unchanged_duplicate() -> None:
+    doc = exception_doc(unchanged=[{"session_uid": str(U(1)), "reason": "a"},
+                                   {"session_uid": str(U(1)), "reason": "b"}])
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V19.unchanged_invalid", "exception.unchanged.1")])

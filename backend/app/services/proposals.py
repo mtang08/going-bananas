@@ -435,6 +435,20 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
                 issues.append(_issue("V17.change_outside_window", f"changes.{i}"))
         if not ctx.today <= exc.reassess_on <= ctx.today + timedelta(days=7):
             issues.append(_issue("V17.reassess_out_of_range", "exception.reassess_on"))
+        count = len(doc.changes)
+        single = count == 1 or (count == 0 and exc.severity == "observe")
+        ladder_ok = {"current_session": single, "next_session": single, "next_days": length <= 3,
+                     "committed_window": exc.severity in {"hold", "escalate"},
+                     "block": exc.severity == "escalate" and doc.escalation == "review_training_block"}[exc.ladder_level]
+        if not ladder_ok:
+            issues.append(_issue("V18.ladder_mismatch", "exception.ladder_level"))
+        touched = {change.session_uid for change in doc.changes if change.session_uid}
+        seen: set[uuid.UUID] = set()
+        for j, item in enumerate(exc.unchanged):
+            row = ctx.head_sessions.get(item.session_uid)
+            if row is None or not ctx.today <= row.local_date <= last or item.session_uid in touched or item.session_uid in seen:
+                issues.append(_issue("V19.unchanged_invalid", f"exception.unchanged.{j}"))
+            seen.add(item.session_uid)
     return issues
 
 
