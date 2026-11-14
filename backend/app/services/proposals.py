@@ -490,18 +490,6 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
             issues.append(_issue("V20.event_target_invalid", "event_review"))
     elif review is not None:
         issues.append(_issue("V20.event_forbidden", "event_review"))
-    if doc.patch_resolutions and doc.operation not in RESOLUTION_OPS:
-        issues.append(_issue("V21.resolution_forbidden", "patch_resolutions"))
-    resolved: set[uuid.UUID] = set()
-    for j, resolution in enumerate(doc.patch_resolutions):
-        status = ctx.patches.get(resolution.patch_id)
-        if status is None:
-            issues.append(_issue("V21.patch_unknown", f"patch_resolutions.{j}.patch_id"))
-        elif status not in {"open", "escalated"}:
-            issues.append(_issue("V21.patch_closed", f"patch_resolutions.{j}.patch_id"))
-        if resolution.patch_id in resolved:
-            issues.append(_issue("V21.patch_duplicate", f"patch_resolutions.{j}.patch_id"))
-        resolved.add(resolution.patch_id)
     fields = doc.block_change.version_fields if doc.block_change else None
     if fields is not None and fields.status == "active":
         planned = fields.benchmark
@@ -515,6 +503,18 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
             bad_trial = planned.kind == "time_trial" and (planned.event_id is not None or "REC009" not in fields.eligible_recipe_ids)
             if bad_event or bad_trial:
                 issues.append(_issue("V22.benchmark_event", "block_change.version_fields.benchmark"))
+    if doc.patch_resolutions and doc.operation not in RESOLUTION_OPS:
+        issues.append(_issue("V21.resolution_forbidden", "patch_resolutions"))
+    resolved: set[uuid.UUID] = set()
+    for j, resolution in enumerate(doc.patch_resolutions):
+        status = ctx.patches.get(resolution.patch_id)
+        if status is None:
+            issues.append(_issue("V21.patch_unknown", f"patch_resolutions.{j}.patch_id"))
+        elif status not in {"open", "escalated"}:
+            issues.append(_issue("V21.patch_closed", f"patch_resolutions.{j}.patch_id"))
+        if resolution.patch_id in resolved:
+            issues.append(_issue("V21.patch_duplicate", f"patch_resolutions.{j}.patch_id"))
+        resolved.add(resolution.patch_id)
     return issues
 
 
