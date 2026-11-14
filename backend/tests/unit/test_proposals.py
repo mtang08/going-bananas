@@ -358,7 +358,7 @@ def test_v13_start_only_without_active_block() -> None:
             "rationale": "Ready",
             "maintained_qualities": [],
             "non_goals": [],
-            "eligible_recipe_ids": ["REC001", "REC002"],
+            "eligible_recipe_ids": ["REC001", "REC002", "REC009"],
             "progression_dimension": "duration",
             "constraints": [],
             "start_date": "2026-11-16",
@@ -366,6 +366,7 @@ def test_v13_start_only_without_active_block() -> None:
             "completion_indicators": [],
             "early_review_triggers": [],
             "objective_status": "unresolved",
+            "benchmark": BENCH,
         },
     }
     assert outcome(doc, context("review_training_block")) == (
@@ -744,3 +745,81 @@ def test_event_review_outcome_vocabulary() -> None:
     status, issues = outcome(doc)
     assert status == "invalid"
     assert issues and all(code == "V1.schema" for code, _ in issues)
+
+
+def block_start_doc(**field_overrides) -> dict:
+    doc = valid_doc("review_training_block")
+    doc["changes"] = []
+    doc["base_block_version_id"] = None
+    doc["block_change"] = {"decision": "start", "block_uid": None, "version_fields": {
+        "status": "active", "objective": "Build", "rationale": "Ready", "maintained_qualities": [], "non_goals": [],
+        "eligible_recipe_ids": ["REC001", "REC002", "REC009"], "progression_dimension": "duration",
+        "constraints": [], "start_date": "2026-11-16", "review_date": "2026-12-28", "completion_indicators": [],
+        "early_review_triggers": [], "objective_status": "unresolved", "benchmark": BENCH, **field_overrides}}
+    return doc
+
+
+BENCHMARK_EVENT_ISSUE = ("invalid", [("V22.benchmark_event", "block_change.version_fields.benchmark")])
+
+
+def bench_ctx(codes: frozenset[str] = frozenset({"BLOCK_BENCHMARK_COMPLETED"})) -> ValidationContext:
+    return replace(exc_ctx("review_training_block"), open_rule_codes=codes,
+                   benchmark=SimpleNamespace(status="completed", activity_id=U(600), event_id=None))
+
+
+def test_v22_benchmark_required() -> None:
+    doc = block_start_doc()
+    del doc["block_change"]["version_fields"]["benchmark"]
+    assert outcome(doc, context("review_training_block", block=False)) == (
+        "invalid", [("V22.benchmark_required", "block_change.version_fields.benchmark")])
+
+
+def test_v22_benchmark_date_in_last_seven_days() -> None:
+    doc = block_start_doc(benchmark={**BENCH, "planned_date": "2026-12-20"})
+    assert outcome(doc, context("review_training_block", block=False)) == (
+        "invalid", [("V22.benchmark_date", "block_change.version_fields.benchmark.planned_date")])
+
+
+def test_v22_time_trial_needs_rec009() -> None:
+    doc = block_start_doc(eligible_recipe_ids=["REC001", "REC002"])
+    assert outcome(doc, context("review_training_block", block=False)) == BENCHMARK_EVENT_ISSUE
+
+
+def test_v22_event_benchmark() -> None:
+    ctx_e = replace(context("review_training_block", block=False),
+                    events={U(500): ("completed", date(2026, 12, 26)), U(501): ("completed", date(2026, 11, 14))})
+    assert outcome(block_start_doc(benchmark={**BENCH, "kind": "event", "event_id": str(U(500))}), ctx_e) == (
+        "pending", [])
+    assert outcome(block_start_doc(benchmark={**BENCH, "kind": "event", "event_id": str(U(501))}), ctx_e) == (
+        BENCHMARK_EVENT_ISSUE)
+    assert outcome(block_start_doc(benchmark={**BENCH, "event_id": str(U(500))}), ctx_e) == BENCHMARK_EVENT_ISSUE
+
+
+def test_v20_event_target_and_outcome_scope() -> None:
+    ctx = exc_ctx("post_event_review")
+    doc = valid_doc("post_event_review")
+    doc["event_review"] = {**EVENT, "event_id": None}
+    assert outcome(doc, ctx) == ("invalid", [("V20.event_target_invalid", "event_review"),
+                                                 ("V20.event_unknown", "event_review.event_id")])
+    doc["event_review"] = {**EVENT, "outcome": "progress"}
+    assert outcome(doc, ctx) == ("invalid", [("V20.event_forbidden", "event_review.outcome")])
+
+
+def test_v20_block_review_benchmark_target() -> None:
+    doc = valid_doc("review_training_block")
+    doc["changes"] = []
+    assert outcome(doc, bench_ctx()) == ("invalid", [("V20.event_required", "event_review")])
+    doc["event_review"] = {**EVENT, "event_id": None, "activity_id": str(U(600)), "outcome": "progress"}
+    assert outcome(doc, bench_ctx()) == ("pending", [])
+    doc["event_review"] = {**EVENT, "event_id": None, "activity_id": str(U(601)), "outcome": "progress"}
+    assert outcome(doc, bench_ctx()) == ("invalid", [("V20.event_target_invalid", "event_review")])
+
+
+def test_v14_block_review_anchor_needs_event_review() -> None:
+    doc = valid_doc("review_training_block")
+    doc["changes"] = []
+    doc["event_review"] = {**EVENT, "event_id": None, "activity_id": str(U(600)), "outcome": "progress"}
+    doc["anchor_changes"] = [ANCHOR]
+    assert outcome(doc, bench_ctx()) == ("pending", [])
+    del doc["event_review"]
+    assert outcome(doc, bench_ctx(frozenset())) == ("invalid", [("V14.anchor_change_not_allowed", "anchor_changes")])

@@ -184,7 +184,7 @@ Criterion = Annotated[str, Field(max_length=200)]
 
 
 def _anchors_allowed(doc: ProposalDoc) -> bool:
-    return doc.operation in ANCHOR_OPS
+    return doc.operation in ANCHOR_OPS or (doc.operation == "review_training_block" and doc.event_review is not None)
 
 
 class PatchWindow(Strict):
@@ -214,7 +214,7 @@ class ExceptionBlock(Strict):
 
 
 class EventReview(Strict):
-    event_id: uuid.UUID
+    event_id: uuid.UUID | None = None
     activity_id: uuid.UUID | None = None
     outcome: BenchmarkOutcome | None = None
     compared_with: str | None = Field(default=None, max_length=300)
@@ -348,6 +348,8 @@ class ValidationContext:
     findings: dict[uuid.UUID, str] = dataclass_field(default_factory=dict)
     patches: dict[uuid.UUID, str] = dataclass_field(default_factory=dict)
     events: dict[uuid.UUID, tuple[str, date]] = dataclass_field(default_factory=dict)
+    open_rule_codes: frozenset[str] = frozenset()
+    benchmark: Any = None
 
 
 @dataclass(frozen=True)
@@ -469,12 +471,23 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
                 issues.append(_issue("V20.finding_unknown", f"exception.finding_ids.{j}"))
             elif status not in NON_TERMINAL_FINDING:
                 issues.append(_issue("V20.finding_closed", f"exception.finding_ids.{j}"))
-    review = doc.event_review
+    review, bench = doc.event_review, ctx.benchmark
+    if review is not None and review.event_id is None and review.activity_id is None:
+        issues.append(_issue("V20.event_target_invalid", "event_review"))
+    if review is not None and review.outcome is not None and doc.operation != "review_training_block":
+        issues.append(_issue("V20.event_forbidden", "event_review.outcome"))
     if doc.operation == "post_event_review":
         if review is None:
             issues.append(_issue("V20.event_required", "event_review"))
-        elif ctx.events.get(review.event_id, ("cancelled", None))[0] == "cancelled":
+        elif review.event_id is None or ctx.events.get(review.event_id, ("cancelled", None))[0] == "cancelled":
             issues.append(_issue("V20.event_unknown", "event_review.event_id"))
+    elif doc.operation == "review_training_block":
+        if "BLOCK_BENCHMARK_COMPLETED" in ctx.open_rule_codes and (review is None or review.outcome is None):
+            issues.append(_issue("V20.event_required", "event_review"))
+        if review is not None and (bench is None or bench.status != "completed"
+                                   or (review.activity_id is not None and review.activity_id != bench.activity_id)
+                                   or (review.event_id is not None and review.event_id != bench.event_id)):
+            issues.append(_issue("V20.event_target_invalid", "event_review"))
     elif review is not None:
         issues.append(_issue("V20.event_forbidden", "event_review"))
     if doc.patch_resolutions and doc.operation not in RESOLUTION_OPS:
@@ -489,6 +502,19 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
         if resolution.patch_id in resolved:
             issues.append(_issue("V21.patch_duplicate", f"patch_resolutions.{j}.patch_id"))
         resolved.add(resolution.patch_id)
+    fields = doc.block_change.version_fields if doc.block_change else None
+    if fields is not None and fields.status == "active":
+        planned = fields.benchmark
+        if planned is None:
+            issues.append(_issue("V22.benchmark_required", "block_change.version_fields.benchmark"))
+        else:
+            if not fields.review_date - timedelta(days=6) <= planned.planned_date <= fields.review_date:
+                issues.append(_issue("V22.benchmark_date", "block_change.version_fields.benchmark.planned_date"))
+            event = ctx.events.get(planned.event_id) if planned.event_id else None
+            bad_event = planned.kind == "event" and (event is None or event[0] == "cancelled" or event[1] != planned.planned_date)
+            bad_trial = planned.kind == "time_trial" and (planned.event_id is not None or "REC009" not in fields.eligible_recipe_ids)
+            if bad_event or bad_trial:
+                issues.append(_issue("V22.benchmark_event", "block_change.version_fields.benchmark"))
     return issues
 
 
@@ -870,7 +896,8 @@ def load_context(
     from app.coach_v2_models import CoachSnapshot
     from app.exception_models import ExceptionFinding, ExceptionPatch
     from app.models import AppState, ProfileVersion
-    from app.planning_models import Event
+    from app.planning_models import BlockVersion, Event
+    from app.services.block_benchmark import benchmark_status
     from app.services.calendar import state_at
     from app.services.timezone import athlete_tz
 
@@ -909,6 +936,8 @@ def load_context(
         if snapshot
         else {"source_fingerprint": "", "safety_guard": None}
     )
+    active = _active_block(session)
+    active_row = session.get(BlockVersion, active.version_id) if active else None
     return ValidationContext(
         now,
         today,
@@ -916,7 +945,7 @@ def load_context(
         _snapshot_ref(snapshot) if snapshot else None,
         head,
         head_sessions,
-        _active_block(session),
+        active,
         anchor,
         inputs["safety_guard"] if isinstance(inputs["safety_guard"], dict) else None,
         str(inputs["source_fingerprint"]),
@@ -925,6 +954,8 @@ def load_context(
         findings={fid: status for fid, status in session.execute(select(ExceptionFinding.id, ExceptionFinding.status))},
         patches={pid: status for pid, status in session.execute(select(ExceptionPatch.id, ExceptionPatch.status))},
         events={eid: (status, day) for eid, status, day in session.execute(select(Event.id, Event.status, Event.event_date))},
+        open_rule_codes=frozenset(session.scalars(select(ExceptionFinding.rule_code).where(ExceptionFinding.status == "open"))),
+        benchmark=benchmark_status(session, active_row, today) if active_row else None,
     )
 
 
