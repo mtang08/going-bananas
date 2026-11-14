@@ -659,3 +659,59 @@ def test_v19_unchanged_duplicate() -> None:
     doc = exception_doc(unchanged=[{"session_uid": str(U(1)), "reason": "a"},
                                    {"session_uid": str(U(1)), "reason": "b"}])
     assert outcome(doc, exc_ctx()) == ("invalid", [("V19.unchanged_invalid", "exception.unchanged.1")])
+
+
+ANCHOR = {"kind": "hr_threshold_lower", "value_low": 160, "unit": "bpm", "protocol": "manual",
+          "confidence": "moderate", "calibrated_at": NOW.isoformat()}
+
+
+def test_v20_finding_unknown_and_closed() -> None:
+    doc = exception_doc(finding_ids=[str(U(999)), str(U(301))])
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V20.finding_unknown", "exception.finding_ids.0"),
+                                                    ("V20.finding_closed", "exception.finding_ids.1")])
+
+
+def test_v20_post_event_requires_event_review() -> None:
+    ctx = exc_ctx("post_event_review")
+    doc = valid_doc("post_event_review")
+    assert outcome(doc, ctx) == ("invalid", [("V20.event_required", "event_review")])
+    doc["event_review"] = EVENT
+    assert outcome(doc, ctx) == ("pending", [])
+    doc["event_review"] = {**EVENT, "event_id": str(U(501))}
+    assert outcome(doc, ctx) == ("invalid", [("V20.event_unknown", "event_review.event_id")])
+
+
+def test_v20_event_review_forbidden_elsewhere() -> None:
+    doc = valid_doc()
+    doc["event_review"] = EVENT
+    assert outcome(doc, exc_ctx("review_rolling_plan")) == ("invalid", [("V20.event_forbidden", "event_review")])
+
+
+def test_v21_resolution_forbidden_for_quality_session() -> None:
+    doc = valid_doc("select_quality_session")
+    doc["changes"] = []
+    doc["patch_resolutions"] = [{"patch_id": str(U(400)), "status": "resolved", "note": "ok"}]
+    assert outcome(doc, exc_ctx("select_quality_session")) == (
+        "invalid", [("V21.resolution_forbidden", "patch_resolutions")])
+
+
+def test_v21_patch_unknown_closed_duplicate() -> None:
+    doc = valid_doc()
+    doc["patch_resolutions"] = [{"patch_id": str(U(n)), "status": "resolved", "note": "ok"} for n in (999, 401, 400, 400)]
+    assert outcome(doc, exc_ctx("review_rolling_plan")) == ("invalid", [
+        ("V21.patch_unknown", "patch_resolutions.0.patch_id"),
+        ("V21.patch_closed", "patch_resolutions.1.patch_id"),
+        ("V21.patch_duplicate", "patch_resolutions.3.patch_id"),
+    ])
+
+
+def test_v14_post_event_review_allows_anchors() -> None:
+    doc = valid_doc("post_event_review")
+    doc["event_review"] = EVENT
+    doc["changes"] = []
+    doc["anchor_changes"] = [ANCHOR]
+    assert outcome(doc, exc_ctx("post_event_review")) == ("pending", [])
+    doc = valid_doc()
+    doc["anchor_changes"] = [ANCHOR]
+    assert outcome(doc, exc_ctx("review_rolling_plan")) == (
+        "invalid", [("V14.anchor_change_not_allowed", "anchor_changes")])

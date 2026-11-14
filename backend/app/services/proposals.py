@@ -18,7 +18,7 @@ from app.domain.cycle import opportunity
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.services.calendar_structure import StructureError, expand_structure
 from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
-from app.services.exceptions.vocab import LadderLevel, PatchCategory, Severity
+from app.services.exceptions.vocab import NON_TERMINAL_FINDING, LadderLevel, PatchCategory, Severity
 from app.services.operations import Operation
 
 RECIPE_IDS = {f"REC{n:03d}" for n in range(1, 11)}
@@ -449,6 +449,32 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
             if row is None or not ctx.today <= row.local_date <= last or item.session_uid in touched or item.session_uid in seen:
                 issues.append(_issue("V19.unchanged_invalid", f"exception.unchanged.{j}"))
             seen.add(item.session_uid)
+        for j, finding_id in enumerate(exc.finding_ids):
+            status = ctx.findings.get(finding_id)
+            if status is None:
+                issues.append(_issue("V20.finding_unknown", f"exception.finding_ids.{j}"))
+            elif status not in NON_TERMINAL_FINDING:
+                issues.append(_issue("V20.finding_closed", f"exception.finding_ids.{j}"))
+    review = doc.event_review
+    if doc.operation == "post_event_review":
+        if review is None:
+            issues.append(_issue("V20.event_required", "event_review"))
+        elif ctx.events.get(review.event_id, ("cancelled", None))[0] == "cancelled":
+            issues.append(_issue("V20.event_unknown", "event_review.event_id"))
+    elif review is not None:
+        issues.append(_issue("V20.event_forbidden", "event_review"))
+    if doc.patch_resolutions and doc.operation not in RESOLUTION_OPS:
+        issues.append(_issue("V21.resolution_forbidden", "patch_resolutions"))
+    resolved: set[uuid.UUID] = set()
+    for j, resolution in enumerate(doc.patch_resolutions):
+        status = ctx.patches.get(resolution.patch_id)
+        if status is None:
+            issues.append(_issue("V21.patch_unknown", f"patch_resolutions.{j}.patch_id"))
+        elif status not in {"open", "escalated"}:
+            issues.append(_issue("V21.patch_closed", f"patch_resolutions.{j}.patch_id"))
+        if resolution.patch_id in resolved:
+            issues.append(_issue("V21.patch_duplicate", f"patch_resolutions.{j}.patch_id"))
+        resolved.add(resolution.patch_id)
     return issues
 
 
