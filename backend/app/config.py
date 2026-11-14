@@ -10,12 +10,12 @@ from sqlalchemy.engine import make_url
 @dataclass(frozen=True)
 class Settings:
     database_url: str = field(default_factory=lambda: os.getenv('DATABASE_URL', 'postgresql+psycopg://bananas:bananas@localhost:5432/bananas_demo'), repr=False)
-    app_mode: str = os.getenv('APP_MODE', 'demo')
-    private_dir: Path = Path(os.getenv('PRIVATE_DIR', 'private')).resolve()
-    frontend_dist: Path = Path(os.getenv('FRONTEND_DIST', str(Path(__file__).resolve().parents[2] / 'frontend' / 'dist'))).resolve()
-    host: str = os.getenv('APP_HOST', '127.0.0.1')
-    port: int = int(os.getenv('APP_PORT', '8000'))
-    vite_port: int = int(os.getenv('VITE_PORT', '5173'))
+    app_mode: str = field(default_factory=lambda: os.getenv('APP_MODE', 'demo'))
+    private_dir: Path = field(default_factory=lambda: Path(os.getenv('PRIVATE_DIR', 'private')).resolve())
+    frontend_dist: Path = field(default_factory=lambda: Path(os.getenv('FRONTEND_DIST', str(Path(__file__).resolve().parents[2] / 'frontend' / 'dist'))).resolve())
+    host: str = field(default_factory=lambda: os.getenv('APP_HOST', '127.0.0.1'))
+    port: int = field(default_factory=lambda: int(os.getenv('APP_PORT', '8000')))
+    vite_port: int = field(default_factory=lambda: int(os.getenv('VITE_PORT', '5173')))
 
     def __post_init__(self) -> None:
         if self.app_mode not in {'demo', 'real', 'test'}:
