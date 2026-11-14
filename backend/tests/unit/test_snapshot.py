@@ -434,6 +434,7 @@ def test_projection_sections_per_operation() -> None:
             "recovery",
             "prior_decisions",
             "exception_summary",
+            "benchmark_history",
         },
         CALIB: {"execution", "prior_decisions"},
         RACE: {"goals_and_constraints", "calendar", "load_shape", "symptoms"},
@@ -761,3 +762,52 @@ def test_event_section() -> None:
     assert {m["subject_key"] for m in section["recovery_nights"]} == {
         f"night:{AS_OF - timedelta(days=d)}" for d in (3, 2, 1, 0)}
     assert build_payload(inputs(), POST_EVENT)["event"] is None
+
+
+def test_block_benchmark_sections() -> None:
+    block = {
+        "block_uid": "block-1",
+        "version_id": "version-1",
+        "version": 1,
+        "status": "active",
+        "objective": "Aerobic base",
+        "rationale": "Ready",
+        "maintained_qualities": [],
+        "non_goals": [],
+        "eligible_recipe_ids": ["REC001", "REC009"],
+        "progression_dimension": "duration",
+        "constraints": [],
+        "start_date": date(2026, 10, 19),
+        "review_date": date(2026, 12, 28),
+        "completion_indicators": [],
+        "early_review_triggers": [],
+        "objective_status": "unresolved",
+        "benchmark": {"kind": "time_trial", "protocol": "5 km solo time trial",
+                      "planned_date": AS_OF - timedelta(days=1), "progress_if": "p", "consolidate_if": "c",
+                      "event_id": None, "distance_m": 5000},
+        "benchmark_status": {"status": "completed", "match_method": "auto", "activity_id": "a9", "event_id": None,
+                             "local_date": AS_OF - timedelta(days=1), "distance_m": 5000, "result_s": 1290,
+                             "rpe": 9.0, "scheduled_date": None, "evidence_at": NOW},
+    }
+    runs = [
+        {"activity_id": "a9", "local_date": AS_OF - timedelta(days=1), "sport": "running", "timer_s": 1290,
+         "distance_m": 5000, "rpe": 9.0, "rpe_source": "manual", "start_at": datetime(2026, 11, 15, 13, tzinfo=UTC)},
+        {"activity_id": "a8", "local_date": AS_OF - timedelta(days=1), "sport": "running", "timer_s": 2900,
+         "distance_m": 8000, "rpe": 4.0, "rpe_source": "manual", "start_at": datetime(2026, 11, 15, 13, tzinfo=UTC)},
+    ]
+    history = [
+        {"block_uid": "block-0", "objective": "Base", "protocol": "5 km solo time trial", "distance_m": 5000,
+         "local_date": date(2026, 10, 18), "result_s": 1320, "outcome": "progress"},
+        {"block_uid": "block-00", "objective": "Base", "protocol": "5 km solo time trial", "distance_m": 5000,
+         "local_date": date(2026, 8, 30), "result_s": 1350, "outcome": "consolidate"},
+    ]
+    source = inputs(active_block=block, runs=runs, benchmark_history=history)
+    payload = build_payload(source, BLOCK)
+    assert payload["block"]["active"]["benchmark_status"]["status"] == "completed"
+    assert len(payload["benchmark_history"]) == 2
+    assert payload["event"]["event"] is None
+    assert payload["event"]["matched_activity"]["id"] == "a9"
+    for operation in (DAILY, CALIB):
+        projected = build_payload(source, operation)["block"]
+        assert projected["benchmark"]["protocol"] == "5 km solo time trial"
+        assert projected["benchmark_status"]["status"] == "completed"

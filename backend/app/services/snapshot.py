@@ -24,7 +24,15 @@ from app.domain.athlete_facts import clinical_restriction
 from app.domain.session_class import LONG_RECIPE, QUALITY_CLASSES, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
 from app.metric_models import MetricResult, Prompt
 from app.models import Activity, AppState, ProfileVersion
-from app.planning_models import BlockDecision, BlockVersion, Event, Goal, IntensityAnchor, StrengthRoutineSlot
+from app.planning_models import (
+    BlockBenchmarkResult,
+    BlockDecision,
+    BlockVersion,
+    Event,
+    Goal,
+    IntensityAnchor,
+    StrengthRoutineSlot,
+)
 from app.services.calendar import state_at
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION
@@ -666,6 +674,14 @@ def _event_section(inputs: SnapshotInputs) -> dict | None:
     return _event_payload(inputs, event, _day(event["event_date"]), None)
 
 
+def _benchmark_event(inputs: SnapshotInputs) -> dict | None:
+    status = (inputs.active_block or {}).get("benchmark_status")
+    if not status or status.get("status") != "completed":
+        return None
+    event = next((e for e in inputs.events if str(e.get("event_id")) == str(status.get("event_id"))), None)
+    return _event_payload(inputs, event, _day(status["local_date"]), status.get("activity_id"))
+
+
 def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
     if operation not in OPERATIONS:
         raise ValueError("unsupported_operation")
@@ -778,9 +794,14 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             "history": _prior_decisions(inputs, BLOCK),
         }
     elif operation in {DAILY, EXCEPTION}:
-        payload["block"] = _view(block, ("block_uid", "version_id", "objective")) if block else None
+        payload["block"] = _view(block, ("block_uid", "version_id", "objective", "benchmark", "benchmark_status")) if block else None
     elif operation == CALIB:
-        payload["block"] = {"objective": block["objective"]} if block else None
+        payload["block"] = (
+            {"objective": block["objective"], "benchmark": block.get("benchmark"),
+             "benchmark_status": block.get("benchmark_status")}
+            if block
+            else None
+        )
     else:
         payload["block"] = _view(block, tuple(block)) if block else None
     if operation not in {CALIB}:
@@ -823,6 +844,10 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         payload["exception_summary"] = _exception_summary(inputs)
     if operation == POST_EVENT:
         payload["event"] = _event_section(inputs)
+    if operation == BLOCK:
+        payload["benchmark_history"] = list(inputs.benchmark_history)
+        if (benchmark_event := _benchmark_event(inputs)) is not None:
+            payload["event"] = benchmark_event
     return _privacy(_wire(payload))
 
 
@@ -1163,13 +1188,17 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         "completion_indicators",
         "early_review_triggers",
         "objective_status",
+        "benchmark",
     )
+    from app.services.block_benchmark import benchmark_status, status_data
+
     active_block = (
         dict(
             _view(active_row, block_keys),
             block_uid=active_row.block_uid,
             version_id=active_row.id,
             version=active_row.version,
+            benchmark_status=status_data(benchmark_status(session, active_row, as_of)),
         )
         if active_row
         else None
@@ -1244,6 +1273,18 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         .where(or_(ExceptionPatch.status.in_(LIVE_PATCH),
                    ExceptionPatch.window_end >= as_of - timedelta(days=SUMMARY_DAYS - 1)))
         .order_by(ExceptionPatch.created_at.desc(), ExceptionPatch.id))]
+    versions = {(row.block_uid, row.version): row.objective for row in block_rows}
+    benchmark_history = [
+        {"block_uid": row.block_uid, "objective": versions.get((row.block_uid, row.block_version)),
+         "protocol": row.protocol, "distance_m": row.distance_m, "local_date": row.local_date,
+         "result_s": row.result_s, "outcome": row.outcome}
+        for row in session.scalars(
+            select(BlockBenchmarkResult)
+            .where(BlockBenchmarkResult.outcome.is_not(None))
+            .order_by(BlockBenchmarkResult.local_date.desc().nulls_last(), BlockBenchmarkResult.updated_at.desc())
+            .limit(BENCHMARK_HISTORY_MAX)
+        )
+    ]
     return SnapshotInputs(
         as_of,
         now,
@@ -1272,6 +1313,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         exception_findings=exception_findings,
         exception_patches=exception_patches,
         review_recommended=[r.to_wire() for r in review_recommended(session, as_of)],
+        benchmark_history=benchmark_history,
     )
 
 
