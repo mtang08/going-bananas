@@ -1,3 +1,4 @@
+import type { SessionPatchRef } from './exceptions'
 export type SessionKind = 'run' | 'strength' | 'cross' | 'rest' | 'mobility'
 export type Certainty = 'committed' | 'provisional'
 export type StepType = 'warmup' | 'work' | 'recovery' | 'cooldown'
@@ -7,7 +8,7 @@ export interface RepeatBlock { type: 'repeat'; count: number; steps: PlannedStep
 export type StructureItem = PlannedStep | RepeatBlock
 export interface ExpandedStep extends PlannedStep { step_path: string; expanded_step: number; repeat_index: number | null }
 export interface SessionFields { local_date: string; slot: number; kind: SessionKind; recipe_id: string | null; custom: boolean; intent: string; placeholder: boolean; locked: boolean; planned_duration_s: number | null; planned_distance_m: number | null; structure: StructureItem[] | null; strength_slot_id: string | null; notes: string | null }
-export interface SessionState extends SessionFields { id: string; certainty: Certainty; legacy_unstructured: boolean; legacy_payload: Record<string, unknown> | null; session_uid: string; revision: number; calendar_version_number: number; deleted: boolean; is_original: boolean; changed_by_version: number }
+export interface SessionState extends SessionFields { id: string; certainty: Certainty; legacy_unstructured: boolean; legacy_payload: Record<string, unknown> | null; session_uid: string; revision: number; calendar_version_number: number; deleted: boolean; is_original: boolean; changed_by_version: number; exception_patch?: SessionPatchRef | null }
 export type CompletionStatus = 'completed_as_planned' | 'completed_modified' | 'partial' | 'moved' | 'skipped' | 'extra' | 'unknown'
 export type MatchMethod = 'explicit' | 'auto_same_day' | 'confirmed_move' | 'user_marked' | 'none'
 export type ModificationReason = 'symptom_onset' | 'fatigue' | 'illness' | 'schedule' | 'weather' | 'equipment' | 'other'

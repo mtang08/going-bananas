@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Calendar } from '../src/pages/Calendar'
-import type { CalendarView, SessionState } from '../src/api'
+import type { CalendarVersion, CalendarView, SessionState } from '../src/api'
 
 const base = {
   id: '',
@@ -91,7 +91,7 @@ const view: CalendarView = {
     protected_session_uids: ['s4'],
   },
 }
-const versions = [
+const versions: CalendarVersion[] = [
   {
     id: 'v2',
     number: 2,
@@ -197,6 +197,23 @@ afterEach(() => {
 })
 
 describe('Calendar', () => {
+  it('links coach versions to their proposal', async () => {
+    const original = versions[0]
+    try {
+      versions[0] = { ...versions[0], proposal_id: 'p9' }
+      mount()
+      await screen.findByText('Version 2')
+      fireEvent.click(screen.getByText('Calendar history'))
+      expect(await screen.findByRole('link', { name: 'Open proposal' })).toHaveAttribute(
+        'href',
+        '#proposal/p9',
+      )
+      expect(screen.getAllByRole('link', { name: 'Open proposal' })).toHaveLength(1)
+    } finally {
+      versions[0] = original
+    }
+  })
+
   it('shows a run from before plan setup without labeling it missed or extra', async () => {
     head = {
       ...view,

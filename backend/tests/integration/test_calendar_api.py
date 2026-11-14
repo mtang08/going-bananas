@@ -18,6 +18,7 @@ from app.calendar_models import CalendarSessionRevision, CalendarVersion, Sessio
 from app.coach_v2_models import CoachProposal, CoachSnapshot
 from app.config import settings
 from app.db import engine, get_session
+from app.exception_models import ExceptionPatch
 from app.main import handle_http, handle_validation
 from app.models import Activity, AppState, ProfileVersion
 from app.services import calendar
@@ -341,3 +342,49 @@ def test_calendar_change_marks_pending_proposal_stale(calendar_fixture):
     assert response.json()['data']['stale_proposals'] == [str(proposal_id)]
     with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
         assert session.get(CoachProposal, proposal_id).status == 'stale'
+
+
+def test_calendar_sessions_carry_exception_patch(calendar_fixture):
+    client, connection, _ = calendar_fixture
+    _bootstrap(client)
+    uid = next(item['session_uid'] for item in
+        client.get('/api/v1/calendar?start=2026-11-16&end=2026-11-29').json()['data']['sessions']
+        if item['kind'] == 'run' and item['local_date'] == '2026-11-18')
+    move = client.post('/api/v1/calendar/edits', json={'expected_head': 1,
+        'edits': [{'op': 'move', 'session_uid': uid, 'fields': {'local_date': '2026-11-19'}}]},
+        headers=_headers())
+    assert move.status_code == 201 and move.json()['data']['version'] == 2
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        snapshot = CoachSnapshot(operation='exception_review', as_of=date(2026, 11, 16),
+            generated_at=datetime(2026, 11, 16, tzinfo=UTC), calendar_version_number=1,
+            data_revision=0, payload={}, source_fingerprint='a'*64, source_versions={},
+            kb_digest='b'*64, payload_sha256='c'*64, kb_package_version='fixture',
+            kb_routes={}, approx_tokens=1)
+        session.add(snapshot)
+        session.flush()
+        proposal = CoachProposal(operation='exception_review',
+            snapshot_id=snapshot.id, base_calendar_version=1, status='accepted',
+            submitted_at=datetime(2026, 11, 16, tzinfo=UTC), decided_at=datetime(2026, 11, 16, tzinfo=UTC),
+            summary='synthetic', rationale='synthetic', confidence={}, evidence_ids=[], policy_ids=[],
+            recipe_ids=[], payload={}, skill_version='fixture', input_hash='d'*64)
+        session.add(proposal)
+        session.flush()
+        patch = ExceptionPatch(proposal_id=proposal.id, calendar_version_number=2, category='accumulated_fatigue',
+            severity='caution', ladder_level='next_session', window_start=date(2026, 11, 16),
+            window_end=date(2026, 11, 18), reassess_on=date(2026, 11, 19), monitor=['Fatigue'],
+            return_criteria=['Fatigue below 5'], escalate_criteria=['Fatigue rising'], status='open')
+        session.add(patch)
+        session.commit()
+        patch_id, proposal_id = patch.id, proposal.id
+    head = client.get('/api/v1/calendar?start=2026-11-16&end=2026-11-29').json()['data']['sessions']
+    moved = next(item for item in head if item['session_uid'] == uid)
+    assert moved['exception_patch'] == {'patch_id': str(patch_id), 'proposal_id': str(proposal_id),
+                                        'reassess_on': '2026-11-19', 'status': 'open'}
+    assert all(item['exception_patch'] is None for item in head if item['session_uid'] != uid)
+    old = client.get('/api/v1/calendar?start=2026-11-16&end=2026-11-29&version=1').json()['data']['sessions']
+    assert next(item for item in old if item['session_uid'] == uid)['exception_patch'] is None
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        session.get(ExceptionPatch, patch_id).status = 'resolved'
+        session.commit()
+    head = client.get('/api/v1/calendar?start=2026-11-16&end=2026-11-29').json()['data']['sessions']
+    assert next(item for item in head if item['session_uid'] == uid)['exception_patch']['status'] == 'resolved'
