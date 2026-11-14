@@ -310,3 +310,20 @@ def test_snapshot_new_review_operations(cli_db, operation):
     assert meta['scope'] == {'start': '2026-11-16', 'end': '2026-11-22'}
     assert session.get(CoachSnapshot, uuid.UUID(result['snapshot_id'])).operation == operation
     assert result['kb']['excerpts']
+
+
+def test_snapshot_refreshes_findings_and_sections(cli_db):
+    from app.checkin_models import Checkin
+    run, session = cli_db
+    session.add(Checkin(idempotency_key=str(uuid.uuid4()), kind='exception', observed_at=NOW - timedelta(hours=1),
+                        context_tags=[], gait_change='no', fatigue=8))
+    session.commit()
+    code, result, error = run('snapshot', '--operation', 'exception_review')
+    assert code == 0, error
+    assert any(f['rule_code'] == 'FATIGUE_HIGH' for f in result['payload']['exceptions']['open_findings'])
+    code, result, error = run('snapshot', '--operation', 'review_rolling_plan')
+    assert code == 0, error
+    assert any(f['rule_code'] == 'FATIGUE_HIGH' for f in result['payload']['exception_summary']['findings'])
+    code, result, error = run('snapshot', '--operation', 'post_event_review')
+    assert code == 0, error
+    assert result['payload']['event'] is None

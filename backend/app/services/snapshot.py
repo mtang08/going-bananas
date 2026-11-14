@@ -10,8 +10,9 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from app.api.core import coverage
@@ -19,15 +20,26 @@ from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin as CheckinV2
 from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachSnapshot
-from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
+from app.domain.athlete_facts import clinical_restriction
+from app.domain.session_class import LONG_RECIPE, QUALITY_CLASSES, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
 from app.metric_models import MetricResult, Prompt
 from app.models import Activity, AppState, ProfileVersion
-from app.planning_models import BlockDecision, BlockVersion, Event, Goal, IntensityAnchor, StrengthRoutineSlot
+from app.planning_models import (
+    BlockBenchmarkResult,
+    BlockDecision,
+    BlockVersion,
+    Event,
+    Goal,
+    IntensityAnchor,
+    StrengthRoutineSlot,
+)
 from app.services.calendar import state_at
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
+from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection
 from app.services.operations import OPERATIONS
 from app.services.proposals import DecisionError, derive_certainty, is_quality_slot, scope
+from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
@@ -44,6 +56,15 @@ CALIB = "recalibrate_intensity"
 RACE = "handle_goal_or_race_change"
 EXCEPTION = "exception_review"
 POST_EVENT = "post_event_review"
+OPEN_FINDINGS_MAX = 20
+FINDING_EVIDENCE_MAX = 5
+OPEN_PATCHES_MAX = 5
+RECENT_RPE_MAX = 14
+SUMMARY_FINDINGS_MAX = 30
+SUMMARY_PATCHES_MAX = 10
+SUMMARY_DAYS = 14
+LIVE_PATCH = ("open", "escalated")
+BENCHMARK_HISTORY_MAX = 6
 
 
 def _view(row: Any, keys: tuple[str, ...], *, names: dict[str, str] | None = None) -> dict:
@@ -140,6 +161,10 @@ class SnapshotInputs:
     anchors: list[dict] = field(default_factory=list)
     proposals: list[dict] = field(default_factory=list)
     coverage: list[dict] = field(default_factory=list)
+    exception_findings: list[dict] = field(default_factory=list)
+    exception_patches: list[dict] = field(default_factory=list)
+    review_recommended: list[dict] = field(default_factory=list)
+    benchmark_history: list[dict] = field(default_factory=list)
 
 
 def _window(operation: str, section: str, inputs: SnapshotInputs) -> tuple[date, date]:
@@ -256,6 +281,7 @@ def _session_view(row: dict, completion: dict | None) -> dict:
     )
     result["is_original"] = row["revision"] == 1
     result["completion_status"] = completion["status"] if completion else None
+    result["modification_reason"] = completion.get("modification_reason") if completion else None
     return result
 
 
@@ -390,15 +416,14 @@ def _prior_decisions(inputs: SnapshotInputs, operation: str) -> list[dict]:
         ]
     proposals = sorted(inputs.proposals, key=lambda p: str(p.get("submitted_at")), reverse=True)
     if operation in {ROLLING, QUALITY_OP}:
-        proposals = [
-            p
-            for p in proposals
-            if p.get("operation") == ROLLING and p.get("status") in {"accepted", "partially_accepted", "rejected"}
-        ][:2]
+        decided = {"accepted", "partially_accepted", "rejected"}
+        proposals = [p for p in proposals if p.get("operation") == ROLLING and p.get("status") in decided][:2] + [
+            p for p in proposals if p.get("operation") == EXCEPTION and p.get("status") in decided][:3]
     else:
         proposals = proposals[:3]
     result = []
     completions = {str(c["session_uid"]): c for c in inputs.completions}
+    patch_status = {str(p["proposal_id"]): p["status"] for p in inputs.exception_patches}
     for proposal in proposals:
         view = _view(
             proposal, ("proposal_id", "operation", "status", "submitted_at", "decided_at", "summary", "follow_up")
@@ -427,8 +452,234 @@ def _prior_decisions(inputs: SnapshotInputs, operation: str) -> list[dict]:
                     }
             changes.append(item)
         view["changes"] = changes
+        if proposal.get("operation") == EXCEPTION:
+            view["patch_status"] = patch_status.get(str(proposal.get("proposal_id")))
         result.append(view)
     return result
+
+
+def _site_key(symptom: dict) -> str:
+    return f"{str(symptom.get('site') or '').strip().lower()}|{symptom.get('side')}"
+
+
+def _rpe_rows(inputs: SnapshotInputs) -> list[dict]:
+    start = inputs.as_of - timedelta(days=SUMMARY_DAYS - 1)
+    by_activity = {str(c["activity_id"]): c for c in inputs.completions if c.get("activity_id")}
+    sessions = {str(s["session_uid"]): s for s in inputs.sessions}
+    rows = []
+    for run in inputs.runs:
+        if not _between(run.get("local_date"), start, inputs.as_of):
+            continue
+        completion = by_activity.get(str(run["activity_id"]))
+        planned = sessions.get(str(completion["session_uid"])) if completion else None
+        recipe = planned.get("recipe_id") if planned else None
+        cls = classify(planned["kind"], recipe, planned.get("intent")) if planned else None
+        rpe = float(run["rpe"]) if run.get("rpe") is not None else None
+        expected = expected_rpe(recipe, cls) if cls else None
+        rows.append({"activity_id": run["activity_id"], "local_date": run["local_date"], "class": cls, "rpe": rpe,
+                     "rpe_source": run.get("rpe_source"), "expected_rpe": list(expected) if expected else None,
+                     "mismatch": rpe_mismatch(cls, recipe, rpe) if cls else None})
+    rows.sort(key=lambda r: (str(r["local_date"]), str(r["activity_id"])), reverse=True)
+    return rows
+
+
+def _exceptions_section(inputs: SnapshotInputs) -> dict:
+    last = inputs.as_of + timedelta(days=6)
+    findings = sorted(
+        (f for f in inputs.exception_findings if f.get("status") in NON_TERMINAL_FINDING),
+        key=lambda f: (str(f.get("first_seen_at")), str(f.get("id"))),
+        reverse=True,
+    )[:OPEN_FINDINGS_MAX]
+    patches = sorted(
+        (p for p in inputs.exception_patches if p.get("status") in LIVE_PATCH),
+        key=lambda p: (str(p.get("created_at")), str(p.get("id"))),
+        reverse=True,
+    )[:OPEN_PATCHES_MAX]
+    upcoming = []
+    for row in sorted(
+        (s for s in inputs.sessions if _between(s.get("local_date"), inputs.as_of, last)),
+        key=lambda s: (str(s["local_date"]), s.get("slot") or 0, str(s["session_uid"])),
+    ):
+        cls = classify(row.get("kind") or "", row.get("recipe_id"), row.get("intent"))
+        expected = expected_rpe(row.get("recipe_id"), cls)
+        upcoming.append({
+            "session_uid": row["session_uid"],
+            "local_date": row["local_date"],
+            "kind": row.get("kind"),
+            "class": cls,
+            "expected_rpe": list(expected) if expected else None,
+            "certainty": row.get("certainty"),
+        })
+    return {
+        "rule_version": RULE_VERSION,
+        "review_recommended": list(inputs.review_recommended),
+        "open_findings": [{**f, "evidence": list(f.get("evidence") or [])[:FINDING_EVIDENCE_MAX]} for f in findings],
+        "open_patches": patches,
+        "upcoming": upcoming,
+        "recent_rpe": _rpe_rows(inputs)[:RECENT_RPE_MAX],
+    }
+
+
+def _quality_sessions(inputs: SnapshotInputs, start: date) -> dict:
+    def cls_of(row: dict) -> str:
+        return classify(row.get("kind") or "", row.get("recipe_id"), row.get("intent"))
+
+    completions = {str(c["session_uid"]): c for c in inputs.completions}
+    head = [
+        s for s in inputs.sessions
+        if _between(s.get("local_date"), start, inputs.as_of) and cls_of(s) in QUALITY_CLASSES
+    ]
+    removed = modified = 0
+    for proposal in inputs.proposals:
+        if proposal.get("operation") != EXCEPTION:
+            continue
+        for change in proposal.get("changes", []):
+            if change.get("decision") != "accepted":
+                continue
+            before = change.get("before") or {}
+            if not _between(before.get("local_date"), start, inputs.as_of) or cls_of(before) not in QUALITY_CLASSES:
+                continue
+            after_cls = cls_of({**before, **(change.get("after") or {})})
+            if change.get("op") == "delete" or after_cls not in QUALITY_CLASSES:
+                removed += 1
+            elif change.get("op") in {"modify", "move"}:
+                modified += 1
+    since = inputs.now - timedelta(days=SUMMARY_DAYS)
+    return {
+        "planned": len(head) + removed,
+        "completed_as_planned": sum(
+            1 for s in head
+            if (completions.get(str(s["session_uid"])) or {}).get("status") == "completed_as_planned"
+        ),
+        "modified_by_patch": modified,
+        "removed_by_patch": removed,
+        "failed": sum(
+            1 for f in inputs.exception_findings
+            if f.get("rule_code") == "SESSION_FAILED" and _instant(f["first_seen_at"]) >= since
+        ),
+    }
+
+
+def _exception_summary(inputs: SnapshotInputs) -> dict:
+    start = inputs.as_of - timedelta(days=SUMMARY_DAYS - 1)
+    since = inputs.now - timedelta(days=SUMMARY_DAYS)
+    reviews = [
+        _instant(p["decided_at"])
+        for p in inputs.proposals
+        if p.get("operation") in {ROLLING, BLOCK}
+        and p.get("status") in {"accepted", "partially_accepted"}
+        and p.get("decided_at")
+    ]
+    findings = sorted(
+        (
+            f for f in inputs.exception_findings
+            if f.get("status") in NON_TERMINAL_FINDING or _instant(f["first_seen_at"]) >= since
+        ),
+        key=lambda f: (str(f.get("first_seen_at")), str(f.get("id"))),
+        reverse=True,
+    )[:SUMMARY_FINDINGS_MAX]
+    patches = [
+        p for p in inputs.exception_patches
+        if p.get("status") in LIVE_PATCH or _day(p["window_end"]) >= start
+    ][:SUMMARY_PATCHES_MAX]
+    mismatch = {"easy_above": 0, "long_above": 0, "quality_above": 0, "quality_below": 0}
+    for row in _rpe_rows(inputs):
+        key = f"{row['class']}_{row['mismatch']}"
+        if key in mismatch:
+            mismatch[key] += 1
+    days_by_site: dict[str, set[date]] = {}
+    for checkin in inputs.checkins:
+        if _between(checkin.get("local_date"), start, inputs.as_of):
+            for symptom in checkin.get("symptoms", []):
+                days_by_site.setdefault(_site_key(symptom), set()).add(_day(checkin["local_date"]))
+    sites: list[dict[str, Any]] = sorted(
+        ({"site_key": key, "distinct_days_14": len(days)} for key, days in days_by_site.items() if len(days) >= 2),
+        key=lambda s: (-s["distinct_days_14"], s["site_key"]),
+    )
+    finding_keys = ("id", "rule_code", "category", "severity", "status", "first_seen_at", "summary",
+                    "is_new_since_last_review")
+    patch_keys = ("id", "category", "severity", "window_start", "window_end", "status", "reassess_on")
+    return {
+        "window_start": start,
+        "window_end": inputs.as_of,
+        "since_last_review": max(reviews).astimezone(ZoneInfo(inputs.timezone)).date() if reviews else None,
+        "findings": [_view(f, finding_keys) for f in findings],
+        "patches": [dict(_view(p, patch_keys), changes_count=len(p.get("session_uids") or [])) for p in patches],
+        "rpe_mismatch": mismatch,
+        "quality_sessions": _quality_sessions(inputs, start),
+        "recurring_symptom_sites": sites,
+        "open_escalations": sum(
+            1 for f in inputs.exception_findings
+            if f.get("status") in NON_TERMINAL_FINDING and f.get("severity") == "escalate"
+        ),
+    }
+
+
+def _event_payload(inputs: SnapshotInputs, event: dict | None, day: date, activity_id: Any) -> dict:
+    if activity_id is not None:
+        candidates = [r for r in inputs.runs if str(r["activity_id"]) == str(activity_id)]
+    else:
+        candidates = [r for r in inputs.runs if r.get("local_date") is not None and _day(r["local_date"]) == day]
+    run = max(candidates, key=lambda r: (r.get("distance_m") or 0, str(r["activity_id"])), default=None)
+    matched = None
+    if run is not None:
+        start_at = run.get("start_at")
+        matched = {
+            "id": run["activity_id"],
+            "start_local": _instant(start_at).astimezone(ZoneInfo(inputs.timezone)).isoformat() if start_at else None,
+            "distance_m": run.get("distance_m"),
+            "duration_s": run.get("timer_s"),
+            "rpe": run.get("rpe"),
+            "rpe_source": run.get("rpe_source"),
+        }
+    last = day + timedelta(days=3)
+    checkins = [
+        {
+            **_view(c, ("observed_at", "kind", "fatigue", "illness", "gait_change")),
+            "symptoms": [
+                {"site_key": _site_key(s), "severity": s.get("severity"), "timing": s.get("timing")}
+                for s in c.get("symptoms", [])
+            ],
+        }
+        for c in inputs.checkins
+        if _between(c.get("local_date"), day, last)
+    ]
+    nights = [
+        _metric_view(m)
+        for m in inputs.metric_results
+        if m.get("metric_id") == "recovery_multisignal_summary"
+        and m.get("subject_type") == "night"
+        and str(m.get("subject_key", "")).startswith("night:")
+        and _between(str(m["subject_key"]).split(":", 1)[1], day - timedelta(days=1), last)
+    ]
+    event_keys = ("event_id", "name", "event_date", "distance_m", "priority", "status", "result_s")
+    return {
+        "event": _view(event, event_keys, names={"event_id": "id"}) if event else None,
+        "matched_activity": matched,
+        "checkins_after": checkins,
+        "recovery_nights": nights,
+    }
+
+
+def _event_section(inputs: SnapshotInputs) -> dict | None:
+    due = {
+        str(f.get("entity_key") or "").removeprefix("event:")
+        for f in inputs.exception_findings
+        if f.get("rule_code") == "POST_EVENT_REVIEW_DUE" and f.get("status") in NON_TERMINAL_FINDING
+    }
+    events = [e for e in inputs.events if str(e.get("event_id")) in due]
+    if not events:
+        return None
+    event = max(events, key=lambda e: (str(e.get("event_date")), str(e.get("event_id"))))
+    return _event_payload(inputs, event, _day(event["event_date"]), None)
+
+
+def _benchmark_event(inputs: SnapshotInputs) -> dict | None:
+    status = (inputs.active_block or {}).get("benchmark_status")
+    if not status or status.get("status") != "completed":
+        return None
+    event = next((e for e in inputs.events if str(e.get("event_id")) == str(status.get("event_id"))), None)
+    return _event_payload(inputs, event, _day(status["local_date"]), status.get("activity_id"))
 
 
 def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
@@ -543,9 +794,14 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             "history": _prior_decisions(inputs, BLOCK),
         }
     elif operation in {DAILY, EXCEPTION}:
-        payload["block"] = _view(block, ("block_uid", "version_id", "objective")) if block else None
+        payload["block"] = _view(block, ("block_uid", "version_id", "objective", "benchmark", "benchmark_status")) if block else None
     elif operation == CALIB:
-        payload["block"] = {"objective": block["objective"]} if block else None
+        payload["block"] = (
+            {"objective": block["objective"], "benchmark": block.get("benchmark"),
+             "benchmark_status": block.get("benchmark_status")}
+            if block
+            else None
+        )
     else:
         payload["block"] = _view(block, tuple(block)) if block else None
     if operation not in {CALIB}:
@@ -582,6 +838,16 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         ]
     if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, CALIB, EXCEPTION, POST_EVENT}:
         payload["prior_decisions"] = _prior_decisions(inputs, operation)
+    if operation in {EXCEPTION, POST_EVENT}:
+        payload["exceptions"] = _exceptions_section(inputs)
+    if operation in {ROLLING, BLOCK}:
+        payload["exception_summary"] = _exception_summary(inputs)
+    if operation == POST_EVENT:
+        payload["event"] = _event_section(inputs)
+    if operation == BLOCK:
+        payload["benchmark_history"] = list(inputs.benchmark_history)
+        if (benchmark_event := _benchmark_event(inputs)) is not None:
+            payload["event"] = benchmark_event
     return _privacy(_wire(payload))
 
 
@@ -705,7 +971,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     ]
     completion_rows = session.scalars(select(SessionCompletion)).all()
     completions = [
-        _view(row, ("session_uid", "status", "activity_id", "strong_workout_id", "manual_session_id"))
+        _view(row, ("session_uid", "status", "activity_id", "strong_workout_id", "manual_session_id", "modification_reason"))
         for row in completion_rows
     ]
     slots = [
@@ -731,26 +997,18 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     ).all()
     rpe_rows = session.scalars(select(SessionRpe).order_by(SessionRpe.collected_at, SessionRpe.id)).all()
 
-    def effective_rpe(activity_id: Any = None, strong_id: Any = None, fallback: Any = None) -> tuple[Any, str | None]:
-        matched = [
-            r
-            for r in rpe_rows
-            if (activity_id and r.activity_id == activity_id) or (strong_id and r.strong_workout_id == strong_id)
-        ]
+    def effective_rpe(strong_id: Any) -> Any:
+        matched = [r for r in rpe_rows if r.strong_workout_id == strong_id]
         preferred = next((r for r in reversed(matched) if r.source == "manual"), None) or next(
             (r for r in reversed(matched) if r.source == "garmin_fit"), None
         )
-        return (
-            (preferred.rpe, preferred.source)
-            if preferred
-            else (fallback, "garmin_fit" if fallback is not None else None)
-        )
+        return preferred.rpe if preferred else None
 
     strong = [
         dict(
             _view(row, ("local_date", "workout_name", "duration_s")),
             strong_workout_id=row.id,
-            rpe=effective_rpe(strong_id=row.id)[0],
+            rpe=effective_rpe(row.id),
         )
         for row in strong_rows
     ]
@@ -763,6 +1021,14 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         if run_facts
         else {}
     )
+    rpe_by_activity: dict[Any, list[Any]] = {}
+    for rpe_row in rpe_rows:
+        if rpe_row.activity_id is not None:
+            rpe_by_activity.setdefault(rpe_row.activity_id, []).append(rpe_row)
+    run_rpe = {
+        f.activity_id: effective_run_rpe(rpe_by_activity.get(f.activity_id, []), activities[f.activity_id].workout_rpe)
+        for f in run_facts
+    }
     runs = [
         dict(
             activity_id=f.activity_id,
@@ -770,8 +1036,9 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
             sport=f.sport,
             timer_s=f.timer_s,
             distance_m=f.distance_m,
-            rpe=effective_rpe(activity_id=f.activity_id, fallback=activities[f.activity_id].workout_rpe)[0],
-            rpe_source=effective_rpe(activity_id=f.activity_id, fallback=activities[f.activity_id].workout_rpe)[1],
+            rpe=run_rpe[f.activity_id][0],
+            rpe_source=run_rpe[f.activity_id][1],
+            start_at=f.start_at,
         )
         for f in run_facts
     ]
@@ -921,13 +1188,17 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         "completion_indicators",
         "early_review_triggers",
         "objective_status",
+        "benchmark",
     )
+    from app.services.block_benchmark import benchmark_status, status_data
+
     active_block = (
         dict(
             _view(active_row, block_keys),
             block_uid=active_row.block_uid,
             version_id=active_row.id,
             version=active_row.version,
+            benchmark_status=status_data(benchmark_status(session, active_row, as_of)),
         )
         if active_row
         else None
@@ -988,6 +1259,32 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
             select(Event).where(Event.event_date >= as_of - timedelta(days=28)).order_by(Event.event_date, Event.id)
         )
     ]
+    from app.exception_models import ExceptionFinding, ExceptionPatch
+    from app.services.exceptions.detector import finding_data, last_review_at, patch_data, review_recommended
+
+    last_review = last_review_at(session)
+    exception_findings = [finding_data(row, last_review) for row in session.scalars(
+        select(ExceptionFinding)
+        .where(or_(ExceptionFinding.status.in_(NON_TERMINAL_FINDING),
+                   ExceptionFinding.first_seen_at >= now - timedelta(days=SUMMARY_DAYS)))
+        .order_by(ExceptionFinding.first_seen_at.desc(), ExceptionFinding.id))]
+    exception_patches = [patch_data(session, row, as_of) for row in session.scalars(
+        select(ExceptionPatch)
+        .where(or_(ExceptionPatch.status.in_(LIVE_PATCH),
+                   ExceptionPatch.window_end >= as_of - timedelta(days=SUMMARY_DAYS - 1)))
+        .order_by(ExceptionPatch.created_at.desc(), ExceptionPatch.id))]
+    versions = {(row.block_uid, row.version): row.objective for row in block_rows}
+    benchmark_history = [
+        {"block_uid": row.block_uid, "objective": versions.get((row.block_uid, row.block_version)),
+         "protocol": row.protocol, "distance_m": row.distance_m, "local_date": row.local_date,
+         "result_s": row.result_s, "outcome": row.outcome}
+        for row in session.scalars(
+            select(BlockBenchmarkResult)
+            .where(BlockBenchmarkResult.outcome.is_not(None))
+            .order_by(BlockBenchmarkResult.local_date.desc().nulls_last(), BlockBenchmarkResult.updated_at.desc())
+            .limit(BENCHMARK_HISTORY_MAX)
+        )
+    ]
     return SnapshotInputs(
         as_of,
         now,
@@ -996,7 +1293,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         state.data_revision if state else 0,
         profile.cycle_anchor if profile else None,
         bool(profile.anchor_confirmed) if profile else False,
-        (profile.facts or {}).get("clinical_restriction") if profile else None,
+        clinical_restriction(profile.facts) if profile else None,
         sessions,
         completions,
         slots,
@@ -1013,6 +1310,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         anchors,
         proposals,
         coverage(session, first, as_of),
+        exception_findings=exception_findings,
+        exception_patches=exception_patches,
+        review_recommended=[r.to_wire() for r in review_recommended(session, as_of)],
+        benchmark_history=benchmark_history,
     )
 
 
@@ -1032,6 +1333,10 @@ def build_snapshot(
         if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, EXCEPTION, POST_EVENT}:
             days = {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28, EXCEPTION: 3, POST_EVENT: 14}[operation]
             ensure_nights(session, as_of - timedelta(days=days - 1), as_of)
+        if operation in {EXCEPTION, POST_EVENT, ROLLING, BLOCK}:
+            from app.services.exceptions.detector import run_detection
+
+            run_detection(session, now)
         inputs = load_inputs(session, as_of, now=now)
         payload = build_payload(inputs, operation)
         bundle = load_route(

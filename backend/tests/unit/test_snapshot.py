@@ -77,6 +77,52 @@ def minimal() -> SnapshotInputs:
         strength_slots=[slot],
     )
 
+def finding(n: int, *, rule: str = "FATIGUE_HIGH", severity: str = "observe", status: str = "open",
+            days_ago: int = 0, entity: str = "fatigue", evidence: int = 8) -> dict:
+    seen = NOW - timedelta(days=days_ago, minutes=n)
+    return {
+        "id": f"f{n}",
+        "rule_code": rule,
+        "category": "accumulated_fatigue",
+        "severity": severity,
+        "status": status,
+        "entity_key": entity,
+        "summary": "s",
+        "evidence": [{"type": "checkin", "id": str(i), "at": NOW.isoformat(), "detail": {}} for i in range(evidence)],
+        "evidence_at": seen,
+        "first_seen_at": seen,
+        "last_seen_at": seen,
+        "patch_id": None,
+        "version": 1,
+        "is_new_since_last_review": True,
+    }
+
+
+def patch(n: int, *, status: str = "open", proposal_id: str = "p1") -> dict:
+    return {
+        "id": f"x{n}",
+        "proposal_id": proposal_id,
+        "calendar_version_number": 7,
+        "category": "accumulated_fatigue",
+        "severity": "caution",
+        "ladder_level": "next_days",
+        "window_start": AS_OF,
+        "window_end": AS_OF + timedelta(days=2),
+        "reassess_on": AS_OF + timedelta(days=3),
+        "monitor": ["Fatigue"],
+        "return_criteria": ["Usual fatigue"],
+        "escalate_criteria": ["Rising fatigue"],
+        "unchanged": [],
+        "status": status,
+        "resolved_at": None,
+        "resolved_by": None,
+        "resolution_note": None,
+        "created_at": NOW - timedelta(hours=n),
+        "version": 1,
+        "session_uids": ["s1", "s2"],
+        "reassess_due": False,
+    }
+
 
 def test_daily_route_minimal_c26() -> None:
     source = minimal()
@@ -368,6 +414,7 @@ def test_projection_sections_per_operation() -> None:
             "symptoms",
             "recovery",
             "prior_decisions",
+            "exception_summary",
         },
         QUALITY_OP: {
             "goals_and_constraints",
@@ -386,11 +433,15 @@ def test_projection_sections_per_operation() -> None:
             "symptoms",
             "recovery",
             "prior_decisions",
+            "exception_summary",
+            "benchmark_history",
         },
         CALIB: {"execution", "prior_decisions"},
         RACE: {"goals_and_constraints", "calendar", "load_shape", "symptoms"},
-        EXCEPTION: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions"},
-        POST_EVENT: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions"},
+        EXCEPTION: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions",
+                    "exceptions"},
+        POST_EVENT: {"goals_and_constraints", "calendar", "load_shape", "execution", "symptoms", "recovery", "prior_decisions",
+                     "exceptions", "event"},
     }
     for operation, sections in expectations.items():
         assert set(build_payload(inputs(), operation)) == common | sections
@@ -574,3 +625,203 @@ def test_new_operation_windows_and_topics() -> None:
         "topics/periodization_and_training_blocks.md", "topics/races_tapers_and_transitions.md"]
     assert select_recipe_ids(source, EXCEPTION) == ["REC001"]
     assert scope(EXCEPTION, AS_OF) == (AS_OF, AS_OF + timedelta(days=6))
+
+
+def test_session_view_modification_reason() -> None:
+    row = session(AS_OF - timedelta(days=1), "run", "REC003")
+    completion = {"session_uid": row["session_uid"], "status": "completed_modified", "modification_reason": "fatigue",
+                  "activity_id": None, "strong_workout_id": None}
+    payload = build_payload(inputs(sessions=[row], completions=[completion]), ROLLING)
+    assert payload["calendar"]["sessions"][0]["modification_reason"] == "fatigue"
+
+
+def test_prior_decisions_include_exception_reviews() -> None:
+    def proposal(pid: str, operation: str, hours: int, status: str = "accepted") -> dict:
+        return {"proposal_id": pid, "operation": operation, "status": status,
+                "submitted_at": NOW - timedelta(hours=hours),
+                "decided_at": None if status == "pending" else NOW - timedelta(hours=hours),
+                "summary": pid, "follow_up": None, "changes": []}
+
+    proposals = [proposal(f"p_r{i}", ROLLING, 100 + i) for i in range(3)]
+    proposals += [proposal(f"p_e{i}", EXCEPTION, 10 + i) for i in range(4)]
+    proposals.append(proposal("p_pending", EXCEPTION, 1, "pending"))
+    source = inputs(proposals=proposals, exception_patches=[patch(0, proposal_id="p_e0")])
+    prior = build_payload(source, ROLLING)["prior_decisions"]
+    assert [p["operation"] for p in prior] == [ROLLING, ROLLING, EXCEPTION, EXCEPTION, EXCEPTION]
+    assert [p["proposal_id"] for p in prior] == ["p_r0", "p_r1", "p_e0", "p_e1", "p_e2"]
+    assert prior[2]["patch_status"] == "open"
+    assert prior[3]["patch_status"] is None
+
+
+
+def test_exception_section_bounded() -> None:
+    findings = [finding(n) for n in range(25)] + [finding(n, status="dismissed") for n in range(25, 28)]
+    recommended = [{"operation": "exception_review", "reason": "r", "finding_ids": ["f0"], "prompt": "p"}]
+    source = replace(minimal(), exception_findings=findings, exception_patches=[patch(n) for n in range(7)],
+                     review_recommended=recommended)
+    section = build_payload(source, EXCEPTION)["exceptions"]
+    assert section["rule_version"] == "exceptions.v1"
+    assert [f["id"] for f in section["open_findings"]] == [f"f{n}" for n in range(20)]
+    assert all(len(f["evidence"]) == 5 for f in section["open_findings"])
+    assert len(section["open_patches"]) == 5
+    assert section["review_recommended"] == recommended
+    assert [(u["kind"], u["class"]) for u in section["upcoming"]] == [
+        ("run", "easy"), ("strength", "strength"), ("run", "easy"), ("strength", "strength")]
+    assert all(u["expected_rpe"] == [2.0, 4.0] for u in section["upcoming"] if u["kind"] == "run")
+    assert all(u["expected_rpe"] is None for u in section["upcoming"] if u["kind"] == "strength")
+
+
+def test_exception_summary_counts() -> None:
+    plan = [("a1", 2, "REC001", 7), ("a2", 4, "REC002", 8), ("a3", 6, "REC003", 2), ("a4", 3, "REC004", 6)]
+    sessions = [session(AS_OF - timedelta(days=days), "run", recipe) for _, days, recipe, _ in plan]
+    runs = [
+        {"activity_id": activity, "local_date": AS_OF - timedelta(days=days), "sport": "running", "timer_s": 1800,
+         "distance_m": 5000, "rpe": rpe, "rpe_source": "manual", "start_at": None}
+        for activity, days, _, rpe in plan
+    ]
+    completions = [
+        {"session_uid": row["session_uid"],
+         "status": "completed_as_planned" if row["recipe_id"] == "REC004" else "completed_modified",
+         "activity_id": item[0], "strong_workout_id": None, "manual_session_id": None, "modification_reason": None}
+        for row, item in zip(sessions, plan, strict=True)
+    ]
+    proposals = [
+        {"proposal_id": "p_r", "operation": ROLLING, "status": "accepted", "submitted_at": NOW - timedelta(days=6),
+         "decided_at": NOW - timedelta(days=6), "summary": "Weekly", "follow_up": None, "changes": []},
+        {"proposal_id": "p_e", "operation": EXCEPTION, "status": "accepted", "submitted_at": NOW - timedelta(days=1),
+         "decided_at": NOW - timedelta(days=1), "summary": "Patch", "follow_up": None, "changes": [
+             {"change_id": "c1", "op": "delete", "session_uid": "s-del", "decision": "accepted",
+              "before": {"kind": "run", "recipe_id": "REC005",
+                         "local_date": (AS_OF - timedelta(days=1)).isoformat(), "intent": "VO2"},
+              "after": None},
+             {"change_id": "c2", "op": "modify", "session_uid": "s-mod", "decision": "accepted",
+              "before": {"kind": "run", "recipe_id": "REC003",
+                         "local_date": (AS_OF - timedelta(days=5)).isoformat(), "intent": "Threshold"},
+              "after": {"planned_duration_s": 1500}},
+         ]},
+    ]
+    findings = [finding(0, rule="SESSION_FAILED", days_ago=2, entity="session:x"),
+                finding(1, rule="SYM_MULTIWEEK", severity="escalate", entity="site:ankle|left")]
+    findings += [finding(n, entity=f"e{n}") for n in range(2, 35)]
+
+    def checkin(days: int, site: str, side: str) -> dict:
+        return {"checkin_id": f"c{days}{site}", "observed_at": NOW - timedelta(days=days),
+                "local_date": AS_OF - timedelta(days=days), "kind": "exception", "fatigue": None,
+                "illness": "none", "gait_change": "no", "activity_id": None,
+                "symptoms": [{"site": site, "side": side, "severity": 3.0, "timing": "during"}]}
+
+    checkins = [checkin(1, "Ankle", "left"), checkin(3, "ankle ", "left"), checkin(2, "knee", "right")]
+    source = inputs(sessions=sessions, runs=runs, completions=completions, proposals=proposals,
+                    exception_findings=findings, exception_patches=[patch(0)], checkins=checkins)
+    summary = build_payload(source, ROLLING)["exception_summary"]
+    assert (summary["window_start"], summary["window_end"]) == ("2026-11-03", "2026-11-16")
+    assert summary["rpe_mismatch"] == {"easy_above": 1, "long_above": 1, "quality_above": 0, "quality_below": 1}
+    assert summary["quality_sessions"] == {"planned": 3, "completed_as_planned": 1, "modified_by_patch": 1,
+                                           "removed_by_patch": 1, "failed": 1}
+    assert summary["recurring_symptom_sites"] == [{"site_key": "ankle|left", "distinct_days_14": 2}]
+    assert summary["since_last_review"] == "2026-11-10"
+    assert len(summary["findings"]) == 30
+    assert summary["open_escalations"] == 1
+    assert summary["patches"][0]["changes_count"] == 2
+
+
+def test_event_section() -> None:
+    def event(event_id: str, days: int, name: str) -> dict:
+        return {"event_id": event_id, "name": name, "event_date": AS_OF - timedelta(days=days), "distance_m": 10000,
+                "priority": "target", "status": "completed", "result_s": 2700}
+
+    runs = [
+        {"activity_id": "a10k", "local_date": AS_OF - timedelta(days=2), "sport": "running", "timer_s": 2700,
+         "distance_m": 10000, "rpe": 9.0, "rpe_source": "manual", "start_at": datetime(2026, 11, 14, 13, tzinfo=UTC)},
+        {"activity_id": "a2k", "local_date": AS_OF - timedelta(days=2), "sport": "running", "timer_s": 720,
+         "distance_m": 2000, "rpe": 3.0, "rpe_source": "manual", "start_at": datetime(2026, 11, 14, 12, tzinfo=UTC)},
+    ]
+    checkins = [
+        {"checkin_id": f"c{days}", "observed_at": NOW - timedelta(days=days), "local_date": AS_OF - timedelta(days=days),
+         "kind": "post_run", "fatigue": 6.0, "illness": "none", "gait_change": "no", "activity_id": None,
+         "symptoms": [{"site": "Calf", "side": "left", "severity": 2.0, "timing": "next_morning"}]}
+        for days in (2, 1, 7)
+    ]
+    nights = [
+        {"result_id": f"n{d}", "metric_id": "recovery_multisignal_summary", "method_version": "v1",
+         "subject_type": "night", "subject_key": f"night:{AS_OF - timedelta(days=d)}", "window_label": None,
+         "status": "available", "quality_status": "good", "value": {"flags": []}, "unit": None, "reason_codes": [],
+         "quality_flags": [], "anchor_keys": [], "calculated_at": NOW}
+        for d in range(5)
+    ]
+    source = inputs(events=[event("e1", 2, "Synthetic 10K"), event("e0", 5, "Synthetic 5K")],
+                    exception_findings=[finding(0, rule="POST_EVENT_REVIEW_DUE", entity="event:e1")],
+                    runs=runs, checkins=checkins, metric_results=nights)
+    section = build_payload(source, POST_EVENT)["event"]
+    assert section["event"]["id"] == "e1" and section["event"]["name"] == "Synthetic 10K"
+    assert section["matched_activity"]["distance_m"] == 10000
+    assert section["matched_activity"]["start_local"] == "2026-11-14T08:00:00-05:00"
+    assert len(section["checkins_after"]) == 2
+    assert section["checkins_after"][0]["symptoms"] == [
+        {"site_key": "calf|left", "severity": 2.0, "timing": "next_morning"}]
+    assert {m["subject_key"] for m in section["recovery_nights"]} == {
+        f"night:{AS_OF - timedelta(days=d)}" for d in (3, 2, 1, 0)}
+    assert build_payload(inputs(), POST_EVENT)["event"] is None
+
+
+def test_exception_sections_size_bounded() -> None:
+    def build(count: int) -> SnapshotInputs:
+        return replace(minimal(), exception_findings=[finding(n) for n in range(count)],
+                       exception_patches=[patch(n) for n in range(7)],
+                       review_recommended=[{"operation": "exception_review", "reason": "r", "finding_ids": ["f0"],
+                                            "prompt": "p"}])
+
+    small, large = build(40), build(120)
+    for operation in (EXCEPTION, ROLLING):
+        assert len(canonical_json(build_payload(small, operation))) == len(canonical_json(build_payload(large, operation)))
+    assert len(canonical_json(build_payload(large, EXCEPTION))) <= 21_000
+    assert len(canonical_json(build_payload(large, ROLLING))) <= 11_000
+
+
+def test_block_benchmark_sections() -> None:
+    block = {
+        "block_uid": "block-1",
+        "version_id": "version-1",
+        "version": 1,
+        "status": "active",
+        "objective": "Aerobic base",
+        "rationale": "Ready",
+        "maintained_qualities": [],
+        "non_goals": [],
+        "eligible_recipe_ids": ["REC001", "REC009"],
+        "progression_dimension": "duration",
+        "constraints": [],
+        "start_date": date(2026, 10, 19),
+        "review_date": date(2026, 12, 28),
+        "completion_indicators": [],
+        "early_review_triggers": [],
+        "objective_status": "unresolved",
+        "benchmark": {"kind": "time_trial", "protocol": "5 km solo time trial",
+                      "planned_date": AS_OF - timedelta(days=1), "progress_if": "p", "consolidate_if": "c",
+                      "event_id": None, "distance_m": 5000},
+        "benchmark_status": {"status": "completed", "match_method": "auto", "activity_id": "a9", "event_id": None,
+                             "local_date": AS_OF - timedelta(days=1), "distance_m": 5000, "result_s": 1290,
+                             "rpe": 9.0, "scheduled_date": None, "evidence_at": NOW},
+    }
+    runs = [
+        {"activity_id": "a9", "local_date": AS_OF - timedelta(days=1), "sport": "running", "timer_s": 1290,
+         "distance_m": 5000, "rpe": 9.0, "rpe_source": "manual", "start_at": datetime(2026, 11, 15, 13, tzinfo=UTC)},
+        {"activity_id": "a8", "local_date": AS_OF - timedelta(days=1), "sport": "running", "timer_s": 2900,
+         "distance_m": 8000, "rpe": 4.0, "rpe_source": "manual", "start_at": datetime(2026, 11, 15, 13, tzinfo=UTC)},
+    ]
+    history = [
+        {"block_uid": "block-0", "objective": "Base", "protocol": "5 km solo time trial", "distance_m": 5000,
+         "local_date": date(2026, 10, 18), "result_s": 1320, "outcome": "progress"},
+        {"block_uid": "block-00", "objective": "Base", "protocol": "5 km solo time trial", "distance_m": 5000,
+         "local_date": date(2026, 8, 30), "result_s": 1350, "outcome": "consolidate"},
+    ]
+    source = inputs(active_block=block, runs=runs, benchmark_history=history)
+    payload = build_payload(source, BLOCK)
+    assert payload["block"]["active"]["benchmark_status"]["status"] == "completed"
+    assert len(payload["benchmark_history"]) == 2
+    assert payload["event"]["event"] is None
+    assert payload["event"]["matched_activity"]["id"] == "a9"
+    for operation in (DAILY, CALIB):
+        projected = build_payload(source, operation)["block"]
+        assert projected["benchmark"]["protocol"] == "5 km solo time trial"
+        assert projected["benchmark_status"]["status"] == "completed"
