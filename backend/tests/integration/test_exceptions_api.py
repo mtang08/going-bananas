@@ -390,7 +390,7 @@ def test_api_shape_and_dismiss(exc_fixture):
     response = client.post('/api/v1/v2/checkins', json=body, headers=headers)
     assert response.status_code == 201, response.text
     data = response.json()['data']
-    assert 'daily_guidance' in data
+    assert 'daily_guidance' not in data and 'exceptions' in data
     assert set(data['exceptions']) == {'new_finding_ids', 'review_recommended'}
     assert len(data['exceptions']['new_finding_ids']) == 1
     data = client.get('/api/v1/exceptions').json()['data']

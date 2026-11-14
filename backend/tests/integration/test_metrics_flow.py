@@ -257,8 +257,9 @@ def test_http_routes_and_bounds(db, tmp_path):
     assert client.get('/api/v1/metrics/recovery?start=2025-01-01&end=2025-04-03').status_code == 422
     assert client.get('/api/v1/metrics/recovery?start=2025-02-01&end=2025-01-01').status_code == 422
     paths = set(production_app.openapi()['paths'])
-    assert {'/api/v1/metrics/windows', '/api/v1/v2/checkins', '/api/v1/coach/v2/daily',
+    assert {'/api/v1/metrics/windows', '/api/v1/v2/checkins', '/api/v1/exceptions',
             '/api/v1/activities', '/api/v1/anchors'} <= paths
+    assert '/api/v1/coach/v2/daily' not in paths and '/api/v1/coach/v2/daily/request' not in paths
 
 
 def test_trace_and_anchor_history(db, tmp_path):

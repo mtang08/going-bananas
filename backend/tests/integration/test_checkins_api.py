@@ -91,17 +91,13 @@ def _activity(connection, sport='running'):
     return activity_id
 
 
-def test_create_replay_patch_snapshot_and_guidance_reload(api_fixture):
+def test_create_replay_patch_and_revision(api_fixture):
     client, connection = api_fixture
-    assert client.get('/api/v1/coach/v2/daily').json()['data'] is None
-    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
-        assert session.scalar(select(func.count()).select_from(DailyGuidance)) == 0
     body = _body()
     created = client.post('/api/v1/v2/checkins', json=body)
     assert created.status_code == 201, created.text
     original = created.json()['data']
-    assert original['daily_guidance']['decision'] == 'proceed'
-    assert client.get('/api/v1/coach/v2/daily').json()['data']['id'] == original['daily_guidance']['id']
+    assert 'daily_guidance' not in original and set(original['exceptions']) == {'new_finding_ids', 'review_recommended'}
     replay = client.post('/api/v1/v2/checkins', json=body)
     assert replay.status_code == 200 and replay.json()['data']['id'] == original['id']
     changed = {**body, 'note': 'other synthetic note'}
@@ -173,14 +169,8 @@ def test_expired_matching_prompt_answered_and_mismatch_rejected(api_fixture):
     assert client.post('/api/v1/v2/checkins', json=post_run).status_code == 201
 
 
-def test_daily_request_is_idempotent_and_rpe_manual_wins(api_fixture):
+def test_rpe_manual_wins(api_fixture):
     client, connection = api_fixture
-    first = client.post('/api/v1/coach/v2/daily/request', json={})
-    second = client.post('/api/v1/coach/v2/daily/request', json={})
-    assert first.status_code == second.status_code == 200
-    assert first.json()['data']['id'] == second.json()['data']['id']
-    assert first.json()['data']['created_at'] == second.json()['data']['created_at']
-    assert client.get('/api/v1/coach/v2/daily').json()['data']['id'] == first.json()['data']['id']
     activity_id = _activity(connection)
     with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
         session.add(SessionRpe(activity_id=activity_id, rpe=6.5, source='garmin_fit',
@@ -201,9 +191,7 @@ def test_legacy_authority_blocks_new_writes_but_allows_reads(api_fixture):
         session.get(AppState, 1).planning_authority = 'legacy'
         session.commit()
     assert client.get('/api/v1/v2/checkins').status_code == 200
-    assert client.get('/api/v1/coach/v2/daily').status_code == 200
     assert client.post('/api/v1/v2/checkins', json=_body()).status_code == 409
-    assert client.post('/api/v1/coach/v2/daily/request', json={}).status_code == 409
     assert client.put(f'/api/v1/activities/{activity_id}/rpe', json={'rpe': 7}).status_code == 409
 
 
@@ -233,3 +221,21 @@ def test_rpe_autocompletion_allows_one_followup_note(api_fixture):
         session.commit()
     assert client.post('/api/v1/v2/checkins', json=_body(kind='delayed_followup',
         activity_id=str(activity_id), prompt_id=str(delayed_id))).status_code == 422
+
+
+def test_routes_removed_and_replay_drops_stored_guidance(api_fixture):
+    client, connection = api_fixture
+    assert client.get('/api/v1/coach/v2/daily').status_code == 404
+    assert client.post('/api/v1/coach/v2/daily/request', json={}).status_code in {404, 405}
+    body = _body()
+    created = client.post('/api/v1/v2/checkins', json=body)
+    assert created.status_code == 201, created.text
+    checkin_id = created.json()['data']['id']
+    patched = client.patch(f'/api/v1/v2/checkins/{checkin_id}', json={'expected_version': 1, 'note': 'x'})
+    assert patched.status_code == 200, patched.text
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        revision = session.scalar(select(CheckinRevision).where(CheckinRevision.checkin_id == uuid.UUID(checkin_id)))
+        revision.payload = {**revision.payload, 'daily_guidance': {'decision': 'proceed'}}
+        session.commit()
+    replay = client.post('/api/v1/v2/checkins', json=body)
+    assert replay.status_code == 200 and 'daily_guidance' not in replay.json()['data']
