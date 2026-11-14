@@ -65,6 +65,12 @@ export function SessionSummary({
         <Badge className={`marker marker-${marker}`}>{MARKER_LABELS[marker]}</Badge>
         <span>{s.certainty === 'committed' ? 'Committed' : 'Provisional'}</span>
         {!s.is_original && <span>Changed</span>}
+        {s.recipe_id === 'REC009' && <Badge className="benchmark-chip">Benchmark</Badge>}
+        {s.exception_patch?.status === 'open' && (
+          <Badge className="patch-chip" data-testid="patch-badge">
+            Patched · reassess {dateLabel(s.exception_patch.reassess_on, { weekday: 'long' })}
+          </Badge>
+        )}
       </div>
       {showWorkout && s.structure && <WorkoutStructure structure={s.structure} unit={unit} />}
       {showWorkout ? (
