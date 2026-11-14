@@ -19,7 +19,7 @@ from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.metrics.engine import install_triggers
 from app.models import AppState, ProfileVersion
 from app.models import Checkin as LegacyCheckin
-from app.planning_models import Block, BlockDecision, BlockVersion, Event, IntensityAnchor
+from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
 from app.services.proposals import DecisionError, DecisionRequest, decide_proposal, discard_proposal, submit_proposal
@@ -49,6 +49,7 @@ def proposal_session(monkeypatch):
                 session.info["metrics_now"] = NOW
                 session.execute(delete(ExceptionFinding))
                 session.execute(delete(ExceptionPatch))
+                session.execute(delete(BlockBenchmarkResult))
                 session.execute(delete(CoachDecisionKey))
                 session.execute(delete(CoachProposalChange))
                 session.execute(delete(CoachProposal))
@@ -370,7 +371,7 @@ def test_block_same_state_acceptance_is_noop(proposal_session: Session) -> None:
         "rationale": "Ready",
         "maintained_qualities": [],
         "non_goals": [],
-        "eligible_recipe_ids": ["REC001"],
+        "eligible_recipe_ids": ["REC001", "REC009"],
         "progression_dimension": "duration",
         "constraints": [],
         "start_date": "2026-11-16",
@@ -378,6 +379,8 @@ def test_block_same_state_acceptance_is_noop(proposal_session: Session) -> None:
         "completion_indicators": [],
         "early_review_triggers": [],
         "objective_status": "unresolved",
+        "benchmark": {"kind": "time_trial", "protocol": "5 km solo time trial", "planned_date": "2026-12-26",
+                      "progress_if": "Under 22:00", "consolidate_if": "Over 22:30"},
     }
     raw = _doc(snapshot, uid)
     raw["changes"] = []
@@ -888,3 +891,57 @@ def test_post_event_accept_reviews_only_that_event(proposal_session: Session) ->
     result = decide_proposal(session, submitted.proposal_id, _req(1, "post-accept"), now=NOW, resolve_kb=_resolve)
     assert result.status == "accepted"
     assert (due[0].status, due[1].status) == ("reviewed", "open")
+
+
+def test_block_review_accept_upserts_benchmark_row(proposal_session: Session, monkeypatch) -> None:
+    from app.services import block_benchmark
+
+    session = proposal_session
+    snapshot, uid = _snapshot(session, "review_training_block")
+    fields = {
+        "status": "active", "objective": "Build", "rationale": "Ready", "maintained_qualities": [], "non_goals": [],
+        "eligible_recipe_ids": ["REC001", "REC009"], "progression_dimension": "duration", "constraints": [],
+        "start_date": "2026-11-16", "review_date": "2026-12-28", "completion_indicators": [],
+        "early_review_triggers": [], "objective_status": "unresolved",
+        "benchmark": {"kind": "time_trial", "protocol": "5 km solo time trial", "planned_date": "2026-12-26",
+                      "progress_if": "Under 22:00", "consolidate_if": "Over 22:30"},
+    }
+    raw = _doc(snapshot, uid)
+    raw["changes"] = []
+    raw["block_change"] = {"decision": "start", "block_uid": None, "version_fields": fields}
+    first = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert first.status == "pending", first.issues
+    started = decide_proposal(
+        session, first.proposal_id,
+        DecisionRequest(idempotency_key="bench-block-start", expected_head=1, expected_revision=1,
+                        accept_change_ids=[], reject_change_ids=[], accept_block_change=True),
+        now=NOW, resolve_kb=_resolve,
+    )
+    block = session.get(BlockVersion, started.block_version_id)
+    assert block is not None
+    event = Event(name="Benchmark 5K", event_date=TODAY - timedelta(days=1), distance_m=5000, priority="benchmark",
+                  status="completed")
+    session.add(event)
+    session.flush()
+    monkeypatch.setattr(block_benchmark, "benchmark_status", lambda session, version, today: block_benchmark.BenchmarkStatus(
+        status="completed", match_method="auto", activity_id=None, event_id=event.id,
+        local_date=TODAY - timedelta(days=1), distance_m=5000, result_s=1300, rpe=9.0, scheduled_date=None,
+        evidence_at=NOW))
+    review = {"event_id": str(event.id), "outcome": "progress", "compared_with": "Prior 5K 22:10", "pacing": "Even",
+              "effort_and_limiter": "RPE 9", "recovery_observation": "Normal", "recalibration": "defer",
+              "training_implication": "Progress"}
+    for key in ("bench-review-1", "bench-review-2"):
+        snapshot, uid = _snapshot(session, "review_training_block")
+        raw = _doc(snapshot, uid)
+        raw["changes"] = []
+        raw["event_review"] = review
+        submitted = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+        assert submitted.status == "pending", submitted.issues
+        decide_proposal(session, submitted.proposal_id, _req(1, key), now=NOW, resolve_kb=_resolve)
+        rows = session.scalars(select(BlockBenchmarkResult).where(BlockBenchmarkResult.block_uid == block.block_uid)).all()
+        assert len(rows) == 1
+        row = rows[0]
+        assert (row.block_version, row.match_method, row.event_id, row.distance_m, row.result_s, row.outcome,
+                row.compared_with, row.proposal_id, row.protocol) == (
+            1, "auto", event.id, 5000, 1300, "progress", "Prior 5K 22:10", submitted.proposal_id,
+            "5 km solo time trial")

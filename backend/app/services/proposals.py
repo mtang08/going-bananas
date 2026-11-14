@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.domain.cycle import opportunity
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
+from app.services.block_benchmark import BenchmarkOutcome
 from app.services.calendar_structure import StructureError, expand_structure
 from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, LadderLevel, PatchCategory, Severity
@@ -130,6 +131,16 @@ class BlockConstraint(Strict):
     text: str
 
 
+class BlockBenchmark(Strict):
+    kind: Literal["time_trial", "event"]
+    event_id: uuid.UUID | None = None
+    protocol: str = Field(max_length=300)
+    distance_m: int | None = None
+    planned_date: date
+    progress_if: str = Field(max_length=300)
+    consolidate_if: str = Field(max_length=300)
+
+
 class BlockVersionFields(Strict):
     status: Literal["draft", "active", "consolidating", "completed", "replaced", "ended"]
     objective: str
@@ -144,6 +155,7 @@ class BlockVersionFields(Strict):
     completion_indicators: list[str]
     early_review_triggers: list[str]
     objective_status: Literal["unresolved", "partially_achieved", "achieved", "not_achieved"]
+    benchmark: BlockBenchmark | None = None
 
 
 class BlockChange(Strict):
@@ -172,7 +184,7 @@ Criterion = Annotated[str, Field(max_length=200)]
 
 
 def _anchors_allowed(doc: ProposalDoc) -> bool:
-    return doc.operation in ANCHOR_OPS
+    return doc.operation in ANCHOR_OPS or (doc.operation == "review_training_block" and doc.event_review is not None)
 
 
 class PatchWindow(Strict):
@@ -202,8 +214,10 @@ class ExceptionBlock(Strict):
 
 
 class EventReview(Strict):
-    event_id: uuid.UUID
+    event_id: uuid.UUID | None = None
     activity_id: uuid.UUID | None = None
+    outcome: BenchmarkOutcome | None = None
+    compared_with: str | None = Field(default=None, max_length=300)
     pacing: str = Field(max_length=600)
     effort_and_limiter: str = Field(max_length=600)
     conditions: str | None = Field(default=None, max_length=400)
@@ -334,6 +348,8 @@ class ValidationContext:
     findings: dict[uuid.UUID, str] = dataclass_field(default_factory=dict)
     patches: dict[uuid.UUID, str] = dataclass_field(default_factory=dict)
     events: dict[uuid.UUID, tuple[str, date]] = dataclass_field(default_factory=dict)
+    open_rule_codes: frozenset[str] = frozenset()
+    benchmark: Any = None
 
 
 @dataclass(frozen=True)
@@ -455,12 +471,23 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
                 issues.append(_issue("V20.finding_unknown", f"exception.finding_ids.{j}"))
             elif status not in NON_TERMINAL_FINDING:
                 issues.append(_issue("V20.finding_closed", f"exception.finding_ids.{j}"))
-    review = doc.event_review
+    review, bench = doc.event_review, ctx.benchmark
+    if review is not None and review.event_id is None and review.activity_id is None:
+        issues.append(_issue("V20.event_target_invalid", "event_review"))
+    if review is not None and review.outcome is not None and doc.operation != "review_training_block":
+        issues.append(_issue("V20.event_forbidden", "event_review.outcome"))
     if doc.operation == "post_event_review":
         if review is None:
             issues.append(_issue("V20.event_required", "event_review"))
-        elif ctx.events.get(review.event_id, ("cancelled", None))[0] == "cancelled":
+        elif review.event_id is None or ctx.events.get(review.event_id, ("cancelled", None))[0] == "cancelled":
             issues.append(_issue("V20.event_unknown", "event_review.event_id"))
+    elif doc.operation == "review_training_block":
+        if "BLOCK_BENCHMARK_COMPLETED" in ctx.open_rule_codes and (review is None or review.outcome is None):
+            issues.append(_issue("V20.event_required", "event_review"))
+        if review is not None and (bench is None or bench.status != "completed"
+                                   or (review.activity_id is not None and review.activity_id != bench.activity_id)
+                                   or (review.event_id is not None and review.event_id != bench.event_id)):
+            issues.append(_issue("V20.event_target_invalid", "event_review"))
     elif review is not None:
         issues.append(_issue("V20.event_forbidden", "event_review"))
     if doc.patch_resolutions and doc.operation not in RESOLUTION_OPS:
@@ -475,6 +502,19 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
         if resolution.patch_id in resolved:
             issues.append(_issue("V21.patch_duplicate", f"patch_resolutions.{j}.patch_id"))
         resolved.add(resolution.patch_id)
+    fields = doc.block_change.version_fields if doc.block_change else None
+    if fields is not None and fields.status == "active":
+        planned = fields.benchmark
+        if planned is None:
+            issues.append(_issue("V22.benchmark_required", "block_change.version_fields.benchmark"))
+        else:
+            if not fields.review_date - timedelta(days=6) <= planned.planned_date <= fields.review_date:
+                issues.append(_issue("V22.benchmark_date", "block_change.version_fields.benchmark.planned_date"))
+            event = ctx.events.get(planned.event_id) if planned.event_id else None
+            bad_event = planned.kind == "event" and (event is None or event[0] == "cancelled" or event[1] != planned.planned_date)
+            bad_trial = planned.kind == "time_trial" and (planned.event_id is not None or "REC009" not in fields.eligible_recipe_ids)
+            if bad_event or bad_trial:
+                issues.append(_issue("V22.benchmark_event", "block_change.version_fields.benchmark"))
     return issues
 
 
@@ -856,7 +896,8 @@ def load_context(
     from app.coach_v2_models import CoachSnapshot
     from app.exception_models import ExceptionFinding, ExceptionPatch
     from app.models import AppState, ProfileVersion
-    from app.planning_models import Event
+    from app.planning_models import BlockVersion, Event
+    from app.services.block_benchmark import benchmark_status
     from app.services.calendar import state_at
     from app.services.timezone import athlete_tz
 
@@ -895,6 +936,8 @@ def load_context(
         if snapshot
         else {"source_fingerprint": "", "safety_guard": None}
     )
+    active = _active_block(session)
+    active_row = session.get(BlockVersion, active.version_id) if active else None
     return ValidationContext(
         now,
         today,
@@ -902,7 +945,7 @@ def load_context(
         _snapshot_ref(snapshot) if snapshot else None,
         head,
         head_sessions,
-        _active_block(session),
+        active,
         anchor,
         inputs["safety_guard"] if isinstance(inputs["safety_guard"], dict) else None,
         str(inputs["source_fingerprint"]),
@@ -911,6 +954,8 @@ def load_context(
         findings={fid: status for fid, status in session.execute(select(ExceptionFinding.id, ExceptionFinding.status))},
         patches={pid: status for pid, status in session.execute(select(ExceptionPatch.id, ExceptionPatch.status))},
         events={eid: (status, day) for eid, status, day in session.execute(select(Event.id, Event.status, Event.event_date))},
+        open_rule_codes=frozenset(session.scalars(select(ExceptionFinding.rule_code).where(ExceptionFinding.status == "open"))),
+        benchmark=benchmark_status(session, active_row, today) if active_row else None,
     )
 
 
@@ -1200,6 +1245,7 @@ def _save_block(
         session.flush()
     fields = change.version_fields.model_dump(mode="python")
     fields["constraints"] = [item.model_dump() for item in change.version_fields.constraints]
+    fields["benchmark"] = change.version_fields.benchmark.model_dump(mode="json") if change.version_fields.benchmark else None
     if old:
         previous = session.get(BlockVersion, old.version_id)
         assert previous is not None
@@ -1280,6 +1326,30 @@ def _apply_exception_effects(session: Session, doc: ProposalDoc, proposal_id: uu
     elif doc.operation == "post_event_review" and doc.event_review is not None:
         review(findings(ExceptionFinding.rule_code == "POST_EVENT_REVIEW_DUE",
                         ExceptionFinding.entity_key == f"event:{doc.event_review.event_id}", active))
+    session.flush()
+
+
+def _apply_benchmark_effects(session: Session, doc: ProposalDoc, proposal_id: uuid.UUID, status: str,
+                             ctx: ValidationContext) -> None:
+    from app.planning_models import BlockBenchmarkResult, BlockVersion
+
+    reviewed, bench, review = ctx.active_block, ctx.benchmark, doc.event_review
+    if (status not in {"accepted", "partially_accepted"} or doc.operation != "review_training_block" or review is None
+            or reviewed is None or bench is None or bench.status != "completed"):
+        return
+    row = session.scalar(select(BlockBenchmarkResult).where(
+        BlockBenchmarkResult.block_uid == reviewed.block_uid,
+        BlockBenchmarkResult.block_version == reviewed.version).with_for_update())
+    if row is None:
+        row = BlockBenchmarkResult(block_uid=reviewed.block_uid, block_version=reviewed.version,
+                                   match_method=bench.match_method or "auto")
+        session.add(row)
+    version_row = session.get(BlockVersion, reviewed.version_id)
+    assert version_row is not None
+    row.protocol = (version_row.benchmark or {}).get("protocol", "")
+    row.activity_id, row.event_id, row.distance_m = bench.activity_id, bench.event_id, bench.distance_m
+    row.local_date, row.result_s = bench.local_date, bench.result_s
+    row.outcome, row.compared_with, row.proposal_id = review.outcome, review.compared_with, proposal_id
     session.flush()
 
 
@@ -1462,6 +1532,7 @@ def decide_proposal(
     proposal.decision_idempotency_key = req.idempotency_key
     proposal.decision_hash = decision_hash
     _apply_exception_effects(session, doc, proposal_id, snapshot.generated_at, status, calendar_version, now)
+    _apply_benchmark_effects(session, doc, proposal_id, status, ctx)
     if changed:
         stale = list(dict.fromkeys([*stale, *mark_pending_stale(session, except_id=proposal_id)]))
     decision_result = DecisionResult(

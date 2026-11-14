@@ -327,9 +327,11 @@ def test_accept_block_change_appends_decision(api):
     doc['changes'] = []
     doc['block_change'] = {'decision':'start','block_uid':None,'version_fields':{
         'status':'active','objective':'Build','rationale':'Ready','maintained_qualities':[], 'non_goals':[],
-        'eligible_recipe_ids':['REC001'], 'progression_dimension':'duration','constraints':[],
+        'eligible_recipe_ids':['REC001', 'REC009'], 'progression_dimension':'duration','constraints':[],
         'start_date':str(TODAY),'review_date':str(TODAY+timedelta(days=42)),
-        'completion_indicators':[],'early_review_triggers':[],'objective_status':'unresolved'}}
+        'completion_indicators':[],'early_review_triggers':[],'objective_status':'unresolved',
+        'benchmark': {'kind': 'time_trial', 'protocol': '5 km solo time trial', 'planned_date': str(TODAY + timedelta(days=40)),
+                      'progress_if': 'Under 22:00', 'consolidate_if': 'Over 22:30'},}}
     result = submit_proposal(session, doc, now=NOW, resolve_kb=_resolve)
     assert result.status == 'pending', result.issues
     session.commit()
