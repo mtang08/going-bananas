@@ -4,11 +4,10 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from datetime import date as DateType
-from datetime import time as TimeType
 from typing import Any, Literal, NoReturn
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
@@ -19,20 +18,15 @@ from app.domain.analytics import (
     RUN_SPORTS,
     ActivityFact,
     pace_s_per_km,
-    summary,
-    trailing_mean,
     utc_date_bounds,
     week_start,
 )
-from app.domain.associations import preceding_sessions
 from app.domain.cycle import opportunities, recurring_sessions, validate_acceptance
 from app.models import (
     Activity,
     ActivityAnnotation,
     ActivitySource,
     AppState,
-    Checkin,
-    CheckinRevision,
     CompletionLink,
     CoverageInterval,
     ImportBatch,
@@ -40,12 +34,10 @@ from app.models import (
     PlannedSession,
     PlanVersion,
     ProfileVersion,
-    RecoveryObservation,
 )
 from app.services.coaching import run_intent
 from app.services.run_classification import RunObservation, classify_history
 from app.services.strength_history import strong_history
-from app.services.sync import detect_import_conflicts_for_manual
 from app.strong_models import StrongWorkoutRow
 
 router = APIRouter()
@@ -352,245 +344,6 @@ def patch_annotation(activity_id: uuid.UUID, body: AnnotationInput, session: Ses
     session.commit()
     return envelope(session, activity_data(session, row, detail=True))
 
-
-@router.get('/summary')
-def get_summary(as_of: date | None = None, days: int = Query(28, ge=1, le=366),
-                session: Session = Depends(get_session)) -> dict:
-    zone = tz(session)
-    today = as_of or datetime.now(ZoneInfo(zone)).date()
-    start = min(today-timedelta(days=days-1), today-timedelta(days=13), week_start(today))
-    items = facts(session, start, today)
-    output = summary(items, today, days)
-    output['timezone'] = zone
-    output['coverage'] = coverage(session, start, today)
-    output['strength_coverage'] = strength_coverage(session, start, today)
-    recent_lower, recent_upper = utc_date_bounds(today-timedelta(days=27), today, zone)
-    runs = [a for a in session.scalars(select(Activity).where(Activity.start_at >= recent_lower,
-                          Activity.start_at < recent_upper, Activity.sport.in_(('running','trail_running','treadmill_running')))
-                          .order_by(desc(Activity.start_at)).limit(10)).all()]
-    classifications = run_classifications(session, runs)
-    output['recent_runs'] = [activity_data(session, a, classifications=classifications) for a in runs]
-    return envelope(session, output)
-
-
-@router.get('/recovery')
-def get_recovery(start_date: date | None = None, end_date: date | None = None,
-                 session: Session = Depends(get_session)) -> dict:
-    start, end = date_window(session, start_date, end_date)
-    rows = session.scalars(select(RecoveryObservation).where(RecoveryObservation.source_date >= start,
-                           RecoveryObservation.source_date <= end).order_by(RecoveryObservation.source_date)).all()
-    groups: dict[str, list[dict]] = {'sleep': [], 'hrv': [], 'resting_hr': []}
-    for row in rows:
-        groups.setdefault(row.metric, []).append({'date': row.source_date, 'value': row.value,
-                                      'unit': row.unit, 'statistic': row.statistic})
-    means = {metric: trailing_mean([(point['date'], point['value']) for point in points], end)
-             for metric, points in groups.items()}
-    return envelope(session, {'timezone': tz(session), 'series': groups, 'trailing_7': means,
-                              'coverage': coverage(session, start, end)})
-
-class CheckinInput(BaseModel):
-    idempotency_key: str = Field(min_length=1, max_length=100)
-    observed_at: datetime
-    symptoms: Literal['none','mild','moderate','severe']
-    change: Literal['better','same','worse','unsure'] | None = None
-    gait: Literal['normal','affected','unsure']
-    feeling: Literal['fresh','usual','tired']
-    effort: int | None = Field(default=None, ge=0, le=10)
-    activity_id: uuid.UUID | None = None
-    note: str | None = Field(default=None, max_length=4000)
-
-    @field_validator('observed_at')
-    @classmethod
-    def offset_required(cls, value: datetime) -> datetime:
-        if value.tzinfo is None or value.utcoffset() is None:
-            raise ValueError('Timestamp requires UTC offset')
-        return value
-
-
-class CheckinPatch(BaseModel):
-    expected_version: int = Field(ge=1)
-    observed_at: datetime | None = None
-    symptoms: Literal['none','mild','moderate','severe'] | None = None
-    change: Literal['better','same','worse','unsure'] | None = None
-    gait: Literal['normal','affected','unsure'] | None = None
-    feeling: Literal['fresh','usual','tired'] | None = None
-    effort: int | None = Field(default=None, ge=0, le=10)
-    activity_id: uuid.UUID | None = None
-    note: str | None = Field(default=None, max_length=4000)
-
-    @field_validator('observed_at')
-    @classmethod
-    def offset_required(cls, value: datetime | None) -> datetime | None:
-        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
-            raise ValueError('Timestamp requires UTC offset')
-        return value
-
-
-def checkin_data(session: Session, row: Checkin) -> dict:
-    earliest = row.observed_at - timedelta(hours=75)
-    activities = session.scalars(select(Activity).where(Activity.start_at >= earliest,
-                               Activity.start_at <= row.observed_at,
-                               Activity.sport.in_(('running','trail_running','treadmill_running','strength')))).all()
-    candidates = [{'id': a.id, 'start_at': a.start_at, 'elapsed_s': a.elapsed_s, 'sport': a.sport} for a in activities]
-    manual_rows = session.scalars(select(ManualSession).where(ManualSession.date >=
-                (row.observed_at.astimezone(ZoneInfo(tz(session))).date()-timedelta(days=4)),
-                ManualSession.date <= row.observed_at.astimezone(ZoneInfo(tz(session))).date(),
-                ManualSession.linked_activity_id.is_(None))).all()
-    for m in manual_rows:
-        if m.time is not None:
-            candidates.append({'id': m.id, 'start_at': datetime.combine(m.date, m.time, ZoneInfo(tz(session))).astimezone(UTC),
-                               'elapsed_s': m.duration_s, 'sport': m.kind})
-    return {'id': row.id, 'version': row.version, 'observed_at': row.observed_at, 'recorded_at': row.recorded_at,
-            'symptoms': row.symptoms, 'change': row.change, 'gait': row.gait, 'feeling': row.feeling,
-            'effort': row.effort, 'activity_id': row.activity_id, 'note': row.note,
-            'associations': preceding_sessions(row.observed_at, candidates, tz(session))}
-
-
-def revision_payload(row: Checkin) -> dict:
-    return {'observed_at': row.observed_at.isoformat(), 'symptoms': row.symptoms, 'change': row.change,
-            'gait': row.gait, 'feeling': row.feeling, 'effort': row.effort,
-            'activity_id': str(row.activity_id) if row.activity_id else None, 'note': row.note}
-
-
-@router.get('/checkins')
-def get_checkins(start_date: date | None = None, end_date: date | None = None,
-                 cursor: str | None = None, limit: int = Query(50, ge=1, le=200),
-                 session: Session = Depends(get_session)) -> dict:
-    start, end = date_window(session, start_date, end_date)
-    lo, hi = utc_date_bounds(start, end, tz(session))
-    query = select(Checkin).where(Checkin.observed_at >= lo, Checkin.observed_at < hi)
-    if cursor:
-        try:
-            instant_text, id_text = cursor.split('|', 1)
-            instant, item_id = datetime.fromisoformat(instant_text), uuid.UUID(id_text)
-            if instant.tzinfo is None:
-                raise ValueError('offset required')
-        except ValueError:
-            fail('invalid_cursor', 'Invalid check-in cursor')
-        query = query.where((Checkin.observed_at < instant) |
-                            ((Checkin.observed_at == instant) & (Checkin.id < item_id)))
-    rows = session.scalars(query.order_by(desc(Checkin.observed_at), desc(Checkin.id)).limit(limit+1)).all()
-    next_cursor = f'{rows[limit-1].observed_at.isoformat()}|{rows[limit-1].id}' if len(rows) > limit else None
-    return envelope(session, {'items': [checkin_data(session, row) for row in rows[:limit]],
-                              'next_cursor': next_cursor, 'truncated': next_cursor is not None,
-                              'timezone': tz(session)})
-
-
-@router.post('/checkins', status_code=201)
-def post_checkin(body: CheckinInput, response: Response, session: Session = Depends(get_session)) -> dict:
-    from app.services.legacy_cutover import require_legacy_write
-    require_legacy_write(session)
-    old = session.scalar(select(Checkin).where(Checkin.idempotency_key == body.idempotency_key))
-    if old:
-        response.status_code = 200
-        return envelope(session, checkin_data(session, old))
-    if body.activity_id and not session.get(Activity, body.activity_id):
-        fail('invalid_activity', 'Activity not found')
-    row = Checkin(**body.model_dump())
-    session.add(row)
-    session.flush()
-    session.add(CheckinRevision(checkin_id=row.id, version=1, payload=revision_payload(row)))
-    bump_data_revision(session)
-    session.commit()
-    return envelope(session, checkin_data(session, row))
-
-
-@router.patch('/checkins/{checkin_id}')
-def patch_checkin(checkin_id: uuid.UUID, body: CheckinPatch, session: Session = Depends(get_session)) -> dict:
-    from app.services.legacy_cutover import require_legacy_write
-    require_legacy_write(session)
-    row = session.get(Checkin, checkin_id, with_for_update=True)
-    if not row:
-        fail('not_found', 'Check-in not found', 404)
-    if row.version != body.expected_version:
-        fail('version_conflict', 'Check-in changed; reload /api/v1/checkins', 409)
-    changes = body.model_dump(exclude_unset=True, exclude={'expected_version'})
-    if any(changes.get(field) is None for field in ('observed_at', 'symptoms', 'gait', 'feeling') if field in changes):
-        fail('null_required_field', 'Required check-in fields cannot be null')
-    if 'activity_id' in changes and changes['activity_id'] and not session.get(Activity, changes['activity_id']):
-        fail('invalid_activity', 'Activity not found')
-    for key, value in changes.items():
-        setattr(row, key, value)
-    row.version += 1
-    session.add(CheckinRevision(checkin_id=row.id, version=row.version, payload=revision_payload(row)))
-    bump_data_revision(session)
-    session.commit()
-    return envelope(session, checkin_data(session, row))
-
-
-class ManualInput(BaseModel):
-    date: DateType
-    time: TimeType | None = None
-    kind: Literal['strength','cycling','elliptical','swimming','rowing','walking','mobility','rehab','other']
-    duration_s: float | None = Field(default=None, ge=0)
-    effort: int | None = Field(default=None, ge=0, le=10)
-    note: str | None = Field(default=None, max_length=4000)
-
-
-class ManualPatch(BaseModel):
-    expected_version: int = Field(ge=1)
-    date: DateType | None = None
-    time: TimeType | None = None
-    kind: Literal['strength','cycling','elliptical','swimming','rowing','walking','mobility','rehab','other'] | None = None
-    duration_s: float | None = Field(default=None, ge=0)
-    effort: int | None = Field(default=None, ge=0, le=10)
-    note: str | None = Field(default=None, max_length=4000)
-    linked_activity_id: uuid.UUID | None = None
-
-
-def manual_data(row: ManualSession) -> dict:
-    return {key: getattr(row, key) for key in ('id','version','date','time','kind','duration_s','effort','note','linked_activity_id')}
-
-
-@router.get('/manual-sessions')
-def get_manual_sessions(start_date: date | None = None, end_date: date | None = None,
-                        cursor: str | None = None, limit: int = Query(50, ge=1, le=200),
-                        session: Session = Depends(get_session)) -> dict:
-    start, end = date_window(session, start_date, end_date)
-    query = select(ManualSession).where(ManualSession.date >= start, ManualSession.date <= end)
-    if cursor:
-        try:
-            date_text, id_text = cursor.split('|', 1)
-            cursor_date, item_id = date.fromisoformat(date_text), uuid.UUID(id_text)
-        except ValueError:
-            fail('invalid_cursor', 'Invalid manual session cursor')
-        query = query.where((ManualSession.date < cursor_date) |
-                            ((ManualSession.date == cursor_date) & (ManualSession.id < item_id)))
-    rows = session.scalars(query.order_by(desc(ManualSession.date), desc(ManualSession.id)).limit(limit+1)).all()
-    next_cursor = f'{rows[limit-1].date.isoformat()}|{rows[limit-1].id}' if len(rows) > limit else None
-    return envelope(session, {'items': [manual_data(row) for row in rows[:limit]],
-                              'next_cursor': next_cursor, 'truncated': next_cursor is not None})
-
-
-@router.post('/manual-sessions', status_code=201)
-def post_manual_session(body: ManualInput, session: Session = Depends(get_session)) -> dict:
-    row = ManualSession(**body.model_dump())
-    session.add(row)
-    session.flush()
-    detect_import_conflicts_for_manual(session, row)
-    bump_data_revision(session)
-    session.commit()
-    return envelope(session, manual_data(row))
-
-
-@router.patch('/manual-sessions/{manual_id}')
-def patch_manual_session(manual_id: uuid.UUID, body: ManualPatch, session: Session = Depends(get_session)) -> dict:
-    row = session.get(ManualSession, manual_id, with_for_update=True)
-    if not row:
-        fail('not_found', 'Manual session not found', 404)
-    if row.version != body.expected_version:
-        fail('version_conflict', 'Manual session changed; reload manual sessions', 409)
-    changes = body.model_dump(exclude_unset=True, exclude={'expected_version'})
-    if any(changes.get(field) is None for field in ('date', 'kind') if field in changes):
-        fail('null_required_field', 'Required session fields cannot be null')
-    for key, value in changes.items():
-        setattr(row, key, value)
-    row.version += 1
-    session.flush()
-    detect_import_conflicts_for_manual(session, row)
-    bump_data_revision(session)
-    session.commit()
-    return envelope(session, manual_data(row))
 
 class PlannedInput(BaseModel):
     date: DateType
