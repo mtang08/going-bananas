@@ -288,9 +288,10 @@ test('p0b: block start',async ({page,request})=>{
   const snap=snapshot('review_training_block')
   const blockChange={decision:'start',block_uid:null,version_fields:{
     status:'active',objective:'Synthetic aerobic base',rationale:'Review the current plan and build steadily.',
-    maintained_qualities:['easy volume'],non_goals:['racing'],eligible_recipe_ids:['REC001','REC002','REC003'],
-    progression_dimension:'duration',constraints:[],start_date:before.today,review_date:day(before.today,42),
+    maintained_qualities:['easy volume'],non_goals:['racing'],eligible_recipe_ids:['REC001','REC002','REC003','REC009'],
+    progression_dimension:'duration',constraints:[],start_date:before.today,review_date:day(before.today,6),
     completion_indicators:['consistent sessions'],early_review_triggers:['symptoms'],objective_status:'unresolved',
+    benchmark:{kind:'time_trial',event_id:null,protocol:'5 km solo time trial, flat loop',distance_m:5000,planned_date:before.today,progress_if:'Faster than the previous 5 km time trial',consolidate_if:'Within 20 seconds of the previous 5 km time trial'},
   }}
   const submitted=submit(documentFrom(snap,[],`P0-B block ${randomUUID().slice(0,8)}`,{block_change:blockChange}))
   expect(submitted.code,JSON.stringify(submitted.output)).toBe(0)
