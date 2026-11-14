@@ -1,4 +1,6 @@
+import ast
 import re
+from pathlib import Path
 from typing import get_args
 
 from app.coach_v2_models import CoachProposal, CoachSnapshot
@@ -36,3 +38,13 @@ def test_manifest_routing_matches_operations():
 def test_db_checks_match_operations():
     for model, name in CHECKS:
         assert _check_values(model, name) == set(OPERATIONS), name
+
+
+HELPER = Path(__file__).resolve().parents[3] / ".codex/skills/going-bananas-coach/scripts/coach_app.py"
+
+
+def test_helper_operations_match():
+    tree = ast.parse(HELPER.read_text())
+    node = next(n for n in tree.body if isinstance(n, ast.Assign)
+                and any(isinstance(target, ast.Name) and target.id == "OPERATIONS" for target in n.targets))
+    assert set(ast.literal_eval(node.value)) == set(OPERATIONS)
