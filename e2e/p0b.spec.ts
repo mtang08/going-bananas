@@ -192,8 +192,8 @@ test('p0b: daily exception scope',async ({page,request})=>{
     fatigue:7,illness:'none',gait_change:'yes',context_tags:[],symptoms:[],activity_id:null,prompt_id:null,note:null,
   }})
   expect(checkin.status()).toBe(201)
-  const guidance=await data(await request.post('/api/v1/coach/v2/daily/request',{headers:local,data:{}}))
-  expect(guidance.coach_review_suggested).toBe(true)
+  const created=await data(checkin)
+  expect(created.exceptions.review_recommended.some((item:any)=>item.operation==='exception_review')).toBe(true)
   const current=await calendar(request)
   const run2=runOn(current,2),run4=runOn(current,4)
   const snap=snapshot('proceed_or_modify_today')
@@ -208,7 +208,7 @@ test('p0b: daily exception scope',async ({page,request})=>{
   expect(increase.output.errors[0]).toMatchObject({code:'V12.safety_guard',path:'changes.0'})
   expect((await calendar(request)).head).toBe(current.head)
   await page.goto('/')
-  await expect(page.getByText(/Coach review suggested/)).toBeVisible()
+  await expect(page.locator('[data-testid="attention-row"][data-kind="recommendation"]').filter({hasText:'Exception review'}).first()).toBeVisible()
   const rejected=await decision(request,reduced.output.proposal_id,{idempotency_key:randomUUID(),expected_head:current.head,
     accept_change_ids:[],reject_change_ids:['c1'],accept_block_change:false,accept_anchor_changes:[]})
   expect(rejected.status()).toBe(200)
