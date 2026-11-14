@@ -5,11 +5,13 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Home } from '../src/pages/Home'
 import type { ProposalSummary } from '../src/api/types/coach'
-import type { CalendarView, SessionState } from '../src/api'
+import type { BlockVersion, CalendarView, SessionState } from '../src/api'
 
 const finding = (id: string, severity: Severity, summary: string, version = 1): Finding => ({ id, rule_code: 'FATIGUE_PERSISTING', category: 'accumulated_fatigue', severity, status: 'open', entity_key: `fatigue:${id}`, summary, evidence: [], evidence_at: '2026-11-11T12:00:00Z', first_seen_at: '2026-11-11T12:00:00Z', last_seen_at: '2026-11-11T12:00:00Z', patch_id: null, version, is_new_since_last_review: true })
 const pa1: Patch = { id: 'pa1', proposal_id: 'p9', calendar_version_number: 2, category: 'accumulated_fatigue', severity: 'caution', ladder_level: 'next_days', window_start: '2026-11-11', window_end: '2026-11-13', reassess_on: '2026-11-11', monitor: ['Morning fatigue'], return_criteria: ['Fatigue below 6'], escalate_criteria: ['Fatigue rising'], unchanged: [], status: 'open', resolved_at: null, resolved_by: null, resolution_note: null, created_at: '2026-11-10T12:00:00Z', version: 1, session_uids: [], reassess_due: true }
 const rec = { operation: 'exception_review' as const, reason: 'Open findings at caution or hold need an exception review', finding_ids: ['f1'], prompt: EXCEPTION_PROMPT }
+const BM = { kind: 'time_trial' as const, event_id: null, protocol: '5 km solo time trial, flat loop', distance_m: 5000, planned_date: '2026-12-10', progress_if: 'Faster than 21:40', consolidate_if: 'Within 20 s of 21:40' }
+const activeBlock = (planned: string | null): BlockVersion => ({ id: 'v1', block_uid: 'b1', version: 1, status: 'active', objective: 'Build consistency', rationale: 'Keep the week repeatable', maintained_qualities: ['Easy endurance'], non_goals: ['Peak racing'], eligible_recipe_ids: ['REC001'], progression_dimension: 'duration', constraints: [{ kind: 'schedule', text: 'Keep strength days' }], start_date: '2026-11-01', review_date: '2026-12-13', completion_indicators: ['Tolerated weeks'], early_review_triggers: ['Symptoms increase'], objective_status: 'unresolved', created_at: '2026-11-01T12:00:00Z', proposal_id: 'p1', benchmark: planned ? { ...BM, planned_date: planned } : null, benchmark_status: { status: 'pending', match_method: null, activity_id: null, event_id: null, local_date: null, distance_m: null, result_s: null, rpe: null, scheduled_date: null, evidence_at: null } })
 
 const session = (id: string, day: string, overrides: Partial<SessionState> = {}): SessionState => ({
   id, session_uid: id, local_date: day, slot: 1, kind: 'run', recipe_id: 'REC001', custom: false,
@@ -24,12 +26,14 @@ let proposalItems: ProposalSummary[]
 let promptItems: unknown[]
 let calendar: CalendarView
 let exceptionsData: ExceptionsView
+let blockData: BlockVersion | null
 let error = false
 let requests: { url: string; method: string; body: unknown; headers: Headers }[]
 const onCheckin = vi.fn()
 const clients: QueryClient[] = []
 beforeEach(() => {
   exceptionsData = { rule_version: 'exceptions.v1', findings: [], patches: [], review_recommended: [], counts: { observe: 0, caution: 0, hold: 0, escalate: 0 } }
+  blockData = null
   proposalItems = []
   promptItems = [
       { id: 'p1', kind: 'rpe', activity_id: 'a1', session_uid: null, status: 'open' },
@@ -45,7 +49,8 @@ beforeEach(() => {
     const data = url.endsWith('/sync/status') ? { datasets: [], active_jobs: [] }
       : url.includes('/coach/proposals') ? { items: proposalItems }
       : url.endsWith('/calendar') ? calendar : url.endsWith('/prompts') ? { items: promptItems } : url.endsWith('/activities/a1') ? { id: 'a1', local_date: '2026-11-10', distance_m: 6437.376, sport: 'running' }
-      : url.includes('/exceptions') || url.includes('/exception-patches') ? exceptionsData : null
+      : url.includes('/exceptions') || url.includes('/exception-patches') ? exceptionsData
+      : url.includes('/blocks/active') ? blockData : null
     return { ok: true, status: 200, json: async () => ({ schema_version: 'v1', data_revision: 1, mode: 'demo', data }) }
   }))
 })
@@ -93,6 +98,27 @@ describe('training home', () => {
     const blockLine = await screen.findByTestId('block-line')
     expect(blockLine).toHaveTextContent('No active training block. Training block')
     expect(within(blockLine).getByRole('link', { name: 'Training block' })).toHaveAttribute('href', '#block')
+  })
+  it('shows the block benchmark line', async () => {
+    blockData = activeBlock('2026-11-14')
+    mount()
+    await screen.findByText(/Ends with/)
+    const line = screen.getByTestId('block-line')
+    expect(line).toHaveTextContent('Block: Build consistency · Ends with 5 km solo time trial, flat loop on Nov 14 (3 days) · Pending')
+    expect(line).not.toHaveTextContent('Pending · Nov 14')
+    expect(within(line).getByRole('link', { name: 'View training block' })).toHaveAttribute('href', '#block')
+  })
+  it('drops the day count on the benchmark day', async () => {
+    blockData = activeBlock('2026-11-11')
+    mount()
+    const line = await screen.findByTestId('block-line')
+    expect(line).toHaveTextContent('on Nov 11 · Pending')
+    expect(line).not.toHaveTextContent('days)')
+  })
+  it('asks for a benchmark when the block has none', async () => {
+    blockData = activeBlock(null)
+    mount()
+    expect(await screen.findByTestId('block-line')).toHaveTextContent('Block: Build consistency · No ending benchmark — run a block review')
   })
   it('shows setup without a calendar', async () => {
     calendar = { ...calendar, head: 0, sessions: [] }
