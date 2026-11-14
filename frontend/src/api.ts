@@ -207,6 +207,7 @@ export const qk = {
   activitiesNear: (start: string, end: string) => ['v2', 'activities', start, end, 'running', null] as const,
   coach: ['v2', 'coach'] as const,
   coachDaily: ['v2', 'coach', 'daily'] as const,
+  exceptions: ['v2', 'exceptions'] as const,
   goals: ['v2', 'goals'] as const,
   events: ['v2', 'events'] as const,
   anchors: ['v2', 'anchors'] as const,

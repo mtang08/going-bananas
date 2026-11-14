@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import guide from 'virtual:user-guide'
 import { CATEGORY_LABELS, LADDER_LABELS, SEVERITY_LABELS, operationLabel } from '../src/coachLabels'
-import { WEEKLY_PROMPT, racePrompt } from '../src/coachPrompts'
+import { BENCHMARK_PROMPT, WEEKLY_PROMPT, racePrompt } from '../src/coachPrompts'
 
 describe('coach labels and prompts', () => {
   it('label maps cover every enum value', () => {
@@ -39,5 +39,11 @@ describe('coach labels and prompts', () => {
 
   it('weekly prompt matches the user guide', () => {
     expect(guide.includes('> ' + WEEKLY_PROMPT)).toBe(true)
+  })
+
+  it('benchmark prompt matches the contract', () => {
+    expect(BENCHMARK_PROMPT).toBe(
+      'Use $going-bananas-coach for a block review. Review the block benchmark.',
+    )
   })
 })
