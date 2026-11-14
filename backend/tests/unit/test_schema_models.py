@@ -22,8 +22,8 @@ def test_single_chained_schema_head() -> None:
     script = ScriptDirectory.from_config(config)
     assert script.get_heads() == [EXPECTED_HEAD]
     revisions = [revision.revision for revision in script.walk_revisions()]
-    assert revisions[:8] == [
-        '0017_single_open_proposal', '0016_proposal_revisions', '0015_coach_v2', '0014_anchors_metrics_prompts', '0013_blocks_goals',
+    assert revisions[:9] == [
+        '0018_exception_findings', '0017_single_open_proposal', '0016_proposal_revisions', '0015_coach_v2', '0014_anchors_metrics_prompts', '0013_blocks_goals',
         '0012_calendar', '0011_checkins_v2', '0010_ingest_fit',
     ]
 

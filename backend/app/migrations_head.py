@@ -1,1 +1,1 @@
-EXPECTED_HEAD = '0017_single_open_proposal'
+EXPECTED_HEAD = '0018_exception_findings'

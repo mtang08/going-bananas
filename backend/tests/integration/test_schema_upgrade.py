@@ -26,7 +26,7 @@ from app.config import settings
 from app.db import get_session
 from app.main import app
 
-HEAD = '0017_single_open_proposal'
+HEAD = '0018_exception_findings'
 STAMP = datetime(2026, 11, 12, tzinfo=UTC)
 HEADERS = {'X-Local-Request': '1', 'Origin': 'http://testserver'}
 
