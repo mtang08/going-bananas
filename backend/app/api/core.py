@@ -3,42 +3,30 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
-from datetime import date as DateType
 from typing import Any, Literal, NoReturn
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import bump_data_revision, get_revision, get_session
 from app.domain.analytics import (
     RUN_SPORTS,
-    ActivityFact,
     pace_s_per_km,
     utc_date_bounds,
-    week_start,
 )
-from app.domain.cycle import opportunities, recurring_sessions, validate_acceptance
 from app.models import (
     Activity,
     ActivityAnnotation,
     ActivitySource,
     AppState,
-    CompletionLink,
     CoverageInterval,
-    ImportBatch,
-    ManualSession,
-    PlannedSession,
-    PlanVersion,
     ProfileVersion,
 )
-from app.services.coaching import run_intent
 from app.services.run_classification import RunObservation, classify_history
-from app.services.strength_history import strong_history
-from app.strong_models import StrongWorkoutRow
 
 router = APIRouter()
 
@@ -97,34 +85,6 @@ def coverage(session: Session, start: date, end: date) -> list[dict]:
              'reason': x.reason} for x in rows]
 
 
-def strength_coverage(session: Session, start: date, end: date) -> dict:
-    profile = current_profile(session)
-    source = (profile.preferences or {}).get('strength_source', 'unknown') if profile else 'unknown'
-    manual_count = session.scalar(select(func.count()).select_from(ManualSession).where(
-        ManualSession.kind == 'strength', ManualSession.date >= start, ManualSession.date <= end,
-        ManualSession.linked_activity_id.is_(None))) or 0
-    lo, hi = utc_date_bounds(start, end, tz(session))
-    imported_count = session.scalar(select(func.count()).select_from(Activity).where(
-        Activity.sport == 'strength', Activity.start_at >= lo, Activity.start_at < hi,
-        Activity.resolution_state == 'resolved')) or 0
-    strong = strong_history(session, start, end)
-    latest_strong = session.scalar(select(func.max(StrongWorkoutRow.local_date)))
-    if latest_strong is not None:
-        return {'source': 'strong', 'status': 'partial', 'reason': 'strong_export_snapshot',
-                'complete': False, 'observed_manual_count': manual_count,
-                'observed_imported_count': imported_count + strong['session_count'],
-                'observed_strong_count': strong['session_count'],
-                'latest_observation': latest_strong,
-                'message': 'Strong export connected; later workouts require another CSV import. Missing recordings do not mean missed lifting.'}
-    if source == 'strong':
-        return {'source': 'strong', 'status': 'unavailable', 'reason': 'strong_not_connected',
-                'complete': False, 'observed_manual_count': manual_count,
-                'observed_imported_count': imported_count}
-    return {'source': source, 'status': 'partial', 'reason': 'strength_source_unverified',
-            'complete': False, 'observed_manual_count': manual_count,
-            'observed_imported_count': imported_count}
-
-
 def annotation(session: Session, activity_id: uuid.UUID) -> ActivityAnnotation | None:
     return session.scalar(select(ActivityAnnotation).where(ActivityAnnotation.activity_id == activity_id)
                           .order_by(desc(ActivityAnnotation.version)).limit(1))
@@ -180,31 +140,6 @@ def activity_data(session: Session, a: Activity, detail: bool = False,
     return result
 
 
-def facts(session: Session, start: date, end: date) -> list[ActivityFact]:
-    lo, hi = utc_date_bounds(start, end, tz(session))
-    rows = session.scalars(select(Activity).where(Activity.start_at >= lo, Activity.start_at < hi)).all()
-    classifications = run_classifications(session, rows)
-    zone = ZoneInfo(tz(session))
-    result = [ActivityFact(id=str(a.id), local_date=a.start_at.astimezone(zone).date(), start_at=a.start_at, sport=a.sport,
-            distance_m=a.distance_m, elapsed_s=a.elapsed_s, moving_s=a.moving_s,
-            workout_label=(classifications[str(a.id)]['effective_label'] if str(a.id) in classifications
-                           else ann.workout_label if ann and ann.workout_label else a.source_workout_label),
-            excluded=ann.excluded if ann else False, resolution_state=a.resolution_state)
-            for a in rows for ann in [annotation(session, a.id)]]
-    manuals = session.scalars(select(ManualSession).where(ManualSession.date >= start, ManualSession.date <= end,
-                               ManualSession.linked_activity_id.is_(None))).all()
-    for m in manuals:
-        start_at = datetime.combine(m.date, m.time or datetime.min.time(), zone).astimezone(UTC)
-        result.append(ActivityFact(id=str(m.id), local_date=m.date, start_at=start_at, sport=m.kind,
-                                   elapsed_s=m.duration_s))
-    for item in strong_history(session, start, end)['sessions']:
-        local_start = datetime.fromisoformat(item['local_start']).replace(tzinfo=zone)
-        result.append(ActivityFact(id=item['id'], local_date=date.fromisoformat(item['date']),
-                                   start_at=local_start.astimezone(UTC), sport='strength',
-                                   elapsed_s=item['duration_s']))
-    return result
-
-
 class ProfileInput(BaseModel):
     expected_version: int = Field(ge=0)
     timezone: str = 'America/New_York'
@@ -254,20 +189,6 @@ class ProfileInput(BaseModel):
         if len(value) != len(set(value)) or any(d not in range(7) for d in value):
             raise ValueError('Weekdays must be unique integers 0..6')
         return value
-
-
-@router.get('/imports')
-def get_imports(session: Session = Depends(get_session)) -> dict:
-    rows = session.scalars(select(ImportBatch).where(ImportBatch.source_kind == 'garmin_export')
-                           .order_by(desc(ImportBatch.started_at)).limit(20)).all()
-    public_keys = {'archive_sha256', 'activities', 'recovery', 'datasets', 'preserved_only',
-                   'seen', 'new_revisions', 'changed', 'rejected', 'replayed'}
-    return envelope(session, {'items': [
-        {'id': row.id, 'source_kind': row.source_kind, 'status': row.status,
-         'started_at': row.started_at, 'finished_at': row.finished_at,
-         'adapter_version': row.adapter_version,
-         'counters': {key: value for key, value in (row.counters or {}).items() if key in public_keys}}
-        for row in rows]})
 
 
 @router.get('/profile')
@@ -343,157 +264,3 @@ def patch_annotation(activity_id: uuid.UUID, body: AnnotationInput, session: Ses
     bump_data_revision(session)
     session.commit()
     return envelope(session, activity_data(session, row, detail=True))
-
-
-class PlannedInput(BaseModel):
-    date: DateType
-    kind: Literal['run','strength','mobility','rehab','cross_training','other']
-    target: dict[str, Any] = Field(default_factory=dict)
-
-
-class PlanInput(BaseModel):
-    start_date: date
-    end_date: date
-    sessions: list[PlannedInput] = Field(max_length=366)
-
-    @model_validator(mode='after')
-    def valid_range(self) -> PlanInput:
-        if self.end_date < self.start_date or (self.end_date-self.start_date).days >= 366:
-            raise ValueError('Invalid plan date range')
-        if any(s.date < self.start_date or s.date > self.end_date for s in self.sessions):
-            raise ValueError('Session outside plan range')
-        return self
-
-
-class DecisionInput(BaseModel):
-    expected_version: int = Field(ge=1)
-    reason: str | None = Field(default=None, max_length=1000)
-
-
-def plan_data(session: Session, plan: PlanVersion) -> dict:
-    from app.agent_models import CoachPlanRevision
-    revision = session.scalar(select(CoachPlanRevision).where(CoachPlanRevision.plan_id == plan.id)
-                              .order_by(desc(CoachPlanRevision.created_at)).limit(1))
-    member_ids = revision.payload.get('active_session_ids', []) if revision else None
-    condition = (PlannedSession.id.in_([uuid.UUID(x) for x in member_ids])
-                 if member_ids is not None else PlannedSession.plan_id == plan.id)
-    sessions = session.scalars(select(PlannedSession).where(condition).order_by(PlannedSession.date)).all()
-    result = []
-    for item in sessions:
-        link = session.scalar(select(CompletionLink).where(CompletionLink.planned_session_id == item.id))
-        result.append({'id': item.id, 'date': item.date, 'kind': item.kind, 'target': item.target,
-                       'completion_link_id': link.id if link else None,
-                       'completion_activity_id': link.activity_id if link else None,
-                       'completion_manual_session_id': link.manual_session_id if link else None})
-    return {'id': plan.id, 'version': plan.version, 'status': plan.status, 'start_date': plan.start_date,
-            'end_date': plan.end_date, 'profile_version': plan.profile_version, 'sessions': result,
-            'created_at': plan.created_at, 'decided_at': plan.decided_at, 'reason': plan.reason,
-            'parent_id': plan.parent_id, 'agent_revision_id': revision.id if revision else None}
-
-
-@router.get('/plans')
-def get_plans(start_date: date | None = None, end_date: date | None = None,
-              session: Session = Depends(get_session)) -> dict:
-    start, end = date_window(session, start_date, end_date)
-    profile = current_profile(session)
-    plans = session.scalars(select(PlanVersion).where(PlanVersion.end_date >= start,
-                            PlanVersion.start_date <= end).order_by(desc(PlanVersion.created_at)).limit(100)).all()
-    anchor = profile.cycle_anchor if profile and profile.anchor_confirmed else None
-    accepted_ranges = [(p.start_date, p.end_date) for p in plans if p.status == 'accepted']
-    run_opportunities = [slot for slot in opportunities(start, end, anchor)
-                         if not any(first <= date.fromisoformat(slot['date']) <= last
-                                    for first, last in accepted_ranges)]
-    for slot in run_opportunities:
-        intent = run_intent({'profile': profile_data(profile)}, date.fromisoformat(slot['date']))
-        slot.update({'kind': 'run', 'source': 'run_cycle', 'intent': intent,
-                     'conditional': intent in {'quality', 'long'}, 'optional': False})
-    return envelope(session, {'items': [plan_data(session, p) for p in plans],
-                              'opportunities': run_opportunities, 'unscheduled': anchor is None,
-                              'recurring_sessions': recurring_sessions(
-                                  start, end, profile, accepted_ranges,
-                              ),
-                              'timezone': tz(session)})
-
-
-@router.post('/plans', status_code=201)
-def post_plan(body: PlanInput, session: Session = Depends(get_session)) -> dict:
-    from app.services.legacy_cutover import require_legacy_write
-    require_legacy_write(session)
-    profile = current_profile(session)
-    row = PlanVersion(start_date=body.start_date, end_date=body.end_date,
-                      profile_version=profile.version if profile else 0,
-                      anchor_date=profile.cycle_anchor if profile else None)
-    session.add(row)
-    session.flush()
-    for item in body.sessions:
-        session.add(PlannedSession(plan_id=row.id, **item.model_dump()))
-    bump_data_revision(session)
-    session.commit()
-    return envelope(session, plan_data(session, row))
-
-
-def decide_plan(plan_id: uuid.UUID, body: DecisionInput, status: str, session: Session) -> dict:
-    from app.services.legacy_cutover import require_legacy_write
-    require_legacy_write(session)
-    plan = session.get(PlanVersion, plan_id, with_for_update=True)
-    if not plan:
-        fail('not_found', 'Plan not found', 404)
-    if plan.version != body.expected_version:
-        fail('version_conflict', 'Plan changed; reload /api/v1/plans', 409)
-    if plan.status != 'draft':
-        fail('invalid_state', 'Only draft plans can be decided')
-    profile = current_profile(session)
-    if status == 'accepted':
-        if not profile or plan.profile_version != profile.version or plan.anchor_date != profile.cycle_anchor:
-            fail('profile_changed', 'Profile changed; create a new draft', 409)
-        accepted = session.scalars(select(PlanVersion).where(PlanVersion.status == 'accepted',
-                    PlanVersion.end_date >= plan.start_date, PlanVersion.start_date <= plan.end_date)).all()
-        if any(old.start_date != plan.start_date or old.end_date != plan.end_date for old in accepted):
-            fail('overlapping_plan', 'Replacement must cover the exact accepted date range')
-        items = session.scalars(select(PlannedSession).where(PlannedSession.plan_id == plan.id)).all()
-        errors = validate_acceptance(plan.start_date, plan.end_date,
-                                     [{'date': x.date.isoformat(), 'kind': x.kind} for x in items],
-                                     plan.anchor_date, bool(profile and profile.anchor_confirmed),
-                                     bool(profile and profile.strength_days_confirmed))
-        # Count strength in complete Monday-Sunday weeks even when the draft
-        # starts or ends midweek. Adjacent accepted sessions outside this draft
-        # supply the other part of a boundary week.
-        first_week = week_start(plan.start_date)
-        last_week = week_start(plan.end_date)
-        adjacent_plans = session.scalars(select(PlanVersion).where(PlanVersion.status == 'accepted',
-                          PlanVersion.end_date >= first_week, PlanVersion.start_date <= last_week)).all()
-        adjacent_ids = [p.id for p in adjacent_plans]
-        adjacent = session.scalars(select(PlannedSession).where(PlannedSession.plan_id.in_(adjacent_ids),
-                    PlannedSession.date >= first_week, PlannedSession.date <= last_week+timedelta(days=6),
-                    PlannedSession.kind == 'strength')).all() if adjacent_ids else []
-        cursor = first_week
-        while cursor <= last_week:
-            week_end = cursor+timedelta(days=6)
-            count = sum(x.kind == 'strength' and cursor <= x.date <= week_end for x in items)
-            count += sum(cursor <= x.date <= week_end and (x.date < plan.start_date or x.date > plan.end_date)
-                         for x in adjacent)
-            if count != 2 and f'Expected two strength sessions in week {cursor.isoformat()}' not in errors:
-                errors.append(f'Expected two strength sessions in week {cursor.isoformat()}')
-            cursor += timedelta(days=7)
-        if errors:
-            fail('plan_invalid', '; '.join(errors))
-        for old in accepted:
-            old.status = 'superseded'
-            old.version += 1
-    plan.status = status
-    plan.version += 1
-    plan.decided_at = datetime.now(UTC)
-    plan.reason = body.reason
-    bump_data_revision(session)
-    session.commit()
-    return envelope(session, plan_data(session, plan))
-
-
-@router.post('/plans/{plan_id}/accept')
-def accept_plan(plan_id: uuid.UUID, body: DecisionInput, session: Session = Depends(get_session)) -> dict:
-    return decide_plan(plan_id, body, 'accepted', session)
-
-
-@router.post('/plans/{plan_id}/reject')
-def reject_plan(plan_id: uuid.UUID, body: DecisionInput, session: Session = Depends(get_session)) -> dict:
-    return decide_plan(plan_id, body, 'rejected', session)
