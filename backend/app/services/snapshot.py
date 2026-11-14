@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from app.api.core import coverage
@@ -26,6 +26,7 @@ from app.models import Activity, AppState, ProfileVersion
 from app.planning_models import BlockDecision, BlockVersion, Event, Goal, IntensityAnchor, StrengthRoutineSlot
 from app.services.calendar import state_at
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
+from app.services.exceptions.vocab import NON_TERMINAL_FINDING
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection
 from app.services.operations import OPERATIONS
 from app.services.proposals import DecisionError, derive_certainty, is_quality_slot, scope
@@ -406,15 +407,14 @@ def _prior_decisions(inputs: SnapshotInputs, operation: str) -> list[dict]:
         ]
     proposals = sorted(inputs.proposals, key=lambda p: str(p.get("submitted_at")), reverse=True)
     if operation in {ROLLING, QUALITY_OP}:
-        proposals = [
-            p
-            for p in proposals
-            if p.get("operation") == ROLLING and p.get("status") in {"accepted", "partially_accepted", "rejected"}
-        ][:2]
+        decided = {"accepted", "partially_accepted", "rejected"}
+        proposals = [p for p in proposals if p.get("operation") == ROLLING and p.get("status") in decided][:2] + [
+            p for p in proposals if p.get("operation") == EXCEPTION and p.get("status") in decided][:3]
     else:
         proposals = proposals[:3]
     result = []
     completions = {str(c["session_uid"]): c for c in inputs.completions}
+    patch_status = {str(p["proposal_id"]): p["status"] for p in inputs.exception_patches}
     for proposal in proposals:
         view = _view(
             proposal, ("proposal_id", "operation", "status", "submitted_at", "decided_at", "summary", "follow_up")
@@ -443,6 +443,8 @@ def _prior_decisions(inputs: SnapshotInputs, operation: str) -> list[dict]:
                     }
             changes.append(item)
         view["changes"] = changes
+        if proposal.get("operation") == EXCEPTION:
+            view["patch_status"] = patch_status.get(str(proposal.get("proposal_id")))
         result.append(view)
     return result
 
@@ -1005,6 +1007,20 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
             select(Event).where(Event.event_date >= as_of - timedelta(days=28)).order_by(Event.event_date, Event.id)
         )
     ]
+    from app.exception_models import ExceptionFinding, ExceptionPatch
+    from app.services.exceptions.detector import finding_data, last_review_at, patch_data, review_recommended
+
+    last_review = last_review_at(session)
+    exception_findings = [finding_data(row, last_review) for row in session.scalars(
+        select(ExceptionFinding)
+        .where(or_(ExceptionFinding.status.in_(NON_TERMINAL_FINDING),
+                   ExceptionFinding.first_seen_at >= now - timedelta(days=SUMMARY_DAYS)))
+        .order_by(ExceptionFinding.first_seen_at.desc(), ExceptionFinding.id))]
+    exception_patches = [patch_data(session, row, as_of) for row in session.scalars(
+        select(ExceptionPatch)
+        .where(or_(ExceptionPatch.status.in_(LIVE_PATCH),
+                   ExceptionPatch.window_end >= as_of - timedelta(days=SUMMARY_DAYS - 1)))
+        .order_by(ExceptionPatch.created_at.desc(), ExceptionPatch.id))]
     return SnapshotInputs(
         as_of,
         now,
@@ -1030,6 +1046,9 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         anchors,
         proposals,
         coverage(session, first, as_of),
+        exception_findings=exception_findings,
+        exception_patches=exception_patches,
+        review_recommended=[r.to_wire() for r in review_recommended(session, as_of)],
     )
 
 
@@ -1049,6 +1068,10 @@ def build_snapshot(
         if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, EXCEPTION, POST_EVENT}:
             days = {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28, EXCEPTION: 3, POST_EVENT: 14}[operation]
             ensure_nights(session, as_of - timedelta(days=days - 1), as_of)
+        if operation in {EXCEPTION, POST_EVENT, ROLLING, BLOCK}:
+            from app.services.exceptions.detector import run_detection
+
+            run_detection(session, now)
         inputs = load_inputs(session, as_of, now=now)
         payload = build_payload(inputs, operation)
         bundle = load_route(

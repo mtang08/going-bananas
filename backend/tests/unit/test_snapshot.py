@@ -77,6 +77,52 @@ def minimal() -> SnapshotInputs:
         strength_slots=[slot],
     )
 
+def finding(n: int, *, rule: str = "FATIGUE_HIGH", severity: str = "observe", status: str = "open",
+            days_ago: int = 0, entity: str = "fatigue", evidence: int = 8) -> dict:
+    seen = NOW - timedelta(days=days_ago, minutes=n)
+    return {
+        "id": f"f{n}",
+        "rule_code": rule,
+        "category": "accumulated_fatigue",
+        "severity": severity,
+        "status": status,
+        "entity_key": entity,
+        "summary": "s",
+        "evidence": [{"type": "checkin", "id": str(i), "at": NOW.isoformat(), "detail": {}} for i in range(evidence)],
+        "evidence_at": seen,
+        "first_seen_at": seen,
+        "last_seen_at": seen,
+        "patch_id": None,
+        "version": 1,
+        "is_new_since_last_review": True,
+    }
+
+
+def patch(n: int, *, status: str = "open", proposal_id: str = "p1") -> dict:
+    return {
+        "id": f"x{n}",
+        "proposal_id": proposal_id,
+        "calendar_version_number": 7,
+        "category": "accumulated_fatigue",
+        "severity": "caution",
+        "ladder_level": "next_days",
+        "window_start": AS_OF,
+        "window_end": AS_OF + timedelta(days=2),
+        "reassess_on": AS_OF + timedelta(days=3),
+        "monitor": ["Fatigue"],
+        "return_criteria": ["Usual fatigue"],
+        "escalate_criteria": ["Rising fatigue"],
+        "unchanged": [],
+        "status": status,
+        "resolved_at": None,
+        "resolved_by": None,
+        "resolution_note": None,
+        "created_at": NOW - timedelta(hours=n),
+        "version": 1,
+        "session_uids": ["s1", "s2"],
+        "reassess_due": False,
+    }
+
 
 def test_daily_route_minimal_c26() -> None:
     source = minimal()
@@ -582,3 +628,21 @@ def test_session_view_modification_reason() -> None:
                   "activity_id": None, "strong_workout_id": None}
     payload = build_payload(inputs(sessions=[row], completions=[completion]), ROLLING)
     assert payload["calendar"]["sessions"][0]["modification_reason"] == "fatigue"
+
+
+def test_prior_decisions_include_exception_reviews() -> None:
+    def proposal(pid: str, operation: str, hours: int, status: str = "accepted") -> dict:
+        return {"proposal_id": pid, "operation": operation, "status": status,
+                "submitted_at": NOW - timedelta(hours=hours),
+                "decided_at": None if status == "pending" else NOW - timedelta(hours=hours),
+                "summary": pid, "follow_up": None, "changes": []}
+
+    proposals = [proposal(f"p_r{i}", ROLLING, 100 + i) for i in range(3)]
+    proposals += [proposal(f"p_e{i}", EXCEPTION, 10 + i) for i in range(4)]
+    proposals.append(proposal("p_pending", EXCEPTION, 1, "pending"))
+    source = inputs(proposals=proposals, exception_patches=[patch(0, proposal_id="p_e0")])
+    prior = build_payload(source, ROLLING)["prior_decisions"]
+    assert [p["operation"] for p in prior] == [ROLLING, ROLLING, EXCEPTION, EXCEPTION, EXCEPTION]
+    assert [p["proposal_id"] for p in prior] == ["p_r0", "p_r1", "p_e0", "p_e1", "p_e2"]
+    assert prior[2]["patch_status"] == "open"
+    assert prior[3]["patch_status"] is None
