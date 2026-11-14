@@ -15,12 +15,14 @@ let requests: {
   headers: Headers
 }[]
 let failPosts: number, completed: boolean
+let failFindings = false
 let errorStatus = 500
 const close = vi.fn()
 const clients: QueryClient[] = []
 beforeEach(() => {
   checkinExceptions = { new_finding_ids: ['f1'], review_recommended: [rec] }
   requests = []
+  failFindings = false
   failPosts = 0
   completed = false
   errorStatus = 500
@@ -36,6 +38,8 @@ beforeEach(() => {
         body: init?.body ? JSON.parse(String(init.body)) : null,
         headers: new Headers(init?.headers),
       })
+      if (method === 'GET' && url === '/api/v1/exceptions' && failFindings)
+        return { ok: false, status: 500, json: async () => ({ error: { code: 'request_failed', message: 'Findings unavailable' } }) }
       if (method === 'POST' && failPosts-- > 0)
         return {
           ok: false,
@@ -344,4 +348,28 @@ it('exception check-in without findings is logged for Sunday', async () => {
   expect(await screen.findByText('Logged for your Sunday review')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Copy prompt' })).toBeNull()
   expect(requests.some(r => r.method === 'GET' && r.url === '/api/v1/exceptions')).toBe(false)
+})
+
+it('retries findings after a saved check-in without saving again', async () => {
+  failFindings = true
+  mount()
+  change('Fatigue (0–10)', '7')
+  fireEvent.click(screen.getByRole('button', { name: 'Save check-in' }))
+  expect(await screen.findByText(/Check-in saved, but findings could not load/)).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Check-in saved' })).toBeInTheDocument()
+  expect(screen.getByText(rec.reason)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Copy prompt' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Save check-in' })).toBeNull()
+  expect(close).not.toHaveBeenCalled()
+  expect(posts()).toHaveLength(1)
+  const saved = posts()[0].body
+  failFindings = false
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+  expect(await screen.findByText('Fatigue 7 today.')).toBeInTheDocument()
+  expect(screen.queryByText(/Check-in saved, but findings could not load/)).toBeNull()
+  expect(requests.filter(r => r.method === 'GET' && r.url === '/api/v1/exceptions')).toHaveLength(2)
+  expect(posts()).toHaveLength(1)
+  expect(posts()[0].body).toEqual(saved)
+  expect(saved?.idempotency_key).toBeTruthy()
+  expect(screen.getByText(rec.reason)).toBeInTheDocument()
 })

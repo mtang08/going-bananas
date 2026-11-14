@@ -320,6 +320,17 @@ export function CheckinModalV2({
           <h3>Check-in saved</h3>
           {newIds.length === 0 ? (
             <p>Logged for your Sunday review</p>
+          ) : exceptions.error ? (
+            <div className="notice error" role="alert">
+              <p>Check-in saved, but findings could not load. {exceptions.error.message}</p>
+              <Button
+                variant="outline"
+                disabled={exceptions.isFetching}
+                onClick={() => void exceptions.refetch()}
+              >
+                Retry
+              </Button>
+            </div>
           ) : exceptions.isPending ? (
             <p role="status">Loading findings…</p>
           ) : (
