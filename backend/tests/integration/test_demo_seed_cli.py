@@ -5,7 +5,7 @@ import argparse
 import json
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,6 +21,7 @@ from app.calendar_models import CalendarSessionRevision, CalendarVersion
 from app.config import settings
 from app.migrations_head import EXPECTED_HEAD
 from app.models import Activity, AppState, ProfileVersion
+from app.services.calendar import state_at
 
 
 @pytest.fixture
@@ -54,7 +55,10 @@ def demo_cli(monkeypatch, tmp_path):
         engine.dispose()
 
 
-def test_calendar_preview_initializes_fresh_migrated_database(demo_cli, capsys):
+@pytest.mark.parametrize('weekday', range(7))
+def test_calendar_preview_initializes_fresh_migrated_database(demo_cli, capsys, monkeypatch, weekday):
+    today = date(2026, 11, 9) + timedelta(days=weekday)
+    monkeypatch.setattr(cli, 'local_date', lambda instant, zone: today)
     with demo_cli() as session:
         state = session.get(AppState, 1)
         assert (state.planning_authority, state.calendar_head_version, state.data_revision) == ('legacy', 0, 0)
@@ -67,6 +71,16 @@ def test_calendar_preview_initializes_fresh_migrated_database(demo_cli, capsys):
         first = session.scalar(select(CalendarVersion).where(CalendarVersion.number == 1))
         assert first.kind == 'bootstrap'
         assert session.scalar(select(func.count()).select_from(CalendarSessionRevision)) > 0
+        rows = state_at(session, state.calendar_head_version)
+        historical = next(row for row in rows if row['kind'] == 'run'
+                          and row['local_date'] == today - timedelta(days=2))
+        assert historical['recipe_id'] == 'REC002'
+        long_days = [row['local_date'] for row in rows if row['recipe_id'] == 'REC002']
+        long_weeks = [day - timedelta(days=day.weekday()) for day in long_days]
+        assert len(long_weeks) == len(set(long_weeks))
+        current = next(row for row in rows if row['kind'] == 'run' and row['local_date'] == today)
+        if weekday in {5, 6}:
+            assert current['recipe_id'] == 'REC001'
 
 
 @pytest.mark.parametrize('existing', ['profile', 'activity'])
