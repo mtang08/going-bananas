@@ -167,6 +167,17 @@ def exception_doc(**overrides) -> dict:
     return doc
 
 
+def exc_ctx(op: str = "exception_review") -> ValidationContext:
+    return replace(context(op), findings={U(300): "open", U(301): "dismissed"},
+                   patches={U(400): "open", U(401): "resolved"},
+                   events={U(500): ("completed", date(2026, 11, 14)), U(501): ("cancelled", date(2026, 11, 13))})
+
+
+EVENT = {"event_id": str(U(500)), "activity_id": None, "pacing": "Even", "effort_and_limiter": "RPE 9, breathing",
+         "conditions": None, "symptoms": None, "recovery_observation": "Normal walking", "recalibration": "defer",
+         "training_implication": "Easy until fresh"}
+
+
 def test_valid_rolling_proposal_is_pending() -> None:
     assert outcome(valid_doc()) == ("pending", [])
     doc = valid_doc()
@@ -545,3 +556,57 @@ def test_old_payload_without_new_fields_still_parses() -> None:
     result = validate_document(valid_doc(), context())
     assert result.doc is not None
     assert result.doc.exception is None and result.doc.event_review is None and result.doc.patch_resolutions == []
+
+
+def test_exception_doc_is_pending() -> None:
+    assert outcome(exception_doc(), exc_ctx()) == ("pending", [])
+
+
+def test_v16_exception_required_and_forbidden() -> None:
+    doc = exception_doc()
+    del doc["exception"]
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V16.exception_required", "exception")])
+    doc = valid_doc()
+    doc["exception"] = exception_block()
+    assert outcome(doc, exc_ctx("review_rolling_plan")) == ("invalid", [("V16.exception_forbidden", "exception")])
+
+
+def test_v17_window_out_of_scope() -> None:
+    doc = exception_doc(severity="hold", ladder_level="committed_window",
+                        patch_window={"start": "2026-11-15", "end": "2026-11-18"})
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V17.window_out_of_scope", "exception.patch_window")])
+
+
+def test_v17_window_too_long() -> None:
+    doc = exception_doc(patch_window={"start": "2026-11-16", "end": "2026-11-19"})
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V17.window_too_long", "exception.patch_window")])
+
+
+def test_v17_change_outside_window() -> None:
+    doc = exception_doc(patch_window={"start": "2026-11-16", "end": "2026-11-17"})
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V17.change_outside_window", "changes.0")])
+
+
+def test_v17_reassess_out_of_range() -> None:
+    doc = exception_doc(reassess_on="2026-11-24")
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V17.reassess_out_of_range", "exception.reassess_on")])
+
+
+def test_v9_exception_review_cannot_move_strength() -> None:
+    doc = exception_doc()
+    doc["changes"] = [change("c1", "move", 11, {"local_date": "2026-11-17"}, ["strength_move"])]
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V9.daily_strength_move", "changes.0")])
+
+
+def test_v9_exception_review_cannot_add_strength() -> None:
+    doc = exception_doc()
+    doc["changes"] = [change("c1", "add", None, {"local_date": "2026-11-17", "kind": "strength", "intent": "Full body"})]
+    assert outcome(doc, exc_ctx()) == ("invalid", [("V9.daily_strength_change", "changes.0")])
+
+
+def test_subset_skips_exception_rules() -> None:
+    doc = exception_doc(ladder_level="current_session")
+    ctx = exc_ctx()
+    result = validate_document(doc, ctx)
+    assert (result.status, result.issues) == ("pending", [])
+    assert validate_subset(result.doc, set(), False, set(), replace(ctx, findings={})) == []

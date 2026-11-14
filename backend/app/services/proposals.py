@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import date, datetime, timedelta
 from typing import Annotated, Any, Literal, cast
 from zoneinfo import ZoneInfo
@@ -330,6 +331,9 @@ class ValidationContext:
     current_source_fingerprint: str
     current_kb_digest: str
     kb: VerifiedKnowledge
+    findings: dict[uuid.UUID, str] = dataclass_field(default_factory=dict)
+    patches: dict[uuid.UUID, str] = dataclass_field(default_factory=dict)
+    events: dict[uuid.UUID, tuple[str, date]] = dataclass_field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -407,7 +411,34 @@ def _resulting(doc: ProposalDoc, ctx: ValidationContext) -> dict[str, dict]:
     return state
 
 
-def _rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    exc = doc.exception
+    last = ctx.today + timedelta(days=6)
+    if doc.operation == "exception_review" and exc is None:
+        issues.append(_issue("V16.exception_required", "exception"))
+    if doc.operation != "exception_review" and exc is not None:
+        issues.append(_issue("V16.exception_forbidden", "exception"))
+    if doc.operation == "exception_review" and exc is not None:
+        window = exc.patch_window
+        length = (window.end - window.start).days + 1
+        if not ctx.today <= window.start <= window.end <= last:
+            issues.append(_issue("V17.window_out_of_scope", "exception.patch_window"))
+        if length > (3 if exc.severity in {"observe", "caution"} else 7):
+            issues.append(_issue("V17.window_too_long", "exception.patch_window"))
+        for i, change in enumerate(doc.changes):
+            head = ctx.head_sessions.get(change.session_uid) if change.session_uid else None
+            days = [head.local_date] if head else []
+            if change.after is not None and change.after.local_date is not None:
+                days.append(change.after.local_date)
+            if any(not window.start <= day <= window.end for day in days):
+                issues.append(_issue("V17.change_outside_window", f"changes.{i}"))
+        if not ctx.today <= exc.reassess_on <= ctx.today + timedelta(days=7):
+            issues.append(_issue("V17.reassess_out_of_range", "exception.reassess_on"))
+    return issues
+
+
+def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool = True) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     start, end = scope(doc.operation, ctx.today)
     state = _resulting(doc, ctx)
@@ -478,11 +509,11 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
         ):
             issues.append(_issue("V8.off_cycle", path))
         if head and head.kind == "strength" and change.op == "move":
-            if doc.operation == "proceed_or_modify_today":
+            if doc.operation in NO_STRENGTH_EDIT_OPS:
                 issues.append(_issue("V9.daily_strength_move", path))
             elif "strength_move" not in change.material_flags:
                 issues.append(_issue("V9.strength_move_flag", path))
-        if doc.operation == "proceed_or_modify_today" and (
+        if doc.operation in NO_STRENGTH_EDIT_OPS and (
             (change.op in {"add", "delete"} and result.get("kind") == "strength")
             or (change.op == "modify" and head and (head.kind == "strength") != (result.get("kind") == "strength"))
         ):
@@ -590,7 +621,7 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
                     issues.append(
                         _issue("V13.block_change_invalid", f"block_change.version_fields.eligible_recipe_ids.{j}")
                     )
-    if doc.anchor_changes and doc.operation != "recalibrate_intensity":
+    if doc.anchor_changes and not _anchors_allowed(doc):
         issues.append(_issue("V14.anchor_change_not_allowed", "anchor_changes"))
     anchor_keys: set[str] = set()
     for j, anchor in enumerate(doc.anchor_changes):
@@ -608,6 +639,8 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
         if key in anchor_keys:
             issues.append(_issue("V14.anchor_invalid", f"{path}.kind"))
         anchor_keys.add(key)
+    if exception_checks:
+        issues.extend(_exception_rules(doc, ctx))
     return issues
 
 
@@ -655,8 +688,8 @@ def validate_subset(
             "anchor_changes": [item for item in doc.anchor_changes if anchor_key(item, ctx.tz) in accepted_anchor_keys],
         }
     )
-    issues = _rules(selected, ctx)
-    if doc.operation == "recalibrate_intensity":
+    issues = _rules(selected, ctx, exception_checks=False)
+    if _anchors_allowed(doc):
         proposed: dict[str, set[str]] = {"hr": set(), "speed": set()}
         for anchor in doc.anchor_changes:
             modality = "hr" if anchor.kind.startswith("hr_") else "speed"
@@ -781,7 +814,9 @@ def load_context(
     session: Session, snapshot_id: uuid.UUID, *, now: datetime, kb: VerifiedKnowledge
 ) -> ValidationContext:
     from app.coach_v2_models import CoachSnapshot
+    from app.exception_models import ExceptionFinding, ExceptionPatch
     from app.models import AppState, ProfileVersion
+    from app.planning_models import Event
     from app.services.calendar import state_at
     from app.services.timezone import athlete_tz
 
@@ -833,6 +868,9 @@ def load_context(
         str(inputs["source_fingerprint"]),
         kb.digest,
         kb,
+        findings={fid: status for fid, status in session.execute(select(ExceptionFinding.id, ExceptionFinding.status))},
+        patches={pid: status for pid, status in session.execute(select(ExceptionPatch.id, ExceptionPatch.status))},
+        events={eid: (status, day) for eid, status, day in session.execute(select(Event.id, Event.status, Event.event_date))},
     )
 
 
