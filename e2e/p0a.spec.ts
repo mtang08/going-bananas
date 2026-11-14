@@ -113,6 +113,7 @@ test('p0a: trends explicit missing', async ({ page, request }) => {
     const row = page.locator(`[data-testid="recovery-night"][data-date="${day(calendar.today,offset)}"]`)
     await expect(row).toHaveClass(/missing/)
   }
+  await page.getByTestId('trends-not-assessable').locator('summary').click()
   await expect(page.getByText(/No anchor/).first()).toBeVisible()
 })
 
