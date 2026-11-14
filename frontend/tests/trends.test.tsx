@@ -118,6 +118,35 @@ function mount() {
 }
 
 describe('Trends', () => {
+  it('collapses only panels that are not yet assessable', async () => {
+    mount()
+    const disclosure = await screen.findByTestId('trends-not-assessable')
+    expect(disclosure).not.toHaveAttribute('open')
+    expect(disclosure.querySelector('summary')).toHaveTextContent('Not yet assessable (1)')
+    expect(screen.getByTestId('trend-intensity').closest('details')).toBe(disclosure)
+    for (const id of ['trend-long-run', 'trend-srpe', 'trend-spacing', 'trend-volume', 'trend-recovery'])
+      expect(screen.getByTestId(id).closest('details')).toBeNull()
+  })
+  it('moves missing window results into the disclosure', async () => {
+    mount(); await screen.findByText('10.0 mi')
+    fireEvent.click(screen.getByRole('button', { name: '7 days' }))
+    const disclosure = screen.getByTestId('trends-not-assessable')
+    expect(disclosure.querySelector('summary')).toHaveTextContent('Not yet assessable (3)')
+    expect(screen.getByText('Volume: missing').closest('details')).toBeNull()
+    expect(screen.getByText('Session RPE load: missing').closest('details')).toBe(disclosure)
+  })
+  it('shows intensity in the grid once a zone is available', async () => {
+    windowData = { ...windows, windows: windows.windows.map(window => window.days !== 28 ? window : {
+      ...window, intensity: metric<IntensityValue>('time_in_intensity', {
+        hr: { ...zone, status: 'available', reason_codes: [], easy_s: 5400,
+          moderate_s: 600, high_s: 0, unknown_s: 60, coverage: .95, confidence: 'moderate' },
+        speed: zone,
+      }),
+    }) }
+    mount(); await screen.findByTestId('trend-intensity')
+    expect(screen.getByTestId('trend-intensity').closest('details')).toBeNull()
+    expect(screen.queryByTestId('trends-not-assessable')).toBeNull()
+  })
   it('shows 28-day volume without extrapolating missing values', async () => {
     mount()
     expect(await screen.findByText('10.0 mi')).toBeInTheDocument()

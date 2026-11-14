@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   CartesianGrid,
@@ -293,6 +293,11 @@ function Recovery({ nights }: { nights: RecoveryNight[] }) {
     </>
   )
 }
+const assessable = <V,>(result: MetricResult<V> | null): boolean =>
+  result !== null && result.value !== null
+const zoneShown = (zone: ZoneDistribution) =>
+  zone.status === 'available' || zone.status === 'partial'
+
 export function Trends({ unit }: { unit: Unit }) {
   const [days, setDays] = useState<WindowMetrics['days']>(28)
   const windows = useQuery({
@@ -314,6 +319,130 @@ export function Trends({ unit }: { unit: Unit }) {
   const srpe = selected?.srpe ?? null
   const intensity = selected?.intensity ?? null
   const spacing = data?.spacing ?? null
+  const longRunCard = (
+    <Card data-testid="trend-long-run">
+      <h2>Long-run exposure</h2>
+      {missingResult('Long-run exposure', longRun) ??
+        (longRun?.value && (
+          <>
+            {longRun.value.latest ? (
+              <>
+                <p>
+                  Latest long run {dateLabel(longRun.value.latest.local_date)} ·{' '}
+                  {fmtDuration(longRun.value.latest.timer_s)} ·{' '}
+                  {fmtDistance(longRun.value.latest.distance_m, unit)}
+                </p>
+                <p>
+                  Vs recent max: duration{' '}
+                  {fmtPercent(longRun.value.latest.duration_ratio_to_recent_max)} · distance{' '}
+                  {fmtPercent(longRun.value.latest.distance_ratio_to_recent_max)}
+                </p>
+                <p>
+                  Share of 7-day running: {fmtPercent(longRun.value.latest.weekly_share_duration)}
+                </p>
+                <p>
+                  Classified from {SOURCE[longRun.value.latest.classification_source]} (
+                  {longRun.value.latest.classification_confidence} confidence)
+                </p>
+                <p>Delayed symptoms: {DELAYED[longRun.value.latest.delayed_symptom_status]}</p>
+              </>
+            ) : (
+              <p>
+                {longRun.status === 'partial'
+                  ? 'No confirmed long run in available data.'
+                  : 'No long run in this window.'}
+              </p>
+            )}
+            <p>
+              {longRun.value.long_run_count} long{' '}
+              {longRun.value.long_run_count === 1 ? 'run' : 'runs'} in {days} days
+              {longRun.status === 'partial' ? ' (partial)' : ''}
+            </p>
+          </>
+        ))}
+      {coverage(longRun)}
+      {partialContext(longRun)}
+    </Card>
+  )
+  const srpeCard = (
+    <Card data-testid="trend-srpe">
+      <h2>Session RPE load</h2>
+      {missingResult('Session RPE load', srpe) ??
+        (srpe?.value && (
+          <>
+            <strong>
+              {srpe.value.load_au == null ? MISSING : `${Math.round(srpe.value.load_au)} AU`}
+            </strong>
+            <p>
+              RPE on {srpe.value.sessions_with_rpe} of {srpe.value.sessions_total} runs
+            </p>
+            <p>Duration coverage {fmtPercent(srpe.value.coverage_duration)}</p>
+            <small>Runs without RPE are left out, not estimated.</small>
+          </>
+        ))}
+      {coverage(srpe)}
+      {partialContext(srpe)}
+    </Card>
+  )
+  const intensityCard = (
+    <Card data-testid="trend-intensity">
+      <h2>Intensity time</h2>
+      {missingResult('Intensity', intensity) ??
+        (intensity?.value && (
+          <>
+            <IntensityBar zone={intensity.value.hr} label="Heart rate" />
+            <IntensityBar zone={intensity.value.speed} label="Pace" />
+          </>
+        ))}
+      {coverage(intensity)}
+      {partialContext(intensity)}
+    </Card>
+  )
+  const spacingCard = (
+    <Card data-testid="trend-spacing">
+      <h2>Hard-session spacing</h2>
+      <small>Rolling 14-day calendar</small>
+      {missingResult('Hard-session spacing', spacing) ??
+        (spacing?.value &&
+          (spacing.value.sequence.length === 0 ? (
+            <p>No hard sessions in the 14-day calendar.</p>
+          ) : (
+            <>
+              <ol>
+                {spacing.value.sequence.map((exposure, index) => (
+                  <li key={exposure.subject_key + ':' + index}>
+                    {dateLabel(exposure.local_date)} ·{' '}
+                    {exposure.classes.map((kind) => CLASS[kind]).join(' + ')}
+                  </li>
+                ))}
+              </ol>
+              <ul>
+                {spacing.value.gaps.map((gap, index) => (
+                  <li key={gap.from_date + ':' + gap.to_date + ':' + index}>
+                    {CLASS[gap.from_class]} → {CLASS[gap.to_class]}:{' '}
+                    {hours(gap.hours_min, gap.hours_max)}
+                    {gap.confidence === 'low' ? ' (low confidence)' : ''}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )))}
+      {coverage(spacing)}
+      {partialContext(spacing)}
+    </Card>
+  )
+  const panels = [
+    { key: 'long-run', ok: assessable(longRun), node: longRunCard },
+    { key: 'srpe', ok: assessable(srpe), node: srpeCard },
+    {
+      key: 'intensity',
+      ok: assessable(intensity) && [intensity!.value!.hr, intensity!.value!.speed].some(zoneShown),
+      node: intensityCard,
+    },
+    { key: 'spacing', ok: assessable(spacing), node: spacingCard },
+  ]
+  const shown = panels.filter((panel) => panel.ok)
+  const deferred = panels.filter((panel) => !panel.ok)
   return (
     <section className="page-content">
       <div className="page-heading">
@@ -344,137 +473,47 @@ export function Trends({ unit }: { unit: Unit }) {
         retry={() => void windows.refetch()}
       >
         {data && (
-          <div className="trend-grid">
-            <Card data-testid="trend-volume">
-              <h2>Running volume</h2>
-              {missingResult('Volume', volume) ??
-                (volume?.value && (
-                  <>
-                    <strong>{fmtDistance(volume.value.distance_m, unit)}</strong>
-                    <p>
-                      {volume.value.run_count} {volume.value.run_count === 1 ? 'run' : 'runs'} ·{' '}
-                      {fmtDuration(volume.value.timer_duration_s)} timer time
-                    </p>
-                    <p>
-                      {volume.value.previous
-                        ? `Previous ${days} days${volume.value.previous.coverage_complete ? '' : ' (incomplete)'}: ${fmtDistance(volume.value.previous.distance_m, unit)} · ${volume.value.previous.run_count} ${volume.value.previous.run_count === 1 ? 'run' : 'runs'}`
-                        : 'Previous window: missing'}
-                    </p>
-                  </>
-                ))}
-              {coverage(volume)}
-              {partialContext(volume)}
-            </Card>
-            <Card data-testid="trend-long-run">
-              <h2>Long-run exposure</h2>
-              {missingResult('Long-run exposure', longRun) ??
-                (longRun?.value && (
-                  <>
-                    {longRun.value.latest ? (
-                      <>
-                        <p>
-                          Latest long run {dateLabel(longRun.value.latest.local_date)} ·{' '}
-                          {fmtDuration(longRun.value.latest.timer_s)} ·{' '}
-                          {fmtDistance(longRun.value.latest.distance_m, unit)}
-                        </p>
-                        <p>
-                          Vs recent max: duration{' '}
-                          {fmtPercent(longRun.value.latest.duration_ratio_to_recent_max)} · distance{' '}
-                          {fmtPercent(longRun.value.latest.distance_ratio_to_recent_max)}
-                        </p>
-                        <p>
-                          Share of 7-day running:{' '}
-                          {fmtPercent(longRun.value.latest.weekly_share_duration)}
-                        </p>
-                        <p>
-                          Classified from {SOURCE[longRun.value.latest.classification_source]} (
-                          {longRun.value.latest.classification_confidence} confidence)
-                        </p>
-                        <p>
-                          Delayed symptoms: {DELAYED[longRun.value.latest.delayed_symptom_status]}
-                        </p>
-                      </>
-                    ) : (
-                      <p>
-                        {longRun.status === 'partial'
-                          ? 'No confirmed long run in available data.'
-                          : 'No long run in this window.'}
-                      </p>
-                    )}
-                    <p>
-                      {longRun.value.long_run_count} long{' '}
-                      {longRun.value.long_run_count === 1 ? 'run' : 'runs'} in {days} days
-                      {longRun.status === 'partial' ? ' (partial)' : ''}
-                    </p>
-                  </>
-                ))}
-              {coverage(longRun)}
-              {partialContext(longRun)}
-            </Card>
-            <Card data-testid="trend-srpe">
-              <h2>Session RPE load</h2>
-              {missingResult('Session RPE load', srpe) ??
-                (srpe?.value && (
-                  <>
-                    <strong>
-                      {srpe.value.load_au == null
-                        ? MISSING
-                        : `${Math.round(srpe.value.load_au)} AU`}
-                    </strong>
-                    <p>
-                      RPE on {srpe.value.sessions_with_rpe} of {srpe.value.sessions_total} runs
-                    </p>
-                    <p>Duration coverage {fmtPercent(srpe.value.coverage_duration)}</p>
-                    <small>Runs without RPE are left out, not estimated.</small>
-                  </>
-                ))}
-              {coverage(srpe)}
-              {partialContext(srpe)}
-            </Card>
-            <Card data-testid="trend-intensity">
-              <h2>Intensity time</h2>
-              {missingResult('Intensity', intensity) ??
-                (intensity?.value && (
-                  <>
-                    <IntensityBar zone={intensity.value.hr} label="Heart rate" />
-                    <IntensityBar zone={intensity.value.speed} label="Pace" />
-                  </>
-                ))}
-              {coverage(intensity)}
-              {partialContext(intensity)}
-            </Card>
-            <Card data-testid="trend-spacing">
-              <h2>Hard-session spacing</h2>
-              <small>Rolling 14-day calendar</small>
-              {missingResult('Hard-session spacing', spacing) ??
-                (spacing?.value &&
-                  (spacing.value.sequence.length === 0 ? (
-                    <p>No hard sessions in the 14-day calendar.</p>
-                  ) : (
+          <>
+            <div className="trend-grid">
+              <Card data-testid="trend-volume">
+                <h2>Running volume</h2>
+                {missingResult('Volume', volume) ??
+                  (volume?.value && (
                     <>
-                      <ol>
-                        {spacing.value.sequence.map((exposure, index) => (
-                          <li key={exposure.subject_key + ':' + index}>
-                            {dateLabel(exposure.local_date)} ·{' '}
-                            {exposure.classes.map((kind) => CLASS[kind]).join(' + ')}
-                          </li>
-                        ))}
-                      </ol>
-                      <ul>
-                        {spacing.value.gaps.map((gap, index) => (
-                          <li key={gap.from_date + ':' + gap.to_date + ':' + index}>
-                            {CLASS[gap.from_class]} → {CLASS[gap.to_class]}:{' '}
-                            {hours(gap.hours_min, gap.hours_max)}
-                            {gap.confidence === 'low' ? ' (low confidence)' : ''}
-                          </li>
-                        ))}
-                      </ul>
+                      <strong>{fmtDistance(volume.value.distance_m, unit)}</strong>
+                      <p>
+                        {volume.value.run_count} {volume.value.run_count === 1 ? 'run' : 'runs'} ·{' '}
+                        {fmtDuration(volume.value.timer_duration_s)} timer time
+                      </p>
+                      <p>
+                        {volume.value.previous
+                          ? `Previous ${days} days${volume.value.previous.coverage_complete ? '' : ' (incomplete)'}: ${fmtDistance(volume.value.previous.distance_m, unit)} · ${volume.value.previous.run_count} ${volume.value.previous.run_count === 1 ? 'run' : 'runs'}`
+                          : 'Previous window: missing'}
+                      </p>
                     </>
-                  )))}
-              {coverage(spacing)}
-              {partialContext(spacing)}
-            </Card>
-          </div>
+                  ))}
+                {coverage(volume)}
+                {partialContext(volume)}
+              </Card>
+              {shown.map((panel) => (
+                <Fragment key={panel.key}>{panel.node}</Fragment>
+              ))}
+            </div>
+            {deferred.length > 0 && (
+              <Disclosure
+                variant="card"
+                className="training-disclosure"
+                data-testid="trends-not-assessable"
+              >
+                <summary>Not yet assessable ({deferred.length})</summary>
+                <div className="trend-grid">
+                  {deferred.map((panel) => (
+                    <Fragment key={panel.key}>{panel.node}</Fragment>
+                  ))}
+                </div>
+              </Disclosure>
+            )}
+          </>
         )}
       </QueryState>
       <Card data-testid="trend-recovery">
