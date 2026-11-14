@@ -26,6 +26,7 @@ from app.planning_models import BlockDecision, BlockVersion, Event, Goal, Intens
 from app.services.calendar import state_at
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection
+from app.services.operations import OPERATIONS
 from app.services.proposals import DecisionError, derive_certainty, is_quality_slot, scope
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
@@ -41,6 +42,8 @@ QUALITY_OP = "select_quality_session"
 BLOCK = "review_training_block"
 CALIB = "recalibrate_intensity"
 RACE = "handle_goal_or_race_change"
+EXCEPTION = "exception_review"
+POST_EVENT = "post_event_review"
 
 
 def _view(row: Any, keys: tuple[str, ...], *, names: dict[str, str] | None = None) -> dict:
@@ -142,25 +145,27 @@ class SnapshotInputs:
 def _window(operation: str, section: str, inputs: SnapshotInputs) -> tuple[date, date]:
     day = inputs.as_of
     if section == "calendar":
+        if operation in {RACE, POST_EVENT}:
+            return day, day + timedelta(days=13)
+        if operation == EXCEPTION:
+            return day - timedelta(days=7), day + timedelta(days=6)
         return (
-            (day, day + timedelta(days=13))
-            if operation == RACE
-            else (
-                day - timedelta(days={DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28}[operation]),
-                day + timedelta(days=3 if operation == DAILY else 13),
-            )
+            day - timedelta(days={DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28}[operation]),
+            day + timedelta(days=3 if operation == DAILY else 13),
         )
     if section == "exposures":
         return day - timedelta(
-            days={DAILY: 2, ROLLING: 13, QUALITY_OP: 13, BLOCK: 27, RACE: 13, CALIB: 83}[operation]
+            days={DAILY: 2, ROLLING: 13, QUALITY_OP: 13, BLOCK: 27, RACE: 13, CALIB: 83, EXCEPTION: 2, POST_EVENT: 13}[
+                operation
+            ]
         ), day
     if section == "symptoms":
-        days = 14 if operation == DAILY else 28
+        days = 14 if operation in {DAILY, EXCEPTION} else 28
         if operation == BLOCK and inputs.active_block:
             return _day(inputs.active_block["start_date"]), day
         return day - timedelta(days=days - 1), day
     if section == "recovery":
-        days = {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28}[operation]
+        days = {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28, EXCEPTION: 3, POST_EVENT: 14}[operation]
         return day - timedelta(days=days - 1), day
     raise ValueError("unknown_section")
 
@@ -293,7 +298,7 @@ def _completed_exposures(inputs: SnapshotInputs, operation: str) -> dict:
     ]
     lifts.sort(key=lambda row: (str(row["local_date"]), str(row["strong_workout_id"])))
     return {
-        "window_days": {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28, RACE: 14}[operation],
+        "window_days": {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28, RACE: 14, EXCEPTION: 3, POST_EVENT: 14}[operation],
         "runs": runs,
         "lifts": lifts,
     }
@@ -427,7 +432,7 @@ def _prior_decisions(inputs: SnapshotInputs, operation: str) -> list[dict]:
 
 
 def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
-    if operation not in {DAILY, ROLLING, QUALITY_OP, BLOCK, CALIB, RACE}:
+    if operation not in OPERATIONS:
         raise ValueError("unsupported_operation")
     start, end = scope(operation, inputs.as_of)
     payload: dict[str, Any] = {
@@ -514,7 +519,7 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             "run_cycle": {"anchor_date": inputs.cycle_anchor, "confirmed": inputs.anchor_confirmed},
             "clinical_restriction": inputs.clinical_restriction,
         }
-        if operation != DAILY:
+        if operation not in {DAILY, EXCEPTION}:
             goals_view.update(goals=goals, events=events)
         payload["goals_and_constraints"] = goals_view
         cal_start, cal_end = _window(operation, "calendar", inputs)
@@ -537,14 +542,14 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             "active": _view(block, tuple(block)) if block else None,
             "history": _prior_decisions(inputs, BLOCK),
         }
-    elif operation == DAILY:
+    elif operation in {DAILY, EXCEPTION}:
         payload["block"] = _view(block, ("block_uid", "version_id", "objective")) if block else None
     elif operation == CALIB:
         payload["block"] = {"objective": block["objective"]} if block else None
     else:
         payload["block"] = _view(block, tuple(block)) if block else None
     if operation not in {CALIB}:
-        windows = [7] if operation == DAILY else [7, 14, 28, 56, 84] if operation == BLOCK else [7, 14, 28]
+        windows = [7] if operation in {DAILY, EXCEPTION} else [7, 14, 28, 56, 84] if operation == BLOCK else [7, 14, 28]
         keys = {f"w{days}:{inputs.as_of.isoformat()}" for days in windows}
         keys.update(f"w{days}:{inputs.as_of.isoformat()}:{kind}" for days in windows for kind in ("run", "strength"))
         payload["load_shape"] = [
@@ -554,7 +559,7 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         ]
     if operation not in {RACE}:
         quality_runs = [r for r in payload["completed_exposures"]["runs"] if r["class"] == "quality"]
-        if operation == DAILY:
+        if operation in {DAILY, EXCEPTION}:
             quality_runs = quality_runs[-1:]
         exposure_ids = {str(r["activity_id"]) for r in quality_runs}
         execution = [
@@ -565,7 +570,7 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         payload["execution"] = execution
     if operation not in {CALIB}:
         payload["symptoms"] = _symptoms(inputs, operation)
-    if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK}:
+    if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, EXCEPTION, POST_EVENT}:
         rec_start, rec_end = _window(operation, "recovery", inputs)
         payload["recovery"] = [
             _metric_view(m)
@@ -575,7 +580,7 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             and str(m.get("subject_key", "")).startswith("night:")
             and _between(str(m["subject_key"]).split(":", 1)[1], rec_start, rec_end)
         ]
-    if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, CALIB}:
+    if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, CALIB, EXCEPTION, POST_EVENT}:
         payload["prior_decisions"] = _prior_decisions(inputs, operation)
     return _privacy(_wire(payload))
 
@@ -604,7 +609,7 @@ def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[st
     sessions = _scope_sessions(inputs, operation)
     runs = [s for s in sessions if s.get("kind") == "run"]
     slots = {str(s["slot_id"]): s for s in inputs.strength_slots}
-    symptom_start, symptom_end = _window(operation if operation not in {CALIB, RACE} else DAILY, "symptoms", inputs)
+    symptom_start, symptom_end = _window(operation if operation not in {CALIB, RACE, POST_EVENT} else DAILY, "symptoms", inputs)
     recent_checkins = [c for c in inputs.checkins if _between(c.get("local_date"), symptom_start, symptom_end)]
     ptt = any(c.get("symptoms") for c in recent_checkins) or any(
         p.get("kind") == "delayed_symptom"
@@ -613,7 +618,7 @@ def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[st
         for p in inputs.prompts
     )
     rec_start = inputs.as_of - timedelta(
-        days=(3 if operation == DAILY else 14 if operation in {CALIB, RACE, ROLLING, QUALITY_OP} else 28) - 1
+        days=(3 if operation in {DAILY, EXCEPTION} else 14 if operation in {CALIB, RACE, POST_EVENT, ROLLING, QUALITY_OP} else 28) - 1
     )
     recovery = any(
         m.get("metric_id") == "recovery_multisignal_summary"
@@ -646,8 +651,8 @@ def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[st
             low_anchor
             and any(s.get("recipe_id") in QUALITY_RECIPES and _has_numeric_target(s.get("structure")) for s in runs)
         ),
-        operation in {BLOCK, RACE},
-        operation == RACE,
+        operation in {BLOCK, RACE, POST_EVENT},
+        operation in {RACE, POST_EVENT},
     ]
     return [topic for topic, enabled in zip(CONDITIONAL_TOPICS, active, strict=True) if enabled]
 
@@ -1024,8 +1029,8 @@ def build_snapshot(
     session.info["metrics_now"] = now
     try:
         ensure_windows(session, as_of)
-        if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK}:
-            days = {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28}[operation]
+        if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, EXCEPTION, POST_EVENT}:
+            days = {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28, EXCEPTION: 3, POST_EVENT: 14}[operation]
             ensure_nights(session, as_of - timedelta(days=days - 1), as_of)
         inputs = load_inputs(session, as_of, now=now)
         payload = build_payload(inputs, operation)

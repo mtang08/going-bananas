@@ -18,6 +18,7 @@ from app.services.proposals import (
     ValidationContext,
     anchor_key,
     derive_certainty,
+    scope,
     session_fields,
     validate_document,
     validate_subset,
@@ -506,3 +507,9 @@ def test_subset_unchanged_numeric_target_needs_no_anchor() -> None:
     result = validate_document(doc, ctx)
     assert result.status == "pending"
     assert validate_subset(result.doc, {"c1"}, False, set(), ctx) == []
+
+
+@pytest.mark.parametrize("op,days", [("proceed_or_modify_today", 3), ("review_rolling_plan", 13),
+                                     ("exception_review", 6), ("post_event_review", 6)])
+def test_scope_by_operation(op: str, days: int) -> None:
+    assert scope(op, TODAY) == (TODAY, TODAY + timedelta(days=days))

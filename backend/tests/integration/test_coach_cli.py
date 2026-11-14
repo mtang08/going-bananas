@@ -298,3 +298,15 @@ def test_snapshot_excludes_checkin_notes(cli_db):
     assert code == 0, error
     assert 'cli-private-canary' not in str(result)
     assert any(report['severity'] == 2 for report in result['payload']['symptoms']['reports'])
+
+
+@pytest.mark.parametrize("operation", ["exception_review", "post_event_review"])
+def test_snapshot_new_review_operations(cli_db, operation):
+    run, session = cli_db
+    code, result, error = run('snapshot', '--operation', operation)
+    assert code == 0, error
+    meta = result['payload']['snapshot_meta']
+    assert meta['operation'] == operation
+    assert meta['scope'] == {'start': '2026-11-16', 'end': '2026-11-22'}
+    assert session.get(CoachSnapshot, uuid.UUID(result['snapshot_id'])).operation == operation
+    assert result['kb']['excerpts']
