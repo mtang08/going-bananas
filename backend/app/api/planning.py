@@ -10,8 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import desc, select, text
 from sqlalchemy.orm import Session
 
-from app.api.core import envelope, fail
+from app.api.core import envelope
 from app.db import bump_data_revision, get_session
+from app.errors import fail
 from app.models import Activity, AppState
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, Goal
 from app.services.block_benchmark import RUN_SPORTS, active_block_version, benchmark_spec, benchmark_status, status_data

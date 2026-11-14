@@ -10,8 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.core import envelope, fail
+from app.api.core import envelope
 from app.db import bump_data_revision, get_session
+from app.errors import fail
 from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.services.calendar import LOCK_ID
 from app.services.exceptions.detector import exceptions_view, finding_data, last_review_at, patch_data, run_detection
