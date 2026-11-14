@@ -414,6 +414,7 @@ def test_projection_sections_per_operation() -> None:
             "symptoms",
             "recovery",
             "prior_decisions",
+            "exception_summary",
         },
         QUALITY_OP: {
             "goals_and_constraints",
@@ -432,6 +433,7 @@ def test_projection_sections_per_operation() -> None:
             "symptoms",
             "recovery",
             "prior_decisions",
+            "exception_summary",
         },
         CALIB: {"execution", "prior_decisions"},
         RACE: {"goals_and_constraints", "calendar", "load_shape", "symptoms"},
@@ -666,3 +668,57 @@ def test_exception_section_bounded() -> None:
         ("run", "easy"), ("strength", "strength"), ("run", "easy"), ("strength", "strength")]
     assert all(u["expected_rpe"] == [2.0, 4.0] for u in section["upcoming"] if u["kind"] == "run")
     assert all(u["expected_rpe"] is None for u in section["upcoming"] if u["kind"] == "strength")
+
+
+def test_exception_summary_counts() -> None:
+    plan = [("a1", 2, "REC001", 7), ("a2", 4, "REC002", 8), ("a3", 6, "REC003", 2), ("a4", 3, "REC004", 6)]
+    sessions = [session(AS_OF - timedelta(days=days), "run", recipe) for _, days, recipe, _ in plan]
+    runs = [
+        {"activity_id": activity, "local_date": AS_OF - timedelta(days=days), "sport": "running", "timer_s": 1800,
+         "distance_m": 5000, "rpe": rpe, "rpe_source": "manual", "start_at": None}
+        for activity, days, _, rpe in plan
+    ]
+    completions = [
+        {"session_uid": row["session_uid"],
+         "status": "completed_as_planned" if row["recipe_id"] == "REC004" else "completed_modified",
+         "activity_id": item[0], "strong_workout_id": None, "manual_session_id": None, "modification_reason": None}
+        for row, item in zip(sessions, plan, strict=True)
+    ]
+    proposals = [
+        {"proposal_id": "p_r", "operation": ROLLING, "status": "accepted", "submitted_at": NOW - timedelta(days=6),
+         "decided_at": NOW - timedelta(days=6), "summary": "Weekly", "follow_up": None, "changes": []},
+        {"proposal_id": "p_e", "operation": EXCEPTION, "status": "accepted", "submitted_at": NOW - timedelta(days=1),
+         "decided_at": NOW - timedelta(days=1), "summary": "Patch", "follow_up": None, "changes": [
+             {"change_id": "c1", "op": "delete", "session_uid": "s-del", "decision": "accepted",
+              "before": {"kind": "run", "recipe_id": "REC005",
+                         "local_date": (AS_OF - timedelta(days=1)).isoformat(), "intent": "VO2"},
+              "after": None},
+             {"change_id": "c2", "op": "modify", "session_uid": "s-mod", "decision": "accepted",
+              "before": {"kind": "run", "recipe_id": "REC003",
+                         "local_date": (AS_OF - timedelta(days=5)).isoformat(), "intent": "Threshold"},
+              "after": {"planned_duration_s": 1500}},
+         ]},
+    ]
+    findings = [finding(0, rule="SESSION_FAILED", days_ago=2, entity="session:x"),
+                finding(1, rule="SYM_MULTIWEEK", severity="escalate", entity="site:ankle|left")]
+    findings += [finding(n, entity=f"e{n}") for n in range(2, 35)]
+
+    def checkin(days: int, site: str, side: str) -> dict:
+        return {"checkin_id": f"c{days}{site}", "observed_at": NOW - timedelta(days=days),
+                "local_date": AS_OF - timedelta(days=days), "kind": "exception", "fatigue": None,
+                "illness": "none", "gait_change": "no", "activity_id": None,
+                "symptoms": [{"site": site, "side": side, "severity": 3.0, "timing": "during"}]}
+
+    checkins = [checkin(1, "Ankle", "left"), checkin(3, "ankle ", "left"), checkin(2, "knee", "right")]
+    source = inputs(sessions=sessions, runs=runs, completions=completions, proposals=proposals,
+                    exception_findings=findings, exception_patches=[patch(0)], checkins=checkins)
+    summary = build_payload(source, ROLLING)["exception_summary"]
+    assert (summary["window_start"], summary["window_end"]) == ("2026-11-03", "2026-11-16")
+    assert summary["rpe_mismatch"] == {"easy_above": 1, "long_above": 1, "quality_above": 0, "quality_below": 1}
+    assert summary["quality_sessions"] == {"planned": 3, "completed_as_planned": 1, "modified_by_patch": 1,
+                                           "removed_by_patch": 1, "failed": 1}
+    assert summary["recurring_symptom_sites"] == [{"site_key": "ankle|left", "distinct_days_14": 2}]
+    assert summary["since_last_review"] == "2026-11-10"
+    assert len(summary["findings"]) == 30
+    assert summary["open_escalations"] == 1
+    assert summary["patches"][0]["changes_count"] == 2
