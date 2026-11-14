@@ -1,3 +1,6 @@
+import type { CheckinExceptions, ExceptionsView } from '../api/types/exceptions'
+import { CopyPrompt } from '../components/CopyPrompt'
+import { SEVERITY_LABELS } from '../coachLabels'
 import { Badge, Button, Input, NativeSelect, Textarea } from '../components/ui'
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -8,18 +11,15 @@ import {
   put,
   qk,
   invalidateKeys,
-  DECISION_LABELS,
   SIDE_LABELS,
   TIMING_LABELS,
   REASON_LABELS,
-  statusText,
   type ActivityExecution,
   type CheckinCreate,
   type CheckinRequest,
   type CheckinV2,
   type Completion,
   type ContextTag,
-  type DailyGuidance,
   type GaitChange,
   type Illness,
   type ModificationReason,
@@ -174,7 +174,14 @@ export function CheckinModalV2({
   const [rpe, setRpe] = useState<number | null>(null),
     [reason, setReason] = useState<ModificationReason | ''>(''),
     [reasonNote, setReasonNote] = useState('')
-  const [result, setResult] = useState<DailyGuidance | null>(null)
+  const [result, setResult] = useState<CheckinExceptions | null>(null)
+  const newIds = result?.new_finding_ids ?? []
+  const exceptions = useQuery({
+    queryKey: qk.exceptions,
+    enabled: newIds.length > 0,
+    queryFn: () => api<ExceptionsView>('/exceptions'),
+  })
+  const newFindings = (exceptions.data?.data?.findings ?? []).filter((f) => newIds.includes(f.id))
   const pending = useRef<Submission | null>(null)
   const execution = useQuery({
     queryKey: qk.activityExecution(activityId ?? ''),
@@ -281,13 +288,9 @@ export function CheckinModalV2({
       return (await post<CheckinV2>('/v2/checkins', submission.body)).data
     },
     onSuccess: (data) => {
-      invalidateKeys(qc, [qk.checkins, qk.prompts, qk.metrics, qk.calendar])
+      invalidateKeys(qc, [qk.checkins, qk.prompts, qk.metrics, qk.calendar, qk.exceptions])
       if (kind === 'exception') {
-        const guidance = data?.daily_guidance ?? null
-        qc.setQueryData(qk.coachDaily, guidance)
-        invalidateKeys(qc, [qk.coachDaily])
-        if (guidance) setResult(guidance)
-        else close()
+        setResult(data?.exceptions ?? { new_finding_ids: [], review_recommended: [] })
       } else {
         if (kind === 'post_run' && activityId)
           invalidateKeys(qc, [qk.activity(activityId), qk.activityExecution(activityId)])
@@ -314,19 +317,40 @@ export function CheckinModalV2({
     <Modal label={LABEL[kind]} className="checkin-modal" close={close}>
       {result ? (
         <>
-          <h3>Today's guidance</h3>
-          <Badge className={`status-chip ${result.decision}`}>
-            {DECISION_LABELS[result.decision]}
-          </Badge>
-          <p>{result.rationale}</p>
-          {result.coach_review_suggested && (
-            <div className="notice warning">
-              Coach review suggested. Run the running-coach skill (daily review) before training.
+          <h3>Check-in saved</h3>
+          {newIds.length === 0 ? (
+            <p>Logged for your Sunday review</p>
+          ) : exceptions.error ? (
+            <div className="notice error" role="alert">
+              <p>Check-in saved, but findings could not load. {exceptions.error.message}</p>
+              <Button
+                variant="outline"
+                disabled={exceptions.isFetching}
+                onClick={() => void exceptions.refetch()}
+              >
+                Retry
+              </Button>
             </div>
+          ) : exceptions.isPending ? (
+            <p role="status">Loading findings…</p>
+          ) : (
+            <ul className="checkin-findings">
+              {newFindings.map((f) => (
+                <li key={f.id}>
+                  <Badge className={`severity-chip ${f.severity}`}>
+                    {SEVERITY_LABELS[f.severity]}
+                  </Badge>{' '}
+                  {f.summary}
+                </li>
+              ))}
+            </ul>
           )}
-          {result.missing_inputs.length > 0 && (
-            <small>Missing inputs: {result.missing_inputs.map(statusText).join(', ')}</small>
-          )}
+          {result.review_recommended.map((r) => (
+            <div key={`${r.operation}:${r.reason}`}>
+              <p>{r.reason}</p>
+              <CopyPrompt text={r.prompt} className="attention-prompt" />
+            </div>
+          ))}
           <Button onClick={close}>Done</Button>
         </>
       ) : (

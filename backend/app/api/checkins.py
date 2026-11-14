@@ -1,4 +1,4 @@
-"""Permanent v2 check-in, RPE, prompt and daily guidance routes."""
+"""Permanent v2 check-in, RPE and prompt routes."""
 from __future__ import annotations
 
 import uuid
@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from app.api.core import current_profile, envelope, fail
 from app.checkin_models import Checkin
-from app.coach_v2_models import DailyGuidance
 from app.db import get_session
 from app.metric_models import Prompt
 from app.services.calendar import _lock
@@ -26,7 +25,6 @@ from app.services.checkins import (
     patch_checkin,
     save_manual_rpe,
 )
-from app.services.daily_guidance import guidance_data, persist_daily_guidance
 from app.services.exceptions.detector import detection_payload, run_detection
 
 router = APIRouter()
@@ -41,15 +39,6 @@ class RpeInput(BaseModel):
     def valid_rpe(cls, value: object) -> float:
         from app.services.checkins import _measurement
         return _measurement(value)
-
-
-class EmptyRequest(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
-
-def _today(session: Session) -> date:
-    profile = current_profile(session)
-    return datetime.now(UTC).astimezone(ZoneInfo(profile.timezone if profile else 'America/New_York')).date()
 
 
 @router.post('/v2/checkins')
@@ -81,21 +70,6 @@ def get_checkins(start: date | None = None, end: date | None = None,
     return envelope(session, {'items': [checkin_data(session, row) for row in rows
         if (start is None or row.observed_at.astimezone(zone).date() >= start)
         and (end is None or row.observed_at.astimezone(zone).date() <= end)]})
-
-
-@router.get('/coach/v2/daily')
-def get_daily(session: Session = Depends(get_session)) -> dict:
-    row = session.scalar(select(DailyGuidance).where(DailyGuidance.local_date == _today(session))
-        .order_by(desc(DailyGuidance.created_at), desc(DailyGuidance.id)).limit(1))
-    return envelope(session, guidance_data(row) if row else None)
-
-
-@router.post('/coach/v2/daily/request')
-def request_daily(body: EmptyRequest, session: Session = Depends(get_session)) -> dict:
-    now = datetime.now(UTC)
-    result = persist_daily_guidance(session, today=_today(session), now=now)
-    session.commit()
-    return envelope(session, result)
 
 
 @router.put('/activities/{activity_id}/rpe')

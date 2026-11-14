@@ -93,16 +93,18 @@ test('p0a: structured workout per-rep', async ({ page, request }) => {
   }
 })
 
-test('p0a: check-in exception guidance', async ({ page, request }) => {
+test('p0a: check-in exception findings', async ({ page, request }) => {
   const body = {idempotency_key:crypto.randomUUID(),kind:'exception',observed_at:new Date().toISOString(),
     fatigue:7,illness:null,gait_change:null,context_tags:[],symptoms:[],activity_id:null,prompt_id:null,note:null}
   const response = await request.post('/api/v1/v2/checkins',{headers:{'X-Local-Request':'1'},data:body})
   expect(response.status()).toBe(201)
-  const guidance = await data(await request.post('/api/v1/coach/v2/daily/request',{headers:{'X-Local-Request':'1'},data:{}}))
-  expect(guidance.decision).toBe('modify')
-  expect(guidance.coach_review_suggested).toBe(true)
+  const created = await data(response)
+  expect('daily_guidance' in created).toBe(false)
+  const exceptions = await data(await request.get('/api/v1/exceptions'))
+  expect(exceptions.findings.some((f:{rule_code:string;status:string}) => f.rule_code==='FATIGUE_HIGH' && f.status==='open')).toBe(true)
   await page.goto('/')
-  await expect(page.getByText(/Coach review suggested/)).toBeVisible()
+  await expect(page.getByText(/Logged for Sunday review \(\d+\)/)).toBeVisible()
+  await expect(page.getByRole('heading',{name:'Daily guidance'})).toHaveCount(0)
 })
 
 test('p0a: trends explicit missing', async ({ page, request }) => {

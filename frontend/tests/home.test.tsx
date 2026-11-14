@@ -1,9 +1,15 @@
+import type { ExceptionsView, Finding, Patch, Severity } from '../src/api/types/exceptions'
+import { EXCEPTION_PROMPT } from '../src/coachPrompts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Home } from '../src/pages/Home'
 import type { ProposalSummary } from '../src/api/types/coach'
-import type { CalendarView, DailyGuidance, SessionState } from '../src/api'
+import type { CalendarView, SessionState } from '../src/api'
+
+const finding = (id: string, severity: Severity, summary: string, version = 1): Finding => ({ id, rule_code: 'FATIGUE_PERSISTING', category: 'accumulated_fatigue', severity, status: 'open', entity_key: `fatigue:${id}`, summary, evidence: [], evidence_at: '2026-11-11T12:00:00Z', first_seen_at: '2026-11-11T12:00:00Z', last_seen_at: '2026-11-11T12:00:00Z', patch_id: null, version, is_new_since_last_review: true })
+const pa1: Patch = { id: 'pa1', proposal_id: 'p9', calendar_version_number: 2, category: 'accumulated_fatigue', severity: 'caution', ladder_level: 'next_days', window_start: '2026-11-11', window_end: '2026-11-13', reassess_on: '2026-11-11', monitor: ['Morning fatigue'], return_criteria: ['Fatigue below 6'], escalate_criteria: ['Fatigue rising'], unchanged: [], status: 'open', resolved_at: null, resolved_by: null, resolution_note: null, created_at: '2026-11-10T12:00:00Z', version: 1, session_uids: [], reassess_due: true }
+const rec = { operation: 'exception_review' as const, reason: 'Open findings at caution or hold need an exception review', finding_ids: ['f1'], prompt: EXCEPTION_PROMPT }
 
 const session = (id: string, day: string, overrides: Partial<SessionState> = {}): SessionState => ({
   id, session_uid: id, local_date: day, slot: 1, kind: 'run', recipe_id: 'REC001', custom: false,
@@ -17,18 +23,19 @@ const baseSessions = () => [session('s1', '2026-11-11'), session('s2', '2026-11-
 let proposalItems: ProposalSummary[]
 let promptItems: unknown[]
 let calendar: CalendarView
-let guidance: DailyGuidance | null
+let exceptionsData: ExceptionsView
 let error = false
 let requests: { url: string; method: string; body: unknown; headers: Headers }[]
 const onCheckin = vi.fn()
 const clients: QueryClient[] = []
 beforeEach(() => {
+  exceptionsData = { rule_version: 'exceptions.v1', findings: [], patches: [], review_recommended: [], counts: { observe: 0, caution: 0, hold: 0, escalate: 0 } }
   proposalItems = []
   promptItems = [
       { id: 'p1', kind: 'rpe', activity_id: 'a1', session_uid: null, status: 'open' },
       { id: 'p2', kind: 'delayed_symptom', activity_id: 'a1', session_uid: null, status: 'open' },
     ]
-  requests = []; error = false; guidance = null; onCheckin.mockReset()
+  requests = []; error = false; onCheckin.mockReset()
   calendar = { today: '2026-11-11', timezone: 'America/New_York', start: '2026-11-04', end: '2026-11-24',
     head: 2, version: 2, undo: null, last_planned_date: null, sessions: baseSessions(), completions: [] }
   vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
@@ -38,7 +45,7 @@ beforeEach(() => {
     const data = url.endsWith('/sync/status') ? { datasets: [], active_jobs: [] }
       : url.includes('/coach/proposals') ? { items: proposalItems }
       : url.endsWith('/calendar') ? calendar : url.endsWith('/prompts') ? { items: promptItems } : url.endsWith('/activities/a1') ? { id: 'a1', local_date: '2026-11-10', distance_m: 6437.376, sport: 'running' }
-      : url.endsWith('/coach/v2/daily') ? guidance : null
+      : url.includes('/exceptions') || url.includes('/exception-patches') ? exceptionsData : null
     return { ok: true, status: 200, json: async () => ({ schema_version: 'v1', data_revision: 1, mode: 'demo', data }) }
   }))
 })
@@ -81,23 +88,11 @@ describe('training home', () => {
     expect(request.headers.get('X-Local-Request')).toBe('1')
     expect(request.body).toEqual({})
   })
-  it('shows empty guidance and block', async () => {
+  it('shows empty block', async () => {
     mount()
-    expect(await screen.findByText(/No guidance today/)).toBeInTheDocument()
     const blockLine = await screen.findByTestId('block-line')
     expect(blockLine).toHaveTextContent('No active training block. Training block')
     expect(within(blockLine).getByRole('link', { name: 'Training block' })).toHaveAttribute('href', '#block')
-    expect(screen.getByText(/No guidance today/).closest('.home-quiet-state')).toBeInTheDocument()
-  })
-  it('shows guidance with coach review', async () => {
-    guidance = { id: 'g1', created_at: '', input_hash: '', local_date: '2026-11-11', checkin_id: null,
-      engine: 'local_rules.v2', decision: 'modify', session_uid: 's1', rationale: 'Shorten today',
-      missing_inputs: ['gait_change'], coach_review_suggested: true, trigger_codes: [] }
-    mount()
-    expect(await screen.findByText('Modify')).toBeInTheDocument()
-    expect(screen.getByText('Shorten today')).toBeInTheDocument()
-    expect(screen.getByText(/Coach review suggested/)).toBeInTheDocument()
-    expect(screen.getByText('Missing inputs: gait change')).toBeInTheDocument()
   })
   it('shows setup without a calendar', async () => {
     calendar = { ...calendar, head: 0, sessions: [] }
@@ -121,7 +116,7 @@ describe('training home', () => {
     error = true; mount()
     expect(await screen.findByText('Could not load this view')).toBeInTheDocument()
     expect(screen.getByText('boom')).toBeInTheDocument()
-    expect(await screen.findByText(/No guidance today/)).toBeInTheDocument()
+    expect(await screen.findByTestId('block-line')).toBeInTheDocument()
   })
   it('compacts repeats and preserves structured and imported prescription notes', async () => {
     calendar.sessions[0].notes = 'Stop if form deteriorates'
@@ -152,12 +147,12 @@ describe('training home', () => {
     const row = document.querySelector('[data-kind="proposal"]')!
     for (const text of ['Stale — ask the coach to refresh', 'Weekly review', '2 h ago', '3 changes']) expect(row).toHaveTextContent(text)
     expect(within(row as HTMLElement).getByRole('link', { name: 'Review' })).toHaveAttribute('href', '#proposal/p1')
-    expect(row.compareDocumentPosition(screen.getByRole('heading', { name: 'Daily guidance' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(row.compareDocumentPosition(screen.getByRole('heading', { name: "Today's plan" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(requests.every(r => r.method === 'GET')).toBe(true)
   })
   it('orders Home sections', async () => {
     mount(); await screen.findByTestId('today-card')
-    const sections = ['Needs attention', 'Daily guidance', "Today's plan", 'This week'].map(name => screen.getByRole('heading', { name }))
+    const sections = ['Needs attention', "Today's plan", 'This week'].map(name => screen.getByRole('heading', { name }))
     for (let i = 0; i < sections.length - 1; i++) expect(sections[i].compareDocumentPosition(sections[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByTestId('home-status').compareDocumentPosition(sections[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
@@ -168,6 +163,68 @@ describe('training home', () => {
   it('has no page-level check-in button', async () => {
     mount(); await screen.findByTestId('today-card')
     expect(screen.queryByRole('button', { name: 'Record check-in' })).toBeNull()
+  })
+
+  it('orders exception rows inside Needs attention', async () => {
+    proposalItems = [{ id: 'p1', status: 'stale', operation: 'review_rolling_plan', submitted_at: new Date(Date.now() - 2 * 3600_000).toISOString(), change_count: 3, summary: 'Keep tomorrow easy' } as ProposalSummary]
+    exceptionsData = { ...exceptionsData, review_recommended: [rec], findings: [finding('f1', 'caution', 'Fatigue 8 on two days.'), finding('f2', 'observe', 'Easy run felt RPE 7.')], patches: [pa1] }
+    mount(); await screen.findByText('Fatigue 8 on two days.')
+    const rows = screen.getAllByTestId('attention-row')
+    expect(rows.map(row => row.getAttribute('data-kind'))).toEqual(['proposal','recommendation','finding','patch'])
+    expect(rows[3].compareDocumentPosition(screen.getAllByTestId('prompt-item')[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    for (const text of ['Caution', 'Fatigue and recovery', 'Fatigue 8 on two days.']) expect(rows[2]).toHaveTextContent(text)
+    expect(screen.getByTestId('needs-attention')).not.toHaveTextContent('Easy run felt RPE 7.')
+    expect(rows[3]).toHaveTextContent('Reassess due · Nov 11–Nov 13')
+  })
+  it('copies the coach prompt', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    try {
+      exceptionsData = { ...exceptionsData, review_recommended: [rec] }; mount()
+      await screen.findByText(rec.reason)
+      const row = document.querySelector('[data-kind="recommendation"]') as HTMLElement
+      fireEvent.click(within(row).getByRole('button', { name: 'Copy prompt' }))
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(EXCEPTION_PROMPT))
+    } finally {
+      if (original) Object.defineProperty(navigator, 'clipboard', original)
+      else Reflect.deleteProperty(navigator, 'clipboard')
+    }
+  })
+  it('dismiss sends expected_version and refetches findings', async () => {
+    exceptionsData.findings = [finding('f1', 'caution', 'Fatigue 8 on two days.', 3)]
+    mount(); await screen.findByText('Fatigue 8 on two days.')
+    fireEvent.click(within(document.querySelector('[data-kind="finding"]') as HTMLElement).getByRole('button', { name: 'Dismiss' }))
+    await waitFor(() => expect(requests.filter(r => r.method === 'GET' && r.url === '/api/v1/exceptions')).toHaveLength(2))
+    const posts = requests.filter(r => r.method === 'POST')
+    expect(posts).toHaveLength(1); expect(posts[0].url).toBe('/api/v1/exceptions/f1/dismiss')
+    expect(posts[0].body).toEqual({ expected_version: 3, note: null })
+    expect(posts[0].headers.get('X-Local-Request')).toBe('1')
+  })
+  it('lists logged findings last in a closed disclosure', async () => {
+    promptItems = []; proposalItems = []
+    exceptionsData = { ...exceptionsData, findings: [finding('f2', 'observe', 'Easy run felt RPE 7.')] }
+    mount()
+    const box = await screen.findByTestId('logged-findings')
+    expect(box).not.toHaveAttribute('open')
+    expect(box.querySelector('summary')).toHaveTextContent('Logged for Sunday review (1)')
+    expect(box).toHaveTextContent('Easy run felt RPE 7.')
+    expect(screen.getByTestId('block-line').compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByTestId('needs-attention')).toBeNull()
+  })
+  it('resolves or escalates a due patch', async () => {
+    exceptionsData.patches = [pa1]; mount()
+    const resolved = await screen.findByRole('button', { name: 'Mark resolved' })
+    fireEvent.click(resolved)
+    await waitFor(() => expect(requests.filter(r => r.method === 'POST')).toHaveLength(1))
+    await waitFor(() => expect(resolved).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Still not right' }))
+    await waitFor(() => expect(requests.filter(r => r.method === 'POST')).toHaveLength(2))
+    const posts = requests.filter(r => r.method === 'POST')
+    for (const [i, status] of ['resolved', 'escalated'].entries()) {
+      expect(posts[i].url).toBe('/api/v1/exception-patches/pa1/resolve')
+      expect(posts[i].body).toEqual({ expected_version: 1, status, note: null })
+    }
   })
 
 })

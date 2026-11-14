@@ -1,5 +1,6 @@
 import { Button, Disclosure } from '../components/ui'
-import { Fragment, useState } from 'react'
+import { CopyPrompt } from '../components/CopyPrompt'
+import { Fragment } from 'react'
 import guide from 'virtual:user-guide'
 import './guide.css'
 // A deliberately small renderer for the repository's trusted, plain Markdown guide.
@@ -24,24 +25,6 @@ function Inline({ text }: { text: string }) {
     </>
   )
 }
-function Prompt({ text }: { text: string }) {
-  const [status, setStatus] = useState('')
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setStatus('Copied. Paste into your coach conversation.')
-    } catch {
-      setStatus('Select and copy the prompt below.')
-    }
-  }
-  return (
-    <div className="guide-prompt">
-      <blockquote>{text}</blockquote>
-      <Button onClick={() => void copy()}>Copy prompt</Button>
-      {status && <p role="status">{status}</p>}
-    </div>
-  )
-}
 function Body({ text }: { text: string }) {
   return (
     <>
@@ -51,7 +34,7 @@ function Body({ text }: { text: string }) {
         .filter(Boolean)
         .map((block, i) => {
           if (block.startsWith('> '))
-            return <Prompt key={i} text={block.replace(/^> ?/gm, '').replace(/\n/g, ' ')} />
+            return <CopyPrompt key={i} text={block.replace(/^> ?/gm, '').replace(/\n/g, ' ')} />
           if (block.startsWith('### '))
             return (
               <h3 key={i}>

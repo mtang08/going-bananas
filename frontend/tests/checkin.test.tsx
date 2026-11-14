@@ -1,3 +1,4 @@
+import { EXCEPTION_PROMPT } from '../src/coachPrompts'
 import { useState } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -5,12 +6,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CheckinModalV2 } from '../src/pages/CheckinModalV2'
 import { qk, type CheckinRequest } from '../src/api'
 
-const guidance = {
-  decision: 'modify',
-  rationale: 'Fatigue 7: keep it easy and short',
-  coach_review_suggested: true,
-  missing_inputs: [],
-}
+const rec = { operation: 'exception_review', reason: 'Open findings at caution or hold need an exception review', finding_ids: ['f1'], prompt: EXCEPTION_PROMPT }
+let checkinExceptions: { new_finding_ids: string[]; review_recommended: (typeof rec)[] }
 let requests: {
   url: string
   method: string
@@ -18,11 +15,14 @@ let requests: {
   headers: Headers
 }[]
 let failPosts: number, completed: boolean
+let failFindings = false
 let errorStatus = 500
 const close = vi.fn()
 const clients: QueryClient[] = []
 beforeEach(() => {
+  checkinExceptions = { new_finding_ids: ['f1'], review_recommended: [rec] }
   requests = []
+  failFindings = false
   failPosts = 0
   completed = false
   errorStatus = 500
@@ -38,6 +38,8 @@ beforeEach(() => {
         body: init?.body ? JSON.parse(String(init.body)) : null,
         headers: new Headers(init?.headers),
       })
+      if (method === 'GET' && url === '/api/v1/exceptions' && failFindings)
+        return { ok: false, status: 500, json: async () => ({ error: { code: 'request_failed', message: 'Findings unavailable' } }) }
       if (method === 'POST' && failPosts-- > 0)
         return {
           ok: false,
@@ -60,8 +62,8 @@ beforeEach(() => {
         : url.includes('/completions/')
           ? { ...completion, version: 3 }
           : method === 'POST'
-            ? { id: 'checkin', daily_guidance: guidance }
-            : {}
+            ? { id: 'checkin', exceptions: checkinExceptions }
+            : url.includes('/exceptions') ? { findings: [{ id: 'f1', severity: 'caution', category: 'accumulated_fatigue', status: 'open', summary: 'Fatigue 7 today.' }, { id: 'f9', severity: 'observe', category: 'accumulated_fatigue', status: 'open', summary: 'Older finding.' }] } : {}
       return {
         ok: true,
         status: method === 'POST' ? 201 : 200,
@@ -105,7 +107,7 @@ const change = (label: string, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } })
 const posts = () => requests.filter((r) => r.method === 'POST')
 
-it('exception check-in shows guidance', async () => {
+it('exception check-in shows new findings and the coach prompt', async () => {
   const client = mount()
   expect(screen.getByRole('dialog', { name: 'Record check-in' })).toBeInTheDocument()
   change('Fatigue (0–10)', '7')
@@ -114,7 +116,7 @@ it('exception check-in shows guidance', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'No' }))
   fireEvent.click(screen.getByRole('button', { name: 'Heat' }))
   fireEvent.click(screen.getByRole('button', { name: 'Save check-in' }))
-  expect(await screen.findByText("Today's guidance")).toBeInTheDocument()
+  expect(await screen.findByText('Check-in saved')).toBeInTheDocument()
   expect(posts()).toHaveLength(1)
   expect(posts()[0].url).toBe('/api/v1/v2/checkins')
   expect(posts()[0].headers.get('X-Local-Request')).toBe('1')
@@ -130,10 +132,14 @@ it('exception check-in shows guidance', async () => {
     note: null,
   })
   expect(posts()[0].body?.idempotency_key).toBeTruthy()
-  expect(screen.getByText('Modify')).toBeInTheDocument()
-  expect(screen.getByText(guidance.rationale)).toBeInTheDocument()
-  expect(screen.getByText(/Coach review suggested/)).toBeInTheDocument()
-  expect(client.getQueryData(qk.coachDaily)).toMatchObject({ decision: 'modify' })
+  expect(await screen.findByText('Fatigue 7 today.')).toBeInTheDocument()
+  expect(screen.getByText('Caution')).toBeInTheDocument()
+  expect(screen.getByText(rec.reason)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Copy prompt' })).toBeInTheDocument()
+  expect(screen.queryByText('Older finding.')).toBeNull()
+  expect(screen.queryByText('Modify')).toBeNull()
+  expect(screen.queryByText(/Coach review suggested/)).toBeNull()
+  expect(client.getQueryState(qk.exceptions)).toBeDefined()
   fireEvent.click(screen.getByRole('button', { name: 'Done' }))
   expect(close).toHaveBeenCalledTimes(1)
 })
@@ -148,7 +154,7 @@ it('pain rows preserve site side severity and timing', async () => {
   expect(document.getElementById('symptom-1-site')).toBeInTheDocument()
   fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[1])
   fireEvent.click(screen.getByRole('button', { name: 'Save check-in' }))
-  await screen.findByText("Today's guidance")
+  await screen.findByText('Check-in saved')
   expect(posts()[0].body?.symptoms).toEqual([
     { site: 'posterior tibial tendon', side: 'left', severity: 3, timing: 'next_morning' },
   ])
@@ -177,7 +183,7 @@ it('retry reuses the entire frozen request including observed time and key', asy
   fireEvent.click(screen.getByRole('button', { name: 'Save check-in' }))
   await screen.findByText('Server error')
   fireEvent.click(screen.getByRole('button', { name: 'Save check-in' }))
-  await screen.findByText("Today's guidance")
+  await screen.findByText('Check-in saved')
   expect(posts()).toHaveLength(2)
   expect(posts()[1].body).toEqual(posts()[0].body)
 })
@@ -190,7 +196,7 @@ it('editing a failed request creates a new key and body', async () => {
   await screen.findByText('Server error')
   change('Fatigue (0–10)', '8')
   fireEvent.click(screen.getByRole('button', { name: 'Save check-in' }))
-  await screen.findByText("Today's guidance")
+  await screen.findByText('Check-in saved')
   expect(posts()[1].body?.idempotency_key).not.toBe(posts()[0].body?.idempotency_key)
   expect(posts()[1].body?.fatigue).toBe(8)
 })
@@ -329,4 +335,41 @@ it.each([
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   await waitFor(() => expect(opener).toHaveFocus())
   expect(posts()).toHaveLength(0)
+})
+
+it('exception check-in without findings is logged for Sunday', async () => {
+  checkinExceptions = { new_finding_ids: [], review_recommended: [] }
+  mount()
+  change('Fatigue (0–10)', '7')
+  change('Illness', 'none')
+  change('Gait change?', 'no')
+  fireEvent.click(screen.getByRole('button', { name: 'No' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save check-in' }))
+  expect(await screen.findByText('Logged for your Sunday review')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Copy prompt' })).toBeNull()
+  expect(requests.some(r => r.method === 'GET' && r.url === '/api/v1/exceptions')).toBe(false)
+})
+
+it('retries findings after a saved check-in without saving again', async () => {
+  failFindings = true
+  mount()
+  change('Fatigue (0–10)', '7')
+  fireEvent.click(screen.getByRole('button', { name: 'Save check-in' }))
+  expect(await screen.findByText(/Check-in saved, but findings could not load/)).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Check-in saved' })).toBeInTheDocument()
+  expect(screen.getByText(rec.reason)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Copy prompt' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Save check-in' })).toBeNull()
+  expect(close).not.toHaveBeenCalled()
+  expect(posts()).toHaveLength(1)
+  const saved = posts()[0].body
+  failFindings = false
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+  expect(await screen.findByText('Fatigue 7 today.')).toBeInTheDocument()
+  expect(screen.queryByText(/Check-in saved, but findings could not load/)).toBeNull()
+  expect(requests.filter(r => r.method === 'GET' && r.url === '/api/v1/exceptions')).toHaveLength(2)
+  expect(posts()).toHaveLength(1)
+  expect(posts()[0].body).toEqual(saved)
+  expect(saved?.idempotency_key).toBeTruthy()
+  expect(screen.getByText(rec.reason)).toBeInTheDocument()
 })

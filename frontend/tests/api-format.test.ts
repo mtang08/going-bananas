@@ -1,12 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import fixture from './fixtures/planning-wire.json'
-import { ANCHOR_UNIT, MISSING, clockToSeconds, fetchDailyGuidance, flattenStructure, fmtClock, fmtDistance, fmtDuration, fmtPaceFromSpeed, fmtPercent, fmtRpe, formatStep, paceToSpeed, pageHref, qk, sessionMarker, sessionTitle, statusText } from '../src/api'
-import type { AnchorCreate, CalendarView, CompletionPut, DailyGuidance, GoalCreate, MetricResult, PlannedStep, Profile, SrpeValue, StrengthRoutineSlot, StructureItem, VolumeValue } from '../src/api'
+import { ANCHOR_UNIT, MISSING, clockToSeconds, flattenStructure, fmtClock, fmtDistance, fmtDuration, fmtPaceFromSpeed, fmtPercent, fmtRpe, formatStep, paceToSpeed, pageHref, qk, sessionMarker, sessionTitle, statusText } from '../src/api'
+import type { AnchorCreate, CalendarView, CompletionPut, GoalCreate, MetricResult, PlannedStep, Profile, SrpeValue, StrengthRoutineSlot, StructureItem, VolumeValue } from '../src/api'
 
 const wire: Record<string, unknown> = fixture
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
 const calendarView = (value: unknown): value is CalendarView => record(value) && typeof value.head === 'number' && typeof value.version === 'number' && typeof value.today === 'string' && typeof value.timezone === 'string' && Array.isArray(value.sessions) && Array.isArray(value.completions) && (value.undo === null || record(value.undo) && Array.isArray(value.undo.protected_session_uids))
-const guidance = (value: unknown): value is DailyGuidance => record(value) && typeof value.created_at === 'string' && typeof value.input_hash === 'string' && typeof value.decision === 'string' && Array.isArray(value.trigger_codes)
 const profile = (value: unknown): value is Profile => record(value) && (value.planning_authority === 'legacy' || value.planning_authority === 'calendar') && typeof value.version === 'number' && Array.isArray(value.scheduled_strength_days) && Array.isArray(value.strength_week_a_days) && Array.isArray(value.strength_week_b_days)
 const metric = <V>(value: unknown, valueCheck: (v: unknown) => v is V): value is MetricResult<V> => record(value) && typeof value.metric_id === 'string' && typeof value.status === 'string' && typeof value.dependency_hash === 'string' && Array.isArray(value.reason_codes) && valueCheck(value.value)
 const volume = (value: unknown): value is VolumeValue => record(value) && typeof value.run_count === 'number' && typeof value.runs_missing_timer === 'number' && (value.timer_duration_s === null || typeof value.timer_duration_s === 'number') && (value.distance_m === null || typeof value.distance_m === 'number')
@@ -24,11 +23,7 @@ describe('planning wire', () => {
     expect(wire.populated_calendar.sessions[0].legacy_unstructured).toBe(true)
     expect(wire.rollback_result).toMatchObject({ kind: 'rollback', preserved_session_uids: ['00000000-0000-0000-0000-000000000002'] })
   })
-  it('checks guidance and profile projections', () => {
-    expect(wire.guidance_null).toBeNull()
-    expect(guidance(wire.guidance_full)).toBe(true)
-    if (!guidance(wire.guidance_full)) throw Error('fixture')
-    expect(wire.guidance_full.input_hash).toHaveLength(64)
+  it('checks profile projections', () => {
     expect(profile(wire.profile_weekly)).toBe(true)
     expect(profile(wire.profile_alternating)).toBe(true)
     if (!profile(wire.profile_weekly) || !profile(wire.profile_alternating)) throw Error('fixture')
@@ -115,20 +110,8 @@ describe('planning helpers', () => {
     expect(qk.calendarDiff(2, 3)).toEqual(['v2', 'calendar', 'diff', 2, 3])
     expect(qk.metricsRecovery('a', 'b')).toEqual(['v2', 'metrics', 'recovery', 'a', 'b'])
     expect(qk.profile).toEqual(['profile'])
+    expect(qk.exceptions).toEqual(['v2', 'exceptions'])
     expect(pageHref.activity('a/b')).toBe('#activity/a%2Fb')
-  })
-})
-
-describe('daily guidance fetch', () => {
-  afterEach(() => vi.unstubAllGlobals())
-  it('returns successful null', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ schema_version: 'v1', data_revision: 0, mode: 'demo', data: null }), { status: 200 })))
-    await expect(fetchDailyGuidance()).resolves.toBeNull()
-    expect(fetch).toHaveBeenCalledWith('/api/v1/coach/v2/daily', expect.objectContaining({ credentials: 'same-origin' }))
-  })
-  it.each([404, 500])('keeps HTTP %i errors visible', async status => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'unavailable', message: 'Failed' } }), { status })))
-    await expect(fetchDailyGuidance()).rejects.toMatchObject({ status, code: 'unavailable' })
   })
 })
 

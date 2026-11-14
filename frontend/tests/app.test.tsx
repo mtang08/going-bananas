@@ -219,7 +219,7 @@ beforeEach(() => {
                 ? null
                 : url.includes('/strength-routine')
                   ? { version: 0, slots: [], schedule: profileRecord }
-                  : url.includes('/coach/v2/daily')
+                  : url.includes('/exceptions')
                     ? null
                     : url.includes('/execution')
                       ? execution

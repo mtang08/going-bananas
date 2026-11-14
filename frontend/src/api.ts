@@ -1,7 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { RECIPE_LABELS } from './api/types/calendar'
 import type { Completion, ExpandedStep, PlannedStep, SessionKind, SessionMarker, SessionState, StructureItem } from './api/types/calendar'
-import type { DailyGuidance } from './api/types/coach'
 export type Mode = 'demo' | 'real' | 'test'
 export interface Envelope<T> { schema_version: string; data_revision: number; mode: Mode; data: T }
 export interface RunClassification { method:string; suggested_label:'easy'|'quality'|'long'|'other'|null; effective_label:'easy'|'quality'|'long'|'other'|'unknown'; label_source:'manual'|'source'|'heuristic'|'unknown'; confidence:'confirmed'|'medium'|'low'|'insufficient'; reasons:string[]; metrics?:Record<string,number|string|null> }
@@ -187,9 +186,6 @@ export function sessionMarker(s: SessionState, c: Completion | undefined, today:
 export function invalidateKeys(qc: QueryClient, keys: readonly (readonly unknown[])[]): void {
   for (const key of keys) void qc.invalidateQueries({ queryKey: [...key] })
 }
-export async function fetchDailyGuidance(): Promise<DailyGuidance | null> {
-  return (await api<DailyGuidance | null>('/coach/v2/daily')).data
-}
 export const pageHref = { home: '#home', calendar: '#calendar', trends: '#trends', settings: '#settings',
   activity: (id: string) => `#activity/${encodeURIComponent(id)}` } as const
 export const qk = {
@@ -206,7 +202,7 @@ export const qk = {
   activity: (id: string) => ['v2', 'activity', id] as const,
   activitiesNear: (start: string, end: string) => ['v2', 'activities', start, end, 'running', null] as const,
   coach: ['v2', 'coach'] as const,
-  coachDaily: ['v2', 'coach', 'daily'] as const,
+  exceptions: ['v2', 'exceptions'] as const,
   goals: ['v2', 'goals'] as const,
   events: ['v2', 'events'] as const,
   anchors: ['v2', 'anchors'] as const,
