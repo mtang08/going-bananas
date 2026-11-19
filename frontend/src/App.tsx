@@ -9,7 +9,9 @@ import {
   Plus,
   Settings2,
 } from 'lucide-react'
-import { dateLabel, localDate, type CheckinRequest, type Profile } from './api'
+import { dateLabel, localDate } from './lib/format'
+import type { CheckinRequest } from './api/types/checkins'
+import type { Profile } from './api/types/profile'
 import { useServer } from './components/shared'
 import type { Unit } from './lib/format'
 import { CheckinModalV2 } from './pages/CheckinModalV2'

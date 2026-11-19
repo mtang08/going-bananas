@@ -7,7 +7,8 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
-import { api, dateLabel, post } from '../api'
+import { api, post } from '../api/client'
+import { dateLabel } from '../lib/format'
 import { invalidateKeys, qk, refreshAfterSync } from '../api/queryKeys'
 import type { SyncJob, SyncStatus } from '../api/types/sync'
 import { QueryState } from './QueryState'

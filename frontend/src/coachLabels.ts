@@ -1,4 +1,4 @@
-import { dateLabel } from './api'
+import { dateLabel } from './lib/format'
 import type { BenchmarkStatus } from './api/types/blocks'
 import type { BenchmarkOutcome, Category, Ladder, Severity } from './api/types/exceptions'
 import type { ProposalStatus } from './api/types/coach'
