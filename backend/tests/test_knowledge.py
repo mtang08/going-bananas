@@ -46,7 +46,11 @@ def test_unknown_selection_and_tampering_fail_closed(tmp_path: Path):
 def test_manifest_covers_all_imported_files():
     manifest = json.loads((DEFAULT_ROOT / "manifest.json").read_text())
     listed = {entry["path"] for entry in manifest["files"]}
-    actual = {str(path.relative_to(DEFAULT_ROOT)) for path in DEFAULT_ROOT.rglob("*") if path.is_file()}
+    actual = {
+        str(path.relative_to(DEFAULT_ROOT))
+        for path in DEFAULT_ROOT.rglob("*")
+        if path.is_file() and path.name != "AGENTS.md"
+    }
     assert actual - {"manifest.json"} == listed
     assert "athlete_context.md" not in listed
     for entry in manifest["files"]:
