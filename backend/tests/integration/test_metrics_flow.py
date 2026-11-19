@@ -19,7 +19,7 @@ from app.checkin_models import SessionRpe
 from app.config import settings
 from app.db import bump_data_revision, get_revision
 from app.metric_models import MetricResult, Prompt
-from app.metrics import engine
+from app.metrics import engine, refresh
 from app.models import Activity, AppState, CoverageInterval, ProfileVersion
 from app.services import derived
 from app.services.sync import import_activity_page
@@ -446,7 +446,6 @@ def test_cli_recompute_and_preview(db, tmp_path, monkeypatch, capsys):
     assert calls == [False]
 
 
-@pytest.mark.xfail(strict=True, reason='ARCH-04i: the calendar scope still refreshes all history')
 def test_calendar_edit_cost_does_not_grow_with_history(db, tmp_path, caplog):
     caplog.set_level(logging.INFO, logger='going_bananas.metrics')
     seed(db, tmp_path)
@@ -485,3 +484,81 @@ def test_load_runs_statement_count_does_not_grow_with_runs(db, tmp_path):
         after = _statements(session, lambda: engine.load_runs(session, *window))
     assert len(facts) == 12
     assert after == before
+
+
+def test_planning_only_writes_bump_revision_without_refresh(db, tmp_path, monkeypatch):
+    from app.planning_models import Goal
+    seed(db, tmp_path)
+    calls: list[set[str]] = []
+    real = derived.refresh_scopes
+
+    def spy(session, scopes):
+        calls.append(set(scopes))
+        return real(session, scopes)
+
+    monkeypatch.setattr(derived, 'refresh_scopes', spy)
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        revision = get_revision(session)
+        session.add(Goal(text='Synthetic goal', horizon='season', priority=1, status='active'))
+        session.commit()
+        session.add(ProfileVersion(version=2, effective_at=NOW, timezone='America/New_York',
+                                   facts={}, preferences={}, unknowns=[]))
+        session.commit()
+        assert calls == []
+        assert get_revision(session) == revision + 2
+        session.add(ProfileVersion(version=3, effective_at=NOW, timezone='Europe/London',
+                                   facts={}, preferences={}, unknowns=[]))
+        session.commit()
+        assert len(calls) == 1 and 'timezone' in calls[0]
+
+
+def test_spacing_windows_refresh_only_near_changed_dates(db, tmp_path, monkeypatch):
+    from dataclasses import replace
+    seed(db, tmp_path)
+    uid = uuid.uuid4()
+    near, far = TODAY - timedelta(days=20), TODAY - timedelta(days=80)
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        _move_plan(session, uid, 1, near)
+        refresh.ensure_windows(session, near)
+        refresh.ensure_windows(session, far)
+        session.commit()
+        assert set(engine.current_results(session, 'hard_session_spacing', [f'w14:{near}', f'w14:{far}'])) == {
+            f'w14:{near}', f'w14:{far}'}
+        engine.metric_modules()
+        original = engine.REGISTRY['hard_session_spacing']
+        computed: list[str] = []
+
+        def spy(spy_session, key):
+            computed.append(key)
+            return original.compute(spy_session, key)
+
+        monkeypatch.setitem(engine.REGISTRY, 'hard_session_spacing', replace(original, compute=spy))
+        _move_plan(session, uid, 2, TODAY - timedelta(days=17))
+    assert f'w14:{near}' in computed
+    assert f'w14:{far}' not in computed
+
+
+def test_deleting_completion_refreshes_its_plan(db, tmp_path):
+    from app.calendar_models import SessionCompletion
+
+    seed(db, tmp_path)
+    uid = uuid.uuid4()
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        _move_plan(session, uid, 1, TODAY + timedelta(days=1))
+        completion = SessionCompletion(session_uid=uid, status='skipped', match_method='user_marked', updated_at=NOW)
+        session.add(completion)
+        session.commit()
+        revision = get_revision(session)
+        skipped = current(session, 'planned_actual_session', str(uid))
+        assert skipped.value['overall_status'] == 'skipped'
+
+        session.delete(completion)
+        session.commit()
+
+        assert get_revision(session) == revision + 1
+        recomputed = current(session, 'planned_actual_session', str(uid))
+        assert recomputed.value['overall_status'] == 'unknown'
+        assert recomputed.id != skipped.id
