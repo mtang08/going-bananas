@@ -76,7 +76,7 @@ def test_ex1_numeric_and_mapping() -> None:
     assert [rep['mean_speed_mps'] for rep in value['reps']] == [3.84, 3.88, 3.86, 3.78]
     assert [rep['in_target'] for rep in value['reps']] == [True, True, True, False]
     assert [rep['hr_median_bpm'] for rep in value['reps']] == [160, 161, 162, 163]
-    assert [rep['lap_index'] for rep in value['reps']] == [1, 3, 5, 7]
+    assert [rep['lap_indexes'] for rep in value['reps']] == [[1], [3], [5], [7]]
     assert [rep['planned_step'] for rep in value['reps']] == [2, 4, 6, 8]
     assert [rep['step_path'] for rep in value['reps']] == ['1.steps.0'] * 4
     assert [rep['repeat_index'] for rep in value['reps']] == [0, 1, 2, 3]
@@ -229,10 +229,16 @@ def test_mapping_mismatch_and_repeats() -> None:
     assert out['status'] == 'available'
     mismatched = laps.copy()
     mismatched[3] = replace(laps[3], wkt_step_index=2)
-    assert execution_outcome(plan, fit, mismatched, stream)['reason_codes'] == ['LAP_STEP_ORDER_MISMATCH']
+    result = execution_outcome(plan, fit, mismatched, stream)
+    assert result['status'] == 'partial'
+    assert 'WORK_STEP_SKIPPED' in result['reason_codes']
+    assert result['value']['n_completed'] == 3
     unindexed_interior = laps.copy()
     unindexed_interior[3] = replace(laps[3], wkt_step_index=None)
-    assert execution_outcome(plan, fit, unindexed_interior, stream)['reason_codes'] == ['LAP_STEP_ORDER_MISMATCH']
+    result = execution_outcome(plan, fit, unindexed_interior, stream)
+    assert 'UNINDEXED_LAP_IGNORED' in result['quality_flags']
+    assert result['value']['reps'][1]['observed'] is False
+    assert 'WORK_STEP_NOT_RECORDED' in result['reason_codes']
     unsupported = [FitStep(0, 'repeat_until_time', repeat_from=0, repeat_count=2)]
     assert execution_outcome(plan, unsupported, laps, stream)['reason_codes'] == ['UNSUPPORTED_REPEAT']
     forward = [FitStep(0, 'repeat_until_steps_cmplt', repeat_from=1, repeat_count=2),
@@ -300,3 +306,51 @@ def test_timer_flags_suppress_trace_but_preserve_lap_completion(flag: str) -> No
     optional = [replace(step, target_modality='effort', target_low=None, target_high=None)
                 if step.type == 'work' else step for step in plan]
     assert execution_outcome(optional, fit, laps, replace(stream, quality_flags=(flag,)))['status'] == 'available'
+
+
+def test_split_warmup_and_skipped_last_recovery_real_layout() -> None:
+    plan, fit, _, _ = example()
+    work = [step for step in plan if step.type == 'work']
+    plan = [*plan, replace(work[-1], step=11, repeat_index=4)]
+    fit = [replace(step, repeat_count=5) if step.message_index == 3 else step for step in fit]
+    refs = [0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 4]
+    durations = [300, 300, 300, 120, 300, 120, 300, 120, 300, 120, 300, 600]
+    start = 0
+    laps = []
+    for i, (ref, duration) in enumerate(zip(refs, durations)):
+        laps.append(LapIn(i, start, duration, duration, duration * 3.9, ref))
+        start += duration
+    stream = ExecStream(list(range(start + 1)), [160.0] * (start + 1), [3.9] * (start + 1), [(0, start)])
+    result = execution_outcome(plan, fit, laps, stream)
+    assert result['status'] != 'not_assessable'
+    assert result['value']['n_completed'] == 5
+    assert result['value']['step_completion_ratio'] == 1.0
+    assert {'LAP_SPLIT_MERGED', 'NONWORK_STEP_OMITTED'} <= set(result['quality_flags'])
+    assert all(len(rep['lap_indexes']) == 1 for rep in result['value']['reps'])
+
+
+def test_split_work_rep_combines_measurements() -> None:
+    plan, fit, laps, stream = example()
+    split = [*laps[:3], replace(laps[3], timer_s=150, elapsed_s=150, distance_m=582),
+             replace(laps[3], start_offset_s=1170, timer_s=150, elapsed_s=150, distance_m=582), *laps[4:]]
+    split = [replace(lap, lap_index=i) for i, lap in enumerate(split)]
+    rep = execution_outcome(plan, fit, split, stream)['value']['reps'][1]
+    assert len(rep['lap_indexes']) == 2
+    assert rep['actual_timer_s'] == 300
+    assert rep['fully_completed'] is True
+    assert rep['hr_median_bpm'] == 161
+    assert rep['mean_speed_mps'] == 3.88
+
+
+def test_no_indexed_laps_not_assessable() -> None:
+    plan, fit, laps, stream = example()
+    result = execution_outcome(plan, fit, [replace(lap, wkt_step_index=None) for lap in laps], stream)
+    assert result['reason_codes'] == ['NO_INDEXED_LAPS']
+    assert result['value'] is None
+
+
+def test_truncated_workout_reports_early_end() -> None:
+    plan, fit, laps, stream = example()
+    result = execution_outcome(plan, fit, laps[:4], stream)
+    assert 'WORKOUT_ENDED_EARLY' in result['reason_codes']
+    assert 'WORK_STEP_NOT_RECORDED' in result['reason_codes']

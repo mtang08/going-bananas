@@ -12,7 +12,7 @@ from typing import Protocol
 from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
-from app.adapters.garmin.fit import RUN_SPORTS, FitDecodeError, decode_fit, extract_fit
+from app.adapters.garmin.fit import DECODER_VERSION, RUN_SPORTS, FitDecodeError, decode_fit, extract_fit
 from app.checkin_models import SessionRpe
 from app.db import bump_data_revision
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep, FitFile
@@ -159,7 +159,8 @@ def ingest_activity_fit(session: Session, source: FitSource, private_dir: Path,
         start_at=lap.start_at, timer_s=lap.timer_s, elapsed_s=lap.elapsed_s,
         distance_m=lap.distance_m, avg_speed_mps=lap.avg_speed_mps,
         avg_hr_bpm=lap.avg_hr_bpm, max_hr_bpm=lap.max_hr_bpm,
-        lap_trigger=lap.lap_trigger, wkt_step_index=lap.wkt_step_index)
+        lap_trigger=lap.lap_trigger, wkt_step_index=lap.wkt_step_index,
+        intensity=lap.intensity, end_at=lap.end_at)
         for lap in decoded.laps])
     session.add_all([ActivityWorkoutStep(activity_id=activity.id,
         message_index=step.message_index, step_name=step.step_name,
@@ -192,6 +193,7 @@ def ingest_activity_fit(session: Session, source: FitSource, private_dir: Path,
     fit.profile_version = decoded.profile_version
     fit.sdk_version = decoded.sdk_version
     fit.decoded_at = now
+    fit.decoder_version = DECODER_VERSION
     fit.decode_error = None
     fit.last_attempt_at = now
     fit.last_error = None

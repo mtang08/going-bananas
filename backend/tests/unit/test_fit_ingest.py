@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import UTC, datetime
+import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
+from sqlalchemy.orm import Session
 
+from app.adapters.garmin.fit import DecodedFit, DecodedLap, DecodedSession, DecodedStream
 from app.adapters.garmin.normalize import parse_activity
 from app.adapters.garmin.personal import GarminRemoteError
+from app.fit_models import ActivityLap, FitFile
+from app.models import Activity, RawObject
 from app.services import fit_ingest, sync
 
 
@@ -153,3 +159,36 @@ def test_fit_page_isolates_middle_failure_after_page_commit(monkeypatch, tmp_pat
     assert outcomes == ['first', 'middle', 'third']
     assert [item.committed for item in sessions] == [True, False, True]
     assert [item.rolled_back for item in sessions] == [False, True, False]
+
+
+def test_successful_ingest_persists_lap_metadata_and_decoder_version(monkeypatch, tmp_path: Path) -> None:
+    start = datetime(2026, 11, 12, tzinfo=UTC)
+    end = start + timedelta(seconds=120)
+    decoded = DecodedFit(
+        fit_sha256='synthetic', profile_version='21221', sdk_version='21.221.0',
+        session=DecodedSession(start, 'running', elapsed_s=300),
+        laps=(DecodedLap(0, start, intensity='warmup', end_at=end),),
+        steps=(), stream=DecodedStream((), (), (), (), (), (), (), 0, 0, ()),
+        message_inventory={}, device={}, field_names={},
+    )
+    activity = Activity(id=uuid.uuid4(), start_at=start, canonical_revision=1)
+    raw = RawObject(id=uuid.uuid4())
+    fit = FitFile(id=uuid.uuid4(), activity_id=activity.id, raw_object_id=raw.id)
+    session = Mock(spec=Session)
+    session.scalar.return_value = None
+    source = SimpleNamespace(download_activity=lambda _: b'synthetic zip')
+    monkeypatch.setattr(fit_ingest, '_remote_id', lambda *_: '123')
+    monkeypatch.setattr(fit_ingest, '_locked_rows', lambda *_: (activity, fit))
+    monkeypatch.setattr(fit_ingest, '_raw_object', lambda *_: raw)
+    monkeypatch.setattr(fit_ingest, 'extract_fit', lambda _: b'synthetic fit')
+    monkeypatch.setattr(fit_ingest, 'decode_fit', lambda _: decoded)
+    monkeypatch.setattr(fit_ingest, 'bump_data_revision', lambda _: 2)
+
+    assert fit_ingest.ingest_activity_fit(session, source, tmp_path, activity) == 'decoded'
+
+    lap, = session.add_all.call_args_list[0].args[0]
+    assert isinstance(lap, ActivityLap)
+    assert lap.activity_id == activity.id
+    assert lap.intensity == 'warmup'
+    assert lap.end_at == end
+    assert fit.decoder_version == 2

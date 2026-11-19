@@ -26,6 +26,7 @@ from app.metrics.contract import (
     plausible_speed,
 )
 from app.metrics.engine import register
+from app.metrics.lap_alignment import AlignLap, align_laps
 from app.models import Activity, ActivityAnnotation, ActivitySource, AppState, RawObject, SourceRecord
 from app.services.calendar_structure import expand_structure
 
@@ -35,6 +36,9 @@ WINDOW_DAYS: tuple[int, ...] = ()
 DEPENDS_ON: tuple[str, ...] = ()
 CONFIG = {
     'segment_source': 'plan_plus_wkt_step_index',
+    'alignment_rule': 'monotone_min_cost_split_omit.v1',
+    'alignment_costs': {'split': 1, 'omit_nonwork': 2, 'omit_work': 10},
+    'missing_rep_reason_rule': 'top_level.v1',
     'work_intensities': ['active', 'interval'],
     'repeat_type': 'repeat_until_steps_cmplt',
     'max_record_gap_s': 10,
@@ -227,48 +231,54 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
     ordered_laps = sorted(laps, key=lambda lap: lap.lap_index)
     if len({lap.lap_index for lap in ordered_laps}) != len(ordered_laps):
         return _early(Status.not_assessable, 'LAP_STEP_ORDER_MISMATCH')
-    indexed = [(i, lap.wkt_step_index) for i, lap in enumerate(ordered_laps) if lap.wkt_step_index is not None]
-    if indexed:
-        first_index, last_index = indexed[0][0], indexed[-1][0]
-        if (any(ordered_laps[i].wkt_step_index is None for i in range(first_index, last_index + 1))
-                or [index for _, index in indexed] !=
-                [step.message_index for step in watch[:len(indexed)]]):
-            return _early(Status.not_assessable, 'LAP_STEP_ORDER_MISMATCH')
-    lap_by_position = {i: lap for i, lap in enumerate(
-        lap for lap in ordered_laps if lap.wkt_step_index is not None)}
-    # Indexed laps are a prefix of watch steps. Work positions therefore map exactly.
+    paired = dict(zip((i for i, _ in watch_work), work))
+    def completes(position: int, positions: tuple[int, ...]) -> bool:
+        step = paired[position]
+        values = [ordered_laps[p].timer_s if step.duration_type == 'time'
+                  else ordered_laps[p].distance_m for p in positions]
+        return all(_number(value) for value in values) and sum(cast(float, value) for value in values) / step.duration_value >= 1
+    align = align_laps([step.message_index for step in watch], frozenset(paired),
+                       [AlignLap(p, lap.wkt_step_index) for p, lap in enumerate(ordered_laps)],
+                       completes, cast(dict[str, int], CONFIG['alignment_costs']))
+    if align.error:
+        return _early(Status.not_assessable, align.error)
     reasons: set[str] = set()
-    flags: set[str] = set()
+    flags: set[str] = set(align.flags)
+    if any(position in paired for position in align.omitted):
+        reasons.add('WORK_STEP_SKIPPED')
+    if any(position in paired for position in align.tail):
+        reasons.add('WORKOUT_ENDED_EARLY')
     reps: list[dict[str, Any]] = []
     required_eligible = required_valid = target_valid_total = target_in_total = 0.0
     required_unassessable = False
     valid_means: list[float] = []
     for rep_number, (step, (watch_position, _)) in enumerate(zip(work, watch_work), 1):
-        lap = lap_by_position.get(watch_position)
+        rep_laps = [ordered_laps[p] for p in align.assigned[watch_position]]
+        def lap_sum(field: str) -> float | None:
+            values = [getattr(lap, field) for lap in rep_laps]
+            return sum(values) if values and all(_number(value) for value in values) else None
+        lap_timer = lap_sum('timer_s')
+        lap_distance = lap_sum('distance_m')
         target_low, target_high = step.target_low, step.target_high
         required = (step.target_modality == 'speed' and _number(target_low)
                     and _number(target_high) and target_low <= target_high)
         rep_reasons: list[str] = []
         speed_reasons: list[str] = []
         rep_flags: list[str] = []
-        actual = (lap.timer_s if step.duration_type == 'time' else lap.distance_m) if lap else None
+        actual = lap_timer if step.duration_type == 'time' else lap_distance
         ratio = actual / step.duration_value if _number(actual) and step.duration_value > 0 else None
         completed = ratio is not None and ratio >= 1
-        if lap is None:
+        if not rep_laps:
             rep_reasons.append('WORK_STEP_NOT_RECORDED')
         elif ratio is None:
             rep_reasons.append('COMPLETION_VALUE_MISSING')
         elif ratio < 1:
             rep_reasons.append('INCOMPLETE_WORK_STEP')
-        speed_status = Status.missing if lap is None else Status.not_assessable
+        speed_status = Status.missing if not rep_laps else Status.not_assessable
         mean = coverage = target_valid = target_in = in_target = hr_median = None
         eligible = valid = 0.0
-        if lap is not None:
-            a = lap.start_offset_s
-            next_lap = min((other for other in ordered_laps if other.start_offset_s > a),
-                           key=lambda other: other.start_offset_s, default=None)
-            b = a + lap.elapsed_s if _number(lap.elapsed_s) else (
-                next_lap.start_offset_s if next_lap else None)
+        if rep_laps:
+            spans = []
             issue = None
             if stream is None:
                 issue = 'NO_STREAM'
@@ -276,16 +286,26 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
                      ('TIMER_EVENTS_MISSING', 'TIMER_EVENTS_AMBIGUOUS', 'TIMER_MISMATCH')):
                 issue = next(flag for flag in ('TIMER_EVENTS_MISSING', 'TIMER_EVENTS_AMBIGUOUS',
                                               'TIMER_MISMATCH') if flag in stream.quality_flags)
-            elif b is None:
-                issue = 'LAP_END_UNKNOWN'
-            elif not _number(a) or b <= a:
-                issue = 'LAP_BOUNDS_INVALID'
+            else:
+                for lap in rep_laps:
+                    a = lap.start_offset_s
+                    next_lap = min((other for other in ordered_laps if other.start_offset_s > a),
+                                   key=lambda other: other.start_offset_s, default=None)
+                    b = a + lap.elapsed_s if _number(lap.elapsed_s) else (
+                        next_lap.start_offset_s if next_lap else None)
+                    if b is None:
+                        issue = 'LAP_END_UNKNOWN'
+                        break
+                    if not _number(a) or b <= a:
+                        issue = 'LAP_BOUNDS_INVALID'
+                        break
+                    spans.append((a, b))
             if issue:
                 speed_reasons.append(issue)
             else:
-                assert stream is not None and b is not None
+                assert stream is not None
                 integrate_timer_on(stream.t_s, stream.timer_on, 10)
-                timer = _union(clip(stream.timer_on, a, b))
+                timer = _union([seg for a, b in spans for seg in clip(stream.timer_on, a, b)])
                 pieces = integrate_timer_on(stream.t_s, timer, 10)
                 eligible = sum(weight for _, weight, _ in pieces)
                 if eligible == 0:
@@ -312,8 +332,8 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
                             target_in = sum(weight for speed, weight in speed_samples
                                             if target_low <= speed <= target_high)
                             in_target = target_low <= mean <= target_high
-                if _number(lap.timer_s) and lap.timer_s >= 180:
-                    hr_pieces = integrate_timer_on(stream.t_s, after_timer_seconds(timer, 60), 10)
+                if _number(lap_timer) and lap_timer >= cast(int, CONFIG['hr_min_step_timer_s']):
+                    hr_pieces = integrate_timer_on(stream.t_s, after_timer_seconds(timer, cast(int, CONFIG['hr_exclude_first_s'])), 10)
                     hr_samples: list[tuple[float, float]] = []
                     for i, weight, known in hr_pieces:
                         if known and i is not None and i < len(stream.hr_bpm):
@@ -321,13 +341,13 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
                             if plausible_hr(hr):
                                 hr_samples.append((cast(float, hr), weight))
                     hr_median = weighted_median(hr_samples)
-            if lap.timer_s is None:
+            if lap_timer is None:
                 rep_flags.append('HR_TIMER_UNKNOWN')
-            elif _number(lap.timer_s) and lap.timer_s < 180:
+            elif lap_timer < cast(int, CONFIG['hr_min_step_timer_s']):
                 rep_flags.append('HR_NOT_REPORTED_SHORT_STEP')
         if step.target_modality == 'hr':
             rep_flags.append('HR_TARGET_NOT_SCORED')
-        if required and lap is not None:
+        if required and rep_laps:
             if speed_status == Status.not_assessable:
                 rep_reasons.append('COMPONENT_NOT_ASSESSABLE')
                 required_unassessable = True
@@ -339,27 +359,27 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
             if target_valid is not None and target_in is not None:
                 target_valid_total += target_valid
                 target_in_total += target_in
-        if rep_reasons and lap is not None:
+        if rep_reasons:
             reasons.update(rep_reasons)
         flags.update(rep_flags)
         if completed and speed_status == Status.available and mean is not None:
             valid_means.append(mean)
         reps.append({
             'rep': rep_number, 'planned_step': step.step, 'step_path': step.step_path,
-            'repeat_index': step.repeat_index, 'lap_index': lap.lap_index if lap else None,
-            'observed': lap is not None, 'fully_completed': completed,
-            'status': (Status.missing if lap is None else Status.partial if rep_reasons else Status.available).value,
+            'repeat_index': step.repeat_index, 'lap_indexes': [lap.lap_index for lap in rep_laps],
+            'observed': bool(rep_laps), 'fully_completed': completed,
+            'status': (Status.missing if not rep_laps else Status.partial if rep_reasons else Status.available).value,
             'reason_codes': sorted(rep_reasons), 'planned_duration_type': step.duration_type,
-            'planned_value': step.duration_value, 'actual_timer_s': _rounded(lap.timer_s, 1) if lap else None,
-            'actual_distance_m': _rounded(lap.distance_m, 1) if lap else None,
+            'planned_value': step.duration_value, 'actual_timer_s': _rounded(lap_timer, 1),
+            'actual_distance_m': _rounded(lap_distance, 1),
             'completion_ratio': _rounded(ratio, 3), 'mean_speed_mps': _rounded(mean, 3),
             'speed_status': speed_status.value, 'speed_reason_codes': sorted(speed_reasons),
             'speed_coverage': _rounded(coverage, 3), 'target_modality': step.target_modality,
             'target_low': step.target_low, 'target_high': step.target_high,
             'target_valid_s': _rounded(target_valid, 1), 'target_in_range_s': _rounded(target_in, 1),
             'in_target': in_target, 'hr_median_bpm': _rounded(hr_median, 1), 'flags': sorted(rep_flags),
-            '_mean': mean, '_raw_timer': lap.timer_s if lap and _number(lap.timer_s) else None,
-            '_raw_distance': lap.distance_m if lap and _number(lap.distance_m) else None,
+            '_mean': mean, '_raw_timer': lap_timer,
+            '_raw_distance': lap_distance,
         })
     observed = [rep for rep in reps if rep['observed']]
     n_completed = sum(rep['fully_completed'] for rep in reps)

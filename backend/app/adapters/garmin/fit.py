@@ -15,6 +15,8 @@ from garmin_fit_sdk import Decoder, Stream
 FIT_EPOCH_OFFSET = 631065600
 MAX_FIT_BYTES = 50 * 1024 * 1024
 SDK_VERSION = '21.221.0'
+DECODER_VERSION = 2
+LAP_INTENSITIES = frozenset({'active', 'rest', 'warmup', 'cooldown', 'recovery', 'interval', 'other'})
 RUN_SPORTS = frozenset({'running', 'trail_running', 'treadmill_running'})
 _PRIVATE_FIELD = re.compile(r'(?:position|latitude|longitude|serial|token|secret|password|credential)', re.I)
 
@@ -48,6 +50,8 @@ class DecodedLap:
     max_hr_bpm: float | None = None
     lap_trigger: str | None = None
     wkt_step_index: int | None = None
+    intensity: str | None = None
+    end_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -302,21 +306,23 @@ def decode_fit(fit_bytes: bytes) -> DecodedFit:
     dropped = False
     for item in messages.get('lap_mesgs', []):
         lap_start = _instant(item.get('start_time'))
+        lap_end = _instant(item.get('timestamp'))
         if lap_start is None:
-            end = _instant(item.get('timestamp'))
             elapsed = _number(item.get('total_elapsed_time'))
-            lap_start = end - timedelta(seconds=elapsed) if end is not None and elapsed is not None else None
+            lap_start = lap_end - timedelta(seconds=elapsed) if lap_end is not None and elapsed is not None else None
         if lap_start is None:
             dropped = True
             continue
-        kept.append((item, lap_start))
+        kept.append((item, lap_start, lap_end))
     laps = tuple(DecodedLap(index, lap_start,
         _number(item.get('total_timer_time')), _number(item.get('total_elapsed_time')),
         _number(item.get('total_distance')),
         _channel(item, 'enhanced_avg_speed', 'avg_speed'),
         _number(item.get('avg_heart_rate')), _number(item.get('max_heart_rate')),
-        item.get('lap_trigger'), _integer(item.get('wkt_step_index')))
-        for index, (item, lap_start) in enumerate(kept))
+        item.get('lap_trigger'), _integer(item.get('wkt_step_index')),
+        intensity=item.get('intensity') if item.get('intensity') in LAP_INTENSITIES else None,
+        end_at=lap_end)
+        for index, (item, lap_start, lap_end) in enumerate(kept))
     steps = tuple(_step(item) for item in sorted(messages.get('workout_step_mesgs', []),
         key=lambda item: _integer(item.get('message_index')) or 0))
     stream = _stream(messages.get('record_mesgs', []), messages.get('event_mesgs', []), session)
