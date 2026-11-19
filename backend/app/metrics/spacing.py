@@ -12,9 +12,8 @@ from sqlalchemy.orm import Session
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.domain.analytics import utc_date_bounds
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
-from app.metric_models import MetricResult as MetricResultRow
 from app.metrics.contract import MetricResultData, Status, completion_association_hash, config_hash, sha256_json
-from app.metrics.engine import load_runs, register
+from app.metrics.engine import current_results, load_runs, register
 from app.models import Activity, AppState, ManualSession, RawObject, SourceRecord
 from app.planning_models import StrengthRoutineSlot
 from app.services.timezone import athlete_tz
@@ -183,10 +182,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
         Activity.sport.in_(("running", "trail_running", "treadmill_running")))).one()
     runs = (load_runs(session, bounds[0].astimezone(tz).date(),
                       bounds[1].astimezone(tz).date() + timedelta(days=1)) if bounds[0] and bounds[1] else [])
-    long_rows = session.scalars(select(MetricResultRow).where(
-        MetricResultRow.metric_id == "long_run_exposure", MetricResultRow.method_version == "v1",
-        MetricResultRow.is_current.is_(True))).all()
-    long_by_id = {r.subject_key: r for r in long_rows}
+    long_by_id = current_results(session, "long_run_exposure", [str(run.activity_id) for run in runs])
     for run in runs:
         completion = by_activity.get(run.activity_id)
         linked_plan = next((p for p in plans if completion and p.session_uid == completion.session_uid), None)

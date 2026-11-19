@@ -29,8 +29,7 @@ def metric_data(row: MetricResult | None) -> dict | None:
 
 
 def current(session: Session, metric: str, key: str) -> MetricResult | None:
-    return session.scalar(select(MetricResult).where(MetricResult.metric_id == metric,
-        MetricResult.method_version == 'v1', MetricResult.subject_key == key, MetricResult.is_current))
+    return engine.current_results(session, metric, [key]).get(key)
 
 
 def _window(start: date, end: date, limit: int | None = None) -> None:
@@ -123,7 +122,7 @@ def long_run_history(session: Session, start: date, end: date) -> list[dict]:
         session.flush()
     rows = session.scalars(select(MetricResult).where(MetricResult.metric_id == 'long_run_exposure',
         MetricResult.subject_type == 'activity', MetricResult.subject_key.in_([str(uid) for uid in ids]),
-        MetricResult.is_current).order_by(MetricResult.window_start, MetricResult.subject_key))
+        engine.current_result_filter()).order_by(MetricResult.window_start, MetricResult.subject_key))
     return [metric_data(row) for row in rows if row.value and row.value.get('classification') == 'long']  # type: ignore[misc]
 
 
