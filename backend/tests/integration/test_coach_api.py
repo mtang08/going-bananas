@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
@@ -133,6 +134,43 @@ def test_detail_includes_current_and_flags(api):
     items = client.get('/api/v1/coach/proposals?status=pending').json()['data']['items']
     assert items[0]['id'] == str(proposal_id) and items[0]['change_count'] == 1
     assert client.get(f'/api/v1/coach/proposals/{uuid.uuid4()}').status_code == 404
+
+
+def test_detail_rechecks_pending_freshness(api, monkeypatch):
+    from app.api import coach
+
+    client, session = api
+    proposal_id, _, head = pending(session)
+    url = f'/api/v1/coach/proposals/{proposal_id}'
+
+    def detail():
+        response = client.get(url)
+        assert response.status_code == 200, response.text
+        data = response.json()['data']
+        assert data['status'] == 'pending'
+        return data
+
+    assert detail()['is_current'] is True
+    proposal = session.get(CoachProposal, proposal_id)
+    snapshot = session.get(CoachSnapshot, proposal.snapshot_id)
+    generated_at = snapshot.generated_at
+    snapshot.generated_at = NOW - timedelta(hours=24, seconds=1)
+    session.flush()
+    assert detail()['is_current'] is False
+    snapshot.generated_at = generated_at
+    session.flush()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(coach, 'resolve_kb', lambda selection: replace(KB, digest='1' * 64))
+        assert detail()['is_current'] is False
+    assert detail()['is_current'] is True
+
+    # Advance the head without the edit service's proactive stale marking.
+    session.add(CalendarVersion(number=head + 1, parent_number=head, kind='manual_edit', actor='user'))
+    session.get(AppState, 1).calendar_head_version = head + 1
+    session.flush()
+    moved = detail()
+    assert moved['head'] == head + 1 and moved['is_current'] is False
 
 
 def test_active_and_discard_api(api):
