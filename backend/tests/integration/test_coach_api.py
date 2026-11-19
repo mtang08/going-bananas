@@ -15,7 +15,7 @@ from app.exception_models import ExceptionFinding
 from app.models import AppState
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
-from app.services.proposals import submit_proposal
+from app.services.proposals.lifecycle import submit_proposal
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)

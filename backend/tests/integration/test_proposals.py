@@ -16,7 +16,8 @@ from app.models import AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
-from app.services.proposals import DecisionRequest, decide_proposal, discard_proposal, submit_proposal
+from app.services.proposals import DecisionRequest, decide_proposal
+from app.services.proposals.lifecycle import discard_proposal, submit_proposal
 from app.services.proposals.schema import DecisionError
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
@@ -565,7 +566,7 @@ def test_revise_preserves_identity_history_and_rejects_old_acceptance(proposal_s
     from copy import deepcopy
 
     from app.coach_v2_models import CoachProposalRevision
-    from app.services.proposals import RevisionRequest, revise_proposal
+    from app.services.proposals.lifecycle import RevisionRequest, revise_proposal
 
     session = proposal_session
     snapshot, uid = _snapshot(session)
@@ -608,7 +609,7 @@ def test_invalid_or_conflicting_revision_does_not_replace_draft(proposal_session
     from copy import deepcopy
 
     from app.coach_v2_models import CoachProposalRevision
-    from app.services.proposals import RevisionRequest, revise_proposal
+    from app.services.proposals.lifecycle import RevisionRequest, revise_proposal
 
     session = proposal_session
     snapshot, uid = _snapshot(session)
@@ -630,7 +631,7 @@ def test_invalid_or_conflicting_revision_does_not_replace_draft(proposal_session
 
 
 def test_revise_stale_draft_requires_fresh_context_and_keeps_link(proposal_session):
-    from app.services.proposals import RevisionRequest, revise_proposal
+    from app.services.proposals.lifecycle import RevisionRequest, revise_proposal
 
     session = proposal_session
     snapshot, uid = _snapshot(session)

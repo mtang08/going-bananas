@@ -20,16 +20,6 @@ from app.services.exceptions.vocab import NON_TERMINAL_FINDING
 from app.services.knowledge import KnowledgeIntegrityError
 from app.services.proposals.context import load_context, lock_planning, snapshot_ref
 from app.services.proposals.lifecycle import mark_pending_stale
-
-# isort: split
-
-# TRANSITIONAL (ARCH-08e2): tests move to proposals.lifecycle, then this import is deleted
-from app.services.proposals.lifecycle import (  # noqa: F401
-    RevisionRequest,
-    discard_proposal,
-    revise_proposal,
-    submit_proposal,
-)
 from app.services.proposals.schema import (
     DecisionError,
     ProposalDoc,
