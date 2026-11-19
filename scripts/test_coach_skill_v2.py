@@ -197,9 +197,9 @@ class HelperTests(unittest.TestCase):
             with self.assertRaisesRegex(helper.HelperError, '^invalid_app_response$'):
                 helper.run_cli(ROOT, 'real', ['snapshot'])
 
-    def test_undo_requires_valid_head_reason_and_calendar_authority(self):
+    def test_undo_requires_valid_head_and_reason(self):
         client = helper.Client('http://localhost:8000', 'real')
-        client.request = Mock(side_effect=[{'data':{'planning_authority':'calendar'}},{'mode':'real','data':{}}])
+        client.request = Mock(return_value={'mode':'real','data':{}})
         with self.assertRaises(helper.HelperError):
             client.undo(2,1,' ')
         client.undo(2,1,'Explicit athlete request')

@@ -55,9 +55,6 @@ class Client:
     def undo(self, expected_head, target_version, reason):
         if expected_head < 1 or target_version < 0 or not reason.strip():
             raise HelperError('invalid_undo_request', 2)
-        profile = self.request('GET', '/profile')
-        if profile.get('data', {}).get('planning_authority') != 'calendar':
-            raise HelperError('planning_upgrade_required', 2)
         return self.request('POST', '/calendar/rollback',
             {'expected_head': expected_head, 'to_version': target_version, 'reason': reason})
 
