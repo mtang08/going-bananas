@@ -44,8 +44,8 @@ async function expectWeek(card: Locator, week: WeeklyDigest) {
     ['partial', 'partial'], ['modified', 'modified'], ['missed', 'missed'], ['not_recorded', 'not recorded'],
   ] as const) {
     const count = sessions.by_outcome[outcome]
-    if (count > 0) await expect(card).toContainText(new RegExp(`\\b${count} ${label}\\b`))
-    else await expect(card).not.toContainText(new RegExp(`\\b\\d+ ${label}\\b`))
+    if (count > 0) await expect(card.getByText(new RegExp(`\\b${count} ${label}\\b`))).toBeVisible()
+    else await expect(card.getByText(new RegExp(`\\b\\d+ ${label}\\b`))).toHaveCount(0)
   }
 
   const unknowns = [
