@@ -69,7 +69,7 @@ def get_completion_assessor() -> Callable[[Session, uuid.UUID], None]:
 @router.get('/calendar')
 def get_calendar(start: date | None = None, end: date | None = None,
                  version: int | None = None, session: Session = Depends(get_session)) -> dict:
-    today = calendar._today(session)
+    today = calendar.calendar_today(session)
     return envelope(session, calendar.calendar_view(session,
         start or today - timedelta(days=7), end or today + timedelta(days=13), version))
 

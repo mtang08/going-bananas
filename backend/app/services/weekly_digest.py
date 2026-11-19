@@ -264,5 +264,5 @@ def weekly_digest(session: Session, week_start: date | None) -> dict:
     if week_start is not None and week_start.weekday() != 0:
         fail('invalid_week_start', 'Week start must be a Monday')
     global_read_lock(session)
-    today = calendar._today(session)
+    today = calendar.calendar_today(session)
     return load_week(session, week_start or week_bounds(today)[0], today=today)

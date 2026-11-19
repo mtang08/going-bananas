@@ -95,7 +95,7 @@ def recent_pace_mps(runs: Sequence[RunFact], as_of: date, days: int = 28) -> tup
 
 def weekly_projection(session: Session) -> dict:
     global_read_lock(session)
-    today = calendar._today(session)
+    today = calendar.calendar_today(session)
     week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)
     timezone = athlete_tz(session).key

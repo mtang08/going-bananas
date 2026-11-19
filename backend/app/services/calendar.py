@@ -37,6 +37,10 @@ def _today(session: Session, now: datetime | None = None) -> date:
     return athlete_today(session, now)
 
 
+def calendar_today(session: Session, now: datetime | None = None) -> date:
+    return _today(session, now)
+
+
 def _lock(session: Session, expected_head: int | None = None) -> AppState:
     global_write_lock(session)
     state = session.get(AppState, 1, with_for_update=True, populate_existing=True)
@@ -86,7 +90,7 @@ def _row_data(row: CalendarSessionRevision, today: date | None = None) -> dict:
 
 def state_at(session: Session, version: int) -> list[dict]:
     _check_version(session, version)
-    today = _today(session)
+    today = calendar_today(session)
     return [_row_data(row, today) for row in sorted(_latest(session, version).values(),
         key=lambda row: (row.local_date, row.slot, str(row.session_uid))) if not row.deleted]
 
@@ -143,7 +147,7 @@ def _protected(session: Session, uid: uuid.UUID,
 def _inverse(session: Session, current_version: int, target_version: int) -> tuple[list[dict], list[uuid.UUID]]:
     current = _latest(session, current_version)
     target = _latest(session, target_version)
-    today = _today(session)
+    today = calendar_today(session)
     changes = []
     protected = []
     for uid in sorted(current.keys() | target.keys(), key=str):
@@ -221,7 +225,7 @@ def calendar_view(session: Session, start: date, end: date, version: int | None 
                         'eligible': bool(changes), 'protected_session_uids': protected}
     versions = session.scalars(select(CalendarVersion).where(CalendarVersion.number <= head)
         .order_by(desc(CalendarVersion.number)).limit(50)).all()
-    return {'today': _today(session), 'timezone': athlete_tz(session).key,
+    return {'today': calendar_today(session), 'timezone': athlete_tz(session).key,
         'start': start, 'end': end, 'version': requested, 'head': head,
         'last_planned_date': max((item['local_date'] for item in all_head), default=None),
         'sessions': in_range, 'completions': completions, 'recorded_runs': recorded_runs,
@@ -284,7 +288,7 @@ def _validate_fields(fields: dict, *, existing: dict | None = None,
 def _append(session: Session, *, uid: uuid.UUID, number: int, revision: int,
             fields: dict, deleted: bool = False, today: date | None = None) -> CalendarSessionRevision:
     row = CalendarSessionRevision(session_uid=uid, revision=revision, calendar_version_number=number,
-        deleted=deleted, certainty='committed' if fields['local_date'] <= (today or _today(session)) + timedelta(days=6)
+        deleted=deleted, certainty='committed' if fields['local_date'] <= (today or calendar_today(session)) + timedelta(days=6)
             else 'provisional', **fields)
     session.add(row)
     return row
@@ -316,7 +320,7 @@ def apply_edits(session: Session, expected_head: int, edits: list[dict], reason:
     if not isinstance(edits, list) or not edits:
         fail('edit_no_change', 'No calendar changes supplied')
     current = _latest(session, expected_head)
-    today = _today(session)
+    today = calendar_today(session)
     prepared = []
     seen = set()
     for edit in edits:
@@ -527,10 +531,10 @@ def _bootstrap_locked(session: Session, state: AppState, *, anchor_date: date,
 
 def write_bootstrap(session: Session, anchor_date: date, start_date: date) -> dict:
     state = _lock(session)
-    if start_date < _today(session):
+    if start_date < calendar_today(session):
         fail('protected_session', 'Ordinary bootstrap cannot create historical sessions')
     return _bootstrap_locked(session, state, anchor_date=anchor_date,
-        start_date=start_date, today=_today(session))
+        start_date=start_date, today=calendar_today(session))
 
 
 def seed_demo_calendar(session: Session, *, anchor_date: date, start_date: date,
@@ -554,7 +558,7 @@ def seed_demo_calendar(session: Session, *, anchor_date: date, start_date: date,
         seen.add(uid)
         prepared.append((uid, _validate_fields(edit['fields'])))
     result = _bootstrap_locked(session, state, anchor_date=anchor_date,
-        start_date=start_date, today=_today(session, now))
+        start_date=start_date, today=calendar_today(session, now))
     if not prepared:
         return result
     existing = _latest(session, state.calendar_head_version)
@@ -566,7 +570,7 @@ def seed_demo_calendar(session: Session, *, anchor_date: date, start_date: date,
     for uid, fields in prepared:
         _append(session, uid=uid, number=version.number, revision=1,
             fields={**fields, 'legacy_unstructured': False, 'legacy_payload': None},
-            today=_today(session, now))
+            today=calendar_today(session, now))
     session.flush()
     return {'version': version.number, 'kind': 'manual_edit',
             'stale_proposals': result['stale_proposals'], 'preserved_session_uids': []}
