@@ -1,14 +1,13 @@
 import { Button, Card, Input } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { put } from '../../api/client'
+import { qk, invalidateKeys } from '../../api/queryKeys'
 import {
-  put,
-  qk,
-  invalidateKeys,
   WEEKDAY_LABELS,
   type StrengthRoutine,
   type StrengthRoutineSlot,
-} from '../../api'
+} from '../../api/types/blocks'
 import { ErrorText, Select } from './shared'
 
 export type SlotDraft = Omit<StrengthRoutineSlot, 'id' | 'version'>

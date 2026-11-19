@@ -1,16 +1,12 @@
 import { Button, Card, Input } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  post,
-  put,
-  qk,
-  invalidateKeys,
-  validDate,
-  type Profile,
-  type CalendarWriteResult,
-  type StrengthRoutine,
-} from '../../api'
+import { post, put } from '../../api/client'
+import { qk, invalidateKeys } from '../../api/queryKeys'
+import { validDate } from '../../lib/format'
+import type { Profile } from '../../api/types/profile'
+import type { CalendarWriteResult } from '../../api/types/calendar'
+import type { StrengthRoutine } from '../../api/types/blocks'
 import { ErrorText, profileBody } from './shared'
 import {
   StrengthRoutineEditor,

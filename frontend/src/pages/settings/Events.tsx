@@ -1,22 +1,15 @@
 import { Button, Card, Input, NativeSelect } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { api, post, patch } from '../../api/client'
+import { qk, invalidateKeys } from '../../api/queryKeys'
+import { dateLabel, fmtDistance, fmtClock, clockToSeconds, type Unit } from '../../lib/format'
 import {
-  api,
-  post,
-  patch,
-  qk,
-  invalidateKeys,
-  dateLabel,
-  fmtDistance,
-  fmtClock,
-  clockToSeconds,
   EVENT_PRIORITY_LABELS,
   type RaceEvent,
   type EventPriority,
   type EventStatus,
-  type Unit,
-} from '../../api'
+} from '../../api/types/blocks'
 import { QueryState } from '../../components/QueryState'
 import { ErrorText, Select } from './shared'
 
