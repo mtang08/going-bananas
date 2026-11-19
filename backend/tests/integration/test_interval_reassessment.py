@@ -55,7 +55,7 @@ def test_interval_reassessment_preserves_history(db, tmp_path, short_work, expec
         structure = [
             {'type': 'warmup', 'duration_type': 'time', 'duration_value': 600, 'target': None},
             {'type': 'repeat', 'count': 5, 'steps': [
-                {'type': 'work', 'duration_type': 'time', 'duration_value': 300, 'target': {'modality': 'effort'}},
+                {'type': 'work', 'duration_type': 'time', 'duration_value': 300, 'target': {'modality': 'effort', 'effort_cue': 'steady'}},
                 {'type': 'recovery', 'duration_type': 'time', 'duration_value': 120, 'target': None},
             ]},
             {'type': 'cooldown', 'duration_type': 'time', 'duration_value': 600, 'target': None},
