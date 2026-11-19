@@ -288,7 +288,7 @@ export function CheckinModalV2({
       return (await post<CheckinV2>('/v2/checkins', submission.body)).data
     },
     onSuccess: (data) => {
-      invalidateKeys(qc, [qk.checkins, qk.prompts, qk.metrics, qk.calendar, qk.exceptions])
+      invalidateKeys(qc, [qk.prompts, qk.metrics, qk.calendar, qk.exceptions])
       if (kind === 'exception') {
         setResult(data?.exceptions ?? { new_finding_ids: [], review_recommended: [] })
       } else {

@@ -106,7 +106,7 @@ export function Calendar({ unit }: { unit: Unit }) {
   const edits = useMutation({
     mutationFn: (body: CalendarEditsRequest) => post<CalendarWriteResult>('/calendar/edits', body),
     onSuccess: (response) => {
-      invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.coach])
+      invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.proposals])
       setEditor(null)
       setConfirmDelete(null)
       setWriteError(null)
@@ -124,7 +124,7 @@ export function Calendar({ unit }: { unit: Unit }) {
     mutationFn: (body: CalendarRollbackRequest) =>
       post<CalendarWriteResult>('/calendar/rollback', body),
     onSuccess: (response, body) => {
-      invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.coach])
+      invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.proposals])
       setConfirmRestore(null)
       setViewVersion(null)
       setWriteError(null)

@@ -62,7 +62,7 @@ export function CalendarSetup({
         qk.calendar,
         qk.metrics,
         qk.prompts,
-        qk.coach,
+        qk.proposals,
         qk.profile,
         qk.strengthRoutine,
       ])
