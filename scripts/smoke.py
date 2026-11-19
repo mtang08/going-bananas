@@ -14,13 +14,9 @@ if parsed.scheme!='http' or parsed.hostname not in {'127.0.0.1','localhost'} or 
     raise SystemExit('Only a local server may be smoke tested')
 args.base_url=args.base_url.rstrip('/')
 paths=['health/live','health/ready','profile','activities','sync/status']
-with urlopen(args.base_url+'/api/v1/profile',timeout=15) as response:
-    profile=json.load(response)
-authority=profile['data'].get('planning_authority','legacy')
-if authority=='calendar':
-    paths += ['calendar','calendar/versions','prompts',
-              'metrics/windows','metrics/recovery','anchors','goals','events',
-              'strength-routine','blocks/active','coach/proposals']
+paths += ['calendar','calendar/versions','prompts',
+          'metrics/windows','metrics/recovery','anchors','goals','events',
+          'strength-routine','blocks/active','coach/proposals']
 for path in paths:
     with urlopen(args.base_url+'/api/v1/'+path,timeout=15) as response:
         assert response.status==200,path

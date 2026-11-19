@@ -30,8 +30,6 @@ def request(path, body=None, method=None, expected=200):
 
 assert request('/health/live')['status']=='ok'
 profile=request('/profile')
-if profile.get('planning_authority')!='calendar':
-    raise SystemExit('Calendar planning authority required; run planning-cutover first.')
 calendar=request('/calendar')
 assert calendar['head'] >= 2 and len({s['local_date'] for s in calendar['sessions'] if s['local_date'] >= calendar['today']}) <= 14
 original_head=calendar['head']
