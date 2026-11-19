@@ -23,10 +23,12 @@ from app.api.sync import router as sync_router
 from app.config import settings
 from app.db import SessionLocal, get_revision, get_session
 from app.errors import fail
+from app.logs import configure, request_error
 from app.metrics.engine import install_triggers
 from app.migrations_head import EXPECTED_HEAD
 from app.models import AppState
 
+configure(settings.private_dir)
 app = FastAPI(title='Going Bananas Analytics', docs_url=None, redoc_url=None)
 STATUS_CODES = {404: 'not_found', 405: 'method_not_allowed'}
 
@@ -59,7 +61,8 @@ async def local_security(request: Request, call_next):
             return error_response(request, 'json_required', 'JSON body required', 415)
     try:
         response = await call_next(request)
-    except Exception:
+    except Exception as exc:
+        request_error(request.state.request_id, request.method, request.url.path, exc)
         return error_response(request, 'internal_error', 'Internal server error', 500)
     response.headers['X-Request-ID'] = request.state.request_id
     response.headers['Cache-Control'] = 'no-store'
@@ -75,6 +78,7 @@ async def handle_http(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(Exception)
 async def handle_unexpected(request: Request, exc: Exception):
+    request_error(getattr(request.state, 'request_id', ''), request.method, request.url.path, exc)
     return error_response(request, 'internal_error', 'Internal server error', 500)
 
 
