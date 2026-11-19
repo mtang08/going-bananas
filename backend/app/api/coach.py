@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import asdict
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, Query
@@ -43,16 +43,12 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
     is_current = False
     if snapshot and proposal.status == 'pending':
         try:
+            ref = proposals._snapshot_ref(snapshot)
             context = proposals.load_context(session, proposal.snapshot_id, now=datetime.now(UTC),
-                kb=resolve_kb(proposals._snapshot_ref(snapshot).kb_routes))
-            block_id = context.active_block.version_id if context.active_block else None
-            is_current = (proposal.base_calendar_version == context.head_version
-                and proposal.base_block_version_id == block_id
-                and snapshot.source_fingerprint == context.current_source_fingerprint
-                and snapshot.kb_digest == context.current_kb_digest
-                and snapshot.as_of == context.today
-                and snapshot.generated_at <= context.now
-                and context.now - snapshot.generated_at <= timedelta(hours=24))
+                kb=resolve_kb(ref.kb_routes))
+            is_current = not proposals.proposal_freshness(
+                ref, context, base_calendar_version=proposal.base_calendar_version,
+                base_block_version_id=proposal.base_block_version_id)
         except knowledge.KnowledgeIntegrityError:
             # Saved proposals stay readable when their research package changes.
             is_current = False
