@@ -104,16 +104,12 @@ The source skill is `.codex/skills/going-bananas-coach`; its manifest pins every
 artifact hash, protocol `coach_proposal.v1`, manual activation, and required
 calendar authority. The installed skill must match that reviewed artifact.
 
-The local migration is explicit: `python -m app.cli planning-cutover --dry-run`
-previews the import; `--apply` commits it. Run through `scripts/with-mode real`
-from the repository, with the backend working directory. Quiesce the API and
-scheduled sync, take a database/private-files backup and verify a separate
-restore, then stage and verify the new skill. Install the staged helper and
-commit the cutover before resuming writers. If the database switch fails,
-restore the prior helper before resuming the legacy workflow. Do not reset or
-reseed the real database. Existing source rows and old history remain intact.
+Do not reset or reseed the real database. Legacy planning history stays in its
+original tables (`plan_versions`, `planned_sessions`, `completion_links`,
+`checkins`, `weekly_snapshots`, and `coach_*`) as a read-only archive. The app
+no longer reads that history. Back up before any real schema change.
 
-After migration, Home/Calendar/Trends/Block use the calendar workflow. The coach
+Home/Calendar/Trends/Block use the calendar workflow. The coach
 CLI provides `coach schema`, `coach snapshot --operation OP`, `coach query NAME`,
 and `coach submit --file PATH`. Submit creates a pending changeset. Accept or
 reject it in the app; there is no CLI acceptance command. A partial selection is
@@ -124,8 +120,6 @@ A stale proposal requires a fresh snapshot and review. Invalid selections show
 field errors and preserve the current checkboxes. Research integrity failure
 stops coaching without preventing training metrics from loading. Protected
 calendar undo creates a new version and retains completed/locked/history facts.
-The old automatic coaching writer is disabled after the switch; old history is
-readable. Elaborate legacy undo compatibility is outside this local MVP.
 
 Operational commands:
 

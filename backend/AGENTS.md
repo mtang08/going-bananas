@@ -16,7 +16,7 @@ Paths below are relative to `backend/`.
 | Proposals | `app/coach_v2_models.py`, `app/services/proposals.py`: payload schema, freshness, validation, decisions |
 | Coach context | `app/services/snapshot.py`, `decision_inputs.py`, `knowledge.py`: filtered evidence, fingerprints, verified KB |
 | Planning | `app/planning_models.py`, `app/api/planning.py`, `app/api/anchors.py`: blocks and calibration |
-| Feedback | `app/checkin_models.py`, `app/services/checkins.py`, `prompts.py`, `daily_guidance.py` |
+| Feedback | `app/checkin_models.py`, `app/services/checkins.py`, `prompts.py` |
 | Metrics | `app/metrics/contract.py`, `engine.py`, then relevant metric module; `app/metric_models.py` |
 | Ingestion | `app/adapters/` parses provider formats; `app/services/` orchestrates sync/import/FIT and source history |
 | Pure calculations | `app/domain/`: analytics, recurrence, associations |
@@ -25,7 +25,6 @@ Paths below are relative to `backend/`.
 Current flow: helper → coach API/CLI → snapshot + decision inputs + KB → proposed
 changes → explicit app decision → versioned calendar → actual matching/check-ins
 → next snapshot. Trace the relevant path rather than reading every service.
-Legacy `coaching.py` and `agent_plans.py` are separate older workflows.
 
 ## Change conventions
 
