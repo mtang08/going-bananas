@@ -67,10 +67,6 @@
   min-width: 0;
 }
 
-.panel.warm {
-  background: var(--muted);
-}
-
 .panel-head {
   display: flex;
   justify-content: space-between;
@@ -149,28 +145,6 @@
 
 .global-notice {
   margin: 20px 4vw 0;
-}
-
-.day-card {
-  background: var(--card);
-  border: 1px solid #e5e9dd;
-  text-align: left;
-  border-radius: 11px;
-  min-height: 148px;
-  padding: 11px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  color: #354535;
-}
-
-.day-card:hover {
-  border-color: #9bad87;
-  background: #fbfdf7;
-}
-
-.day-card.today {
-  box-shadow: inset 0 0 0 2px #88a374;
 }
 
 .day-empty {
@@ -374,21 +348,10 @@
     width: 100%;
   }
 
-
-  .day-card {
-    min-height: 130px;
-    padding: 9px;
-  }
-
   .detail-stats {
     grid-template-columns: repeat(2, 1fr);
   }
 
-}
-
-.recovery-chart {
-  height: 125px;
-  margin: 12px 0;
 }
 
 /* Research-guided daily and weekly decisions */
@@ -430,10 +393,6 @@
 .prescription > span {
   display: block;
   margin-top: 4px;
-}
-
-.day-card .planned {
-  text-transform: none;
 }
 
 .proposal-diff {
