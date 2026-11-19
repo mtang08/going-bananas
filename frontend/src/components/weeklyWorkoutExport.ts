@@ -1,5 +1,7 @@
-import { addDays, dateLabel, fmtDistance, fmtDuration, formatStep, sessionTitle } from '../api'
-import type { PlannedStep, SessionState, Unit } from '../api'
+import { addDays, dateLabel, fmtDistance, fmtDuration, type Unit } from '../lib/format'
+import { formatStep } from '../lib/structure'
+import { sessionTitle } from '../lib/session'
+import type { PlannedStep, SessionState } from '../api/types/calendar'
 
 export function weeklyWorkoutText(sessions: SessionState[], monday: string, unit: Unit): string {
   const sunday = addDays(monday, 6)
