@@ -220,8 +220,10 @@ Inspect or update them in Settings.
 ## Verification
 
 ```sh
-make check                 # backend lint/types/unit tests + frontend checks/build
+make check                 # docs links + backend lint/types/unit tests + frontend checks/build
+make check-backend         # one layer; also check-frontend, check-docs
 make test-integration      # provision the isolated database and run PostgreSQL integration tests
+make test-integration TESTS=tests/integration/test_proposals.py
 python3 scripts/test_coach_skill_v2.py  # reviewed helper contract tests; no live writes
 ```
 

@@ -134,7 +134,10 @@ def managed_urls(workspace, port, env, *, stop=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['start', 'stop', 'test', 'test-external'])
-    action = parser.parse_args().action
+    parser.add_argument('tests', nargs='*', default=['tests/integration', 'tests/test_ingestion_integration.py'],
+                        help='test paths relative to backend')
+    args = parser.parse_args()
+    action = args.action
     try:
         port = int(os.environ.get('TEST_DATABASE_PORT', '55439'))
         if not 1024 <= port <= 65535 or port in {5432, 55432}:
@@ -178,7 +181,7 @@ def main():
         env.setdefault('UV_CACHE_DIR', str(private / 'cache' / 'uv'))
         subprocess.run(['uv', 'run', 'alembic', 'upgrade', 'head'], cwd=ROOT / 'backend', env=env, check=True)
         subprocess.run(
-            ['uv', 'run', 'pytest', 'tests/integration', 'tests/test_ingestion_integration.py', '-m', 'integration'],
+            ['uv', 'run', 'pytest', *args.tests, '-m', 'integration'],
             cwd=ROOT / 'backend', env=env, check=True,
         )
 

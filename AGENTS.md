@@ -106,8 +106,8 @@ is managed by `make db-start` / `make db-stop`. `make dev` starts API, worker, a
 Vite; `make build` then `make start` serves the built app. Do not run both servers
 at once. Runtime details and full setup are in [README.md](README.md).
 
-- `make check`: backend lint/types/unit tests and frontend lint/types/tests/build.
-- `make test-integration`: migrates and tests the isolated PostgreSQL test DB.
+- `make check` runs the docs, backend, and frontend checks. Run them individually with `make check-docs`, `make check-backend`, or `make check-frontend`. `make complexity` reports functions above McCabe 15.
+- `make test-integration` migrates and tests the isolated PostgreSQL test DB. To run one file, use `make test-integration TESTS=tests/integration/test_proposals.py`.
 - `python3 scripts/test_coach_skill_v2.py`: current helper contract/manifest checks.
 - `make test-e2e`: Playwright; requires the appropriate demo server/seed. See
   README's verification instructions before running it.
