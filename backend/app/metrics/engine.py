@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 import uuid
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -22,6 +23,7 @@ from app.metric_models import MetricResult as MetricResultRow
 from app.metrics.contract import (
     MetricResultData,
     RunFact,
+    Status,
     canonical_json,
     completion_association_hash,
     config_hash,
@@ -215,6 +217,61 @@ def current_results(session: Session, metric_id: str, subject_keys: Sequence[str
     return latest_results(session, metric_id, REGISTRY[metric_id].method_version, list(subject_keys))
 
 
+_WINDOW_PART = re.compile(r'(w\d+:\d{4}-\d{2}-\d{2}):(?:run|strength)')
+
+
+def registered_config_hash(metric_id: str) -> str:
+    for module in metric_modules():
+        if module.METRIC_ID == metric_id:
+            return config_hash(module.CONFIG)
+    raise ValueError('unknown_metric')
+
+
+def result_data(row: MetricResultRow) -> dict[str, Any]:
+    return {column.key: getattr(row, column.key) for column in MetricResultRow.__table__.columns}
+
+
+def _preview(data: MetricResultData, dependency_hash: str, calculated_at: datetime) -> dict[str, Any]:
+    """Return a result in the stored row's shape, with no saved identity."""
+    return {'id': None, 'metric_id': data.metric_id, 'method_version': data.method_version,
+            'subject_type': data.subject_type, 'subject_key': data.subject_key,
+            'window_start': data.window_start, 'window_end': data.window_end, 'window_label': data.window_label,
+            'status': str(data.status), 'quality_status': str(data.quality_status) if data.quality_status else None,
+            'value': data.value, 'unit': data.unit, 'reason_codes': list(data.reason_codes),
+            'quality_flags': list(data.quality_flags), 'source_refs': data.source_refs,
+            'anchor_keys': list(data.anchor_keys), 'config_hash': data.config_hash,
+            'anchor_set_hash': data.anchor_set_hash, 'calculated_at': data.calculated_at or calculated_at,
+            'dependency_hash': dependency_hash, 'timezone': data.timezone, 'is_current': False}
+
+
+def read_results(session: Session, metric_id: str,
+                 subject_keys: Sequence[str]) -> dict[str, dict[str, Any] | None]:
+    """Read each subject using the registered method and configuration.
+
+    Missing or outdated rows are computed in memory with a null ID. Subjects
+    without a result map to None. Run and strength windows share one calculation.
+    """
+    expected = registered_config_hash(metric_id)
+    stored = current_results(session, metric_id, subject_keys)
+    timezone: str | None = None
+    calculated_at = session.info.get('metrics_now') or datetime.now(UTC)
+    computed: dict[str, list[MetricResultData]] = {}
+    found: dict[str, dict[str, Any] | None] = {}
+    for key in dict.fromkeys(subject_keys):
+        row = stored.get(key)
+        if row is not None and row.config_hash == expected:
+            found[key] = result_data(row)
+            continue
+        timezone = timezone or _profile_timezone(session)
+        part = _WINDOW_PART.fullmatch(key)
+        base = part[1] if part else key
+        if base not in computed:
+            computed[base] = REGISTRY[metric_id].compute(session, base)
+        raw = next((item for item in computed[base] if item.subject_key == key), None)
+        found[key] = None if raw is None else _preview(*_prepare(raw, timezone), calculated_at)
+    return found
+
+
 def current_result_filter() -> ColumnElement[bool]:
     """Select current rows for the registered version of each metric."""
     metric_modules()
@@ -260,6 +317,19 @@ def _result_dependency(result: MetricResultData) -> tuple[str, bool]:
                         'calculator_dependency_hash': result.dependency_hash}), required
 
 
+def _prepare(raw: MetricResultData, timezone: str) -> tuple[MetricResultData, str]:
+    """Normalize a result for storage or preview and calculate its dependency hash."""
+    supplied = replace(raw, timezone=raw.timezone or timezone,
+                       source_refs=json.loads(canonical_json(raw.source_refs)),
+                       value=json.loads(canonical_json(raw.value)))
+    dependency_hash, complete = _result_dependency(supplied)
+    if complete:
+        return supplied, dependency_hash
+    return (replace(supplied, status=Status.invalid, value=None,
+                    reason_codes=tuple(dict.fromkeys((*supplied.reason_codes, 'MISSING_PROVENANCE')))),
+            sha256_json({'missing_provenance': True, 'computed': dependency_hash}))
+
+
 def upsert_results(session: Session, results: list[MetricResultData]) -> None:
     if not results:
         return
@@ -267,17 +337,7 @@ def upsert_results(session: Session, results: list[MetricResultData]) -> None:
     calculated_at = session.info.get('metrics_now') or datetime.now(UTC)
     timezone = _profile_timezone(session)
     for raw in results:
-        supplied = replace(raw, timezone=raw.timezone or timezone,
-                           source_refs=json.loads(canonical_json(raw.source_refs)),
-                           value=json.loads(canonical_json(raw.value)))
-        dependency_hash, complete = _result_dependency(supplied)
-        reason_codes = supplied.reason_codes
-        status = str(supplied.status)
-        if not complete:
-            status = 'invalid'
-            reason_codes = tuple(dict.fromkeys((*reason_codes, 'MISSING_PROVENANCE')))
-        if not complete:
-            dependency_hash = sha256_json({'missing_provenance': True, 'computed': dependency_hash})
+        supplied, dependency_hash = _prepare(raw, timezone)
         session.query(MetricResultRow).filter(
             MetricResultRow.metric_id == supplied.metric_id,
             MetricResultRow.method_version == supplied.method_version,
@@ -291,10 +351,10 @@ def upsert_results(session: Session, results: list[MetricResultData]) -> None:
             func.coalesce(MetricResultRow.anchor_set_hash, '') == (supplied.anchor_set_hash or ''),
             MetricResultRow.dependency_hash == dependency_hash))
         values = {'window_start': supplied.window_start, 'window_end': supplied.window_end,
-                  'window_label': supplied.window_label, 'status': str(status),
+                  'window_label': supplied.window_label, 'status': str(supplied.status),
                   'quality_status': str(supplied.quality_status) if supplied.quality_status else None,
-                  'value': supplied.value if complete else None, 'unit': supplied.unit,
-                  'reason_codes': list(reason_codes), 'quality_flags': list(supplied.quality_flags),
+                  'value': supplied.value, 'unit': supplied.unit,
+                  'reason_codes': list(supplied.reason_codes), 'quality_flags': list(supplied.quality_flags),
                   'source_refs': supplied.source_refs, 'anchor_keys': list(supplied.anchor_keys),
                   'calculated_at': supplied.calculated_at or calculated_at, 'is_current': True}
         if existing:

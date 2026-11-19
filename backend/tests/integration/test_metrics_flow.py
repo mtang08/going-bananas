@@ -593,3 +593,36 @@ def test_planned_actual_compute_is_pure_and_refresh_writes_status(db, tmp_path):
         assert completion.status == 'completed_modified'
         assert completion.version == version + 1
         assert get_revision(session) == revision + 1
+
+
+def test_read_results_previews_without_writing_then_serves_stored(db, tmp_path):
+    seed(db, tmp_path)
+    as_of = TODAY - timedelta(days=1)
+    key = f'w7:{as_of}'
+    metric = 'run_volume_frequency'
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        before = counts(session)
+        preview = engine.read_results(session, metric, [key])[key]
+        assert preview['id'] is None and preview['is_current'] is False
+        assert preview['value']['run_count'] == 3
+        srpe_key = f'{key}:run'
+        srpe = engine.read_results(session, 'session_rpe_load', [srpe_key])[srpe_key]
+        assert srpe is not None and srpe['subject_key'] == srpe_key
+        assert srpe['id'] is None
+        assert counts(session) == before and not session.new and not session.dirty
+        refresh.ensure_windows(session, as_of)
+        session.commit()
+        stored = engine.read_results(session, metric, [key])[key]
+        assert stored['id'] is not None and set(stored) == set(preview)
+        assert (stored['value'], stored['dependency_hash']) == (preview['value'], preview['dependency_hash'])
+
+        session.execute(text('UPDATE metric_results SET config_hash = :stale WHERE id = :id'),
+                        {'stale': '0' * 64, 'id': stored['id']})
+        session.commit()
+        assert engine.read_results(session, metric, [key])[key] == preview
+
+        session.execute(text("UPDATE metric_results SET method_version = 'obsolete', config_hash = :config WHERE id = :id"),
+                        {'id': stored['id'], 'config': stored['config_hash']})
+        session.commit()
+        assert engine.read_results(session, metric, [key])[key] == preview
