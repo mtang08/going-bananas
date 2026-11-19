@@ -18,12 +18,13 @@ from sqlalchemy.orm import sessionmaker
 from app import cli
 from app.api.metrics import activity_execution, get_windows
 from app.config import settings
+from app.domain.local_time import date_in_zone
 from app.metric_models import MetricResult
 from app.metrics import aerobic, engine
 from app.migrations_head import EXPECTED_HEAD
 from app.models import Activity, ActivityAnnotation
 from app.services import calendar
-from app.services.timezone import athlete_tz, local_date
+from app.services.timezone import athlete_tz
 
 TODAY = date(2026, 11, 12)
 
@@ -53,7 +54,7 @@ def demo(monkeypatch, tmp_path, capsys):
             monkeypatch.setattr(cli, 'settings', SimpleNamespace(app_mode='demo', private_dir=tmp_path))
             monkeypatch.setattr(cli, '_parse', lambda: argparse.Namespace(command='seed-demo'))
             monkeypatch.setattr(cli, 'local_date', lambda instant, zone: TODAY)
-            monkeypatch.setattr(calendar, '_today', lambda session, now=None: TODAY)
+            monkeypatch.setattr(calendar, 'calendar_today', lambda session, now=None: TODAY)
             assert cli.main() == 0
             capsys.readouterr()
             yield sessions
@@ -65,7 +66,7 @@ def demo(monkeypatch, tmp_path, capsys):
 
 def activity_on(session, ago: int) -> Activity:
     day = TODAY - timedelta(days=ago)
-    return next(a for a in session.scalars(select(Activity)) if local_date(a.start_at, athlete_tz(session)) == day)
+    return next(a for a in session.scalars(select(Activity)) if date_in_zone(a.start_at, athlete_tz(session)) == day)
 
 
 def aero(session, ago: int):

@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
@@ -14,8 +14,9 @@ from app.domain.analytics import utc_date_bounds
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.metrics.contract import MetricResultData, Status, completion_association_hash, config_hash, sha256_json
 from app.metrics.engine import current_results, load_runs, register
-from app.models import Activity, AppState, ManualSession, RawObject, SourceRecord
+from app.models import ManualSession, RawObject, SourceRecord
 from app.planning_models import StrengthRoutineSlot
+from app.read.calendar import head_version, latest_revisions
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
@@ -153,14 +154,8 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     except ValueError as exc:
         raise ValueError("invalid_subject_key") from exc
     tz = athlete_tz(session)
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
-    plans = (session.scalars(select(CalendarSessionRevision)
-             .where(CalendarSessionRevision.calendar_version_number <= head)
-             .order_by(CalendarSessionRevision.session_uid,
-                       desc(CalendarSessionRevision.calendar_version_number),
-                       desc(CalendarSessionRevision.revision))
-             .distinct(CalendarSessionRevision.session_uid)).all() if head else [])
+    head = head_version(session)
+    plans = list(latest_revisions(session, head).values())
     plans = [p for p in plans if not p.deleted and p.kind in ("run", "strength")]
     completions = list(session.scalars(select(SessionCompletion)).all())
     linked = {c.session_uid: c for c in completions}
@@ -178,10 +173,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
             exposures.append(_planned_exposure(plan, classes, tz))
             source_refs.append({**_plan_ref(session, plan, completion), "classes": classes})
     # Query all stored history so the nearest earlier/later exposure is not cut off at the display window.
-    bounds = session.execute(select(func.min(Activity.start_at), func.max(Activity.start_at)).where(
-        Activity.sport.in_(("running", "trail_running", "treadmill_running")))).one()
-    runs = (load_runs(session, bounds[0].astimezone(tz).date(),
-                      bounds[1].astimezone(tz).date() + timedelta(days=1)) if bounds[0] and bounds[1] else [])
+    runs = load_runs(session)
     long_by_id = current_results(session, "long_run_exposure", [str(run.activity_id) for run in runs])
     for run in runs:
         completion = by_activity.get(run.activity_id)

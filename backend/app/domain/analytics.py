@@ -4,8 +4,6 @@ from datetime import UTC, date, datetime, timedelta
 from math import isfinite
 from zoneinfo import ZoneInfo
 
-RUN_SPORTS = {'running', 'trail_running', 'treadmill_running'}
-
 
 def pace_s_per_km(distance_m: float | None, moving_s: float | None) -> float | None:
     if distance_m is None or moving_s is None or distance_m <= 0 or moving_s <= 0:

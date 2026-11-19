@@ -131,7 +131,7 @@ def proposal_session(
     calendar_state: Callable[..., AppState],
 ) -> Iterator[Session]:
     """Clean proposal and calendar tables, one profile, and a five-session calendar (one run on 2026-11-18)."""
-    monkeypatch.setattr(calendar, '_today', lambda session, now=None: PROPOSAL_TODAY)
+    monkeypatch.setattr(calendar, 'calendar_today', lambda session, now=None: PROPOSAL_TODAY)
     with session_factory(expire_on_commit=False) as session:
         session.info['metrics_now'] = PROPOSAL_NOW
         for model in (ExceptionFinding, ExceptionPatch, BlockBenchmarkResult, CoachDecisionKey, CoachProposalChange,

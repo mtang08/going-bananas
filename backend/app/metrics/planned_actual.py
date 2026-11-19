@@ -9,6 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.domain.calendar_structure import expand_structure
+from app.domain.local_time import date_in_zone
 from app.metrics import intervals as interval_metric
 from app.metrics.contract import (
     MetricResultData,
@@ -19,11 +21,10 @@ from app.metrics.contract import (
     sha256_json,
 )
 from app.metrics.engine import activities_coverage_complete, current_results, load_runs, metric_source_refs, register
-from app.models import Activity, AppState, ManualSession, RawObject, SourceRecord
-from app.services.calendar_structure import expand_structure
+from app.models import Activity, ManualSession, RawObject, SourceRecord
+from app.read.calendar import latest_revision
 from app.services.matching import candidates_for_session
 from app.services.timezone import athlete_tz
-from app.services.timezone import local_date as tz_local_date
 from app.strong_models import StrongWorkoutRow
 
 METRIC_ID = "planned_actual_session"
@@ -170,14 +171,7 @@ def planned_actual_outcome(plan: dict | None, completion: dict | None, activity:
 
 
 def _current_plan(session: Session, uid: UUID) -> CalendarSessionRevision | None:
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
-    if head == 0:
-        return None
-    row = session.scalar(select(CalendarSessionRevision).where(CalendarSessionRevision.session_uid == uid,
-                         CalendarSessionRevision.calendar_version_number <= head)
-                         .order_by(CalendarSessionRevision.calendar_version_number.desc(),
-                                   CalendarSessionRevision.revision.desc()).limit(1))
+    row = latest_revision(session, uid)
     return row if row and not row.deleted else None
 
 
@@ -187,7 +181,7 @@ def _activity(session: Session, completion: SessionCompletion) -> tuple[dict | N
         if activity_row is None:
             return None, {"activity_id": str(completion.activity_id), "resolution_state": None}
         tz = athlete_tz(session)
-        local_day = activity_row.start_at.astimezone(tz).date()
+        local_day = date_in_zone(activity_row.start_at, tz)
         eligible = any(r.activity_id == activity_row.id for r in load_runs(session, local_day,
                                                                           local_day + date.resolution))
         if not eligible:
@@ -266,7 +260,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     if local_date is None and completion:
         if completion.activity_id:
             actual = session.get(Activity, completion.activity_id)
-            local_date = tz_local_date(actual.start_at, athlete_tz(session)) if actual else None
+            local_date = date_in_zone(actual.start_at, athlete_tz(session)) if actual else None
         elif completion.strong_workout_id:
             actual_strong = session.get(StrongWorkoutRow, completion.strong_workout_id)
             local_date = actual_strong.local_date if actual_strong else None
@@ -275,7 +269,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
             local_date = actual_manual.date if actual_manual else None
     tz = athlete_tz(session)
     now = session.info.get("metrics_now") or datetime.now(UTC)
-    as_of = now.astimezone(tz).date()
+    as_of = date_in_zone(now, tz)
     candidates = candidates_for_session(session, uid) if plan else []
     coverage = activities_coverage_complete(session, local_date, local_date + date.resolution) if local_date else False
     outcome = planned_actual_outcome(plan_data, completion_data, activity, intervals, candidates, coverage, as_of)

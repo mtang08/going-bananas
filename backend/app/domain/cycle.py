@@ -4,6 +4,8 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from app.domain.local_time import date_in_zone
+
 
 def opportunity(day: date, anchor: date | None) -> dict | None:
     if anchor is None or (day-anchor).days % 2:
@@ -41,7 +43,7 @@ def recurring_sessions(
     excluded = accepted_ranges or []
     effective_at = getattr(profile, "effective_at", None)
     effective_day = (
-        effective_at.astimezone(ZoneInfo(profile.timezone)).date()
+        date_in_zone(effective_at, ZoneInfo(profile.timezone))
         if isinstance(effective_at, datetime) else None
     )
     result: list[dict] = []

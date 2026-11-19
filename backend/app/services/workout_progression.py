@@ -9,12 +9,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
+from app.domain.calendar_structure import expand_structure, work_signature
+from app.domain.local_time import date_in_zone
+from app.domain.sports import RUN_SPORTS
 from app.metrics import intervals
 from app.metrics.engine import current_results
-from app.models import Activity, AppState
+from app.models import Activity
+from app.read.calendar import head_version
 from app.services.calendar import state_at
-from app.services.calendar_structure import expand_structure, work_signature
-from app.services.timezone import athlete_tz, local_date
+from app.services.timezone import athlete_tz
 
 ASSESSABLE = ('available', 'partial')
 
@@ -112,13 +115,12 @@ def assemble_groups(points: list[dict], group_by: str) -> list[dict]:
     return sorted(result, key=lambda g: (g['latest_date'], g['group_key']), reverse=True)
 
 
-RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
 HISTORY_LOOKBACK_DAYS = 365
 HISTORY_LOOKAHEAD_DAYS = 7
 
 
 def _head_rows(session: Session) -> list[dict]:
-    head = session.scalar(select(AppState.calendar_head_version).where(AppState.id == 1)) or 0
+    head = head_version(session, populate_existing=True)
     return state_at(session, head) if head else []
 
 
@@ -154,7 +156,7 @@ def progression_points(session: Session, start: date, end: date) -> list[dict]:
         row = rows.get(str(activity.id)) if activity else None
         points.append(session_point(
             plan, {'status': completion.status} if completion else None,
-            {'id': activity.id, 'local_date': local_date(activity.start_at, tz), 'sport': activity.sport}
+            {'id': activity.id, 'local_date': date_in_zone(activity.start_at, tz), 'sport': activity.sport}
             if activity else None,
             {'id': row.id, 'status': row.status, 'reason_codes': list(row.reason_codes), 'value': row.value}
             if row else None))
@@ -166,7 +168,7 @@ def progression_groups(session: Session, start: date, end: date, group_by: str) 
 
 
 def history_window(session: Session, activity: Activity) -> tuple[date, date]:
-    day = local_date(activity.start_at, athlete_tz(session))
+    day = date_in_zone(activity.start_at, athlete_tz(session))
     return day - timedelta(days=HISTORY_LOOKBACK_DAYS), day + timedelta(days=HISTORY_LOOKAHEAD_DAYS)
 
 
@@ -183,7 +185,7 @@ def workout_history(session: Session, activity: Activity, limit: int) -> dict:
     if signature is None:
         return {**result, 'reason': 'NO_WORK_STEPS'}
     start, end = history_window(session, activity)
-    day = local_date(activity.start_at, athlete_tz(session)).isoformat()
+    day = date_in_zone(activity.start_at, athlete_tz(session)).isoformat()
     points = [p for p in progression_points(session, start, end)
               if p['signature'] == signature and p['local_date'] <= day]
     return {**result, 'signature': signature, 'points': points[-limit:]}

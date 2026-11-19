@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app import logs
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.db import bump_data_revision
+from app.domain.local_time import date_in_zone
 from app.fit_models import FitFile
 from app.metric_models import MetricResult as MetricResultRow
 from app.metrics import refresh
@@ -152,14 +153,14 @@ def _after_flush(session: Session, _context) -> None:
             for name in ('start_at', 'end_at', 'observed_at'):
                 value = facts.get(name)
                 if isinstance(value, datetime):
-                    scopes.add(f'date:{value.astimezone(zone).date()}')
+                    scopes.add(f'date:{date_in_zone(value, zone)}')
             if isinstance(row, Activity) and uid:
                 scopes.add(f'activity:{uid}')
             elif isinstance(row, Checkin) and uid:
                 scopes.add(f'checkin:{uid}')
                 observed = facts.get('observed_at')
                 if isinstance(observed, datetime):
-                    day = observed.astimezone(zone).date()
+                    day = date_in_zone(observed, zone)
                     scopes.update(f'date:{day - timedelta(days=n)}' for n in range(3))
                     scopes.add(f'recovery_dates:{day}')
             elif isinstance(row, StrongWorkoutRow) and uid:

@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
 from app.db import global_read_lock
+from app.domain.calendar_structure import StructureError, expand_structure
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import HARD_CLASSES, classify
 from app.errors import fail
 from app.metric_models import MetricResult
@@ -19,8 +21,8 @@ from app.metrics import planned_actual
 from app.metrics.contract import RunFact
 from app.metrics.engine import activities_coverage_complete, current_results, load_runs
 from app.models import Activity, ManualSession
+from app.read.calendar import head_version, latest_revisions
 from app.services import calendar
-from app.services.calendar_structure import StructureError, expand_structure
 from app.services.timezone import athlete_tz
 from app.services.weekly_projection import planned_distance, recent_pace_mps
 from app.strong_models import StrongWorkoutRow
@@ -194,9 +196,9 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
     week_end = week_start + timedelta(days=6)
     as_of = min(week_end, today)
     timezone = athlete_tz(session)
-    head = calendar._head(session)
-    latest = [row for row in calendar._latest(session, head).values() if week_start <= row.local_date <= week_end]
-    sessions = [calendar._row_data(row) for row in latest if not row.deleted]
+    head = head_version(session)
+    latest = [row for row in latest_revisions(session, head).values() if week_start <= row.local_date <= week_end]
+    sessions = [calendar.row_data(row) for row in latest if not row.deleted]
     removed = [{'session_uid': row.session_uid, 'local_date': row.local_date, 'kind': row.kind}
                for row in latest if row.deleted]
     head_uids = {row['session_uid'] for row in sessions}
@@ -224,7 +226,7 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
         if row.activity_id is not None and row.activity_id not in runs:
             start_at = session.scalar(select(Activity.start_at).where(Activity.id == row.activity_id))
             if start_at is not None:
-                day = start_at.astimezone(timezone).date()
+                day = date_in_zone(start_at, timezone)
                 for run in load_runs(session, day, day + _DAY):
                     if run.activity_id == row.activity_id:
                         runs[run.activity_id] = _run_fact(run)
@@ -263,5 +265,5 @@ def weekly_digest(session: Session, week_start: date | None) -> dict:
     if week_start is not None and week_start.weekday() != 0:
         fail('invalid_week_start', 'Week start must be a Monday')
     global_read_lock(session)
-    today = calendar._today(session)
+    today = calendar.calendar_today(session)
     return load_week(session, week_start or week_bounds(today)[0], today=today)

@@ -12,12 +12,13 @@ from typing import Any, cast
 
 from garmin_fit_sdk import Decoder, Stream
 
+from app.domain.sports import RUN_SPORTS
+
 FIT_EPOCH_OFFSET = 631065600
 MAX_FIT_BYTES = 50 * 1024 * 1024
 SDK_VERSION = '21.221.0'
 DECODER_VERSION = 2
 LAP_INTENSITIES = frozenset({'active', 'rest', 'warmup', 'cooldown', 'recovery', 'interval', 'other'})
-RUN_SPORTS = frozenset({'running', 'trail_running', 'treadmill_running'})
 _PRIVATE_FIELD = re.compile(r'(?:position|latitude|longitude|serial|token|secret|password|credential)', re.I)
 
 

@@ -15,6 +15,7 @@ from app.calendar_models import CalendarSessionRevision, CalendarVersion, Sessio
 from app.coach_v2_models import CoachProposal, CoachSnapshot
 from app.exception_models import ExceptionPatch
 from app.models import Activity, AppState, ProfileVersion
+from app.read.calendar import latest_revisions
 from app.services import calendar
 from app.services.matching import rematch_dates
 
@@ -28,7 +29,7 @@ def calendar_fixture(monkeypatch, db_connection, metrics_disabled, session_facto
                      calendar_state):
     # This service-seam suite invokes matching/its injected assessor explicitly.
     # Real transactional refresh is covered by test_metrics_flow.
-    monkeypatch.setattr(calendar, '_today', lambda session, now=None: date(2026, 11, 16))
+    monkeypatch.setattr(calendar, 'calendar_today', lambda session, now=None: date(2026, 11, 16))
     with session_factory() as session:
         session.execute(delete(SessionCompletion))
         session.execute(delete(CalendarSessionRevision))
@@ -126,7 +127,7 @@ def test_advisory_lock_refreshes_cached_head(calendar_fixture):
         assert cached.calendar_head_version == 0
         connection.execute(text('UPDATE app_state SET calendar_head_version=1 WHERE id=1'))
         with pytest.raises(HTTPException) as error:
-            calendar._lock(session, expected_head=0)
+            calendar.lock_calendar(session, expected_head=0)
         assert error.value.detail['code'] == 'calendar_head_moved'
 
 
@@ -205,7 +206,7 @@ def test_rollback_keeps_deleted_historical_target_absent_and_restores_future(cal
             history_edits=[{'op': 'add', 'session_uid': historical_uid, 'fields': {
                 'local_date': date(2026, 11, 14), 'kind': 'run', 'recipe_id': 'REC003',
                 'intent': 'Historical fixture', 'planned_duration_s': 60}}])
-        head2 = calendar._latest(session, 2)
+        head2 = latest_revisions(session, 2)
         future = next(row for row in head2.values() if row.local_date == date(2026, 11, 18)
                       and row.kind == 'run')
         state = session.get(AppState, 1)

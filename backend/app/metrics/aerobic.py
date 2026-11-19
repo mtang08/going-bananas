@@ -13,9 +13,12 @@ from typing import Any, cast
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.calendar_models import SessionCompletion
 from app.domain.analytics import utc_date_bounds
+from app.domain.calendar_structure import expand_structure
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import classify
+from app.domain.sports import RUN_SPORTS
 from app.fit_models import ActivityStream, ActivityWorkoutStep
 from app.metrics.contract import (
     MetricResultData,
@@ -31,9 +34,9 @@ from app.metrics.contract import (
 )
 from app.metrics.engine import activities_coverage_complete, latest_results, load_runs, register
 from app.metrics.intervals import FitStep, after_timer_seconds, expand_fit
-from app.models import Activity, ActivityAnnotation, AppState
-from app.services.calendar_structure import expand_structure
-from app.services.timezone import athlete_tz, local_date
+from app.models import Activity, ActivityAnnotation
+from app.read.calendar import head_version, latest_revision
+from app.services.timezone import athlete_tz
 
 METRIC_ID = 'aerobic_efficiency'
 METHOD_VERSION = 'v1'
@@ -306,7 +309,6 @@ def aerobic_outcome(stream: AeroStream | None, *, treadmill: bool = False) -> di
             'quality_flags': sorted(flags)}
 
 
-RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
 
 
 def run_class(plan: dict | None, watch_work_steps: int, label: str | None) -> tuple[str, str | None]:
@@ -445,18 +447,14 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
         return []
     annotation = session.scalar(select(ActivityAnnotation).where(ActivityAnnotation.activity_id == activity_id)
                                 .order_by(ActivityAnnotation.version.desc()).limit(1))
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
+    head = head_version(session)
     completion = session.scalar(select(SessionCompletion).where(SessionCompletion.activity_id == activity_id))
     session_uid = completion.session_uid if completion else None
-    revision = session.scalar(select(CalendarSessionRevision).where(
-        CalendarSessionRevision.session_uid == session_uid,
-        CalendarSessionRevision.calendar_version_number <= head)
-        .order_by(CalendarSessionRevision.calendar_version_number.desc()).limit(1)) if session_uid and head else None
+    revision = latest_revision(session, session_uid, head) if session_uid else None
     plan = ({'recipe_id': revision.recipe_id, 'intent': revision.intent, 'structure': revision.structure}
             if revision and not revision.deleted and revision.kind == 'run' else None)
     refs = metric_source_refs(session, activity_id, session_uid, head)
-    day = local_date(activity.start_at, tz)
+    day = date_in_zone(activity.start_at, tz)
     cls: str | None = None
     if (annotation and annotation.excluded) or activity.resolution_state != 'resolved':
         outcome = _early(Status.not_applicable, 'ACTIVITY_EXCLUDED')

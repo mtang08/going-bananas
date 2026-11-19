@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import global_write_lock
+from app.domain.local_time import date_in_zone
 from app.errors import fail
 from app.metrics.contract import sha256_json
 from app.planning_models import IntensityAnchor
@@ -144,7 +145,7 @@ def create_anchor(session: Session, fields: dict[str, Any]) -> dict[str, Any]:
         fail('invalid_anchor_date', 'Invalid effective date')
     review_after = fields.get('review_after')
     if review_after is None:
-        review_after = calibrated.astimezone(athlete_tz(session)).date() + timedelta(days=84)
+        review_after = date_in_zone(calibrated, athlete_tz(session)) + timedelta(days=84)
     elif isinstance(review_after, str):
         try:
             review_after = date.fromisoformat(review_after)

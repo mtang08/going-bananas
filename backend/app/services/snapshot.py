@@ -22,9 +22,11 @@ from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachSnapshot
 from app.db import global_write_lock
 from app.domain.athlete_facts import clinical_restriction
+from app.domain.calendar_structure import work_signature
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
 from app.metric_models import MetricResult, Prompt
-from app.models import Activity, AppState, ProfileVersion
+from app.models import Activity, AppState
 from app.planning_models import (
     BlockBenchmarkResult,
     BlockDecision,
@@ -34,14 +36,15 @@ from app.planning_models import (
     IntensityAnchor,
     StrengthRoutineSlot,
 )
+from app.read.calendar import head_version
 from app.services.block_benchmark import active_block_version
 from app.services.calendar import state_at
-from app.services.calendar_structure import work_signature
 from app.services.coverage import coverage
-from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
+from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs, digest
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection
 from app.services.operations import OPERATIONS
+from app.services.profile import current_profile
 from app.services.proposals import derive_certainty, is_quality_slot, scope
 from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
@@ -49,7 +52,6 @@ from app.services.weekly_digest import DIGEST_SCHEMA, HEADLINE_KINDS, NOT_DONE_O
 from app.services.workout_progression import assemble_groups, session_point
 from app.strong_models import StrongWorkoutRow
 
-RUN_SPORTS = {"running", "trail_running", "treadmill_running"}
 DRILL_DOWN_QUERIES = ["activity_execution", "long_run_history", "recovery_nights", "calendar_diff", "explain_metric"]
 DATASETS = ("activities", "sleep", "hrv", "resting_hr")
 SNAPSHOT_SCHEMA = "coach_snapshot.v1"
@@ -104,7 +106,7 @@ def _source_provenance(source_versions: dict[str, Any]) -> dict[str, Any]:
             kind, count = "scalar", 0 if value is None else 1
         collections[key] = {"kind": kind, "count": count}
     return {
-        "sha256": hashlib.sha256(canonical_json(source_versions).encode()).hexdigest(),
+        "sha256": digest(source_versions),
         "collections": collections,
     }
 
@@ -571,7 +573,7 @@ def _exception_summary(inputs: SnapshotInputs) -> dict:
     return {
         "window_start": start,
         "window_end": inputs.as_of,
-        "since_last_review": max(reviews).astimezone(ZoneInfo(inputs.timezone)).date() if reviews else None,
+        "since_last_review": date_in_zone(max(reviews), ZoneInfo(inputs.timezone)) if reviews else None,
         "findings": [_view(f, finding_keys) for f in findings],
         "patches": [dict(_view(p, patch_keys), changes_count=len(p.get("session_uids") or [])) for p in patches],
         "rpe_mismatch": mismatch,
@@ -1148,7 +1150,7 @@ def _load_checkins(session: Session, now: datetime, zone: ZoneInfo) -> list[dict
         dict(
             _view(row, ("kind", "observed_at", "fatigue", "illness", "gait_change", "activity_id")),
             checkin_id=row.id,
-            local_date=row.observed_at.astimezone(zone).date(),
+            local_date=date_in_zone(row.observed_at, zone),
             symptoms=symptoms.get(row.id, []),
         )
         for row in checkin_rows
@@ -1390,8 +1392,8 @@ def _load_review_recommended(session: Session, as_of: date) -> list[dict]:
 def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInputs:
     zone = athlete_tz(session)
     state = session.get(AppState, 1)
-    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
-    head = state.calendar_head_version if state else 0
+    profile = current_profile(session)
+    head = head_version(session)
     first = as_of - timedelta(days=120)
     sessions = _load_sessions(session, head, first, as_of)
     completions = _load_completions(session)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -14,10 +14,11 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import bump_data_revision, get_revision, get_session
 from app.domain.analytics import (
-    RUN_SPORTS,
     pace_s_per_km,
     utc_date_bounds,
 )
+from app.domain.local_time import date_in_zone
+from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.models import (
     Activity,
@@ -25,6 +26,7 @@ from app.models import (
     ActivitySource,
     ProfileVersion,
 )
+from app.read.activities import latest_annotation, latest_annotations
 from app.services.coverage import coverage
 from app.services.profile import current_profile, profile_data
 from app.services.run_classification import RunObservation, classify_history
@@ -46,18 +48,6 @@ def date_window(session: Session, start_date: date | None, end_date: date | None
     return start, end
 
 
-def annotation(session: Session, activity_id: uuid.UUID) -> ActivityAnnotation | None:
-    return latest_annotations(session, [activity_id]).get(activity_id)
-
-
-def latest_annotations(session: Session, activity_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ActivityAnnotation]:
-    if not activity_ids:
-        return {}
-    rows = session.scalars(select(ActivityAnnotation).where(ActivityAnnotation.activity_id.in_(activity_ids))
-                           .order_by(ActivityAnnotation.activity_id, ActivityAnnotation.version))
-    return {row.activity_id: row for row in rows}
-
-
 def run_classifications(session: Session, rows: Sequence[Activity]) -> dict[str, dict]:
     targets = [a for a in rows if a.sport in RUN_SPORTS]
     if not targets:
@@ -72,7 +62,7 @@ def run_classifications(session: Session, rows: Sequence[Activity]) -> dict[str,
     for a in history:
         ann = annotations.get(a.id)
         observations.append(RunObservation(
-            id=str(a.id), local_date=a.start_at.astimezone(zone).date(), start_at=a.start_at,
+            id=str(a.id), local_date=date_in_zone(a.start_at, zone), start_at=a.start_at,
             sport=a.sport, distance_m=a.distance_m, elapsed_s=a.elapsed_s, moving_s=a.moving_s,
             avg_hr_bpm=a.avg_hr_bpm, manual_label=ann.workout_label if ann else None,
             source_label=a.source_workout_label, excluded=ann.excluded if ann else False,
@@ -89,13 +79,13 @@ def activity_data(session: Session, a: Activity, detail: bool = False,
                   classifications: dict[str, dict] | None = None, *,
                   annotations: Mapping[uuid.UUID, ActivityAnnotation] | None = None,
                   zone: ZoneInfo | None = None) -> dict:
-    ann = annotations.get(a.id) if annotations is not None else annotation(session, a.id)
+    ann = annotations.get(a.id) if annotations is not None else latest_annotation(session, a.id)
     zone = zone or athlete_tz(session)
     classification = (classifications if classifications is not None else run_classifications(session, [a])).get(str(a.id))
     label = classification['effective_label'] if classification else (
         ann.workout_label if ann and ann.workout_label else a.source_workout_label)
     result = {'id': a.id, 'start_at': a.start_at, 'original_start': a.original_start,
-              'local_date': a.start_at.astimezone(zone).date(), 'source_local_date': a.local_date, 'sport': a.sport, 'subtype': a.subtype,
+              'local_date': date_in_zone(a.start_at, zone), 'source_local_date': a.local_date, 'sport': a.sport, 'subtype': a.subtype,
               'distance_m': a.distance_m, 'elapsed_s': a.elapsed_s, 'moving_s': a.moving_s,
               'moving_pace_s_per_km': pace_s_per_km(a.distance_m, a.moving_s),
               'avg_hr_bpm': a.avg_hr_bpm,
@@ -230,7 +220,7 @@ def patch_annotation(activity_id: uuid.UUID, body: AnnotationInput, session: Ses
     row = session.get(Activity, activity_id)
     if not row:
         fail('not_found', 'Activity not found', 404)
-    old = annotation(session, activity_id)
+    old = latest_annotation(session, activity_id)
     if body.expected_version != (old.version if old else 0):
         fail('version_conflict', 'Annotation changed; reload activity', 409)
     ann = ActivityAnnotation(activity_id=activity_id, version=body.expected_version+1,

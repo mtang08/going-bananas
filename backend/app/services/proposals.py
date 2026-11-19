@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import uuid
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -15,13 +14,22 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db import global_write_lock
+from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.cycle import opportunity
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
+from app.read.calendar import head_version
 from app.services.block_benchmark import BenchmarkOutcome, active_block_version
-from app.services.calendar_structure import StructureError, expand_structure
-from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
+from app.services.decision_inputs import (
+    KnowledgeResolver,
+    VerifiedKnowledge,
+    canonical_json,
+    collect_decision_inputs,
+    digest,
+)
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, LadderLevel, PatchCategory, Severity
 from app.services.operations import Operation
+from app.services.profile import current_profile
 
 RECIPE_IDS = {f"REC{n:03d}" for n in range(1, 11)}
 BLOCK_OPS = {"review_training_block", "handle_goal_or_race_change"}
@@ -374,7 +382,7 @@ def derive_certainty(day: date, today: date) -> str:
 
 
 def anchor_key(item: AnchorChange, tz: ZoneInfo) -> str:
-    return f"{item.kind}-{item.calibrated_at.astimezone(tz).date().isoformat()}"
+    return f"{item.kind}-{date_in_zone(item.calibrated_at, tz).isoformat()}"
 
 
 def _issue(code: str, path: str, message: str | None = None) -> ValidationIssue:
@@ -910,10 +918,6 @@ def validate_subset(
     return issues
 
 
-def _hash(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value).encode()).hexdigest()
-
-
 def _lock(session: Session) -> Any:
     from app.models import AppState
 
@@ -949,7 +953,6 @@ def load_context(
 ) -> ValidationContext:
     from app.coach_v2_models import CoachSnapshot
     from app.exception_models import ExceptionFinding, ExceptionPatch
-    from app.models import AppState, ProfileVersion
     from app.planning_models import BlockVersion, Event
     from app.services.block_benchmark import benchmark_status
     from app.services.calendar import state_at
@@ -957,9 +960,8 @@ def load_context(
 
     snapshot = session.get(CoachSnapshot, snapshot_id)
     tz = athlete_tz(session)
-    today = now.astimezone(tz).date()
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
+    today = date_in_zone(now, tz)
+    head = head_version(session)
     rows = state_at(session, head)
     head_sessions = {
         row["session_uid"]: HeadSession(
@@ -983,7 +985,7 @@ def load_context(
         )
         for row in rows
     }
-    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
+    profile = current_profile(session)
     anchor = profile.cycle_anchor if profile and profile.anchor_confirmed else None
     inputs = (
         collect_decision_inputs(session, snapshot.operation, snapshot.as_of, now=now, kb=kb)
@@ -1025,7 +1027,7 @@ def submit_proposal(session: Session, raw: dict, *, now: datetime, resolve_kb: K
     from app.coach_v2_models import CoachProposal, CoachSnapshot
 
     _lock(session)
-    input_hash = _hash(raw)
+    input_hash = digest(raw)
     existing = session.scalar(select(CoachProposal).where(CoachProposal.input_hash == input_hash)
         .execution_options(populate_existing=True))
     if existing:
@@ -1147,7 +1149,7 @@ def revise_proposal(session: Session, proposal_id: uuid.UUID, req: RevisionReque
         raise DecisionError("proposal_decided", "This proposal has a decision. Propose changes to the current calendar instead.", 409)
     if not req.reason.strip():
         raise DecisionError("invalid_revision", "Explain the requested revision", 422)
-    request_hash = _hash(req.model_dump(mode="json"))
+    request_hash = digest(req.model_dump(mode="json"))
     if req.expected_revision != proposal.revision:
         # A retry of the immediately preceding successful edit must not create another revision.
         latest = session.get(CoachProposalRevision, (proposal_id, proposal.revision))
@@ -1423,7 +1425,7 @@ def decide_proposal(
     if req.expected_revision != proposal.revision:
         raise DecisionError("proposal_revision_conflict", "This proposal was revised. Reload and review the latest revision.", 409)
     selection = _selection(proposal_id, req)
-    decision_hash = _hash(selection)
+    decision_hash = digest(selection)
     key = session.get(CoachDecisionKey, req.idempotency_key)
     if key and key.proposal_id != proposal_id:
         raise DecisionError("idempotency_conflict", "Key belongs to another proposal", 409)
@@ -1455,7 +1457,7 @@ def decide_proposal(
         raise DecisionError("proposal_stale", "Proposal base changed", 409, commit=True)
     from app.services.timezone import athlete_tz
 
-    today = now.astimezone(athlete_tz(session)).date()
+    today = date_in_zone(now, athlete_tz(session))
     from app.coach_v2_models import CoachSnapshot
 
     snapshot = session.get(CoachSnapshot, proposal.snapshot_id)
@@ -1501,7 +1503,7 @@ def decide_proposal(
             fields.update(
                 proposal_id=proposal_id,
                 valid_from=today,
-                review_after=item.calibrated_at.astimezone(ctx.tz).date() + timedelta(days=84),
+                review_after=date_in_zone(item.calibrated_at, ctx.tz) + timedelta(days=84),
             )
             anchor_keys.append(create_anchor(session, fields)["anchor_key"])
             changed = True

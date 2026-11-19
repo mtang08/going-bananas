@@ -14,18 +14,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.checkin_models import Checkin, CheckinRevision, SessionRpe, SymptomReport
+from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.metric_models import Prompt
 from app.models import Activity, ManualSession
-from app.services.calendar import _lock
+from app.services.calendar import lock_calendar
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
 CONTEXT_TAGS = {'heat', 'travel', 'poor_sleep', 'unusual_surface', 'equipment'}
-RUN_SPORTS = {'running', 'trail_running', 'treadmill_running'}
 
 
-def _measurement(value: object) -> float:
+def measurement(value: object) -> float:
     if isinstance(value, bool):
         raise ValueError('measurement must be numeric')
     try:
@@ -54,7 +54,7 @@ class SymptomInput(BaseModel):
     @field_validator('severity', mode='before')
     @classmethod
     def valid_severity(cls, value: object) -> float:
-        return _measurement(value)
+        return measurement(value)
 
 
 class CheckinCreate(BaseModel):
@@ -81,7 +81,7 @@ class CheckinCreate(BaseModel):
     @field_validator('fatigue', mode='before')
     @classmethod
     def valid_fatigue(cls, value: object) -> float | None:
-        return None if value is None else _measurement(value)
+        return None if value is None else measurement(value)
 
     @field_validator('context_tags')
     @classmethod
@@ -117,7 +117,7 @@ class CheckinPatch(BaseModel):
     @field_validator('fatigue', mode='before')
     @classmethod
     def valid_fatigue(cls, value: object) -> float | None:
-        return None if value is None else _measurement(value)
+        return None if value is None else measurement(value)
 
     @field_validator('context_tags')
     @classmethod
@@ -211,7 +211,7 @@ def _check_related(session: Session, body: dict, *, owner_prompt_id: uuid.UUID |
 
 def create_checkin(session: Session, body: dict) -> tuple[dict, bool]:
     data = CheckinCreate.model_validate(body).model_dump()
-    _lock(session)
+    lock_calendar(session)
     existing = session.scalar(select(Checkin).where(Checkin.idempotency_key == data['idempotency_key']))
     if existing:
         original = session.scalar(select(CheckinRevision).where(CheckinRevision.checkin_id == existing.id)
@@ -234,7 +234,7 @@ def create_checkin(session: Session, body: dict) -> tuple[dict, bool]:
 
 def patch_checkin(session: Session, id: uuid.UUID, body: dict) -> dict:
     patch = CheckinPatch.model_validate(body)
-    _lock(session)
+    lock_calendar(session)
     row = session.get(Checkin, id)
     if row is None:
         fail('checkin_not_found', 'Check-in not found', 404)
@@ -267,8 +267,8 @@ def patch_checkin(session: Session, id: uuid.UUID, body: dict) -> dict:
 def save_manual_rpe(session: Session, *, activity_id: uuid.UUID | None = None,
         strong_workout_id: uuid.UUID | None = None, manual_session_id: uuid.UUID | None = None,
         rpe: float, now: datetime) -> dict:
-    value = _measurement(rpe)
-    _lock(session)
+    value = measurement(rpe)
+    lock_calendar(session)
     subjects = {'activity_id': activity_id, 'strong_workout_id': strong_workout_id,
                 'manual_session_id': manual_session_id}
     if sum(item is not None for item in subjects.values()) != 1:

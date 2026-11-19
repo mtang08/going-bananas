@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.db import global_write_lock
 from app.domain.cycle import recurring_sessions
+from app.domain.local_time import date_in_zone
 from app.errors import fail
 from app.planning_models import StrengthRoutineSlot
 from app.services.profile import current_profile, profile_data
@@ -93,7 +94,7 @@ def routine_view(session: Session) -> dict:
     if version:
         return {'version': version, 'slots': [_slot_data(row) for row in _current_slots(session)],
                 'suggested': False, 'schedule': confirmed_schedule(session)}
-    today = datetime.now(UTC).astimezone(athlete_tz(session)).date()
+    today = date_in_zone(datetime.now(UTC), athlete_tz(session))
     rows = session.scalars(select(StrongWorkoutRow).where(
         StrongWorkoutRow.resolution_state == 'resolved',
         StrongWorkoutRow.local_date.between(today - timedelta(days=55), today))

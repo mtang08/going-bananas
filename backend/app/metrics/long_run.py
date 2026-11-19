@@ -10,14 +10,17 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin, SymptomReport
 from app.domain.analytics import utc_date_bounds
+from app.domain.local_time import date_in_zone
+from app.domain.sports import RUN_SPORTS
 from app.metrics.contract import MetricResultData, QualityStatus, RunFact, Status, config_hash, sha256_json
 from app.metrics.engine import activities_coverage_complete, latest_results, load_runs, metric_source_refs, register
 from app.metrics.symptoms import linked_activity_for_checkin
 from app.metrics.volume import parse_window_key
-from app.models import Activity, AppState
+from app.models import Activity
+from app.read.calendar import latest_revision
 from app.services.timezone import athlete_tz
 
 METRIC_ID = "long_run_exposure"
@@ -29,7 +32,6 @@ CONFIG = {"precedence": ["plan_link", "manual", "long_rule"], "long_recipe": "RE
           "rule_min_prior_runs": 4, "comparator_lookback_days": 30,
           "break_lookback_days": 14, "weekly_window_days": 7,
           "weekly_includes_current": True}
-RUN_SPORTS = ("running", "trail_running", "treadmill_running")
 
 
 def _measure(value: float | None) -> float | None:
@@ -163,12 +165,7 @@ def _plan_link(session: Session, activity_id: UUID) -> tuple[bool, str | None]:
     completion = session.scalar(select(SessionCompletion).where(SessionCompletion.activity_id == activity_id))
     if completion is None:
         return False, None
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
-    revision = session.scalar(select(CalendarSessionRevision).where(
-        CalendarSessionRevision.session_uid == completion.session_uid,
-        CalendarSessionRevision.calendar_version_number <= head)
-        .order_by(CalendarSessionRevision.calendar_version_number.desc(), CalendarSessionRevision.revision.desc()).limit(1))
+    revision = latest_revision(session, completion.session_uid)
     if revision is None or revision.deleted or revision.kind != "run":
         return False, None
     return True, revision.recipe_id
@@ -238,7 +235,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     activity = session.get(Activity, activity_id)
     if activity is None or activity.sport not in RUN_SPORTS:
         return []
-    day = activity.start_at.astimezone(tz).date()
+    day = date_in_zone(activity.start_at, tz)
     history = load_runs(session, day - timedelta(days=30), day + timedelta(days=1))
     run = next((r for r in history if r.activity_id == activity_id), None)
     refs = {**metric_source_refs(session, activity_id), "activity_ids": [str(activity_id)]}

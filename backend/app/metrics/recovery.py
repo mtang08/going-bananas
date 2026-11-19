@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.checkin_models import Checkin
+from app.domain.local_time import date_in_zone
 from app.metrics.contract import MetricResultData, QualityStatus, Status, canonical_json, config_hash, coverage_label
 from app.metrics.engine import register
 from app.models import RawObject, RecoveryObservation, SourceRecord
@@ -205,7 +206,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     for n in range((on_date - first).days + 1):
         day = first + timedelta(days=n)
         subjectives = [Subjective(c.observed_at, str(c.id), c.fatigue, c.illness) for c in checkins
-                       if c.observed_at.astimezone(tz).date() == day]
+                       if date_in_zone(c.observed_at, tz) == day]
         nights.append(night_outcome(day, observations, subjectives))
     outcome = summary_outcome(nights) if prefix == "w7" else nights[0]
     refs = {"recovery": [o.source_refs for o in observations],

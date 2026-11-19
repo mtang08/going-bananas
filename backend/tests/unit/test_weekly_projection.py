@@ -101,7 +101,7 @@ def test_unknown_completion_projection(monkeypatch, days_ago, subject_field, unr
     session = Mock(spec=Session)
     session.get.return_value = None
     session.scalars.side_effect = [Mock(all=Mock(return_value=[completion])), Mock(all=Mock(return_value=[]))]
-    monkeypatch.setattr(projection_service.calendar, '_today', lambda session: today)
+    monkeypatch.setattr(projection_service.calendar, 'calendar_today', lambda session: today)
     monkeypatch.setattr(projection_service.calendar, 'state_at', lambda session, head: plan)
     monkeypatch.setattr(projection_service, 'athlete_tz', lambda session: ZoneInfo('UTC'))
     monkeypatch.setattr(projection_service, 'load_runs', lambda *args: [])

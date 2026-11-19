@@ -11,8 +11,10 @@ from typing import Any, TypeGuard, cast
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.calendar_models import SessionCompletion
 from app.config import settings
+from app.domain.calendar_structure import expand_structure
+from app.domain.sports import RUN_SPORTS
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep
 from app.metrics.contract import (
     MetricResultData,
@@ -27,8 +29,8 @@ from app.metrics.contract import (
 )
 from app.metrics.engine import register
 from app.metrics.lap_alignment import AlignLap, align_laps
-from app.models import Activity, ActivityAnnotation, ActivitySource, AppState, RawObject, SourceRecord
-from app.services.calendar_structure import expand_structure
+from app.models import Activity, ActivityAnnotation, ActivitySource, RawObject, SourceRecord
+from app.read.calendar import head_version, latest_revision
 
 METRIC_ID = 'work_interval_execution'
 METHOD_VERSION = 'v1'
@@ -488,20 +490,14 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     except ValueError as exc:
         raise ValueError('invalid_subject_key') from exc
     activity = session.get(Activity, activity_id)
-    if activity is None or activity.sport not in ('running', 'trail_running', 'treadmill_running'):
+    if activity is None or activity.sport not in RUN_SPORTS:
         return []
     annotation = session.scalar(select(ActivityAnnotation).where(
         ActivityAnnotation.activity_id == activity_id).order_by(ActivityAnnotation.version.desc()).limit(1))
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
+    head = head_version(session)
     completion = session.scalar(select(SessionCompletion).where(SessionCompletion.activity_id == activity_id))
     session_uid = completion.session_uid if completion else None
-    revision = None
-    if session_uid and head:
-        revision = session.scalar(select(CalendarSessionRevision).where(
-            CalendarSessionRevision.session_uid == session_uid,
-            CalendarSessionRevision.calendar_version_number <= head)
-            .order_by(CalendarSessionRevision.calendar_version_number.desc()).limit(1))
+    revision = latest_revision(session, session_uid, head) if session_uid else None
     reason = None
     if (annotation and annotation.excluded) or activity.resolution_state != 'resolved':
         reason = 'ACTIVITY_EXCLUDED'
