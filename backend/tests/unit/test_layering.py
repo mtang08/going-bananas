@@ -63,7 +63,6 @@ METRICS_SERVICES_BASELINE = {
     'metrics/planned_actual.py: app.services.matching',  # candidates_for_session; see decisions.md
 }
 PRIVATE_IMPORT_BASELINE = {
-    'api/coach.py: proposals._snapshot_ref',  # ARCH-08d
 }
 RUN_SPORT_LITERAL_ALLOWED = {'domain/sports.py', 'metrics/volume.py', 'adapters/garmin/normalize.py',
                              'adapters/garmin/fit.py', 'demo_seed.py'}

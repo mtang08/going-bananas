@@ -517,7 +517,7 @@ def test_failure_after_anchor_write_rolls_back_entire_decision(proposal_session:
 
 
 def test_ended_block_latest_version_is_not_active(proposal_session: Session) -> None:
-    from app.services.proposals import _active_block
+    from app.services.proposals.context import active_block
 
     session = proposal_session
     block = Block(block_uid=uuid.uuid4())
@@ -540,7 +540,7 @@ def test_ended_block_latest_version_is_not_active(proposal_session: Session) -> 
     session.add(BlockVersion(block_uid=block.block_uid, version=1, status="active", **fields))
     session.add(BlockVersion(block_uid=block.block_uid, version=2, status="ended", **fields))
     session.flush()
-    assert _active_block(session) is None
+    assert active_block(session) is None
 
 
 def test_manual_session_rpe_changes_fingerprint(proposal_session: Session) -> None:

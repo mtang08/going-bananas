@@ -18,6 +18,7 @@ from app.exception_models import ExceptionPatch
 from app.read.calendar import head_version
 from app.services import calendar, knowledge, proposals
 from app.services.decision_inputs import VerifiedKnowledge
+from app.services.proposals.context import load_context, snapshot_ref
 from app.services.proposals.schema import AnchorChange, DecisionError, SessionFields, anchor_key
 from app.services.proposals.validation import proposal_freshness
 from app.services.timezone import athlete_tz
@@ -45,8 +46,8 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
     is_current = False
     if snapshot and proposal.status == 'pending':
         try:
-            ref = proposals._snapshot_ref(snapshot)
-            context = proposals.load_context(session, proposal.snapshot_id, now=datetime.now(UTC),
+            ref = snapshot_ref(snapshot)
+            context = load_context(session, proposal.snapshot_id, now=datetime.now(UTC),
                 kb=resolve_kb(ref.kb_routes))
             is_current = not proposal_freshness(
                 ref, context, base_calendar_version=proposal.base_calendar_version,
