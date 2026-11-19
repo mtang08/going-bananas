@@ -18,9 +18,9 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db import SessionLocal, bump_data_revision, engine
+from app.db import SessionLocal, engine
 from app.logs import configure
-from app.models import AppState, ProfileVersion
+from app.models import AppState
 from app.services.backup import BackupError, create_backup, restore_backup
 from app.services.export_import import import_export
 from app.services.sync import ADVISORY_LOCK, enqueue_catchup, enqueue_sync, run_one_job
@@ -68,9 +68,6 @@ def _parse() -> argparse.Namespace:
     restore.add_argument("archive", type=Path)
     restore.add_argument("--target-database-name", required=True)
     restore.add_argument("--target-private-dir", required=True, type=Path)
-    profile = sub.add_parser("init-profile")
-    profile.add_argument("--timezone", default=DEFAULT_TIMEZONE)
-    profile.add_argument("--facts-file", type=Path)
     metrics = sub.add_parser("metrics-recompute")
     metrics.add_argument("--metric", default="all")
     metrics.add_argument("--since", type=date.fromisoformat)
@@ -410,19 +407,6 @@ def main() -> int:
             target_url = current_url.set(database=args.target_database_name).render_as_string(hide_password=False)
             manifest = restore_backup(args.archive, target_url, args.target_private_dir)
             print(json.dumps({"restored_at": manifest["created_at"], "file_count": len(manifest["files"])}))
-        elif args.command == "init-profile":
-            facts = json.loads(args.facts_file.read_text()) if args.facts_file else {}
-            if not isinstance(facts, dict):
-                raise ValueError("invalid_profile_facts")
-            with SessionLocal.begin() as session:
-                latest = session.scalar(select(ProfileVersion).order_by(ProfileVersion.version.desc()))
-                if latest:
-                    raise ValueError("profile_already_initialized")
-                session.add(ProfileVersion(version=1, effective_at=datetime.now(UTC),
-                                           timezone=args.timezone, facts=facts, preferences={},
-                                           unknowns=[]))
-                bump_data_revision(session)
-            print(json.dumps({"profile_version": 1}))
         return 0
     except (ValueError, BackupError) as exc:
         # Known safe codes only; never echo raw network exceptions or payloads.
