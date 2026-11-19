@@ -11,8 +11,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from app.domain.calendar_structure import expand_structure
 from app.services.block_benchmark import BenchmarkOutcome, BenchmarkSpec, benchmark_spec
-from app.services.calendar_structure import expand_structure
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, fingerprint
 from app.services.proposals import (
     ActiveBlock,

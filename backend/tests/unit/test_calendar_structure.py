@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from app.services.calendar_structure import StructureError, expand_structure, work_signature
+from app.domain.calendar_structure import StructureError, expand_structure, work_signature
 
 
 def step(kind='work', duration=60, target=None):
