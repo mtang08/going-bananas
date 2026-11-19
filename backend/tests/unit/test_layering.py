@@ -1,5 +1,8 @@
 import ast
+import re
 from pathlib import Path
+
+import pytest
 
 APP = Path(__file__).resolve().parents[2] / 'app'
 TZ_LITERAL_ALLOWED = {'services/timezone.py', 'models.py', 'adapters/garmin/normalize.py', 'demo_seed.py'}
@@ -32,4 +35,20 @@ def test_domain_imports_no_framework_or_db():
 def test_timezone_default_has_one_home():
     offenders = [str(p.relative_to(APP)) for p in sorted(APP.rglob('*.py'))
                  if "America/New_York" in p.read_text() and str(p.relative_to(APP)) not in TZ_LITERAL_ALLOWED]
+    assert offenders == []
+
+
+@pytest.mark.xfail(strict=True, reason='ARCH-02b')
+def test_no_method_version_literals_outside_metric_modules():
+    patterns = (
+        re.compile(r"""latest_results\([^)]*['"]v\d+['"]"""),
+        re.compile(r"""method_version\s*==\s*['"]v\d+['"]"""),
+    )
+    offenders = [
+        f'{path.relative_to(APP)}:{line_no}: {line.strip()}'
+        for path in sorted(APP.rglob('*.py'))
+        if path != APP / 'metrics' / 'engine.py'
+        for line_no, line in enumerate(path.read_text().splitlines(), start=1)
+        if any(pattern.search(line) for pattern in patterns)
+    ]
     assert offenders == []

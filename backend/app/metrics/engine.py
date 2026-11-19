@@ -226,6 +226,13 @@ def latest_results(session: Session, metric_id: str, method_version: str,
     return {row.subject_key: row for row in rows}
 
 
+def current_results(session: Session, metric_id: str, subject_keys: Sequence[str]) -> dict[str, MetricResultRow]:
+    metric_modules()
+    if metric_id not in REGISTRY:
+        raise ValueError('unknown_metric')
+    return latest_results(session, metric_id, REGISTRY[metric_id].method_version, list(subject_keys))
+
+
 def ensure_metric_config(session: Session, metric_id: str, method_version: str,
                          config: Mapping[str, Any]) -> str:
     digest = config_hash(config)
