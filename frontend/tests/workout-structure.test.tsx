@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { compactWorkout, WorkoutStructure } from '../src/components/WorkoutStructure'
-import type { PlannedStep, StructureItem } from '../src/api'
+import type { PlannedStep, StructureItem } from '../src/api/types/calendar'
 const work: PlannedStep = { type: 'work', duration_type: 'time', duration_value: 180, target: { modality: 'effort', low: null, high: null, effort_cue: 'Controlled hard; stay relaxed' } }
 const recovery: PlannedStep = { type: 'recovery', duration_type: 'time', duration_value: 120, target: null }
 afterEach(cleanup)

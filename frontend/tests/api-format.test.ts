@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import fixture from './fixtures/planning-wire.json'
-import { ANCHOR_UNIT, MISSING, clockToSeconds, flattenStructure, fmtClock, fmtDistance, fmtDuration, fmtPaceFromSpeed, fmtPercent, fmtRpe, formatStep, paceToSpeed, pageHref, qk, sessionMarker, sessionTitle, signatureLabel, statusText } from '../src/api'
-import type { AnchorCreate, CalendarView, CompletionPut, GoalCreate, MetricResult, PlannedStep, Profile, SrpeValue, StrengthRoutineSlot, StructureItem, VolumeValue } from '../src/api'
+import { ANCHOR_UNIT, type AnchorCreate } from '../src/api/types/anchors'
+import { MISSING, clockToSeconds, fmtClock, fmtDistance, fmtDuration, fmtPaceFromSpeed, fmtPercent, fmtRpe, paceToSpeed, signatureLabel, statusText } from '../src/lib/format'
+import { flattenStructure, formatStep } from '../src/lib/structure'
+import { pageHref } from '../src/lib/routes'
+import { qk } from '../src/api/queryKeys'
+import { sessionMarker, sessionTitle } from '../src/lib/session'
+import type { CalendarView, CompletionPut, PlannedStep, StructureItem } from '../src/api/types/calendar'
+import type { GoalCreate, StrengthRoutineSlot } from '../src/api/types/blocks'
+import type { MetricResult, SrpeValue, VolumeValue } from '../src/api/types/metrics'
+import type { Profile } from '../src/api/types/profile'
 
 const wire: Record<string, unknown> = fixture
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)

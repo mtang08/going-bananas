@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mondayOfWeek, SessionSummary } from '../src/components/PlanOverview'
-import type { SessionState } from '../src/api'
+import type { SessionState } from '../src/api/types/calendar'
 
 const base = {
   id: 's1-rev',
