@@ -129,11 +129,15 @@ readable. Elaborate legacy undo compatibility is outside this local MVP.
 
 Operational commands:
 
+- `metrics-assess-session --session-uid UUID` previews the reassessment of one session and its linked activity. Add `--apply` to save it. Existing matches and source data are preserved.
+- `fit-reprocess --since YYYY-MM-DD` previews re-decoding of retained FIT files after a decoder change. Add `--apply` to save. Applying refreshes metrics and same-day matching for the touched dates.
 - `metrics-recompute --metric all --since YYYY-MM-DD --until YYYY-MM-DD` refreshes
   derived metrics; it does not fetch remote data.
 - `fit-backfill --since YYYY-MM-DD` fetches available FIT evidence in real mode;
   unavailable or failed items remain explicit and can be inspected.
 - `strong-import PATH` previews a CSV; add `--apply` to import it.
+
+Opening an activity page recomputes its metrics and linked session assessment. Take a backup before the first page view after a metric change.
 
 Synthetic acceptance uses the isolated PostgreSQL cluster on port 55439 and API port 18000.
 It must never reset, seed, or migrate the real database on port 55432. Keep device

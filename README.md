@@ -63,8 +63,7 @@ strength routine in Settings. New coaching changes always require explicit revie
 FIT decoding supplies timer segments, laps, steps, streams, and watch RPE when
 available. Source coverage, calibration, and stream quality determine whether a
 metric can be assessed. Synthetic tests do not establish device support: local
-Garmin sample decoding and timer/RPE comparisons have passed; broader repeat/lap
-mapping and non-worn-night behavior remain explicitly unverified. The app shows
+Garmin sample decoding and timer/RPE comparisons have passed; split laps within one workout step and an omitted warm-up, recovery, or cool-down step are handled and verified on synthetic data; broader device coverage and non-worn-night behavior remain explicitly unverified. The app shows
 unavailable or partial evidence rather than filling those gaps.
 
 Strong sessions stay in the database. The app uses the preceding **18 calendar months** for current running context and has no Strength browsing page. The export has no verified weight unit or dumbbell convention-change date, so the app does not compare weights or derive PR targets across that change.

@@ -104,6 +104,8 @@ Home's weekly mileage uses Monday–Sunday in your profile timezone. It adds rec
 
 Missing data and incomplete plan coverage are labeled. Treat the projection as a planning aid, especially where distance is estimated. Use the two-week grids to compare day-by-day sessions and open details before reviewing a proposal. Sessions marked provisional are an outlook that may change. Those badges follow the saved proposal, rather than making every next calendar week provisional.
 
+Reps are matched to your watch workout by order. Split laps inside one step are combined; a warm-up, recovery, or cool-down that was not recorded is allowed. A skipped work rep counts as not recorded. When the laps cannot be matched in only one way, the comparison shows as unavailable rather than guessed.
+
 ## Find your way around
 
 - [Home](#home): sync status, **Needs attention** (open proposals, coach recommendations, findings, patch reassessments, and check-in prompts), today's plan, the next two weeks, weekly mileage, the block line, and **Logged for Sunday review**.
