@@ -12,7 +12,7 @@ from math import isfinite
 from statistics import median
 from typing import Any
 
-from app.domain.analytics import RUN_SPORTS
+from app.domain.sports import RUN_SPORTS
 
 METHOD = 'historical_relative_v1'
 WINDOW_DAYS = 84

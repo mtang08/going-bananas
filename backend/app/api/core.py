@@ -14,10 +14,10 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import bump_data_revision, get_revision, get_session
 from app.domain.analytics import (
-    RUN_SPORTS,
     pace_s_per_km,
     utc_date_bounds,
 )
+from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.models import (
     Activity,
