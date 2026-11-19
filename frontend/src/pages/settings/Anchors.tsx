@@ -112,7 +112,7 @@ export function Anchors({
       })
     },
     onSuccess: () => {
-      invalidateKeys(qc, [qk.anchors, qk.metrics, qk.coach])
+      invalidateKeys(qc, [qk.anchors, qk.metrics, qk.proposals])
       setValue('')
     },
   })

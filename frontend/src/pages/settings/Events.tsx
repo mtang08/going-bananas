@@ -76,7 +76,7 @@ export function Events({ unit }: { unit: Unit }) {
         : post('/events', body)
     },
     onSuccess: () => {
-      invalidateKeys(qc, [qk.events, qk.coach])
+      invalidateKeys(qc, [qk.events, qk.proposals])
       reset()
     },
   })

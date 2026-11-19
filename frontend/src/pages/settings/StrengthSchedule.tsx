@@ -84,7 +84,7 @@ export function StrengthSchedule({ profile }: { profile: Profile }) {
         mobility_week_b_days: mobilityB,
         mobility_optional_days: optionalMobility,
       }),
-    onSuccess: () => invalidateKeys(qc, [qk.profile, qk.strengthRoutine, qk.coach]),
+    onSuccess: () => invalidateKeys(qc, [qk.profile, qk.strengthRoutine, qk.proposals]),
   })
   return (
     <form

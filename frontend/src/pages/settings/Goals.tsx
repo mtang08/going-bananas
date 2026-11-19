@@ -41,7 +41,7 @@ export function Goals() {
           })
         : post('/goals', { text: text.trim(), horizon, priority }),
     onSuccess: () => {
-      invalidateKeys(qc, [qk.goals, qk.coach])
+      invalidateKeys(qc, [qk.goals, qk.proposals])
       reset()
     },
   })
