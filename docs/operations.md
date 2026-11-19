@@ -52,6 +52,8 @@ is closed. Worker and standalone runs coordinate using PostgreSQL advisory locks
 The wrapper starts the existing project-local database if necessary. Startup catch-up covers missed schedules;
 failed/partial datasets remain visible.
 
+After a successful sync the wrapper also writes one backup per local day to `$PRIVATE_DIR/backups/backup-YYYYMMDD-HHMMSS.tar.gz` (skipped if one exists for today), then runs `scripts/backup-prune.sh`. That script deletes `backup-*.tar.gz` files older than `BACKUP_RETENTION_DAYS` (default 14) and always keeps the newest `BACKUP_MIN_KEEP` (default 3). Set either variable in `.env` to change it. A failed backup makes the job exit nonzero and is recorded in `private/launchd-sync-error.log`; pruning is skipped in that case.
+
 To install manually, replace `REPLACE_WITH_ABSOLUTE_CHECKOUT` in
 `scripts/com.local.garmin-sync.plist.example`, save it as
 `~/Library/LaunchAgents/com.local.garmin-sync.plist`, and use:
