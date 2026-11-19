@@ -1,4 +1,6 @@
-import { dateLabel, flattenStructure, RECIPE_LABELS } from '../../api'
+import { dateLabel } from '../../lib/format'
+import { flattenStructure } from '../../lib/structure'
+import { RECIPE_LABELS } from '../../api/types/calendar'
 import type { ProposalSession, ProposalChange } from '../../api/types/coach'
 
 export function readStructure(value: ProposalSession | null) {

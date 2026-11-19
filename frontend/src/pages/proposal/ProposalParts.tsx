@@ -11,7 +11,10 @@ import type {
   ProposalPatchResolution,
 } from '../../api/types/exceptions'
 import { Badge, Card } from '../../components/ui'
-import { sessionTitle, type SessionState, dateLabel, fmtDuration, formatStep } from '../../api'
+import { sessionTitle } from '../../lib/session'
+import type { SessionState } from '../../api/types/calendar'
+import { dateLabel, fmtDuration } from '../../lib/format'
+import { formatStep } from '../../lib/structure'
 import type { ProposalSession } from '../../api/types/coach'
 import { readStructure, sessionName, sessionDate } from './helpers'
 

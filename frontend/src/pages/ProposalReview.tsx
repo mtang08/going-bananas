@@ -1,7 +1,8 @@
 import { Button, Card } from '../components/ui'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { type CalendarView, ApiError, api, post } from '../api'
+import type { CalendarView } from '../api/types/calendar'
+import { ApiError, api, post } from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
 import type {
   ProposalDecision,
