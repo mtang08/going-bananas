@@ -23,6 +23,7 @@ from app.services.proposals import (
     ValidationContext,
     anchor_key,
     derive_certainty,
+    proposal_freshness,
     scope,
     validate_document,
     validate_subset,
@@ -889,3 +890,39 @@ def test_exception_rule_issue_order_is_pinned() -> None:
         ('V20.finding_unknown', 'exception.finding_ids.0', 'V20.finding_unknown'),
         ('V21.patch_unknown', 'patch_resolutions.0.patch_id', 'V21.patch_unknown'),
     ]
+
+
+def freshness(ctx: ValidationContext | None = None, *, calendar: int = 7, block: uuid.UUID | None = U(101)):
+    ctx = ctx or context()
+    assert ctx.snapshot is not None
+    return proposal_freshness(ctx.snapshot, ctx, base_calendar_version=calendar, base_block_version_id=block)
+
+
+def test_freshness_current_proposal_has_no_reasons() -> None:
+    assert freshness() == []
+
+
+def test_freshness_expiry_wins_over_stale_base() -> None:
+    ctx = context()
+    old = replace(ctx, snapshot=replace(ctx.snapshot, generated_at=NOW - timedelta(hours=25)))
+    assert freshness(old, calendar=6) == ["snapshot_expired"]
+
+
+@pytest.mark.parametrize("change", [{"as_of": TODAY - timedelta(days=1)}, {"generated_at": NOW + timedelta(minutes=1)}])
+def test_freshness_other_day_or_future_snapshot_is_expired(change: dict) -> None:
+    ctx = context()
+    assert freshness(replace(ctx, snapshot=replace(ctx.snapshot, **change))) == ["snapshot_expired"]
+
+
+def test_freshness_reports_both_stale_bases_in_order() -> None:
+    assert freshness(calendar=6, block=U(999)) == ["stale_base_calendar", "stale_base_block"]
+    assert freshness(block=None) == ["stale_base_block"]
+
+
+def test_freshness_no_active_block_matches_a_missing_base_block() -> None:
+    assert freshness(context(block=False), block=None) == []
+
+
+@pytest.mark.parametrize("change", [{"current_source_fingerprint": "other"}, {"current_kb_digest": "1" * 64}])
+def test_freshness_changed_sources_are_stale(change: dict) -> None:
+    assert freshness(replace(context(), **change)) == ["stale_sources"]

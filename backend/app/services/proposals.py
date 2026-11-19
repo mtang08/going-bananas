@@ -28,6 +28,7 @@ from app.services.decision_inputs import (
     digest,
 )
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, LadderLevel, PatchCategory, Severity
+from app.services.knowledge import KnowledgeIntegrityError
 from app.services.operations import Operation
 from app.services.profile import current_profile
 
@@ -796,27 +797,58 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
     return issues
 
 
+FreshnessReason = Literal["snapshot_expired", "stale_base_calendar", "stale_base_block", "stale_sources"]
+SNAPSHOT_MAX_AGE = timedelta(hours=24)
+_STALE_ISSUES: dict[str, tuple[str, str]] = {
+    "stale_base_calendar": ("V3.stale_base", "base_calendar_version"),
+    "stale_base_block": ("V3.stale_base", "base_block_version_id"),
+    "stale_sources": ("V3.stale_sources", "snapshot_id"),
+}
+
+
+def proposal_freshness(
+    snapshot: SnapshotRef,
+    ctx: ValidationContext,
+    *,
+    base_calendar_version: int,
+    base_block_version_id: uuid.UUID | None,
+) -> list[FreshnessReason]:
+    """Why a proposal can no longer be decided; an empty list means it is current.
+
+    Gates run in order: snapshot expiry, base versions, source evidence. A later gate is not reported
+    once an earlier one fails, and both base mismatches are reported together.
+    """
+    if (
+        snapshot.as_of != ctx.today
+        or snapshot.generated_at > ctx.now
+        or ctx.now - snapshot.generated_at > SNAPSHOT_MAX_AGE
+    ):
+        return ["snapshot_expired"]
+    reasons: list[FreshnessReason] = []
+    if base_calendar_version != ctx.head_version:
+        reasons.append("stale_base_calendar")
+    if base_block_version_id != (ctx.active_block.version_id if ctx.active_block else None):
+        reasons.append("stale_base_block")
+    if reasons:
+        return reasons
+    if snapshot.source_fingerprint != ctx.current_source_fingerprint or snapshot.kb_digest != ctx.current_kb_digest:
+        return ["stale_sources"]
+    return []
+
+
 def validate_parsed(doc: ProposalDoc, ctx: ValidationContext) -> ValidationResult:
     snapshot = ctx.snapshot
     if snapshot is None or snapshot.id != doc.snapshot_id:
         return ValidationResult("invalid", doc, [_issue("V2.snapshot_not_found", "snapshot_id")])
     if snapshot.operation != doc.operation:
         return ValidationResult("invalid", doc, [_issue("V2.operation_mismatch", "operation")])
-    if (
-        snapshot.as_of != ctx.today
-        or snapshot.generated_at > ctx.now
-        or ctx.now - snapshot.generated_at > timedelta(hours=24)
-    ):
+    reasons = proposal_freshness(
+        snapshot, ctx, base_calendar_version=doc.base_calendar_version, base_block_version_id=doc.base_block_version_id
+    )
+    if reasons == ["snapshot_expired"]:
         return ValidationResult("invalid", doc, [_issue("V2.snapshot_expired", "snapshot_id")])
-    stale: list[ValidationIssue] = []
-    if doc.base_calendar_version != ctx.head_version:
-        stale.append(_issue("V3.stale_base", "base_calendar_version"))
-    if doc.base_block_version_id != (ctx.active_block.version_id if ctx.active_block else None):
-        stale.append(_issue("V3.stale_base", "base_block_version_id"))
-    if stale:
-        return ValidationResult("stale", doc, stale)
-    if snapshot.source_fingerprint != ctx.current_source_fingerprint or snapshot.kb_digest != ctx.current_kb_digest:
-        return ValidationResult("stale", doc, [_issue("V3.stale_sources", "snapshot_id")])
+    if reasons:
+        return ValidationResult("stale", doc, [_issue(*_STALE_ISSUES[reason]) for reason in reasons])
     issues = _rules(doc, ctx)
     return ValidationResult("invalid" if issues else "pending", doc, issues)
 
@@ -1409,10 +1441,18 @@ def _apply_benchmark_effects(session: Session, doc: ProposalDoc, proposal_id: uu
     session.flush()
 
 
+_DECISION_STALE: dict[FreshnessReason, tuple[str, str]] = {
+    "snapshot_expired": ("proposal_stale", "Proposal expired"),
+    "stale_base_calendar": ("proposal_stale", "Proposal base changed"),
+    "stale_base_block": ("proposal_stale", "Proposal base changed"),
+    "stale_sources": ("stale_evidence", "Decision evidence changed"),
+}
+
+
 def decide_proposal(
     session: Session, proposal_id: uuid.UUID, req: DecisionRequest, *, now: datetime, resolve_kb: KnowledgeResolver
 ) -> DecisionResult:
-    from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange
+    from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
     from app.metrics.anchors import create_anchor
     from app.services.calendar import apply_edits
 
@@ -1450,33 +1490,23 @@ def decide_proposal(
     if req.expected_head != state.calendar_head_version:
         raise DecisionError("calendar_head_moved", "Calendar changed", 409)
     doc = ProposalDoc.model_validate(proposal.payload)
-    if proposal.base_calendar_version != state.calendar_head_version or proposal.base_block_version_id != (
-        block.version_id if (block := _active_block(session)) else None
-    ):
-        proposal.status = "stale"
-        raise DecisionError("proposal_stale", "Proposal base changed", 409, commit=True)
-    from app.services.timezone import athlete_tz
-
-    today = date_in_zone(now, athlete_tz(session))
-    from app.coach_v2_models import CoachSnapshot
-
     snapshot = session.get(CoachSnapshot, proposal.snapshot_id)
-    if (
-        snapshot is None
-        or snapshot.as_of != today
-        or snapshot.generated_at > now
-        or now - snapshot.generated_at > timedelta(hours=24)
-    ):
+    if snapshot is None:
         proposal.status = "stale"
         raise DecisionError("proposal_stale", "Proposal expired", 409, commit=True)
+    ref = _snapshot_ref(snapshot)
     try:
-        kb = resolve_kb(_snapshot_ref(snapshot).kb_routes)
-    except Exception as exc:
+        kb = resolve_kb(ref.kb_routes)
+    except KnowledgeIntegrityError as exc:
         raise DecisionError("knowledge_unavailable", "Verified knowledge is unavailable", 503) from exc
     ctx = load_context(session, proposal.snapshot_id, now=now, kb=kb)
-    if snapshot.source_fingerprint != ctx.current_source_fingerprint or snapshot.kb_digest != ctx.current_kb_digest:
+    reasons = proposal_freshness(
+        ref, ctx, base_calendar_version=proposal.base_calendar_version, base_block_version_id=proposal.base_block_version_id
+    )
+    if reasons:
         proposal.status = "stale"
-        raise DecisionError("stale_evidence", "Decision evidence changed", 409, commit=True)
+        code, message = _DECISION_STALE[reasons[0]]
+        raise DecisionError(code, message, 409, commit=True)
     accepted, rejected, anchors = set(req.accept_change_ids), set(req.reject_change_ids), set(req.accept_anchor_changes)
     required = {change.change_id for change in doc.changes}
     known_anchors = {anchor_key(item, ctx.tz) for item in doc.anchor_changes}
@@ -1502,7 +1532,7 @@ def decide_proposal(
             fields = item.model_dump(mode="python")
             fields.update(
                 proposal_id=proposal_id,
-                valid_from=today,
+                valid_from=ctx.today,
                 review_after=date_in_zone(item.calibrated_at, ctx.tz) + timedelta(days=84),
             )
             anchor_keys.append(create_anchor(session, fields)["anchor_key"])
