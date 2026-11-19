@@ -1,10 +1,9 @@
-"""Calendar API. Mounted with the assessment engine in TASK-030."""
+"""Calendar API."""
 from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
-from importlib import import_module
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
@@ -16,6 +15,7 @@ from app.api.core import envelope
 from app.calendar_models import CalendarVersion
 from app.db import get_session
 from app.errors import fail
+from app.metrics.engine import assess_completion
 from app.services import calendar, weekly_digest, weekly_projection
 from app.services.exceptions.detector import run_detection
 
@@ -63,11 +63,7 @@ class CompletionInput(BaseModel):
 
 
 def get_completion_assessor() -> Callable[[Session, uuid.UUID], None]:
-    # The router remains unmounted until TASK-030 provides this module.
-    assessor = getattr(import_module('app.metrics.engine'), 'assess_completion', None)
-    if not callable(assessor):
-        raise RuntimeError('completion_assessor_missing')
-    return assessor
+    return assess_completion
 
 
 @router.get('/calendar')
