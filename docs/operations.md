@@ -19,8 +19,9 @@ processes its launcher created. The database is intentionally independent.
 
 ```sh
 make backup
-make context
 ```
+
+In real mode, `make migrate` backs up to `$PRIVATE_DIR/backups/` and stops if the backup fails. Demo and test migrations run directly.
 
 Explicit real-mode backup and restore (replace the archive path and new target):
 

@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 RUN := ./scripts/run
-.PHONY: doctor setup db-start db-stop migrate seed-demo dev build start check test-db-start test-db-stop test-integration test-integration-external test-e2e sync
+BACKUP := cd backend && uv run python -m app.cli backup "$$PRIVATE_DIR/backups/backup-$$(date +%Y%m%d-%H%M%S).tar.gz"
+.PHONY: doctor setup db-start db-stop migrate seed-demo dev build start check test-db-start test-db-stop test-integration test-integration-external test-e2e sync backup
 
 doctor:
 	$(RUN) python3 scripts/doctor.py
@@ -12,7 +13,7 @@ db-start:
 db-stop:
 	$(RUN) python3 scripts/local-db.py stop
 migrate:
-	$(RUN) bash -c 'cd backend && uv run alembic upgrade head'
+	$(RUN) bash -c 'if [ "$$APP_MODE" = real ]; then ( $(BACKUP) ) || { echo "Backup failed; migration aborted." >&2; exit 1; }; fi; cd backend && uv run alembic upgrade head'
 seed-demo:
 	./scripts/with-mode demo bash -c 'cd backend && uv run alembic upgrade head && uv run python -m app.cli seed-demo --calendar-preview'
 dev:
@@ -38,4 +39,4 @@ sync:
 	$(RUN) bash -c 'cd backend && uv run python -m app.cli sync'
 
 backup:
-	$(RUN) bash -c 'cd backend && uv run python -m app.cli backup "$$PRIVATE_DIR/backups/backup-$$(date +%Y%m%d-%H%M%S).tar.gz"'
+	$(RUN) bash -c '$(BACKUP)'
