@@ -1,4 +1,5 @@
 """Shared calendar reads in a disposable synthetic PostgreSQL schema."""
+
 from __future__ import annotations
 
 import os
@@ -28,7 +29,9 @@ def _guard_url() -> str:
     assert settings.app_mode == "test"
     assert parsed.drivername in ("postgresql+psycopg", "postgresql")
     assert parsed.host in ("localhost", "127.0.0.1")
-    assert parsed.port == int(os.environ.get('TEST_DATABASE_PORT', '55439')) and parsed.database == "mvp1_migration_test"
+    assert (
+        parsed.port == int(os.environ.get("TEST_DATABASE_PORT", "55439")) and parsed.database == "mvp1_migration_test"
+    )
     return url
 
 
@@ -54,32 +57,50 @@ def db(metrics_disabled):
 
 
 def _revision(
-    uid: uuid.UUID, revision: int, version: int, day: int, *, deleted: bool = False, intent: str = "x",
+    uid: uuid.UUID,
+    revision: int,
+    version: int,
+    day: int,
+    *,
+    deleted: bool = False,
+    intent: str = "x",
 ) -> CalendarSessionRevision:
     return CalendarSessionRevision(
-        session_uid=uid, revision=revision, calendar_version_number=version,
-        local_date=date(2026, 11, day), kind="run", slot=0, intent=intent, certainty="committed", deleted=deleted,
+        session_uid=uid,
+        revision=revision,
+        calendar_version_number=version,
+        local_date=date(2026, 11, day),
+        kind="run",
+        slot=0,
+        intent=intent,
+        certainty="committed",
+        deleted=deleted,
     )
 
 
 def _seed(session) -> tuple[uuid.UUID, uuid.UUID]:
     state = session.get(AppState, 1)
     assert state is not None
-    session.add_all([
-        CalendarVersion(number=n, parent_number=n - 1 or None, kind="bootstrap" if n == 1 else "manual_edit",
-                        actor="system")
-        for n in range(1, 4)
-    ])
+    session.add_all(
+        [
+            CalendarVersion(
+                number=n, parent_number=n - 1 or None, kind="bootstrap" if n == 1 else "manual_edit", actor="system"
+            )
+            for n in range(1, 4)
+        ]
+    )
     state.calendar_head_version = 3
     session.flush()
 
     uid_a, uid_b = uuid.uuid4(), uuid.uuid4()
-    session.add_all([
-        _revision(uid_a, 1, 1, 19),
-        _revision(uid_a, 2, 2, 19, intent="edited"),
-        _revision(uid_b, 1, 1, 20),
-        _revision(uid_b, 2, 3, 20, deleted=True),
-    ])
+    session.add_all(
+        [
+            _revision(uid_a, 1, 1, 19),
+            _revision(uid_a, 2, 2, 19, intent="edited"),
+            _revision(uid_b, 1, 1, 20),
+            _revision(uid_b, 2, 3, 20, deleted=True),
+        ]
+    )
     session.flush()
     return uid_a, uid_b
 
@@ -129,7 +150,6 @@ def test_latest_revision_single_session(db):
         assert latest_revision(session, uid_a) is None
 
 
-
 def test_refresh_plan_uids_reads_past_cached_head(db):
     with db() as session:
         uid_a, _ = _seed(session)
@@ -137,8 +157,12 @@ def test_refresh_plan_uids_reads_past_cached_head(db):
         assert state is not None
         state.calendar_head_version = 1
         session.flush()
-        session.execute(update(AppState).where(AppState.id == 1).values(calendar_head_version=3)
-                        .execution_options(synchronize_session=False))
+        session.execute(
+            update(AppState)
+            .where(AppState.id == 1)
+            .values(calendar_head_version=3)
+            .execution_options(synchronize_session=False)
+        )
         assert state.calendar_head_version == 1
 
         assert _plan_uids(session) == [uid_a]

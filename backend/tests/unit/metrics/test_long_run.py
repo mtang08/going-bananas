@@ -13,20 +13,48 @@ from app.metrics.long_run import classify, delayed_status, exposure_outcome, win
 DAY = date(2026, 11, 15)
 
 
-def run(month: int, day: int, timer: float | None, distance: float | None,
-        *, hour: int = 12, label: str | None = None, sport: str = "running") -> RunFact:
-    return RunFact(UUID(int=month * 100 + day + hour * 1000), datetime(2026, month, day, hour, tzinfo=UTC),
-                   None, date(2026, month, day), sport, timer, distance, label)
+def run(
+    month: int,
+    day: int,
+    timer: float | None,
+    distance: float | None,
+    *,
+    hour: int = 12,
+    label: str | None = None,
+    sport: str = "running",
+) -> RunFact:
+    return RunFact(
+        UUID(int=month * 100 + day + hour * 1000),
+        datetime(2026, month, day, hour, tzinfo=UTC),
+        None,
+        date(2026, month, day),
+        sport,
+        timer,
+        distance,
+        label,
+    )
 
 
 L = run(11, 15, 5040, 13500, hour=14)
-PRIOR = [run(10, 20, 4500, 12200), run(10, 25, 2400, 6000), run(11, 1, 3000, 8000),
-         run(11, 5, 2700, 7000), run(11, 10, 2400, 6500), run(11, 12, 2700, 6500),
-         run(11, 13, 2460, 6500)]
+PRIOR = [
+    run(10, 20, 4500, 12200),
+    run(10, 25, 2400, 6000),
+    run(11, 1, 3000, 8000),
+    run(11, 5, 2700, 7000),
+    run(11, 10, 2400, 6500),
+    run(11, 12, 2700, 6500),
+    run(11, 13, 2460, 6500),
+]
 
 
-def outcome(history: list[RunFact], *, linked: bool = False, recipe: str | None = None,
-            target: RunFact = L, coverage: bool = True) -> dict:
+def outcome(
+    history: list[RunFact],
+    *,
+    linked: bool = False,
+    recipe: str | None = None,
+    target: RunFact = L,
+    coverage: bool = True,
+) -> dict:
     return exposure_outcome(target, history, linked, recipe, coverage, "unknown", [])
 
 
@@ -34,7 +62,10 @@ def test_rule_long_spec_numbers() -> None:
     result = outcome([*PRIOR, L])
     value = result["value"]
     assert (value["classification"], value["classification_source"], value["classification_confidence"]) == (
-        "long", "long_rule", "low")
+        "long",
+        "long_rule",
+        "low",
+    )
     assert value["prior_max_timer_s"] == 4500.0
     assert value["prior_max_distance_m"] == 12200.0
     assert value["duration_ratio_to_recent_max"] == 1.12
@@ -56,8 +87,7 @@ def test_plan_and_manual_precedence() -> None:
     not_long = outcome([*PRIOR, L], linked=True, recipe="REC001")
     assert not_long["status"] == "not_applicable"
     assert not_long["reason_codes"] == ["NOT_LONG_RUN"]
-    manual = outcome([PRIOR[0], PRIOR[1], replace(L, workout_label="long")],
-                     target=replace(L, workout_label="long"))
+    manual = outcome([PRIOR[0], PRIOR[1], replace(L, workout_label="long")], target=replace(L, workout_label="long"))
     assert manual["value"]["classification_source"] == "manual"
     assert "RETURN_FROM_BREAK" in manual["quality_flags"]
     assert manual["value"]["weekly_share_duration"] == 1.0
@@ -86,9 +116,11 @@ def test_delayed_and_window_latest() -> None:
     assert delayed_status([("post_run", [3.0])]) == "unknown"
     assert delayed_status([("delayed_followup", [0.0])]) == "none_reported"
     assert delayed_status([("delayed_followup", [4.0])]) == "reported"
-    entries = [{"classification": "long", "local_date": "2026-11-08"},
-               {"classification": "not_long", "local_date": "2026-11-10"},
-               {"classification": "long", "local_date": "2026-11-15"}]
+    entries = [
+        {"classification": "long", "local_date": "2026-11-08"},
+        {"classification": "not_long", "local_date": "2026-11-10"},
+        {"classification": "long", "local_date": "2026-11-15"},
+    ]
     result = window_outcome(entries)
     assert result["value"]["long_run_count"] == 2
     assert result["value"]["latest"] == entries[-1]
@@ -100,8 +132,9 @@ def test_delayed_and_window_latest() -> None:
 
 
 def test_incomplete_comparator_week_and_nonfinite_inputs() -> None:
-    result = exposure_outcome(replace(L, workout_label="long"), [*PRIOR, L], True, "REC002",
-                              False, "unknown", [], False)
+    result = exposure_outcome(
+        replace(L, workout_label="long"), [*PRIOR, L], True, "REC002", False, "unknown", [], False
+    )
     assert "PARTIAL_COMPARATOR" in result["quality_flags"]
     assert "PARTIAL_WEEK" in result["quality_flags"]
     invalid = replace(L, timer_s=float("inf"), distance_m=float("nan"), workout_label="long")
@@ -127,8 +160,11 @@ def test_compute_hash_includes_later_same_day_run(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(long_run, "_plan_link", lambda *_args: (False, None))
     monkeypatch.setattr(long_run, "_linked_checkins", lambda *_args: ([], [], []))
     monkeypatch.setattr(long_run, "metric_source_refs", lambda *_args: {"activity": {"id": str(L.activity_id)}})
-    monkeypatch.setattr(long_run, "activities_coverage_complete",
-                        lambda _session, first, _end: first == DAY - long_run.timedelta(days=6))
+    monkeypatch.setattr(
+        long_run,
+        "activities_coverage_complete",
+        lambda _session, first, _end: first == DAY - long_run.timedelta(days=6),
+    )
     monkeypatch.setattr(long_run, "load_runs", lambda *_args: [*PRIOR, L, later])
     first = long_run.compute(fake_session, str(L.activity_id))[0]
     assert first.source_refs["weekly_other_activity_ids"] == [str(later.activity_id)]

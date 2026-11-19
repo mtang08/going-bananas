@@ -13,8 +13,10 @@ DAY = date(2026, 11, 15)
 
 
 def history(metric, values, *, partition="deviceA"):
-    return [Observation(DAY - timedelta(days=i + 1), metric, value, partition, True, {"revision": i})
-            for i, value in enumerate(values)]
+    return [
+        Observation(DAY - timedelta(days=i + 1), metric, value, partition, True, {"revision": i})
+        for i, value in enumerate(values)
+    ]
 
 
 def current(metric, value, *, partition="deviceA"):
@@ -28,8 +30,10 @@ def test_rhr_baseline():
 
 
 def test_outlier():
-    result = signal_outcome("resting_hr", current("resting_hr", 55), history("resting_hr", [48] * 14 + [52] * 14 + [150]), DAY)
-    assert [result[k] for k in ("baseline_median", "baseline_mad", "z")] == [52, 4, .51]
+    result = signal_outcome(
+        "resting_hr", current("resting_hr", 55), history("resting_hr", [48] * 14 + [52] * 14 + [150]), DAY
+    )
+    assert [result[k] for k in ("baseline_median", "baseline_mad", "z")] == [52, 4, 0.51]
     assert result["adverse"] is False
 
 
@@ -40,7 +44,7 @@ def test_hrv():
 
 def test_provisional():
     result = signal_outcome("hrv", current("hrv", 60), history("hrv", [61.559] * 13 + [66.686] + [72.24] * 13), DAY)
-    assert result["z"] == -.89 and result["adverse"] is False and result["baseline_state"] == "provisional"
+    assert result["z"] == -0.89 and result["adverse"] is False and result["baseline_state"] == "provisional"
 
 
 def test_short_baseline():
@@ -62,8 +66,18 @@ def test_partition_change():
     assert "SOURCE_DEVICE_UNKNOWN" in unknown["quality_flags"]
 
 
-@pytest.mark.parametrize("metric,value", [("hrv", 0), ("sleep", 0), ("sleep", 86401), ("resting_hr", 29),
-                                         ("resting_hr", 231), ("hrv", float("nan")), ("sleep", float("inf"))])
+@pytest.mark.parametrize(
+    "metric,value",
+    [
+        ("hrv", 0),
+        ("sleep", 0),
+        ("sleep", 86401),
+        ("resting_hr", 29),
+        ("resting_hr", 231),
+        ("hrv", float("nan")),
+        ("sleep", float("inf")),
+    ],
+)
 def test_invalid_values(metric, value):
     result = signal_outcome(metric, current(metric, value), [], DAY)
     assert result["status"] == "invalid" and result["value"] is None and result["adverse"] is None
@@ -80,13 +94,15 @@ def test_missing_two():
     observations = history("resting_hr", [50] * 5)
     nights = [night_outcome(DAY - timedelta(days=i), observations, []) for i in range(7)]
     result = summary_outcome(nights)
-    assert result["value"]["coverage"] == .714 and result["quality_status"] == "limited"
+    assert result["value"]["coverage"] == 0.714 and result["quality_status"] == "limited"
     assert result["value"]["nights_with_data"] == 5 and len(result["value"]["missing_dates"]) == 2
     assert result["status"] == "partial"
 
 
-@pytest.mark.parametrize("fatigue,illness,expected", [(None, None, None), (7, None, True), (3, "none", False),
-                                                     (3, None, None), (None, "possible", True)])
+@pytest.mark.parametrize(
+    "fatigue,illness,expected",
+    [(None, None, None), (7, None, True), (3, "none", False), (3, None, None), (None, "possible", True)],
+)
 def test_subjective_unknown(fatigue, illness, expected):
     subject = Subjective(datetime(2026, 11, 15, tzinfo=UTC), "1", fatigue, illness)
     result = night_outcome(DAY, [], [subject])["value"]
@@ -106,10 +122,14 @@ def test_discordance_and_independent_latest_subjectives():
 
 
 def test_baseline_window():
-    observations = history("hrv", [60] * 6) + [Observation(DAY - timedelta(days=i), "hrv", 70, "deviceA", True, {})
-                                               for i in range(15, 23)]
-    observations += [Observation(DAY - timedelta(days=60), "hrv", 70, "deviceA", True, {}),
-                     Observation(DAY - timedelta(days=61), "hrv", 1, "deviceA", True, {}), current("hrv", 999)]
+    observations = history("hrv", [60] * 6) + [
+        Observation(DAY - timedelta(days=i), "hrv", 70, "deviceA", True, {}) for i in range(15, 23)
+    ]
+    observations += [
+        Observation(DAY - timedelta(days=60), "hrv", 70, "deviceA", True, {}),
+        Observation(DAY - timedelta(days=61), "hrv", 1, "deviceA", True, {}),
+        current("hrv", 999),
+    ]
     result = signal_outcome("hrv", current("hrv", 60), observations, DAY)
     assert result["valid_nights"] == 15 and "BASELINE_STALE" in result["quality_flags"]
 
@@ -123,7 +143,7 @@ def test_latest_revision_and_invalid_history():
 
 def test_threshold_before_rounding():
     baseline = history("resting_hr", [48] * 14 + [52] * 14)
-    result = signal_outcome("resting_hr", current("resting_hr", 50 + 1.49999 * 2 / .6745), baseline, DAY)
+    result = signal_outcome("resting_hr", current("resting_hr", 50 + 1.49999 * 2 / 0.6745), baseline, DAY)
     assert result["z"] == 1.5 and result["adverse"] is False
 
 
@@ -131,18 +151,24 @@ def test_compute_seven_dates_and_local_subjective(monkeypatch):
     session = Mock()
     session.scalar.return_value = "America/New_York"
     # This UTC instant is the previous local day, across the fall DST weekend.
-    checkin = SimpleNamespace(id=UUID(int=1), version=2, observed_at=datetime(2026, 11, 2, 2, tzinfo=UTC), fatigue=8, illness=None)
+    checkin = SimpleNamespace(
+        id=UUID(int=1), version=2, observed_at=datetime(2026, 11, 2, 2, tzinfo=UTC), fatigue=8, illness=None
+    )
     session.scalars.return_value.all.return_value = [checkin]
     seen = []
+
     def load(_session, start, end):
         seen.append((start, end))
         return []
+
     monkeypatch.setattr(recovery, "_load_observations", load)
     original = recovery.night_outcome
     captured = []
+
     def capture(day, observations, subjects):
         captured.append((day, subjects))
         return original(day, observations, subjects)
+
     monkeypatch.setattr(recovery, "night_outcome", capture)
     result = recovery.compute(session, "w7:2026-11-03")[0]
     assert len(captured) == 7 and seen == [(date(2026, 8, 29), date(2026, 11, 3))]
@@ -163,20 +189,39 @@ def test_observation_partition_and_immutable_refs():
     import json
 
     session = Mock()
-    observation = SimpleNamespace(id=UUID(int=1), source_account_id=UUID(int=2), source_revision="revision",
-                                  statistic="last_night_average", time_semantics="garmin_hrv_calendar_date",
-                                  value=50, source_date=DAY, metric="hrv")
-    source = SimpleNamespace(id=UUID(int=3), fields={"device_generation": "documented-v2"},
-                             source_kind="garmin_personal", payload_hash="payload", rejected_reason=None)
+    observation = SimpleNamespace(
+        id=UUID(int=1),
+        source_account_id=UUID(int=2),
+        source_revision="revision",
+        statistic="last_night_average",
+        time_semantics="garmin_hrv_calendar_date",
+        value=50,
+        source_date=DAY,
+        metric="hrv",
+    )
+    source = SimpleNamespace(
+        id=UUID(int=3),
+        fields={"device_generation": "documented-v2"},
+        source_kind="garmin_personal",
+        payload_hash="payload",
+        rejected_reason=None,
+    )
     unknown = SimpleNamespace(**{**vars(source), "fields": {}, "rejected_reason": "unresolved"})
     raw = SimpleNamespace(sha256="raw-hash")
-    session.execute.return_value.all.return_value = [(observation, source, raw), (observation, unknown, raw),
-                                                     (observation, None, None)]
+    session.execute.return_value.all.return_value = [
+        (observation, source, raw),
+        (observation, unknown, raw),
+        (observation, None, None),
+    ]
     mapped = recovery._load_observations(session, DAY - timedelta(days=60), DAY)
     partition = json.loads(mapped[0].partition)
-    assert partition == {"source_account_id": str(UUID(int=2)), "source_kind": "garmin_personal",
-                         "statistic": "last_night_average", "definition": "garmin_hrv_calendar_date",
-                         "device_generation": "documented-v2"}
+    assert partition == {
+        "source_account_id": str(UUID(int=2)),
+        "source_kind": "garmin_personal",
+        "statistic": "last_night_average",
+        "definition": "garmin_hrv_calendar_date",
+        "device_generation": "documented-v2",
+    }
     assert mapped[0].resolved and not mapped[1].resolved and not mapped[2].resolved
     assert json.loads(mapped[1].partition)["device_generation"] == "unknown"
     assert json.loads(mapped[2].partition)["source_kind"] == "unknown"

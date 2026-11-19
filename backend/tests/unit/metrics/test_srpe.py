@@ -28,12 +28,15 @@ def test_run_load_and_manual_precedence() -> None:
     assert conflict["quality_status"] == "limited"
 
 
-@pytest.mark.parametrize(("given", "status", "reason", "load"), [
-    (fact(3000, manual=0), "available", [], 0.0),
-    (fact(3000), "missing", ["RPE_MISSING"], None),
-    (fact(None, manual=5), "missing", ["DURATION_MISSING"], None),
-    (fact(3000, manual=11), "invalid", ["RPE_OUT_OF_RANGE"], None),
-])
+@pytest.mark.parametrize(
+    ("given", "status", "reason", "load"),
+    [
+        (fact(3000, manual=0), "available", [], 0.0),
+        (fact(3000), "missing", ["RPE_MISSING"], None),
+        (fact(None, manual=5), "missing", ["DURATION_MISSING"], None),
+        (fact(3000, manual=11), "invalid", ["RPE_OUT_OF_RANGE"], None),
+    ],
+)
 def test_missing_zero_and_invalid(given: RpeFact, status: str, reason: list[str], load: float | None) -> None:
     result = session_outcome(given)
     assert (result["status"], result["reason_codes"], result["value"]["load_au"]) == (status, reason, load)
@@ -41,12 +44,22 @@ def test_missing_zero_and_invalid(given: RpeFact, status: str, reason: list[str]
 
 def test_window_523_and_unknowns() -> None:
     result = window_outcome([fact(2880, garmin=6), fact(2820, manual=5), fact(2400)], [], True)
-    assert result["value"] == {"load_au": 523.0, "sessions_total": 3, "sessions_with_rpe": 2,
-                               "sessions_without_load": 1, "sessions_missing_duration": 0,
-                               "duration_total_s": 8100.0, "duration_with_rpe_s": 5700.0,
-                               "coverage_duration": 0.704, "coverage_sessions": 0.667}
+    assert result["value"] == {
+        "load_au": 523.0,
+        "sessions_total": 3,
+        "sessions_with_rpe": 2,
+        "sessions_without_load": 1,
+        "sessions_missing_duration": 0,
+        "duration_total_s": 8100.0,
+        "duration_with_rpe_s": 5700.0,
+        "coverage_duration": 0.704,
+        "coverage_sessions": 0.667,
+    }
     assert (result["status"], result["quality_status"], result["reason_codes"]) == (
-        "partial", "limited", ["SESSIONS_WITHOUT_LOAD"])
+        "partial",
+        "limited",
+        ["SESSIONS_WITHOUT_LOAD"],
+    )
     missing = window_outcome([fact(3000), fact(3000)], [], True)
     assert missing["value"]["load_au"] is None
     assert missing["value"]["coverage_duration"] == 0.0

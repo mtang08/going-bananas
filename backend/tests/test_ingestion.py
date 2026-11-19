@@ -32,14 +32,19 @@ def test_import_page_global_lock_precedes_source_access(monkeypatch, tmp_path):
     session = SessionProbe()
     monkeypatch.setattr(sync, "_account", source_probe)
     with pytest.raises(StopAtSource):
-        sync.import_activity_page(session, tmp_path, [{}], account_scope="synthetic",
-                                  source_kind="garmin_export", timezone="UTC")
+        sync.import_activity_page(
+            session, tmp_path, [{}], account_scope="synthetic", source_kind="garmin_export", timezone="UTC"
+        )
     assert session.events[0][0] == "lock"
     assert session.events[0][1] == f"SELECT pg_advisory_xact_lock({GLOBAL_WRITE_LOCK})"
     assert session.events[1] == ("source",)
     session.events.clear()
     assert sync.import_activity_page(session, tmp_path, [], account_scope="synthetic") == {
-        "seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
+        "seen": 0,
+        "new_revisions": 0,
+        "changed": 0,
+        "rejected": 0,
+    }
     assert session.events == []
 
 
@@ -68,9 +73,16 @@ def test_recovery_import_global_lock_precedes_source_access(monkeypatch, tmp_pat
 
 
 def test_activity_time_and_sport_are_canonical():
-    activity = parse_activity({"activityId": 18, "startTimeGMT": "2026-01-01T01:00:00Z",
-        "activityType": {"typeKey": "running"}, "distance": 1609.344,
-        "elapsedDuration": 700, "movingDuration": 600})
+    activity = parse_activity(
+        {
+            "activityId": 18,
+            "startTimeGMT": "2026-01-01T01:00:00Z",
+            "activityType": {"typeKey": "running"},
+            "distance": 1609.344,
+            "elapsedDuration": 700,
+            "movingDuration": 600,
+        }
+    )
     assert activity.local_date == "2025-12-31"
     assert activity.source_time == "2026-01-01T01:00:00Z"
     assert activity.sport == "running"
@@ -79,14 +91,21 @@ def test_activity_time_and_sport_are_canonical():
     assert activity.start_at == datetime(2026, 1, 1, 1, tzinfo=UTC)
 
 
-@pytest.mark.parametrize("patch,reason", [
-    ({"distance": -1}, "invalid_distance"),
-    ({"distance": float("nan")}, "invalid_distance"),
-    ({"startTimeGMT": None, "startTimeLocal": "2026-11-01T01:30:00"}, "ambiguous_start_time"),
-])
+@pytest.mark.parametrize(
+    "patch,reason",
+    [
+        ({"distance": -1}, "invalid_distance"),
+        ({"distance": float("nan")}, "invalid_distance"),
+        ({"startTimeGMT": None, "startTimeLocal": "2026-11-01T01:30:00"}, "ambiguous_start_time"),
+    ],
+)
 def test_invalid_values_are_rejected(patch, reason):
-    record = {"activityId": 1, "startTimeGMT": "2026-03-08T07:00:00Z",
-              "activityType": {"typeKey": "running"}, "distance": 0}
+    record = {
+        "activityId": 1,
+        "startTimeGMT": "2026-03-08T07:00:00Z",
+        "activityType": {"typeKey": "running"},
+        "distance": 0,
+    }
     record.update(patch)
     with pytest.raises(InvalidRecord, match=reason):
         parse_activity(record)
@@ -102,9 +121,11 @@ def test_same_raw_bytes_are_immutable(tmp_path):
 def test_retry_after_delta_and_http_date():
     class Response:
         headers = {"Retry-After": "15"}
+
     class RateLimited(Exception):
         status_code = 429
         response = Response()
+
     assert retry_delay(RateLimited(), 1) == 15
     Response.headers = {"Retry-After": "Tue, 10 Nov 2026 12:01:00 GMT"}
     assert retry_delay(RateLimited(), 1, datetime(2026, 11, 10, 12, tzinfo=UTC)) == 60
@@ -126,11 +147,13 @@ def test_repeated_page_stops_before_unbounded_fetch(tmp_path):
 
 def test_corrupt_backup_fails_before_restore(tmp_path):
     archive = tmp_path / "backup.tar.gz"
-    manifest = {"version": 1, "contains_credentials": False,
-                "files": {"database.pgdump": {"sha256": "0" * 64, "bytes": 4}}}
+    manifest = {
+        "version": 1,
+        "contains_credentials": False,
+        "files": {"database.pgdump": {"sha256": "0" * 64, "bytes": 4}},
+    }
     with tarfile.open(archive, "w:gz") as tar:
-        for name, payload in [("manifest.json", json.dumps(manifest).encode()),
-                              ("database.pgdump", b"data")]:
+        for name, payload in [("manifest.json", json.dumps(manifest).encode()), ("database.pgdump", b"data")]:
             info = tarfile.TarInfo(name)
             info.size = len(payload)
             tar.addfile(info, io.BytesIO(payload))
@@ -167,8 +190,9 @@ def test_official_client_retry_after_header_is_preserved_without_body(tmp_path):
 
     def failed_request():
         source._capture_response(Response())
-        raise HttpError(status_code=429, method="GET", url="https://example.invalid",
-                        response_text="SECRET_RESPONSE_BODY")
+        raise HttpError(
+            status_code=429, method="GET", url="https://example.invalid", response_text="SECRET_RESPONSE_BODY"
+        )
 
     with pytest.raises(GarminRemoteError) as exc:
         source._call(failed_request)
@@ -176,12 +200,21 @@ def test_official_client_retry_after_header_is_preserved_without_body(tmp_path):
     assert "SECRET_RESPONSE_BODY" not in str(exc.value)
 
 
-@pytest.mark.parametrize('source,sport', [
-    ('indoor_running', 'treadmill_running'), ('treadmill_running', 'treadmill_running'),
-    ('street_running', 'running'), ('track_running', 'running'), ('virtual_run', 'running'),
-    ('ultra_run', 'running'), ('obstacle_run', 'running'), ('trail_running', 'trail_running'),
-])
+@pytest.mark.parametrize(
+    "source,sport",
+    [
+        ("indoor_running", "treadmill_running"),
+        ("treadmill_running", "treadmill_running"),
+        ("street_running", "running"),
+        ("track_running", "running"),
+        ("virtual_run", "running"),
+        ("ultra_run", "running"),
+        ("obstacle_run", "running"),
+        ("trail_running", "trail_running"),
+    ],
+)
 def test_run_activity_types(source, sport):
-    activity = parse_activity({'activityId': 101, 'startTimeGMT': '2026-10-01T12:00:00Z',
-                               'activityType': {'typeKey': source}})
+    activity = parse_activity(
+        {"activityId": 101, "startTimeGMT": "2026-10-01T12:00:00Z", "activityType": {"typeKey": source}}
+    )
     assert activity.sport == sport

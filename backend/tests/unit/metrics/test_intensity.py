@@ -17,9 +17,15 @@ from app.metrics.intensity import (
 )
 
 DAY = date(2026, 11, 15)
-ANCHORS = {kind: ActiveAnchor(kind, kind, value, "moderate", date(2027, 1, 1), date(2026, 1, 1), kind)
-           for kind, value in [("hr_aerobic_upper", 150), ("hr_threshold_lower", 170),
-                               ("speed_aerobic_upper", 3.0), ("speed_threshold_lower", 3.6)]}
+ANCHORS = {
+    kind: ActiveAnchor(kind, kind, value, "moderate", date(2027, 1, 1), date(2026, 1, 1), kind)
+    for kind, value in [
+        ("hr_aerobic_upper", 150),
+        ("hr_threshold_lower", 170),
+        ("speed_aerobic_upper", 3.0),
+        ("speed_threshold_lower", 3.6),
+    ]
+}
 
 
 def spec_stream():
@@ -29,19 +35,31 @@ def spec_stream():
 
 
 def small_stream():
-    return StreamIn([0, 5, 10, 15, 20, 50, 55, 60, 62, 70],
-                    [140, 150, 169, 170, 200, 145, 25, 150, 160, 150],
-                    [2.5, 3.0, 3.59, 3.6, 3.0, None, 2.9, 3.0, 11.0, 3.0], [(0, 60), (62, 70)])
+    return StreamIn(
+        [0, 5, 10, 15, 20, 50, 55, 60, 62, 70],
+        [140, 150, 169, 170, 200, 145, 25, 150, 160, 150],
+        [2.5, 3.0, 3.59, 3.6, 3.0, None, 2.9, 3.0, 11.0, 3.0],
+        [(0, 60), (62, 70)],
+    )
 
 
 def test_spec_3600():
     stream = spec_stream()
     hr = modality_outcome("hr", stream, ANCHORS, DAY, 3600)
-    for key, expected in {"easy_s": 2700.0, "moderate_s": 450.0, "high_s": 150.0, "valid_s": 3300.0,
-                          "unknown_s": 300.0, "eligible_timer_s": 3600.0, "coverage": .917,
-                          "unclassified_s": 0.0, "status": "available", "quality_status": "good",
-                          "fraction_valid": {"easy": .818, "moderate": .136, "high": .045},
-                          "fraction_timer": {"easy": .75, "moderate": .125, "high": .042}}.items():
+    for key, expected in {
+        "easy_s": 2700.0,
+        "moderate_s": 450.0,
+        "high_s": 150.0,
+        "valid_s": 3300.0,
+        "unknown_s": 300.0,
+        "eligible_timer_s": 3600.0,
+        "coverage": 0.917,
+        "unclassified_s": 0.0,
+        "status": "available",
+        "quality_status": "good",
+        "fraction_valid": {"easy": 0.818, "moderate": 0.136, "high": 0.045},
+        "fraction_timer": {"easy": 0.75, "moderate": 0.125, "high": 0.042},
+    }.items():
         assert hr[key] == expected
     outcome = activity_outcome(stream, ANCHORS, DAY, 3600)
     assert outcome["status"] == "partial" and outcome["quality_status"] == "good"
@@ -51,18 +69,25 @@ def test_spec_3600():
 
 def test_small_trace_hr():
     hr = modality_outcome("hr", small_stream(), ANCHORS, DAY, 68)
-    assert [hr[k] for k in ("easy_s", "moderate_s", "high_s", "valid_s", "unknown_s", "eligible_timer_s")] == [10, 18, 5, 33, 35, 68]
-    assert hr["coverage"] == .485 and hr["status"] == "partial" and hr["quality_status"] == "insufficient"
-    assert hr["fraction_valid"] == {"easy": .303, "moderate": .545, "high": .152}
-    assert hr["fraction_timer"] == {"easy": .147, "moderate": .265, "high": .074}
+    assert [hr[k] for k in ("easy_s", "moderate_s", "high_s", "valid_s", "unknown_s", "eligible_timer_s")] == [
+        10,
+        18,
+        5,
+        33,
+        35,
+        68,
+    ]
+    assert hr["coverage"] == 0.485 and hr["status"] == "partial" and hr["quality_status"] == "insufficient"
+    assert hr["fraction_valid"] == {"easy": 0.303, "moderate": 0.545, "high": 0.152}
+    assert hr["fraction_timer"] == {"easy": 0.147, "moderate": 0.265, "high": 0.074}
     assert hr["reason_codes"] == ["LOW_COVERAGE"]
 
 
 def test_small_trace_speed():
     speed = modality_outcome("speed", small_stream(), ANCHORS, DAY, 68)
     assert [speed[k] for k in ("easy_s", "moderate_s", "high_s", "valid_s", "unknown_s")] == [10, 10, 5, 25, 43]
-    assert speed["coverage"] == .368
-    assert speed["fraction_valid"] == {"easy": .4, "moderate": .4, "high": .2}
+    assert speed["coverage"] == 0.368
+    assert speed["fraction_valid"] == {"easy": 0.4, "moderate": 0.4, "high": 0.2}
 
 
 def test_boundaries():
@@ -93,7 +118,7 @@ def test_gap_unknown():
 def test_uncovered_edges():
     result = modality_outcome("hr", StreamIn([10, 20], [140, 140], [], [(0, 30)]), ANCHORS, DAY, 30)
     assert result["easy_s"] == 10 and result["unknown_s"] == 20 and result["eligible_timer_s"] == 30
-    assert result["coverage"] == .333 and result["status"] == "partial" and result["quality_status"] == "insufficient"
+    assert result["coverage"] == 0.333 and result["status"] == "partial" and result["quality_status"] == "insufficient"
 
 
 def test_empty_records():
@@ -112,7 +137,10 @@ def test_invalid_stream_order(times):
         distribution("hr", StreamIn(times, [140] * len(times), [], [(0, 10)]), 150, 170)
 
 
-@pytest.mark.parametrize("anchors", [{}, {**ANCHORS, "hr_threshold_lower": replace(ANCHORS["hr_threshold_lower"], confidence="insufficient")}])
+@pytest.mark.parametrize(
+    "anchors",
+    [{}, {**ANCHORS, "hr_threshold_lower": replace(ANCHORS["hr_threshold_lower"], confidence="insufficient")}],
+)
 def test_anchor_missing_and_insufficient(anchors):
     result = modality_outcome("hr", small_stream(), anchors, DAY, 68)
     assert result["status"] == "not_assessable" and result["reason_codes"] == ["ANCHOR_MISSING"]
@@ -120,8 +148,11 @@ def test_anchor_missing_and_insufficient(anchors):
 
 
 def test_config_error():
-    anchors = {**ANCHORS, "hr_aerobic_upper": replace(ANCHORS["hr_aerobic_upper"], value_low=170),
-               "hr_threshold_lower": replace(ANCHORS["hr_threshold_lower"], value_low=150)}
+    anchors = {
+        **ANCHORS,
+        "hr_aerobic_upper": replace(ANCHORS["hr_aerobic_upper"], value_low=170),
+        "hr_threshold_lower": replace(ANCHORS["hr_threshold_lower"], value_low=150),
+    }
     result = modality_outcome("hr", small_stream(), anchors, DAY, 68)
     assert result["status"] == "invalid" and result["reason_codes"] == ["ANCHOR_CONFIG_ERROR"]
     assert result["easy_s"] is None and len(result["anchors_used"]) == 2
@@ -134,7 +165,10 @@ def test_no_stream():
 
 
 def test_flags():
-    anchors = {**ANCHORS, "hr_aerobic_upper": replace(ANCHORS["hr_aerobic_upper"], confidence="low", review_after=date(2026, 11, 14))}
+    anchors = {
+        **ANCHORS,
+        "hr_aerobic_upper": replace(ANCHORS["hr_aerobic_upper"], confidence="low", review_after=date(2026, 11, 14)),
+    }
     result = modality_outcome("hr", small_stream(), anchors, DAY, 68)
     assert result["flags"] == ["LOW_CONFIDENCE_ANCHOR", "ANCHOR_REVIEW_DUE"]
     result = modality_outcome("hr", small_stream(), anchors, DAY, 100)
@@ -167,8 +201,15 @@ def test_window_sum():
     small = {**activity_outcome(small_stream(), ANCHORS, DAY, 68), "anchor_set_hash": "small"}
     result = window_outcome([large, small, None])
     hr = result["value"]["hr"]
-    assert [hr[k] for k in ("easy_s", "moderate_s", "high_s", "valid_s", "unknown_s", "eligible_timer_s")] == [2710, 468, 155, 3333, 335, 3668]
-    assert hr["coverage"] == .909 and hr["status"] == "partial"
+    assert [hr[k] for k in ("easy_s", "moderate_s", "high_s", "valid_s", "unknown_s", "eligible_timer_s")] == [
+        2710,
+        468,
+        155,
+        3333,
+        335,
+        3668,
+    ]
+    assert hr["coverage"] == 0.909 and hr["status"] == "partial"
     assert hr["reason_codes"] == ["ACTIVITIES_NOT_COUNTED", "PARTIAL_ACTIVITY_COVERAGE"]
     assert [hr[k] for k in ("activities_total", "activities_counted", "activities_without_result")] == [3, 2, 1]
     assert result["value"]["anchor_set_hashes"] == ["large", "small"]
@@ -191,8 +232,10 @@ def test_window_incomplete_and_uncounted():
     assert result["status"] == "not_assessable" and result["value"]["hr"]["valid_s"] is None
     assert "ANCHOR_MISSING" in result["value"]["hr"]["reason_codes"]
     assert "ANCHOR_MISSING" in result["value"]["speed"]["reason_codes"]
-    for mixed in ([activity_outcome(small_stream(), {}, DAY, 68), None],
-                  [activity_outcome(small_stream(), {}, DAY, 68), activity_outcome(None, {}, DAY, 68)]):
+    for mixed in (
+        [activity_outcome(small_stream(), {}, DAY, 68), None],
+        [activity_outcome(small_stream(), {}, DAY, 68), activity_outcome(None, {}, DAY, 68)],
+    ):
         result = window_outcome(mixed)
         assert "ANCHOR_MISSING" not in result["value"]["hr"]["reason_codes"]
 
@@ -211,7 +254,7 @@ def test_a7_artifacts_excluded():
     for modality in ("hr", "speed"):
         signal = result["value"][modality]
         assert signal["valid_s"] == 10 and signal["unknown_s"] == 5
-        assert signal["coverage"] == .667 and signal["status"] == "partial"
+        assert signal["coverage"] == 0.667 and signal["status"] == "partial"
     assert result["quality_status"] == "insufficient"
 
 
@@ -229,9 +272,17 @@ def test_compute_window_provenance_is_stable(monkeypatch):
     monkeypatch.setattr(intensity, "load_runs", lambda *_args: runs)
     monkeypatch.setattr(intensity, "activities_coverage_complete", lambda *_args: False)
     outcome = activity_outcome(small_stream(), ANCHORS, DAY, 68)
-    rows = {str(uid): SimpleNamespace(id=uid, dependency_hash=f"hash-{uid}", status=outcome["status"],
-                                      value=outcome["value"], anchor_set_hash="anchors", anchor_keys=outcome["anchor_keys"])
-            for uid in (first, second)}
+    rows = {
+        str(uid): SimpleNamespace(
+            id=uid,
+            dependency_hash=f"hash-{uid}",
+            status=outcome["status"],
+            value=outcome["value"],
+            anchor_set_hash="anchors",
+            anchor_keys=outcome["anchor_keys"],
+        )
+        for uid in (first, second)
+    }
     monkeypatch.setattr(intensity, "latest_results", lambda *_args: rows)
     result = compute(session, "w7:2026-11-15")[0]
     rows = dict(reversed(list(rows.items())))

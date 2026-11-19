@@ -11,8 +11,9 @@ AS_OF = date(2026, 11, 15)
 
 
 def run(day: int, timer: float | None, distance: float | None, *, sport: str = "running") -> RunFact:
-    return RunFact(UUID(int=day), datetime(2026, 11, day, 12, tzinfo=UTC), None,
-                   date(2026, 11, day), sport, timer, distance, None)
+    return RunFact(
+        UUID(int=day), datetime(2026, 11, day, 12, tzinfo=UTC), None, date(2026, 11, day), sport, timer, distance, None
+    )
 
 
 def test_synthetic_three_runs_and_previous() -> None:

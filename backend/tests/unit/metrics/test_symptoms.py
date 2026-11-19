@@ -7,8 +7,15 @@ from app.metrics.symptoms import CheckinIn, ReportIn, activity_outcome, bucket, 
 END = datetime(2026, 11, 15, 15, tzinfo=UTC)
 
 
-def checkin(when: datetime, kind: str, severity: float, timing: str, gait: str | None = None,
-            site: str = " Medial Ankle ", id_: str = "c1") -> CheckinIn:
+def checkin(
+    when: datetime,
+    kind: str,
+    severity: float,
+    timing: str,
+    gait: str | None = None,
+    site: str = " Medial Ankle ",
+    id_: str = "c1",
+) -> CheckinIn:
     report = ReportIn(id_, when, kind, gait, site, "left", severity, timing)
     return CheckinIn(id_, when, kind, gait, [report])
 
@@ -34,8 +41,10 @@ def test_unknown_timing_thresholds_use_unrounded_hours() -> None:
 
 
 def test_immediate_and_delayed_no_score() -> None:
-    rows = [checkin(datetime(2026, 11, 15, 16, tzinfo=UTC), "post_run", 3, "immediately_after"),
-            checkin(datetime(2026, 11, 16, 21, tzinfo=UTC), "delayed_followup", 4, "hours_24_48", id_="c2")]
+    rows = [
+        checkin(datetime(2026, 11, 15, 16, tzinfo=UTC), "post_run", 3, "immediately_after"),
+        checkin(datetime(2026, 11, 16, 21, tzinfo=UTC), "delayed_followup", 4, "hours_24_48", id_="c2"),
+    ]
     result = activity_outcome(END, False, rows)
     assert [r["timing"] for r in result["value"]["reports"]] == ["immediately_after", "hours_24_48"]
     assert result["value"]["sites"][0]["max_severity_0_24h"] == 3.0
@@ -69,8 +78,9 @@ def test_gait_and_recurrence() -> None:
 
 def test_preceding_association_uses_known_end() -> None:
     observed = datetime(2026, 11, 17, tzinfo=UTC)
-    sessions = [{"id": str(i), "start_at": observed.replace(day=16), "elapsed_s": 3600,
-                 "sport": "running"} for i in (1, 2)]
+    sessions = [
+        {"id": str(i), "start_at": observed.replace(day=16), "elapsed_s": 3600, "sport": "running"} for i in (1, 2)
+    ]
     sessions[0]["start_at"] = observed.replace(day=16, hour=13)
     sessions[1]["start_at"] = observed.replace(day=16, hour=17)
     hits = preceding_sessions(observed, sessions, "UTC", hours=48)

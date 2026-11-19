@@ -6,17 +6,21 @@ from app.metrics.lap_alignment import AlignLap, Alignment, align_laps
 
 REFS = [0, 1, 2, 1, 2, 1, 2, 1, 2, 4]
 WORK = frozenset({1, 3, 5, 7})
-COSTS = {'split': 1, 'omit_nonwork': 2, 'omit_work': 10}
+COSTS = {"split": 1, "omit_nonwork": 2, "omit_work": 10}
 
 
 def _complete(step: int, laps: tuple[int, ...]) -> bool:
     return True
 
 
-def _align(lap_refs: Sequence[int | None], *,
-           refs: Sequence[int] = REFS, work: frozenset[int] = WORK,
-           completes: Callable[[int, tuple[int, ...]], bool] = _complete,
-           costs: Mapping[str, int] = COSTS) -> Alignment:
+def _align(
+    lap_refs: Sequence[int | None],
+    *,
+    refs: Sequence[int] = REFS,
+    work: frozenset[int] = WORK,
+    completes: Callable[[int, tuple[int, ...]], bool] = _complete,
+    costs: Mapping[str, int] = COSTS,
+) -> Alignment:
     return align_laps(refs, work, [AlignLap(i, ref) for i, ref in enumerate(lap_refs)], completes, costs)
 
 
@@ -29,7 +33,7 @@ def test_split_warmup_merged():
 
     assert result.error is None
     assert result.assigned[0] == (0, 1)
-    assert result.flags == ('LAP_SPLIT_MERGED',)
+    assert result.flags == ("LAP_SPLIT_MERGED",)
 
 
 def test_skip_last_recovery():
@@ -37,7 +41,7 @@ def test_skip_last_recovery():
 
     assert result.error is None
     assert result.omitted == (8,)
-    assert result.flags == ('NONWORK_STEP_OMITTED',)
+    assert result.flags == ("NONWORK_STEP_OMITTED",)
 
 
 def test_reported_real_case():
@@ -46,7 +50,7 @@ def test_reported_real_case():
     result = _align([0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 4], refs=refs, work=work)
 
     assert result.error is None
-    assert result.flags == ('LAP_SPLIT_MERGED', 'NONWORK_STEP_OMITTED')
+    assert result.flags == ("LAP_SPLIT_MERGED", "NONWORK_STEP_OMITTED")
     assert all(len(result.assigned[j]) == 1 for j in work)
     assert result.omitted == (10,)
 
@@ -69,24 +73,24 @@ def test_prefix_truncation():
 
 
 def test_out_of_order():
-    assert _align([0, 1, 2, 1, 0]) == Alignment((), (), (), (), 'LAP_STEP_ORDER_MISMATCH')
+    assert _align([0, 1, 2, 1, 0]) == Alignment((), (), (), (), "LAP_STEP_ORDER_MISMATCH")
 
 
-@pytest.mark.parametrize('ref', [3, 99])
+@pytest.mark.parametrize("ref", [3, 99])
 def test_unknown_reference(ref: int):
-    assert _align([0, ref]) == Alignment((), (), (), (), 'LAP_STEP_UNKNOWN')
+    assert _align([0, ref]) == Alignment((), (), (), (), "LAP_STEP_UNKNOWN")
 
 
-@pytest.mark.parametrize('lap_refs', [[], [None, None]])
+@pytest.mark.parametrize("lap_refs", [[], [None, None]])
 def test_no_indexed_laps(lap_refs: list[int | None]):
-    assert _align(lap_refs) == Alignment((), (), (), (), 'NO_INDEXED_LAPS')
+    assert _align(lap_refs) == Alignment((), (), (), (), "NO_INDEXED_LAPS")
 
 
 def test_unindexed_laps_flagged():
     result = _align([None, 0, 1, None, 2, 1, 2, 1, 2, 1, 2, 4, None])
 
     assert result.error is None
-    assert result.flags == ('LEADING_LAPS_IGNORED', 'TRAILING_LAPS_IGNORED', 'UNINDEXED_LAP_IGNORED')
+    assert result.flags == ("LEADING_LAPS_IGNORED", "TRAILING_LAPS_IGNORED", "UNINDEXED_LAP_IGNORED")
     assert all(3 not in group for group in result.assigned)
 
 
@@ -100,8 +104,7 @@ def test_sorts_laps_keeps_original_positions_and_checks_work_only():
 
     result = align_laps([0, 1], frozenset({1}), laps, completes, COSTS)
 
-    assert result == Alignment(((15,), (50, 70)), (), (),
-                               ('LAP_SPLIT_MERGED', 'UNINDEXED_LAP_IGNORED'), None)
+    assert result == Alignment(((15,), (50, 70)), (), (), ("LAP_SPLIT_MERGED", "UNINDEXED_LAP_IGNORED"), None)
 
 
 def test_adjacent_work_laps_before_cooldown():
@@ -118,14 +121,14 @@ def test_adjacent_work_laps_truncated_merge():
 
     assert result.error is None
     assert result.assigned[1] == (1, 2)
-    assert result.flags == ('LAP_SPLIT_MERGED',)
+    assert result.flags == ("LAP_SPLIT_MERGED",)
     assert result.tail == tuple(range(2, 10))
 
 
 def test_ambiguity_only_when_outcome_differs():
-    costs = {**COSTS, 'split': 2}
+    costs = {**COSTS, "split": 2}
     ambiguous = _align([0, 1, 1], costs=costs, completes=lambda step, laps: len(laps) == 2)
-    assert ambiguous == Alignment((), (), (), (), 'LAP_ALIGNMENT_AMBIGUOUS')
+    assert ambiguous == Alignment((), (), (), (), "LAP_ALIGNMENT_AMBIGUOUS")
 
     same_count = _align([0, 1, 1], costs=costs, completes=lambda step, laps: False)
     assert same_count.error is None

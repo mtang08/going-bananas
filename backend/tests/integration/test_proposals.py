@@ -89,33 +89,76 @@ def _doc(snapshot: CoachSnapshot, uid: uuid.UUID) -> dict:
 
 def _req(head: int, key: str, accepted: list[str] | None = None, rejected: list[str] | None = None) -> DecisionRequest:
     return DecisionRequest(
-        idempotency_key=key, expected_head=head, expected_revision=1, accept_change_ids=accepted or [], reject_change_ids=rejected or []
+        idempotency_key=key,
+        expected_head=head,
+        expected_revision=1,
+        accept_change_ids=accepted or [],
+        reject_change_ids=rejected or [],
     )
 
 
-def _finding(session: Session, rule_code: str = "FATIGUE_PERSISTING", *, category: str = "accumulated_fatigue",
-             severity: str = "caution", entity_key: str | None = None,
-             evidence_at: datetime = NOW - timedelta(hours=2)) -> ExceptionFinding:
+def _finding(
+    session: Session,
+    rule_code: str = "FATIGUE_PERSISTING",
+    *,
+    category: str = "accumulated_fatigue",
+    severity: str = "caution",
+    entity_key: str | None = None,
+    evidence_at: datetime = NOW - timedelta(hours=2),
+) -> ExceptionFinding:
     finding = ExceptionFinding(
-        rule_code=rule_code, rule_version="exceptions.v1", category=category, severity=severity,
-        entity_key=entity_key or rule_code.lower(), status="open", summary="Synthetic", evidence=[],
-        evidence_at=evidence_at, first_seen_at=evidence_at, last_seen_at=evidence_at,
+        rule_code=rule_code,
+        rule_version="exceptions.v1",
+        category=category,
+        severity=severity,
+        entity_key=entity_key or rule_code.lower(),
+        status="open",
+        summary="Synthetic",
+        evidence=[],
+        evidence_at=evidence_at,
+        first_seen_at=evidence_at,
+        last_seen_at=evidence_at,
     )
     session.add(finding)
     session.flush()
     return finding
 
 
-def _exception_doc(snapshot: CoachSnapshot, uid: uuid.UUID, finding_ids: list[uuid.UUID], *, changes: bool = True,
-                   ladder: str = "next_session") -> dict:
+def _exception_doc(
+    snapshot: CoachSnapshot,
+    uid: uuid.UUID,
+    finding_ids: list[uuid.UUID],
+    *,
+    changes: bool = True,
+    ladder: str = "next_session",
+) -> dict:
     raw = _doc(snapshot, uid)
-    raw["changes"] = [{"change_id": "c1", "op": "modify", "session_uid": str(uid),
-                       "after": {"planned_duration_s": 1200}, "reason": "Fatigue"}] if changes else []
+    raw["changes"] = (
+        [
+            {
+                "change_id": "c1",
+                "op": "modify",
+                "session_uid": str(uid),
+                "after": {"planned_duration_s": 1200},
+                "reason": "Fatigue",
+            }
+        ]
+        if changes
+        else []
+    )
     raw["exception"] = {
-        "finding_ids": [str(fid) for fid in finding_ids], "category": "accumulated_fatigue", "severity": "caution",
-        "confidence": "moderate", "triggering_evidence": "Fatigue 8 on two mornings", "relevant_context": None,
-        "ladder_level": ladder, "patch_window": {"start": "2026-11-16", "end": "2026-11-18"}, "unchanged": [],
-        "reassess_on": "2026-11-19", "monitor": ["Morning fatigue"], "return_criteria": ["Usual fatigue twice"],
+        "finding_ids": [str(fid) for fid in finding_ids],
+        "category": "accumulated_fatigue",
+        "severity": "caution",
+        "confidence": "moderate",
+        "triggering_evidence": "Fatigue 8 on two mornings",
+        "relevant_context": None,
+        "ladder_level": ladder,
+        "patch_window": {"start": "2026-11-16", "end": "2026-11-18"},
+        "unchanged": [],
+        "reassess_on": "2026-11-19",
+        "monitor": ["Morning fatigue"],
+        "return_criteria": ["Usual fatigue twice"],
         "escalate_criteria": ["High through Saturday"],
     }
     return raw
@@ -126,7 +169,9 @@ def _accepted_patch(session: Session) -> tuple[ExceptionPatch, ExceptionFinding,
     snapshot, uid = _snapshot(session, "exception_review")
     submitted = submit_proposal(session, _exception_doc(snapshot, uid, [finding.id]), now=NOW, resolve_kb=_resolve)
     assert submitted.status == "pending", submitted.issues
-    result = decide_proposal(session, submitted.proposal_id, _req(1, "exc-accept", ["c1"]), now=NOW, resolve_kb=_resolve)
+    result = decide_proposal(
+        session, submitted.proposal_id, _req(1, "exc-accept", ["c1"]), now=NOW, resolve_kb=_resolve
+    )
     assert result.calendar_version == 2
     patch = session.scalar(select(ExceptionPatch).where(ExceptionPatch.proposal_id == submitted.proposal_id))
     assert patch is not None
@@ -241,13 +286,16 @@ def test_anchor_only_acceptance_stales_other_pending(proposal_session: Session) 
         submit_proposal(session, other, now=NOW, resolve_kb=_resolve)
     assert conflict.value.code == "active_proposal_exists"
     assert [(field.path, field.message) for field in conflict.value.fields] == [
-        ("active_proposal_id", str(first.proposal_id)), ("active_revision", "1")]
+        ("active_proposal_id", str(first.proposal_id)),
+        ("active_revision", "1"),
+    ]
     result = decide_proposal(
         session,
         first.proposal_id,
         DecisionRequest(
             idempotency_key="decision-anchor",
-            expected_head=1, expected_revision=1,
+            expected_head=1,
+            expected_revision=1,
             accept_change_ids=[],
             reject_change_ids=[],
             accept_anchor_changes=["hr_threshold_lower-2026-11-16"],
@@ -278,8 +326,13 @@ def test_block_same_state_acceptance_is_noop(proposal_session: Session) -> None:
         "completion_indicators": [],
         "early_review_triggers": [],
         "objective_status": "unresolved",
-        "benchmark": {"kind": "time_trial", "protocol": "5 km solo time trial", "planned_date": "2026-12-26",
-                      "progress_if": "Under 22:00", "consolidate_if": "Over 22:30"},
+        "benchmark": {
+            "kind": "time_trial",
+            "protocol": "5 km solo time trial",
+            "planned_date": "2026-12-26",
+            "progress_if": "Under 22:00",
+            "consolidate_if": "Over 22:30",
+        },
     }
     raw = _doc(snapshot, uid)
     raw["changes"] = []
@@ -291,7 +344,8 @@ def test_block_same_state_acceptance_is_noop(proposal_session: Session) -> None:
         first.proposal_id,
         DecisionRequest(
             idempotency_key="decision-block1",
-            expected_head=1, expected_revision=1,
+            expected_head=1,
+            expected_revision=1,
             accept_change_ids=[],
             reject_change_ids=[],
             accept_block_change=True,
@@ -314,7 +368,8 @@ def test_block_same_state_acceptance_is_noop(proposal_session: Session) -> None:
         second.proposal_id,
         DecisionRequest(
             idempotency_key="decision-block2",
-            expected_head=1, expected_revision=1,
+            expected_head=1,
+            expected_revision=1,
             accept_change_ids=[],
             reject_change_ids=[],
             accept_block_change=True,
@@ -391,7 +446,9 @@ def test_discard_closes_open_proposal_without_calendar_change(proposal_session: 
     assert submit_proposal(session, raw, now=NOW, resolve_kb=_resolve).status == "discarded"
     assert submit_proposal(session, {**raw, "summary": "Replacement"}, now=NOW, resolve_kb=_resolve).status == "pending"
     with pytest.raises(DecisionError, match="Discarded"):
-        decide_proposal(session, first.proposal_id, _req(head, "discarded-key", ["c1"], []), now=NOW, resolve_kb=_resolve)
+        decide_proposal(
+            session, first.proposal_id, _req(head, "discarded-key", ["c1"], []), now=NOW, resolve_kb=_resolve
+        )
 
 
 def test_discard_rejects_revision_race_and_decided_proposal(proposal_session: Session) -> None:
@@ -401,7 +458,9 @@ def test_discard_rejects_revision_race_and_decided_proposal(proposal_session: Se
     with pytest.raises(DecisionError) as conflict:
         discard_proposal(session, first.proposal_id, 2, now=NOW)
     assert conflict.value.code == "proposal_revision_conflict"
-    decide_proposal(session, first.proposal_id, _req(1, "reject-before-discard", [], ["c1"]), now=NOW, resolve_kb=_resolve)
+    decide_proposal(
+        session, first.proposal_id, _req(1, "reject-before-discard", [], ["c1"]), now=NOW, resolve_kb=_resolve
+    )
     with pytest.raises(DecisionError) as decided:
         discard_proposal(session, first.proposal_id, 1, now=NOW)
     assert decided.value.code == "proposal_decided"
@@ -500,7 +559,8 @@ def test_failure_after_anchor_write_rolls_back_entire_decision(proposal_session:
                 proposal.proposal_id,
                 DecisionRequest(
                     idempotency_key="rollback-decision-key",
-                    expected_head=1, expected_revision=1,
+                    expected_head=1,
+                    expected_revision=1,
                     accept_change_ids=["c1"],
                     reject_change_ids=[],
                     accept_anchor_changes=["hr_threshold_lower-2026-11-16"],
@@ -574,12 +634,12 @@ def test_revise_preserves_identity_history_and_rejects_old_acceptance(proposal_s
     initial = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
     state = session.get(AppState, 1)
     baseline = (state.calendar_head_version, state.data_revision)
-    fingerprint = collect_decision_inputs(session, snapshot.operation, TODAY, now=NOW, kb=KB)['source_fingerprint']
+    fingerprint = collect_decision_inputs(session, snapshot.operation, TODAY, now=NOW, kb=KB)["source_fingerprint"]
     edited = deepcopy(raw)
-    edited['changes'][0]['after']['planned_duration_s'] = 2100
-    edited['changes'][0]['reason'] = 'Use the shorter duration requested by the athlete'
-    edited['summary'] = 'Shorten the planned run'
-    request = RevisionRequest(expected_revision=1, reason='Shorter run requested', document=edited)
+    edited["changes"][0]["after"]["planned_duration_s"] = 2100
+    edited["changes"][0]["reason"] = "Use the shorter duration requested by the athlete"
+    edited["summary"] = "Shorten the planned run"
+    request = RevisionRequest(expected_revision=1, reason="Shorter run requested", document=edited)
     result = revise_proposal(session, initial.proposal_id, request, now=NOW, resolve_kb=_resolve)
     assert result.proposal_id == initial.proposal_id and result.revision == 2
     assert revise_proposal(session, initial.proposal_id, request, now=NOW, resolve_kb=_resolve) == result
@@ -587,22 +647,29 @@ def test_revise_preserves_identity_history_and_rejects_old_acceptance(proposal_s
     assert session.scalar(select(func.count()).select_from(CoachProposal)) == 1
     history = session.scalars(select(CoachProposalRevision).order_by(CoachProposalRevision.revision)).all()
     assert len(history) == 2
-    assert history[0].payload['changes'][0]['after']['planned_duration_s'] == 2400
-    assert history[1].payload['changes'][0]['after']['planned_duration_s'] == 2100
-    assert history[1].changed_change_ids == ['c1'] and history[1].changed_fields == ['summary']
-    assert collect_decision_inputs(session, snapshot.operation, TODAY, now=NOW, kb=KB)['source_fingerprint'] == fingerprint
+    assert history[0].payload["changes"][0]["after"]["planned_duration_s"] == 2400
+    assert history[1].payload["changes"][0]["after"]["planned_duration_s"] == 2100
+    assert history[1].changed_change_ids == ["c1"] and history[1].changed_fields == ["summary"]
+    assert (
+        collect_decision_inputs(session, snapshot.operation, TODAY, now=NOW, kb=KB)["source_fingerprint"] == fingerprint
+    )
     session.refresh(state)
     assert (state.calendar_head_version, state.data_revision) == baseline
     with pytest.raises(DecisionError) as conflict:
-        decide_proposal(session, result.proposal_id, _req(1, 'old-review-key', ['c1']), now=NOW, resolve_kb=_resolve)
-    assert conflict.value.code == 'proposal_revision_conflict'
-    accepted = decide_proposal(session, result.proposal_id,
-        _req(1, 'new-review-key', ['c1']).model_copy(update={'expected_revision': 2}), now=NOW, resolve_kb=_resolve)
-    assert accepted.status == 'accepted'
-    assert next(row for row in calendar.state_at(session, 2) if row['session_uid'] == uid)['planned_duration_s'] == 2100
+        decide_proposal(session, result.proposal_id, _req(1, "old-review-key", ["c1"]), now=NOW, resolve_kb=_resolve)
+    assert conflict.value.code == "proposal_revision_conflict"
+    accepted = decide_proposal(
+        session,
+        result.proposal_id,
+        _req(1, "new-review-key", ["c1"]).model_copy(update={"expected_revision": 2}),
+        now=NOW,
+        resolve_kb=_resolve,
+    )
+    assert accepted.status == "accepted"
+    assert next(row for row in calendar.state_at(session, 2) if row["session_uid"] == uid)["planned_duration_s"] == 2100
     with pytest.raises(DecisionError) as decided:
         revise_proposal(session, result.proposal_id, request, now=NOW, resolve_kb=_resolve)
-    assert decided.value.code == 'proposal_decided'
+    assert decided.value.code == "proposal_decided"
 
 
 def test_invalid_or_conflicting_revision_does_not_replace_draft(proposal_session):
@@ -616,17 +683,27 @@ def test_invalid_or_conflicting_revision_does_not_replace_draft(proposal_session
     raw = _doc(snapshot, uid)
     initial = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
     invalid = deepcopy(raw)
-    invalid['changes'][0]['after']['local_date'] = '2027-01-01'
-    for document, expected, code in [(invalid, 1, 'invalid_proposal'), (raw, 9, 'proposal_revision_conflict')]:
+    invalid["changes"][0]["after"]["local_date"] = "2027-01-01"
+    for document, expected, code in [(invalid, 1, "invalid_proposal"), (raw, 9, "proposal_revision_conflict")]:
         with pytest.raises(DecisionError) as caught:
-            revise_proposal(session, initial.proposal_id,
-                RevisionRequest(expected_revision=expected, reason='Attempted edit', document=document), now=NOW, resolve_kb=_resolve)
+            revise_proposal(
+                session,
+                initial.proposal_id,
+                RevisionRequest(expected_revision=expected, reason="Attempted edit", document=document),
+                now=NOW,
+                resolve_kb=_resolve,
+            )
         assert caught.value.code == code
     row = session.get(CoachProposal, initial.proposal_id)
-    assert row.revision == 1 and row.payload['changes'][0]['after'] == {'planned_duration_s': 2400}
+    assert row.revision == 1 and row.payload["changes"][0]["after"] == {"planned_duration_s": 2400}
     assert session.scalar(select(func.count()).select_from(CoachProposalRevision)) == 1
-    same = revise_proposal(session, initial.proposal_id,
-        RevisionRequest(expected_revision=1, reason='No actual change', document=raw), now=NOW, resolve_kb=_resolve)
+    same = revise_proposal(
+        session,
+        initial.proposal_id,
+        RevisionRequest(expected_revision=1, reason="No actual change", document=raw),
+        now=NOW,
+        resolve_kb=_resolve,
+    )
     assert same.revision == 1
 
 
@@ -637,19 +714,31 @@ def test_revise_stale_draft_requires_fresh_context_and_keeps_link(proposal_sessi
     snapshot, uid = _snapshot(session)
     raw = _doc(snapshot, uid)
     initial = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
-    calendar.apply_edits(session, 1, [{'op': 'modify', 'session_uid': uid, 'fields': {'intent': 'Updated schedule'}}], 'User edit')
+    calendar.apply_edits(
+        session, 1, [{"op": "modify", "session_uid": uid, "fields": {"intent": "Updated schedule"}}], "User edit"
+    )
     with pytest.raises(DecisionError) as caught:
-        revise_proposal(session, initial.proposal_id,
-            RevisionRequest(expected_revision=1, reason='Refresh', document=raw), now=NOW, resolve_kb=_resolve)
-    assert caught.value.code == 'stale_evidence'
+        revise_proposal(
+            session,
+            initial.proposal_id,
+            RevisionRequest(expected_revision=1, reason="Refresh", document=raw),
+            now=NOW,
+            resolve_kb=_resolve,
+        )
+    assert caught.value.code == "stale_evidence"
     fresh, uid = _snapshot(session)
-    result = revise_proposal(session, initial.proposal_id,
-        RevisionRequest(expected_revision=1, reason='Use updated calendar', document=_doc(fresh, uid)), now=NOW, resolve_kb=_resolve)
-    assert result.proposal_id == initial.proposal_id and result.revision == 2 and result.status == 'pending'
+    result = revise_proposal(
+        session,
+        initial.proposal_id,
+        RevisionRequest(expected_revision=1, reason="Use updated calendar", document=_doc(fresh, uid)),
+        now=NOW,
+        resolve_kb=_resolve,
+    )
+    assert result.proposal_id == initial.proposal_id and result.revision == 2 and result.status == "pending"
     row = session.get(CoachProposal, initial.proposal_id)
     assert row.base_calendar_version == 2 and row.snapshot_id == fresh.id
     change = session.scalar(select(CoachProposalChange).where(CoachProposalChange.proposal_id == row.id))
-    assert change.before['intent'] == 'Updated schedule'
+    assert change.before["intent"] == "Updated schedule"
 
 
 def test_exception_accept_creates_patch_and_addresses_findings(proposal_session: Session) -> None:
@@ -657,7 +746,12 @@ def test_exception_accept_creates_patch_and_addresses_findings(proposal_session:
     patch, finding, proposal_id = _accepted_patch(session)
     assert session.scalar(select(func.count(ExceptionPatch.id)).where(ExceptionPatch.proposal_id == proposal_id)) == 1
     assert (patch.calendar_version_number, patch.status, patch.window_start, patch.window_end, patch.reassess_on) == (
-        2, "open", date(2026, 11, 16), date(2026, 11, 18), date(2026, 11, 19))
+        2,
+        "open",
+        date(2026, 11, 16),
+        date(2026, 11, 18),
+        date(2026, 11, 19),
+    )
     assert patch.monitor == ["Morning fatigue"]
     assert (finding.status, finding.patch_id, finding.version) == ("addressed", patch.id, 2)
 
@@ -673,7 +767,10 @@ def test_exception_no_change_accept_reviews_findings(proposal_session: Session) 
     assert (result.status, result.calendar_version) == ("accepted", None)
     assert session.scalar(select(func.count(ExceptionPatch.id))) == 0
     assert (finding.status, finding.reviewed_by_proposal_id, finding.closed_at) == (
-        "reviewed", submitted.proposal_id, NOW)
+        "reviewed",
+        submitted.proposal_id,
+        NOW,
+    )
 
 
 def test_exception_reject_has_no_effects(proposal_session: Session) -> None:
@@ -683,8 +780,9 @@ def test_exception_reject_has_no_effects(proposal_session: Session) -> None:
     raw = _exception_doc(snapshot, uid, [finding.id], ladder="current_session")
     submitted = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
     assert submitted.status == "pending", submitted.issues
-    result = decide_proposal(session, submitted.proposal_id, _req(1, "exc-reject", [], ["c1"]), now=NOW,
-                             resolve_kb=_resolve)
+    result = decide_proposal(
+        session, submitted.proposal_id, _req(1, "exc-reject", [], ["c1"]), now=NOW, resolve_kb=_resolve
+    )
     assert result.status == "rejected"
     assert session.scalar(select(func.count(ExceptionPatch.id))) == 0
     assert (finding.status, finding.version) == ("open", 1)
@@ -694,10 +792,17 @@ def test_rolling_accept_resolves_patch_and_reviews_old_open_findings(proposal_se
     session = proposal_session
     patch, addressed, _ = _accepted_patch(session)
     old = _finding(session, "FATIGUE_HIGH", severity="observe", entity_key="fatigue")
-    esc = _finding(session, "SYM_MULTIWEEK", category="symptoms_illness", severity="escalate",
-                   entity_key="site:ankle|left")
-    late = _finding(session, "TRAVEL_REPORTED", category="calendar_disruption", severity="observe",
-                    entity_key="travel", evidence_at=NOW - timedelta(minutes=30))
+    esc = _finding(
+        session, "SYM_MULTIWEEK", category="symptoms_illness", severity="escalate", entity_key="site:ankle|left"
+    )
+    late = _finding(
+        session,
+        "TRAVEL_REPORTED",
+        category="calendar_disruption",
+        severity="observe",
+        entity_key="travel",
+        evidence_at=NOW - timedelta(minutes=30),
+    )
     snapshot, uid = _snapshot(session)
     raw = _doc(snapshot, uid)
     raw["patch_resolutions"] = [{"patch_id": str(patch.id), "status": "resolved", "note": "Settled"}]
@@ -705,7 +810,11 @@ def test_rolling_accept_resolves_patch_and_reviews_old_open_findings(proposal_se
     assert submitted.status == "pending", submitted.issues
     decide_proposal(session, submitted.proposal_id, _req(2, "roll-accept", ["c1"]), now=NOW, resolve_kb=_resolve)
     assert (patch.status, patch.resolved_by, patch.resolution_note, patch.resolved_at) == (
-        "resolved", "coach", "Settled", NOW)
+        "resolved",
+        "coach",
+        "Settled",
+        NOW,
+    )
     assert addressed.status == "resolved"
     assert old.status == "reviewed"
     assert (esc.status, late.status) == ("open", "open")
@@ -715,8 +824,9 @@ def test_block_accept_reviews_all_and_supersedes_patches(proposal_session: Sessi
     session = proposal_session
     patch, addressed, _ = _accepted_patch(session)
     observe = _finding(session, "FATIGUE_HIGH", severity="observe", entity_key="fatigue")
-    escalate = _finding(session, "SYM_MULTIWEEK", category="symptoms_illness", severity="escalate",
-                        entity_key="site:ankle|left")
+    escalate = _finding(
+        session, "SYM_MULTIWEEK", category="symptoms_illness", severity="escalate", entity_key="site:ankle|left"
+    )
     snapshot, uid = _snapshot(session, "review_training_block")
     raw = _doc(snapshot, uid)
     raw["changes"] = []
@@ -730,21 +840,42 @@ def test_block_accept_reviews_all_and_supersedes_patches(proposal_session: Sessi
 
 def test_post_event_accept_reviews_only_that_event(proposal_session: Session) -> None:
     session = proposal_session
-    first = Event(name="Synthetic 10K", event_date=TODAY - timedelta(days=2), distance_m=10000, priority="target",
-                  status="completed")
-    second = Event(name="Synthetic 5K", event_date=TODAY - timedelta(days=3), distance_m=5000, priority="target",
-                   status="completed")
+    first = Event(
+        name="Synthetic 10K",
+        event_date=TODAY - timedelta(days=2),
+        distance_m=10000,
+        priority="target",
+        status="completed",
+    )
+    second = Event(
+        name="Synthetic 5K",
+        event_date=TODAY - timedelta(days=3),
+        distance_m=5000,
+        priority="target",
+        status="completed",
+    )
     session.add_all([first, second])
     session.flush()
-    due = [_finding(session, "POST_EVENT_REVIEW_DUE", category="post_event", severity="observe",
-                    entity_key=f"event:{event.id}") for event in (first, second)]
+    due = [
+        _finding(
+            session, "POST_EVENT_REVIEW_DUE", category="post_event", severity="observe", entity_key=f"event:{event.id}"
+        )
+        for event in (first, second)
+    ]
     snapshot, uid = _snapshot(session, "post_event_review")
     raw = _doc(snapshot, uid)
     raw["changes"] = []
-    raw["event_review"] = {"event_id": str(first.id), "activity_id": None, "pacing": "Even",
-                           "effort_and_limiter": "RPE 9, breathing", "conditions": None, "symptoms": None,
-                           "recovery_observation": "Normal walking", "recalibration": "defer",
-                           "training_implication": "Easy until fresh"}
+    raw["event_review"] = {
+        "event_id": str(first.id),
+        "activity_id": None,
+        "pacing": "Even",
+        "effort_and_limiter": "RPE 9, breathing",
+        "conditions": None,
+        "symptoms": None,
+        "recovery_observation": "Normal walking",
+        "recalibration": "defer",
+        "training_implication": "Easy until fresh",
+    }
     submitted = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
     assert submitted.status == "pending", submitted.issues
     result = decide_proposal(session, submitted.proposal_id, _req(1, "post-accept"), now=NOW, resolve_kb=_resolve)
@@ -758,12 +889,26 @@ def test_block_review_accept_upserts_benchmark_row(proposal_session: Session, mo
     session = proposal_session
     snapshot, uid = _snapshot(session, "review_training_block")
     fields = {
-        "status": "active", "objective": "Build", "rationale": "Ready", "maintained_qualities": [], "non_goals": [],
-        "eligible_recipe_ids": ["REC001", "REC009"], "progression_dimension": "duration", "constraints": [],
-        "start_date": "2026-11-16", "review_date": "2026-12-28", "completion_indicators": [],
-        "early_review_triggers": [], "objective_status": "unresolved",
-        "benchmark": {"kind": "time_trial", "protocol": "5 km solo time trial", "planned_date": "2026-12-26",
-                      "progress_if": "Under 22:00", "consolidate_if": "Over 22:30"},
+        "status": "active",
+        "objective": "Build",
+        "rationale": "Ready",
+        "maintained_qualities": [],
+        "non_goals": [],
+        "eligible_recipe_ids": ["REC001", "REC009"],
+        "progression_dimension": "duration",
+        "constraints": [],
+        "start_date": "2026-11-16",
+        "review_date": "2026-12-28",
+        "completion_indicators": [],
+        "early_review_triggers": [],
+        "objective_status": "unresolved",
+        "benchmark": {
+            "kind": "time_trial",
+            "protocol": "5 km solo time trial",
+            "planned_date": "2026-12-26",
+            "progress_if": "Under 22:00",
+            "consolidate_if": "Over 22:30",
+        },
     }
     raw = _doc(snapshot, uid)
     raw["changes"] = []
@@ -771,24 +916,56 @@ def test_block_review_accept_upserts_benchmark_row(proposal_session: Session, mo
     first = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
     assert first.status == "pending", first.issues
     started = decide_proposal(
-        session, first.proposal_id,
-        DecisionRequest(idempotency_key="bench-block-start", expected_head=1, expected_revision=1,
-                        accept_change_ids=[], reject_change_ids=[], accept_block_change=True),
-        now=NOW, resolve_kb=_resolve,
+        session,
+        first.proposal_id,
+        DecisionRequest(
+            idempotency_key="bench-block-start",
+            expected_head=1,
+            expected_revision=1,
+            accept_change_ids=[],
+            reject_change_ids=[],
+            accept_block_change=True,
+        ),
+        now=NOW,
+        resolve_kb=_resolve,
     )
     block = session.get(BlockVersion, started.block_version_id)
     assert block is not None
-    event = Event(name="Benchmark 5K", event_date=TODAY - timedelta(days=1), distance_m=5000, priority="benchmark",
-                  status="completed")
+    event = Event(
+        name="Benchmark 5K",
+        event_date=TODAY - timedelta(days=1),
+        distance_m=5000,
+        priority="benchmark",
+        status="completed",
+    )
     session.add(event)
     session.flush()
-    monkeypatch.setattr(block_benchmark, "benchmark_status", lambda session, version, today: block_benchmark.BenchmarkStatus(
-        status="completed", match_method="auto", activity_id=None, event_id=event.id,
-        local_date=TODAY - timedelta(days=1), distance_m=5000, result_s=1300, rpe=9.0, scheduled_date=None,
-        evidence_at=NOW))
-    review = {"event_id": str(event.id), "outcome": "progress", "compared_with": "Prior 5K 22:10", "pacing": "Even",
-              "effort_and_limiter": "RPE 9", "recovery_observation": "Normal", "recalibration": "defer",
-              "training_implication": "Progress"}
+    monkeypatch.setattr(
+        block_benchmark,
+        "benchmark_status",
+        lambda session, version, today: block_benchmark.BenchmarkStatus(
+            status="completed",
+            match_method="auto",
+            activity_id=None,
+            event_id=event.id,
+            local_date=TODAY - timedelta(days=1),
+            distance_m=5000,
+            result_s=1300,
+            rpe=9.0,
+            scheduled_date=None,
+            evidence_at=NOW,
+        ),
+    )
+    review = {
+        "event_id": str(event.id),
+        "outcome": "progress",
+        "compared_with": "Prior 5K 22:10",
+        "pacing": "Even",
+        "effort_and_limiter": "RPE 9",
+        "recovery_observation": "Normal",
+        "recalibration": "defer",
+        "training_implication": "Progress",
+    }
     for key in ("bench-review-1", "bench-review-2"):
         snapshot, uid = _snapshot(session, "review_training_block")
         raw = _doc(snapshot, uid)
@@ -797,10 +974,29 @@ def test_block_review_accept_upserts_benchmark_row(proposal_session: Session, mo
         submitted = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
         assert submitted.status == "pending", submitted.issues
         decide_proposal(session, submitted.proposal_id, _req(1, key), now=NOW, resolve_kb=_resolve)
-        rows = session.scalars(select(BlockBenchmarkResult).where(BlockBenchmarkResult.block_uid == block.block_uid)).all()
+        rows = session.scalars(
+            select(BlockBenchmarkResult).where(BlockBenchmarkResult.block_uid == block.block_uid)
+        ).all()
         assert len(rows) == 1
         row = rows[0]
-        assert (row.block_version, row.match_method, row.event_id, row.distance_m, row.result_s, row.outcome,
-                row.compared_with, row.proposal_id, row.protocol) == (
-            1, "auto", event.id, 5000, 1300, "progress", "Prior 5K 22:10", submitted.proposal_id,
-            "5 km solo time trial")
+        assert (
+            row.block_version,
+            row.match_method,
+            row.event_id,
+            row.distance_m,
+            row.result_s,
+            row.outcome,
+            row.compared_with,
+            row.proposal_id,
+            row.protocol,
+        ) == (
+            1,
+            "auto",
+            event.id,
+            5000,
+            1300,
+            "progress",
+            "Prior 5K 22:10",
+            submitted.proposal_id,
+            "5 km solo time trial",
+        )

@@ -11,8 +11,7 @@ def test_strong_apply_locks_before_source_read_and_preview_does_not(monkeypatch,
     import app.services.strong_import as strong_import
     from app.db import GLOBAL_WRITE_LOCK
 
-    workout = SimpleNamespace(source_identity="synthetic", payload_hash="a" * 64,
-                              row_count=1, local_date="2026-11-09")
+    workout = SimpleNamespace(source_identity="synthetic", payload_hash="a" * 64, row_count=1, local_date="2026-11-09")
     monkeypatch.setattr(strong_import, "scan_strong_csv", lambda _path: ([workout], "a" * 64, 1))
     events = []
 
@@ -44,14 +43,16 @@ def test_strong_apply_locks_before_source_read_and_preview_does_not(monkeypatch,
     assert events[0][0] == "lock" and events[0][1] == f"SELECT pg_advisory_xact_lock({GLOBAL_WRITE_LOCK})"
     assert events[1] == ("source",)
 
+
 HEADER = "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\n"
 
 
 def test_strong_csv_groups_sets_and_keeps_source_weight_text(tmp_path):
     path = tmp_path / "strong.csv"
-    path.write_text(HEADER +
-                    "2026-11-09 21:13:58,Workout A,1h 5m,Dumbbell Press,1,45.0,8,0,0,\n"
-                    "2026-11-09 21:13:58,Workout A,1h 5m,Dumbbell Press,2,45.0,8,0,0,\n")
+    path.write_text(
+        HEADER + "2026-11-09 21:13:58,Workout A,1h 5m,Dumbbell Press,1,45.0,8,0,0,\n"
+        "2026-11-09 21:13:58,Workout A,1h 5m,Dumbbell Press,2,45.0,8,0,0,\n"
+    )
     workouts, digest, size = scan_strong_csv(path)
     assert len(workouts) == 1
     assert workouts[0].duration_s == 3900
@@ -63,9 +64,10 @@ def test_strong_csv_groups_sets_and_keeps_source_weight_text(tmp_path):
 
 def test_strong_csv_rejects_inconsistent_duration(tmp_path):
     path = tmp_path / "strong.csv"
-    path.write_text(HEADER +
-                    "2026-11-09 21:13:58,Workout A,1h 5m,Press,1,45,8,0,0,\n"
-                    "2026-11-09 21:13:58,Workout A,1h 6m,Press,2,45,8,0,0,\n")
+    path.write_text(
+        HEADER + "2026-11-09 21:13:58,Workout A,1h 5m,Press,1,45,8,0,0,\n"
+        "2026-11-09 21:13:58,Workout A,1h 6m,Press,2,45,8,0,0,\n"
+    )
     with pytest.raises(StrongCSVError, match="inconsistent_duration"):
         scan_strong_csv(path)
 

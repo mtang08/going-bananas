@@ -54,8 +54,11 @@ def test_concurrent_enqueue_one_job(isolated_db):
 def test_long_retry_attempts_persist_across_worker_calls(isolated_db, monkeypatch, tmp_path):
     engine, Session = isolated_db
     with Session.begin() as session:
-        for old in session.scalars(select(SyncJob).where(
-            SyncJob.dataset == "activities", SyncJob.status.in_(("queued", "running", "retry_wait")))):
+        for old in session.scalars(
+            select(SyncJob).where(
+                SyncJob.dataset == "activities", SyncJob.status.in_(("queued", "running", "retry_wait"))
+            )
+        ):
             old.status = "failed"
         job = sync.enqueue_sync(session, date(2026, 9, 1), date(2026, 9, 2))
         job_id = job.id
@@ -105,7 +108,9 @@ def test_partial_recovery_keeps_rejected_source(isolated_db, monkeypatch, tmp_pa
         existing = session.scalar(select(SourceAccount).where(SourceAccount.provider == "garmin"))
         if existing and existing.account_scope != "garmin-owner:17":
             existing_id = existing.id
-            monkeypatch.setattr(sync, "_account", lambda current, _provider, _scope: current.get(SourceAccount, existing_id))
+            monkeypatch.setattr(
+                sync, "_account", lambda current, _provider, _scope: current.get(SourceAccount, existing_id)
+            )
         job = sync.enqueue_sync(session, date(2026, 8, 1), date(2026, 8, 2), "sleep")
         job_id = job.id
 
@@ -130,8 +135,9 @@ def test_partial_recovery_keeps_rejected_source(isolated_db, monkeypatch, tmp_pa
     with Session.begin() as session:
         current = session.get(SyncJob, job_id)
         assert current is not None and current.error_code == "rejected_records"
-        rejected = session.scalar(select(SourceRecord).where(
-            SourceRecord.source_identity == "sleep:2026-08-02:main_sleep_duration"))
+        rejected = session.scalar(
+            select(SourceRecord).where(SourceRecord.source_identity == "sleep:2026-08-02:main_sleep_duration")
+        )
         assert rejected is not None and rejected.rejected_reason == "missing_recovery_owner"
         session.delete(current)
 
@@ -139,14 +145,23 @@ def test_partial_recovery_keeps_rejected_source(isolated_db, monkeypatch, tmp_pa
 def test_close_no_id_activities_enter_review(isolated_db, tmp_path):
     _, Session = isolated_db
     records = [
-        {"startTimeGMT": "2026-07-01T12:00:00Z", "activityType": {"typeKey": "running"},
-         "distance": 5000, "elapsedDuration": 1800},
-        {"startTimeGMT": "2026-07-01T12:03:00Z", "activityType": {"typeKey": "running"},
-         "distance": 5030, "elapsedDuration": 1820},
+        {
+            "startTimeGMT": "2026-07-01T12:00:00Z",
+            "activityType": {"typeKey": "running"},
+            "distance": 5000,
+            "elapsedDuration": 1800,
+        },
+        {
+            "startTimeGMT": "2026-07-01T12:03:00Z",
+            "activityType": {"typeKey": "running"},
+            "distance": 5030,
+            "elapsedDuration": 1820,
+        },
     ]
     with Session.begin() as session:
-        sync.import_activity_page(session, tmp_path, records, account_scope="synthetic-overlap",
-                                  source_kind="demo_fixture")
+        sync.import_activity_page(
+            session, tmp_path, records, account_scope="synthetic-overlap", source_kind="demo_fixture"
+        )
     with Session.begin() as session:
         conflicts = session.scalars(select(Conflict).where(Conflict.kind == "activity_overlap")).all()
         assert any(row.status == "open" and len(row.activity_ids) == 2 for row in conflicts)

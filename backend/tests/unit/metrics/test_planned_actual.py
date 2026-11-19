@@ -7,54 +7,95 @@ from app.metrics.planned_actual import _interval_components, component, planned_
 
 DAY = date(2026, 11, 19)
 NOW = datetime(2026, 11, 19, 12, tzinfo=UTC)
-WORK = [{"type": "work", "duration_type": "time", "duration_value": 60,
-         "target": {"modality": "speed", "low": 3.0, "high": 4.0}}]
+WORK = [
+    {
+        "type": "work",
+        "duration_type": "time",
+        "duration_value": 60,
+        "target": {"modality": "speed", "low": 3.0, "high": 4.0},
+    }
+]
 
 
 def plan(**changes: object) -> dict:
-    return {"kind": "run", "local_date": DAY, "certainty": "committed",
-            "calendar_version_number": 3, "planned_duration_s": 3000,
-            "planned_distance_m": None, "structure": WORK, **changes}
+    return {
+        "kind": "run",
+        "local_date": DAY,
+        "certainty": "committed",
+        "calendar_version_number": 3,
+        "planned_duration_s": 3000,
+        "planned_distance_m": None,
+        "structure": WORK,
+        **changes,
+    }
 
 
 def linked(**changes: object) -> dict:
-    return {"activity_id": "a1", "match_method": "explicit", "status": "unknown",
-            "modification_reason": None, **changes}
+    return {
+        "activity_id": "a1",
+        "match_method": "explicit",
+        "status": "unknown",
+        "modification_reason": None,
+        **changes,
+    }
 
 
-def assess(plan_row: dict | None, completion: dict | None, actual: dict | None,
-           intervals: dict | None = None, candidates: list[dict] | None = None,
-           coverage: bool = True) -> dict:
+def assess(
+    plan_row: dict | None,
+    completion: dict | None,
+    actual: dict | None,
+    intervals: dict | None = None,
+    candidates: list[dict] | None = None,
+    coverage: bool = True,
+) -> dict:
     return planned_actual_outcome(plan_row, completion, actual, intervals, candidates or [], coverage, DAY)
 
 
 def test_modified_partial_and_sensible() -> None:
-    r = assess(plan(), linked(modification_reason="symptom_onset"), {"kind": "run", "timer_s": 2820},
-               {"step_completion_ratio": .5, "target_coverage": .8})
+    r = assess(
+        plan(),
+        linked(modification_reason="symptom_onset"),
+        {"kind": "run", "timer_s": 2820},
+        {"step_completion_ratio": 0.5, "target_coverage": 0.8},
+    )
     assert r["value"]["overall_status"] == "completed_modified"
     assert r["derived_completion_status"] == "completed_modified"
     assert r["quality_flags"] == ["SENSIBLE_MODIFICATION"]
     assert [(c["name"], c["status"]) for c in r["value"]["components"]] == [
-        ("duration_ratio", "met"), ("step_completion_ratio", "partially_met"), ("target_coverage", "met")]
-    p = assess(plan(), linked(), {"kind": "run", "timer_s": 1500},
-               {"step_completion_ratio": .5, "target_coverage": .8})
+        ("duration_ratio", "met"),
+        ("step_completion_ratio", "partially_met"),
+        ("target_coverage", "met"),
+    ]
+    p = assess(
+        plan(), linked(), {"kind": "run", "timer_s": 1500}, {"step_completion_ratio": 0.5, "target_coverage": 0.8}
+    )
     assert p["value"]["overall_status"] == "partial"
-    assert assess(plan(planned_duration_s=4200, structure=None), linked(modification_reason="symptom_onset"),
-                  {"kind": "run", "timer_s": 2880})["value"]["overall_status"] == "completed_modified"
+    assert (
+        assess(
+            plan(planned_duration_s=4200, structure=None),
+            linked(modification_reason="symptom_onset"),
+            {"kind": "run", "timer_s": 2880},
+        )["value"]["overall_status"]
+        == "completed_modified"
+    )
 
 
 def test_unknown_and_missing_plan_and_skipped() -> None:
     unknown = assess(plan(), linked(), {"kind": "run", "timer_s": None}, None)
     assert unknown["value"]["overall_status"] == "unknown"
     assert "COMPONENT_NOT_ASSESSABLE" in unknown["reason_codes"]
-    with_reason = assess(plan(), linked(modification_reason="symptom_onset"),
-                         {"kind": "run", "timer_s": None}, None)
+    with_reason = assess(plan(), linked(modification_reason="symptom_onset"), {"kind": "run", "timer_s": None}, None)
     assert with_reason["value"]["overall_status"] == "unknown"
     empty = assess(plan(planned_duration_s=None, structure=None), linked(), {"kind": "run", "timer_s": 3000})
     assert empty["reason_codes"] == ["INSUFFICIENT_PLAN"]
     skipped = assess(plan(), linked(status="skipped", match_method="user_marked"), None)
     assert skipped["derived_completion_status"] == "skipped"
-    ambiguous = assess(plan(local_date=DAY - timedelta(days=1)), None, None, candidates=[{"subject_key": "a1", "reason": "AMBIGUOUS_MATCH"}])
+    ambiguous = assess(
+        plan(local_date=DAY - timedelta(days=1)),
+        None,
+        None,
+        candidates=[{"subject_key": "a1", "reason": "AMBIGUOUS_MATCH"}],
+    )
     assert ambiguous["value"]["overall_status"] == "unknown"
     assert ambiguous["reason_codes"] == ["AMBIGUOUS_MATCH"]
 
@@ -62,20 +103,23 @@ def test_unknown_and_missing_plan_and_skipped() -> None:
 def test_boundaries_exceeded_target_and_future_priority() -> None:
     assert component("duration_ratio", 899.9, 1000)["status"] == "partially_met"
     assert component("duration_ratio", 900, 1000)["status"] == "met"
-    assert component("target_coverage", .75, 1)["status"] == "met"
-    assert component("target_coverage", .4, 1)["status"] == "partially_met"
+    assert component("target_coverage", 0.75, 1)["status"] == "met"
+    assert component("target_coverage", 0.4, 1)["status"] == "partially_met"
     exceeded = assess(plan(structure=None), linked(), {"kind": "run", "timer_s": 3481})
     assert exceeded["quality_flags"] == ["EXCEEDED"]
     assert exceeded["value"]["components"][0]["status"] == "met"
-    near_boundary = assess(plan(), linked(), {"kind": "run", "timer_s": 2699.7},
-                           {"step_completion_ratio": .99, "target_coverage": .8})
-    assert near_boundary["value"]["components"][0]["value"] == .9
+    near_boundary = assess(
+        plan(), linked(), {"kind": "run", "timer_s": 2699.7}, {"step_completion_ratio": 0.99, "target_coverage": 0.8}
+    )
+    assert near_boundary["value"]["components"][0]["value"] == 0.9
     assert near_boundary["value"]["overall_status"] == "partial"
-    both_exceed = assess(plan(planned_distance_m=5000, structure=None), linked(),
-                         {"kind": "run", "timer_s": 3600, "distance_m": 6000})
+    both_exceed = assess(
+        plan(planned_distance_m=5000, structure=None), linked(), {"kind": "run", "timer_s": 3600, "distance_m": 6000}
+    )
     assert both_exceed["quality_flags"] == ["EXCEEDED"]
-    future = assess({**plan(), "local_date": DAY + timedelta(days=1)}, None, None,
-                    candidates=[{"reason": "AMBIGUOUS_MATCH"}])
+    future = assess(
+        {**plan(), "local_date": DAY + timedelta(days=1)}, None, None, candidates=[{"reason": "AMBIGUOUS_MATCH"}]
+    )
     assert future["reason_codes"] == ["NOT_YET_DUE"]
     assert future["value"]["match_method"] == "none"
 
@@ -88,13 +132,19 @@ def test_excluded_link_stays_linked_unknown() -> None:
 
 
 def test_target_coverage_rebuilt_before_threshold() -> None:
-    intervals = _interval_components({"target_coverage": .75, "step_completion_ratio": 1.0,
-                                      "n_planned": 1, "n_completed": 1,
-                                      "reps": [{"target_valid_s": 1000.0, "target_in_range_s": 749.6}]})
-    assert intervals is not None and intervals["target_coverage"] == .7496
+    intervals = _interval_components(
+        {
+            "target_coverage": 0.75,
+            "step_completion_ratio": 1.0,
+            "n_planned": 1,
+            "n_completed": 1,
+            "reps": [{"target_valid_s": 1000.0, "target_in_range_s": 749.6}],
+        }
+    )
+    assert intervals is not None and intervals["target_coverage"] == 0.7496
     result = assess(plan(), linked(), {"kind": "run", "timer_s": 3000}, intervals)
     target = next(c for c in result["value"]["components"] if c["name"] == "target_coverage")
-    assert target["value"] == .75
+    assert target["value"] == 0.75
     assert target["status"] == "partially_met"
 
 
@@ -103,8 +153,9 @@ def _five_rep_plan() -> dict:
 
 
 def _five_rep_intervals(completed: int) -> dict:
-    return _interval_components({"n_planned": 5, "n_completed": completed,
-                                 "reps": [{"fully_completed": i < completed} for i in range(5)]})
+    return _interval_components(
+        {"n_planned": 5, "n_completed": completed, "reps": [{"fully_completed": i < completed} for i in range(5)]}
+    )
 
 
 def test_split_lap_full_value_completes_as_planned() -> None:
@@ -127,38 +178,45 @@ def test_not_assessable_interval_stays_unknown() -> None:
 
 
 def test_modification_reason_preserved() -> None:
-    result = assess(_five_rep_plan(), linked(modification_reason="fatigue"),
-                    {"kind": "run", "timer_s": 3000}, _five_rep_intervals(5))
+    result = assess(
+        _five_rep_plan(),
+        linked(modification_reason="fatigue"),
+        {"kind": "run", "timer_s": 3000},
+        _five_rep_intervals(5),
+    )
     assert result["value"]["overall_status"] == "completed_modified"
     assert "SENSIBLE_MODIFICATION" in result["quality_flags"]
 
 
 def test_tiny_run_is_partial():
     result = assess(plan(planned_duration_s=3600, structure=None), linked(), {"timer_s": 30})
-    assert result['value']['overall_status'] == 'partial'
+    assert result["value"]["overall_status"] == "partial"
 
 
 def test_structured_short_without_intervals_is_partial():
     result = assess(plan(planned_duration_s=3600), linked(), {"timer_s": 1200})
-    assert result['value']['overall_status'] == 'partial'
+    assert result["value"]["overall_status"] == "partial"
 
 
 def test_confirmed_move_assesses_components():
-    for duration, overall, flags in [(30, 'partial', ['MOVED']), (3600, 'moved', [])]:
-        result = assess(plan(planned_duration_s=3600, structure=None), linked(match_method='confirmed_move'),
-                        {"timer_s": duration})
-        assert result['value']['overall_status'] == overall
-        assert result['value']['components'][0]['name'] == 'duration_ratio'
-        assert result['quality_flags'] == flags
+    for duration, overall, flags in [(30, "partial", ["MOVED"]), (3600, "moved", [])]:
+        result = assess(
+            plan(planned_duration_s=3600, structure=None), linked(match_method="confirmed_move"), {"timer_s": duration}
+        )
+        assert result["value"]["overall_status"] == overall
+        assert result["value"]["components"][0]["name"] == "duration_ratio"
+        assert result["quality_flags"] == flags
 
 
 def test_today_unlinked_not_yet_due():
-    assert assess(plan(local_date=DAY), None, None)['reason_codes'] == ['NOT_YET_DUE']
+    assert assess(plan(local_date=DAY), None, None)["reason_codes"] == ["NOT_YET_DUE"]
 
 
 def test_unlinked_by_user():
-    result = assess(plan(local_date=DAY - timedelta(days=1)), linked(activity_id=None, match_method='user_marked'), None)
-    assert result['reason_codes'] == ['UNLINKED_BY_USER']
+    result = assess(
+        plan(local_date=DAY - timedelta(days=1)), linked(activity_id=None, match_method="user_marked"), None
+    )
+    assert result["reason_codes"] == ["UNLINKED_BY_USER"]
 
 
 class _OneRowSession:
@@ -170,13 +228,25 @@ class _OneRowSession:
 
 
 def _result(overall: str) -> MetricResultData:
-    return MetricResultData("planned_actual_session", "v1", "session", str(uuid.uuid4()), Status.available,
-                            (), (), {}, (), "0" * 64, value={"overall_status": overall})
+    return MetricResultData(
+        "planned_actual_session",
+        "v1",
+        "session",
+        str(uuid.uuid4()),
+        Status.available,
+        (),
+        (),
+        {},
+        (),
+        "0" * 64,
+        value={"overall_status": overall},
+    )
 
 
 def test_write_completion_status_updates_linked_once() -> None:
-    row = SimpleNamespace(activity_id="a1", strong_workout_id=None, manual_session_id=None,
-                          status="unknown", version=1, updated_at=None)
+    row = SimpleNamespace(
+        activity_id="a1", strong_workout_id=None, manual_session_id=None, status="unknown", version=1, updated_at=None
+    )
     session = _OneRowSession(row)
     result = _result("completed_as_planned")
     assert write_completion_status(session, result, NOW)
@@ -186,8 +256,9 @@ def test_write_completion_status_updates_linked_once() -> None:
 
 
 def test_write_completion_status_leaves_unlinked_and_missing_alone() -> None:
-    row = SimpleNamespace(activity_id=None, strong_workout_id=None, manual_session_id=None,
-                          status="unknown", version=1, updated_at=None)
+    row = SimpleNamespace(
+        activity_id=None, strong_workout_id=None, manual_session_id=None, status="unknown", version=1, updated_at=None
+    )
     assert not write_completion_status(_OneRowSession(row), _result("unknown"), NOW)
     assert (row.status, row.version) == ("unknown", 1)
     assert not write_completion_status(_OneRowSession(None), _result("completed_as_planned"), NOW)

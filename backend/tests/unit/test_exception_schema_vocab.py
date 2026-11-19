@@ -29,6 +29,5 @@ def test_exception_checks_match_vocab():
 
 
 def test_active_finding_index_matches_nonterminal_vocab():
-    index = next(index for index in ExceptionFinding.__table__.indexes
-                  if index.name == "uq_exception_findings_active")
+    index = next(index for index in ExceptionFinding.__table__.indexes if index.name == "uq_exception_findings_active")
     assert str(index.dialect_options["postgresql"]["where"]) == _in("status", NON_TERMINAL_FINDING)

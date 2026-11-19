@@ -83,7 +83,7 @@ def test_overlay_matches_manifest():
 def test_research_intake_is_not_runtime_evidence():
     for operation in SUPPORTED_OPERATIONS:
         bundle = load_route(operation)
-        assert all(entry.path != 'research/coaching_web_intake.md' for entry in bundle.excerpts)
+        assert all(entry.path != "research/coaching_web_intake.md" for entry in bundle.excerpts)
 
 
 def test_extract_section_bounds():
@@ -99,9 +99,17 @@ def test_extract_section_bounds():
             extract_section(text, heading, "sample")
 
 
-@pytest.mark.parametrize("operation,count,chars", list(zip(
-    SUPPORTED_OPERATIONS, (6, 7, 9, 14, 9, 11, 14, 14), (6090, 8399, 10423, 19139, 8645, 14462, 15492, 12750), strict=True,
-)))
+@pytest.mark.parametrize(
+    "operation,count,chars",
+    list(
+        zip(
+            SUPPORTED_OPERATIONS,
+            (6, 7, 9, 14, 9, 11, 14, 14),
+            (6090, 8399, 10423, 19139, 8645, 14462, 15492, 12750),
+            strict=True,
+        )
+    ),
+)
 def test_route_minimum_sections(operation, count, chars):
     bundle = load_route(operation)
     sections = [e for e in bundle.excerpts if e.section is not None]
@@ -145,8 +153,9 @@ def test_recipe_records():
         assert e.text == json.dumps(record, ensure_ascii=False)
         assert set(e.to_json()) == {"path", "record_id", "text"}
     verified = verify_selection(bundle.routes)
-    assert any(r["record_id"] == "REC001" and r["content"]["recipe_id"] == "REC001"
-               for r in verified["selected_records"])
+    assert any(
+        r["record_id"] == "REC001" and r["content"]["recipe_id"] == "REC001" for r in verified["selected_records"]
+    )
 
 
 def test_p011_never_routed():
@@ -155,12 +164,20 @@ def test_p011_never_routed():
         assert all(e.record_id != "P011" for e in load_route(op).excerpts)
 
 
-@pytest.mark.parametrize("kwargs,message", [
-    ({"operation": "deep_evidence_audit"}, "unsupported_operation"),
-    ({"operation": "proceed_or_modify_today", "recipe_ids": ["REC011"]}, "unknown_recipe_id"),
-    ({"operation": "proceed_or_modify_today", "conditional_topics": ["topics/fueling_and_energy_availability.md"]},
-     "unknown_conditional_topic"),
-])
+@pytest.mark.parametrize(
+    "kwargs,message",
+    [
+        ({"operation": "deep_evidence_audit"}, "unsupported_operation"),
+        ({"operation": "proceed_or_modify_today", "recipe_ids": ["REC011"]}, "unknown_recipe_id"),
+        (
+            {
+                "operation": "proceed_or_modify_today",
+                "conditional_topics": ["topics/fueling_and_energy_availability.md"],
+            },
+            "unknown_conditional_topic",
+        ),
+    ],
+)
 def test_invalid_inputs(kwargs, message):
     with pytest.raises(ValueError, match=message):
         load_route(**kwargs)
@@ -231,22 +248,27 @@ def test_saved_selection_verifies_exact_content_and_order(tmp_kb):
     path.write_text(json.dumps(document))
     with pytest.raises(KnowledgeIntegrityError):
         verify_selection(bundle.routes, root=tmp_kb)
+
     def update(m):
         entry = next(e for e in m["files"] if e["path"] == "recipes/running_session_families.json")
         entry.update(bytes=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+
     _edit_manifest(tmp_kb, update)
     after = verify_selection(bundle.routes, root=tmp_kb)
     assert before["digest"] != after["digest"]
     assert before["selected_records"] != after["selected_records"]
 
 
-@pytest.mark.parametrize("selection", [
-    ({"path": "../athlete.md", "sections": ["*"]},),
-    ({"path": "COACHING_GUIDE.md", "sections": ["absent"]},),
-    ({"path": "recipes/running_session_families.json", "record_ids": ["REC999"]},),
-    ({"path": "COACHING_GUIDE.md", "record_ids": ["P001"]},),
-    ({"path": "COACHING_GUIDE.md", "sections": "*"},),
-])
+@pytest.mark.parametrize(
+    "selection",
+    [
+        ({"path": "../athlete.md", "sections": ["*"]},),
+        ({"path": "COACHING_GUIDE.md", "sections": ["absent"]},),
+        ({"path": "recipes/running_session_families.json", "record_ids": ["REC999"]},),
+        ({"path": "COACHING_GUIDE.md", "record_ids": ["P001"]},),
+        ({"path": "COACHING_GUIDE.md", "sections": "*"},),
+    ],
+)
 def test_invalid_saved_selection(selection):
     with pytest.raises(KnowledgeIntegrityError):
         verify_selection(selection)
@@ -256,8 +278,10 @@ def test_routed_context_accepts_largest_valid_selection_without_truncation():
     from app.services.knowledge import MAX_ROUTED_CONTEXT_CHARS
 
     recipes = sorted(kb_index().recipe_ids)
-    bundles = [load_route(operation, recipe_ids=recipes, conditional_topics=CONDITIONAL_TOPICS)
-               for operation in SUPPORTED_OPERATIONS]
+    bundles = [
+        load_route(operation, recipe_ids=recipes, conditional_topics=CONDITIONAL_TOPICS)
+        for operation in SUPPORTED_OPERATIONS
+    ]
     assert max(bundle.chars for bundle in bundles) < MAX_ROUTED_CONTEXT_CHARS
     for bundle in bundles:
         verified = verify_selection(tuple(bundle.routes))
@@ -273,7 +297,6 @@ def test_routed_context_hard_limit_never_truncates(monkeypatch):
         load_route("review_training_block", conditional_topics=CONDITIONAL_TOPICS)
     with pytest.raises(KnowledgeIntegrityError, match="exceeds bound"):
         verify_selection(({"path": "COACHING_GUIDE.md", "sections": ["*"] * 20},))
-
 
 
 def test_adaptive_coaching_routes_resolve_exactly_once():
@@ -299,4 +322,7 @@ def test_new_review_routes_within_budget(operation, caplog):
     assert "kb_budget_exceeded" not in caplog.text
     assert {"P011", "P019"}.isdisjoint(POLICY_MAP[operation])
     assert POLICY_MAP["review_training_block"][-1] == "P028"
-    assert {e.path for e in bundle.excerpts if e.section} >= {"COACHING_GUIDE.md", "adaptive_coaching/exception_policy.md"}
+    assert {e.path for e in bundle.excerpts if e.section} >= {
+        "COACHING_GUIDE.md",
+        "adaptive_coaching/exception_policy.md",
+    }

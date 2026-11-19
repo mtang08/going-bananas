@@ -1,4 +1,5 @@
 """Shared activities reads in a disposable synthetic PostgreSQL schema."""
+
 from __future__ import annotations
 
 import os
@@ -27,7 +28,9 @@ def _guard_url() -> str:
     assert settings.app_mode == "test"
     assert parsed.drivername in ("postgresql+psycopg", "postgresql")
     assert parsed.host in ("localhost", "127.0.0.1")
-    assert parsed.port == int(os.environ.get('TEST_DATABASE_PORT', '55439')) and parsed.database == "mvp1_migration_test"
+    assert (
+        parsed.port == int(os.environ.get("TEST_DATABASE_PORT", "55439")) and parsed.database == "mvp1_migration_test"
+    )
     return url
 
 
@@ -54,8 +57,15 @@ def db(metrics_disabled):
 
 def _activity(day: int, hour: int = 12, *, state: str = "resolved", sport: str = "running") -> Activity:
     start = datetime(2026, 11, day, hour, tzinfo=UTC)
-    return Activity(start_at=start, original_start=start.isoformat(), local_date=date(2026, 11, day),
-                    sport=sport, timer_s=1800, distance_m=5000, resolution_state=state)
+    return Activity(
+        start_at=start,
+        original_start=start.isoformat(),
+        local_date=date(2026, 11, day),
+        sport=sport,
+        timer_s=1800,
+        distance_m=5000,
+        resolution_state=state,
+    )
 
 
 def _seed(session) -> tuple[Activity, Activity, Activity]:
@@ -64,10 +74,12 @@ def _seed(session) -> tuple[Activity, Activity, Activity]:
     late_utc = _activity(21, 3)
     session.add_all([first, excluded, late_utc, _activity(19, state="conflicted"), _activity(19, sport="cycling")])
     session.flush()
-    session.add_all([
-        ActivityAnnotation(activity_id=excluded.id, version=1, excluded=False),
-        ActivityAnnotation(activity_id=excluded.id, version=2, excluded=True),
-    ])
+    session.add_all(
+        [
+            ActivityAnnotation(activity_id=excluded.id, version=1, excluded=False),
+            ActivityAnnotation(activity_id=excluded.id, version=2, excluded=True),
+        ]
+    )
     session.flush()
     return first, excluded, late_utc
 

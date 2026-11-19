@@ -10,9 +10,14 @@ from app.adapters.garmin.export import ExportError, normalize_export_activity, s
 
 def _activity(activity_id: int = 7) -> dict:
     return {
-        "activityId": activity_id, "userProfileId": 17, "startTimeGmt": 1_756_000_000_000,
-        "activityType": "track_running", "distance": 525_000,
-        "elapsedDuration": 1_900_000, "movingDuration": 1_800_000, "avgHr": 145,
+        "activityId": activity_id,
+        "userProfileId": 17,
+        "startTimeGmt": 1_756_000_000_000,
+        "activityType": "track_running",
+        "distance": 525_000,
+        "elapsedDuration": 1_900_000,
+        "movingDuration": 1_800_000,
+        "avgHr": 145,
         "avgRunCadence": 82,
     }
 
@@ -31,8 +36,10 @@ def test_activity_conversion_preserves_only_verified_fields():
 def test_scan_activity_member_and_owner(tmp_path):
     path = tmp_path / "sample.zip"
     with ZipFile(path, "w") as archive:
-        archive.writestr("folder/summarizedActivities.json",
-                         json.dumps([{"summarizedActivitiesExport": [_activity(), _activity(8)]}]))
+        archive.writestr(
+            "folder/summarizedActivities.json",
+            json.dumps([{"summarizedActivitiesExport": [_activity(), _activity(8)]}]),
+        )
     with ZipFile(path) as archive:
         scan = scan_activities(archive)
     assert len(scan.activities) == 2
@@ -53,7 +60,7 @@ def test_unsafe_archive_path_rejected(tmp_path, name):
 def test_symlink_archive_entry_rejected(tmp_path):
     path = tmp_path / "link.zip"
     info = ZipInfo("link.json")
-    info.external_attr = (0o120777 << 16)
+    info.external_attr = 0o120777 << 16
     with ZipFile(path, "w") as archive:
         archive.writestr(info, "target")
     with ZipFile(path) as archive:
@@ -66,8 +73,9 @@ def test_mixed_owners_rejected(tmp_path):
     second = _activity(8)
     second["userProfileId"] = 18
     with ZipFile(path, "w") as archive:
-        archive.writestr("summarizedActivities.json",
-                         json.dumps([{"summarizedActivitiesExport": [_activity(), second]}]))
+        archive.writestr(
+            "summarizedActivities.json", json.dumps([{"summarizedActivitiesExport": [_activity(), second]}])
+        )
     with ZipFile(path) as archive:
         with pytest.raises(ExportError, match="mixed_activity_owner"):
             scan_activities(archive)

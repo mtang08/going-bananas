@@ -3,6 +3,7 @@
 The fixture owns a uniquely named schema in the dedicated synthetic migration database.
 It never creates or drops a database and never prints a connection string.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -28,30 +29,30 @@ from app.main import app
 from app.migrations_head import EXPECTED_HEAD as HEAD
 
 STAMP = datetime(2026, 11, 12, tzinfo=UTC)
-HEADERS = {'X-Local-Request': '1', 'Origin': 'http://testserver'}
+HEADERS = {"X-Local-Request": "1", "Origin": "http://testserver"}
 
 
 def _guard_url() -> str:
-    url = os.environ.get('MIGRATION_TEST_DATABASE_URL', '')
+    url = os.environ.get("MIGRATION_TEST_DATABASE_URL", "")
     parsed = make_url(url)
-    assert settings.app_mode == 'test'
-    assert parsed.drivername in {'postgresql+psycopg', 'postgresql'}
-    assert parsed.host in {'localhost', '127.0.0.1'}
-    assert parsed.port == int(os.environ.get('TEST_DATABASE_PORT', '55439'))
-    assert parsed.database == 'mvp1_migration_test'
+    assert settings.app_mode == "test"
+    assert parsed.drivername in {"postgresql+psycopg", "postgresql"}
+    assert parsed.host in {"localhost", "127.0.0.1"}
+    assert parsed.port == int(os.environ.get("TEST_DATABASE_PORT", "55439"))
+    assert parsed.database == "mvp1_migration_test"
     return url
 
 
 def _migration(connection, revision: str, *, down: bool = False) -> None:
-    config = Config(str(Path(__file__).resolve().parents[2] / 'alembic.ini'))
-    config.attributes['connection'] = connection
+    config = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
+    config.attributes["connection"] = connection
     (command.downgrade if down else command.upgrade)(config, revision)
 
 
 @pytest.fixture
 def isolated_schema():
     engine = create_engine(_guard_url(), pool_pre_ping=True)
-    name = 'mvp003_' + uuid.uuid4().hex
+    name = "mvp003_" + uuid.uuid4().hex
     with engine.begin() as connection:
         connection.execute(text(f'CREATE SCHEMA "{name}"'))
     try:
@@ -66,89 +67,223 @@ def isolated_schema():
 
 
 def _insert(connection, table: str, **values) -> uuid.UUID:
-    values.setdefault('id', uuid.uuid4())
-    if table == 'activities':
-        values.setdefault('canonical_revision', 1)
-        values.setdefault('resolution_state', 'resolved')
-        values.setdefault('field_provenance', '{}')
-    if table == 'manual_sessions':
-        values.setdefault('version', 1)
-    columns = ', '.join(values)
-    binds = ', '.join(':' + key for key in values)
-    connection.execute(text(f'INSERT INTO {table} ({columns}) VALUES ({binds})'), values)
-    return values['id']
+    values.setdefault("id", uuid.uuid4())
+    if table == "activities":
+        values.setdefault("canonical_revision", 1)
+        values.setdefault("resolution_state", "resolved")
+        values.setdefault("field_provenance", "{}")
+    if table == "manual_sessions":
+        values.setdefault("version", 1)
+    columns = ", ".join(values)
+    binds = ", ".join(":" + key for key in values)
+    connection.execute(text(f"INSERT INTO {table} ({columns}) VALUES ({binds})"), values)
+    return values["id"]
 
 
 def _legacy_snapshot(connection, columns_by_table=None):
     """Project precisely the pre-upgrade columns, including JSON payloads and IDs."""
     inspector = inspect(connection)
-    excluded = {'alembic_version'}
+    excluded = {"alembic_version"}
     result = {}
-    tables = columns_by_table or {table: [column['name'] for column in inspector.get_columns(table)]
-        for table in sorted(set(inspector.get_table_names()) - excluded)}
+    tables = columns_by_table or {
+        table: [column["name"] for column in inspector.get_columns(table)]
+        for table in sorted(set(inspector.get_table_names()) - excluded)
+    }
     for table, columns in tables.items():
-        if 'id' not in columns and table != 'sync_state':
+        if "id" not in columns and table != "sync_state":
             continue
-        projection = ', '.join('t."' + column + '"' for column in columns)
-        rows = connection.execute(text(f'SELECT row_to_json(q)::text FROM (SELECT {projection} FROM "{table}" t) q')).scalars().all()
-        canonical = sorted(json.dumps(json.loads(row), sort_keys=True, separators=(',', ':')) for row in rows)
-        result[table] = (len(canonical), hashlib.sha256('\n'.join(canonical).encode()).hexdigest(), canonical)
+        projection = ", ".join('t."' + column + '"' for column in columns)
+        rows = (
+            connection.execute(text(f'SELECT row_to_json(q)::text FROM (SELECT {projection} FROM "{table}" t) q'))
+            .scalars()
+            .all()
+        )
+        canonical = sorted(json.dumps(json.loads(row), sort_keys=True, separators=(",", ":")) for row in rows)
+        result[table] = (len(canonical), hashlib.sha256("\n".join(canonical).encode()).hexdigest(), canonical)
     return result, tables
 
 
 def _seed_legacy(connection):
-    _insert(connection, 'profile_versions', version=1, effective_at=STAMP,
-        timezone='America/New_York', cycle_anchor=STAMP.date(), anchor_confirmed=True,
-        strength_days_confirmed=True, scheduled_strength_days='[0,4]',
-        strength_schedule_mode='alternating', strength_week_a_start='2026-11-09',
-        strength_week_a_days='[0,4]', strength_week_b_days='[1,5]',
-        mobility_week_a_days='[2]', mobility_week_b_days='[3]',
-        mobility_optional_days='[6]', facts='{"training":"synthetic"}',
-        preferences='{"long_run_weekdays":[5,6]}', unknowns='[]')
-    account = _insert(connection, 'source_accounts', provider='synthetic', account_scope=str(uuid.uuid4()))
-    raw = _insert(connection, 'raw_objects', sha256='a'*64, relative_path='synthetic/strong.csv',
-        byte_size=20, media_type='text/csv')
-    record = _insert(connection, 'source_records', source_account_id=account,
-        raw_object_id=raw, source_identity='synthetic-row', payload_hash='b'*64,
-        fetched_at=STAMP, parser_version='fixture', source_kind='strong',
-        fields='{"sets":[{"reps":5}]}')
-    activity = _insert(connection, 'activities', source_account_id=account,
-        source_identity='synthetic-run', start_at=STAMP, original_start=STAMP.isoformat(),
-        local_date=STAMP.date(), sport='running', distance_m=5000,
-        field_provenance='{"distance_m":"synthetic"}')
-    _insert(connection, 'strong_workouts', source_account_id=account, source_identity='synthetic-lift',
-        source_record_id=record, raw_object_id=raw, payload_hash='c'*64,
-        local_date=STAMP.date(), local_start='2026-11-12T08:00:00', workout_name='Fixture lift',
-        sets='[{"exercise":"squat","reps":5}]', row_count=1)
-    first = _insert(connection, 'plan_versions', version=1, status='accepted',
-        start_date='2026-11-09', end_date='2026-11-22', profile_version=1)
-    second = _insert(connection, 'plan_versions', version=2, parent_id=first, status='draft',
-        start_date='2026-11-16', end_date='2026-11-29', profile_version=1)
-    old_session = _insert(connection, 'planned_sessions', plan_id=first, date='2026-11-12',
-        kind='run', target='{"intent":"easy","distance_km":5}')
-    new_session = _insert(connection, 'planned_sessions', plan_id=second, date='2026-11-18',
-        kind='run', target='{"intent":"long","distance_km":8}')
-    _insert(connection, 'completion_links', planned_session_id=old_session, activity_id=activity)
-    checkin = _insert(connection, 'checkins', idempotency_key='synthetic-checkin', version=2,
-        observed_at=STAMP, symptoms='none', gait='normal', feeling='usual',
-        activity_id=activity, note='synthetic only')
-    _insert(connection, 'checkin_revisions', checkin_id=checkin, version=1,
-        payload='{"symptoms":"none","note":"prior synthetic value"}')
-    recommendation = _insert(connection, 'coach_recommendations', kind='daily',
-        as_of=STAMP.date(), engine='local_rules', knowledge_version='fixture',
-        data_revision=0, profile_version=1, plan_version=1, input_hash='f'*64,
-        inputs='{"source":"synthetic"}', payload='{"decision":"proceed"}')
-    _insert(connection, 'coach_outcomes', recommendation_id=recommendation,
-        status='accepted', effect='followed', note='synthetic')
-    _insert(connection, 'coach_outcome_events', recommendation_id=recommendation,
-        status='accepted', effect='followed', note='synthetic event')
-    prior = _insert(connection, 'coach_plan_revisions', plan_id=first, workflow='weekly',
-        as_of=STAMP.date(), idempotency_key='synthetic-coach-1', evidence_hash='d'*64,
-        summary='synthetic', rationale='synthetic', payload=json.dumps({'active_session_ids':[str(old_session),str(new_session)]}), inputs='{}')
-    _insert(connection, 'coach_plan_revisions', parent_revision_id=prior, plan_id=second,
-        workflow='daily', as_of=STAMP.date(), idempotency_key='synthetic-coach-2',
-        evidence_hash='e'*64, summary='synthetic', rationale='synthetic',
-        payload=json.dumps({'active_session_ids':[str(new_session),str(old_session)]}), inputs='{}')
+    _insert(
+        connection,
+        "profile_versions",
+        version=1,
+        effective_at=STAMP,
+        timezone="America/New_York",
+        cycle_anchor=STAMP.date(),
+        anchor_confirmed=True,
+        strength_days_confirmed=True,
+        scheduled_strength_days="[0,4]",
+        strength_schedule_mode="alternating",
+        strength_week_a_start="2026-11-09",
+        strength_week_a_days="[0,4]",
+        strength_week_b_days="[1,5]",
+        mobility_week_a_days="[2]",
+        mobility_week_b_days="[3]",
+        mobility_optional_days="[6]",
+        facts='{"training":"synthetic"}',
+        preferences='{"long_run_weekdays":[5,6]}',
+        unknowns="[]",
+    )
+    account = _insert(connection, "source_accounts", provider="synthetic", account_scope=str(uuid.uuid4()))
+    raw = _insert(
+        connection,
+        "raw_objects",
+        sha256="a" * 64,
+        relative_path="synthetic/strong.csv",
+        byte_size=20,
+        media_type="text/csv",
+    )
+    record = _insert(
+        connection,
+        "source_records",
+        source_account_id=account,
+        raw_object_id=raw,
+        source_identity="synthetic-row",
+        payload_hash="b" * 64,
+        fetched_at=STAMP,
+        parser_version="fixture",
+        source_kind="strong",
+        fields='{"sets":[{"reps":5}]}',
+    )
+    activity = _insert(
+        connection,
+        "activities",
+        source_account_id=account,
+        source_identity="synthetic-run",
+        start_at=STAMP,
+        original_start=STAMP.isoformat(),
+        local_date=STAMP.date(),
+        sport="running",
+        distance_m=5000,
+        field_provenance='{"distance_m":"synthetic"}',
+    )
+    _insert(
+        connection,
+        "strong_workouts",
+        source_account_id=account,
+        source_identity="synthetic-lift",
+        source_record_id=record,
+        raw_object_id=raw,
+        payload_hash="c" * 64,
+        local_date=STAMP.date(),
+        local_start="2026-11-12T08:00:00",
+        workout_name="Fixture lift",
+        sets='[{"exercise":"squat","reps":5}]',
+        row_count=1,
+    )
+    first = _insert(
+        connection,
+        "plan_versions",
+        version=1,
+        status="accepted",
+        start_date="2026-11-09",
+        end_date="2026-11-22",
+        profile_version=1,
+    )
+    second = _insert(
+        connection,
+        "plan_versions",
+        version=2,
+        parent_id=first,
+        status="draft",
+        start_date="2026-11-16",
+        end_date="2026-11-29",
+        profile_version=1,
+    )
+    old_session = _insert(
+        connection,
+        "planned_sessions",
+        plan_id=first,
+        date="2026-11-12",
+        kind="run",
+        target='{"intent":"easy","distance_km":5}',
+    )
+    new_session = _insert(
+        connection,
+        "planned_sessions",
+        plan_id=second,
+        date="2026-11-18",
+        kind="run",
+        target='{"intent":"long","distance_km":8}',
+    )
+    _insert(connection, "completion_links", planned_session_id=old_session, activity_id=activity)
+    checkin = _insert(
+        connection,
+        "checkins",
+        idempotency_key="synthetic-checkin",
+        version=2,
+        observed_at=STAMP,
+        symptoms="none",
+        gait="normal",
+        feeling="usual",
+        activity_id=activity,
+        note="synthetic only",
+    )
+    _insert(
+        connection,
+        "checkin_revisions",
+        checkin_id=checkin,
+        version=1,
+        payload='{"symptoms":"none","note":"prior synthetic value"}',
+    )
+    recommendation = _insert(
+        connection,
+        "coach_recommendations",
+        kind="daily",
+        as_of=STAMP.date(),
+        engine="local_rules",
+        knowledge_version="fixture",
+        data_revision=0,
+        profile_version=1,
+        plan_version=1,
+        input_hash="f" * 64,
+        inputs='{"source":"synthetic"}',
+        payload='{"decision":"proceed"}',
+    )
+    _insert(
+        connection,
+        "coach_outcomes",
+        recommendation_id=recommendation,
+        status="accepted",
+        effect="followed",
+        note="synthetic",
+    )
+    _insert(
+        connection,
+        "coach_outcome_events",
+        recommendation_id=recommendation,
+        status="accepted",
+        effect="followed",
+        note="synthetic event",
+    )
+    prior = _insert(
+        connection,
+        "coach_plan_revisions",
+        plan_id=first,
+        workflow="weekly",
+        as_of=STAMP.date(),
+        idempotency_key="synthetic-coach-1",
+        evidence_hash="d" * 64,
+        summary="synthetic",
+        rationale="synthetic",
+        payload=json.dumps({"active_session_ids": [str(old_session), str(new_session)]}),
+        inputs="{}",
+    )
+    _insert(
+        connection,
+        "coach_plan_revisions",
+        parent_revision_id=prior,
+        plan_id=second,
+        workflow="daily",
+        as_of=STAMP.date(),
+        idempotency_key="synthetic-coach-2",
+        evidence_hash="e" * 64,
+        summary="synthetic",
+        rationale="synthetic",
+        payload=json.dumps({"active_session_ids": [str(new_session), str(old_session)]}),
+        inputs="{}",
+    )
     return activity
 
 
@@ -162,7 +297,7 @@ def _expect_integrity(connection, sql: str, *, constraint: str | None = None, **
 
 def test_populated_0009_upgrade_preserves_legacy_and_serves_profile(isolated_schema):
     connection = isolated_schema
-    _migration(connection, '0009_agent_plan')
+    _migration(connection, "0009_agent_plan")
     activity = _seed_legacy(connection)
     connection.commit()
     before, projection = _legacy_snapshot(connection)
@@ -170,26 +305,31 @@ def test_populated_0009_upgrade_preserves_legacy_and_serves_profile(isolated_sch
     connection.commit()
     after, _ = _legacy_snapshot(connection, projection)
     assert after == before
-    assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == HEAD
-    assert connection.execute(text('SELECT calendar_head_version FROM app_state WHERE id=1')).scalar_one() == 0
-    assert connection.execute(text('SELECT fit_status FROM activities WHERE id=:id'), {'id': activity}).scalar_one() == 'not_fetched'
+    assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
+    assert connection.execute(text("SELECT calendar_head_version FROM app_state WHERE id=1")).scalar_one() == 0
+    assert (
+        connection.execute(text("SELECT fit_status FROM activities WHERE id=:id"), {"id": activity}).scalar_one()
+        == "not_fetched"
+    )
 
     factory = sessionmaker(bind=connection, expire_on_commit=False)
+
     def override():
         with factory() as session:
             yield session
+
     app.dependency_overrides[get_session] = override
-    with patch('app.main.SessionLocal', factory):
+    with patch("app.main.SessionLocal", factory):
         try:
             client = TestClient(app)
-            assert client.get('/api/v1/health/ready').status_code == 200
-            profile = client.get('/api/v1/profile').json()['data']
-            assert profile['strength_schedule_mode'] == 'alternating'
-            profile['expected_version'] = profile['version']
-            profile['preferences'] = {'long_run_weekdays': [6]}
-            response = client.put('/api/v1/profile', json=profile, headers=HEADERS)
+            assert client.get("/api/v1/health/ready").status_code == 200
+            profile = client.get("/api/v1/profile").json()["data"]
+            assert profile["strength_schedule_mode"] == "alternating"
+            profile["expected_version"] = profile["version"]
+            profile["preferences"] = {"long_run_weekdays": [6]}
+            response = client.put("/api/v1/profile", json=profile, headers=HEADERS)
             assert response.status_code == 200, response.text
-            assert 'planning_authority' not in response.json()['data']
+            assert "planning_authority" not in response.json()["data"]
         finally:
             app.dependency_overrides.pop(get_session, None)
 
@@ -199,95 +339,132 @@ def test_empty_round_trip_and_each_nonempty_downgrade_guard(isolated_schema):
     _migration(connection, HEAD)
     connection.commit()
     factory = sessionmaker(bind=connection, expire_on_commit=False)
+
     def override():
         with factory() as session:
             yield session
+
     app.dependency_overrides[get_session] = override
     try:
-        response = TestClient(app).get('/api/v1/profile')
+        response = TestClient(app).get("/api/v1/profile")
         assert response.status_code == 200
-        assert 'planning_authority' not in response.json()['data']
+        assert "planning_authority" not in response.json()["data"]
     finally:
         app.dependency_overrides.pop(get_session, None)
-    _migration(connection, '0019_lap_intensity_end', down=True)
-    assert connection.execute(text('SELECT planning_authority FROM app_state WHERE id=1')).scalar_one() == 'legacy'
-    connection.execute(text('UPDATE app_state SET calendar_head_version=2 WHERE id=1'))
+    _migration(connection, "0019_lap_intensity_end", down=True)
+    assert connection.execute(text("SELECT planning_authority FROM app_state WHERE id=1")).scalar_one() == "legacy"
+    connection.execute(text("UPDATE app_state SET calendar_head_version=2 WHERE id=1"))
     connection.commit()
     _migration(connection, HEAD)
     connection.commit()
-    _migration(connection, '0019_lap_intensity_end', down=True)
-    assert connection.execute(text('SELECT planning_authority FROM app_state WHERE id=1')).scalar_one() == 'calendar'
+    _migration(connection, "0019_lap_intensity_end", down=True)
+    assert connection.execute(text("SELECT planning_authority FROM app_state WHERE id=1")).scalar_one() == "calendar"
     connection.execute(text("UPDATE app_state SET planning_authority='legacy', calendar_head_version=0 WHERE id=1"))
-    _migration(connection, '0015_coach_v2', down=True)
+    _migration(connection, "0015_coach_v2", down=True)
     connection.commit()
     guard_cases = [
-        ('0015_coach_v2', '0014_anchors_metrics_prompts', 'daily_guidance',
-         dict(local_date=STAMP.date(), engine='local_rules.v2', decision='proceed',
-              rationale='synthetic', input_hash='a'*64)),
-        ('0014_anchors_metrics_prompts', '0013_blocks_goals', 'prompts',
-         dict(kind='rpe', opens_at=STAMP, status='open')),
-        ('0013_blocks_goals', '0012_calendar', 'goals',
-         dict(text='synthetic goal', horizon='season', priority=1, status='active')),
-        ('0012_calendar', '0011_checkins_v2', 'calendar_versions',
-         dict(number=1, kind='bootstrap', actor='system')),
-        ('0011_checkins_v2', '0010_ingest_fit', 'checkins_v2',
-         dict(idempotency_key='synthetic', kind='exception', observed_at=STAMP)),
-        ('0010_ingest_fit', '0009_agent_plan', 'activity_laps', None),
+        (
+            "0015_coach_v2",
+            "0014_anchors_metrics_prompts",
+            "daily_guidance",
+            dict(
+                local_date=STAMP.date(),
+                engine="local_rules.v2",
+                decision="proceed",
+                rationale="synthetic",
+                input_hash="a" * 64,
+            ),
+        ),
+        (
+            "0014_anchors_metrics_prompts",
+            "0013_blocks_goals",
+            "prompts",
+            dict(kind="rpe", opens_at=STAMP, status="open"),
+        ),
+        (
+            "0013_blocks_goals",
+            "0012_calendar",
+            "goals",
+            dict(text="synthetic goal", horizon="season", priority=1, status="active"),
+        ),
+        ("0012_calendar", "0011_checkins_v2", "calendar_versions", dict(number=1, kind="bootstrap", actor="system")),
+        (
+            "0011_checkins_v2",
+            "0010_ingest_fit",
+            "checkins_v2",
+            dict(idempotency_key="synthetic", kind="exception", observed_at=STAMP),
+        ),
+        ("0010_ingest_fit", "0009_agent_plan", "activity_laps", None),
     ]
     for revision, previous, table, values in guard_cases:
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == revision
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == revision
         if values is None:
-            activity = _insert(connection, 'activities', start_at=STAMP,
-                original_start=STAMP.isoformat(), local_date=STAMP.date(), sport='running')
+            activity = _insert(
+                connection,
+                "activities",
+                start_at=STAMP,
+                original_start=STAMP.isoformat(),
+                local_date=STAMP.date(),
+                sport="running",
+            )
             values = dict(activity_id=activity, lap_index=0, start_at=STAMP)
         row_id = _insert(connection, table, **values)
         connection.commit()
-        with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
+        with pytest.raises(RuntimeError, match="restore_required_nonempty_mvp_schema"):
             _migration(connection, previous, down=True)
         connection.rollback()
         assert connection.execute(text(f"SELECT to_regclass('{table}') IS NOT NULL")).scalar_one()
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == revision
-        connection.execute(text(f'DELETE FROM {table} WHERE id=:id'), {'id': row_id})
-        if revision == '0012_calendar':
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == revision
+        connection.execute(text(f"DELETE FROM {table} WHERE id=:id"), {"id": row_id})
+        if revision == "0012_calendar":
             connection.execute(text("UPDATE app_state SET planning_authority='calendar' WHERE id=1"))
             connection.commit()
-            with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
+            with pytest.raises(RuntimeError, match="restore_required_nonempty_mvp_schema"):
                 _migration(connection, previous, down=True)
             connection.rollback()
             assert connection.execute(text("SELECT to_regclass('calendar_versions') IS NOT NULL")).scalar_one()
-            connection.execute(text("UPDATE app_state SET planning_authority='legacy', calendar_head_version=2 WHERE id=1"))
+            connection.execute(
+                text("UPDATE app_state SET planning_authority='legacy', calendar_head_version=2 WHERE id=1")
+            )
             connection.commit()
-            with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
+            with pytest.raises(RuntimeError, match="restore_required_nonempty_mvp_schema"):
                 _migration(connection, previous, down=True)
             connection.rollback()
-            connection.execute(text('UPDATE app_state SET calendar_head_version=0 WHERE id=1'))
-        if revision == '0010_ingest_fit':
-            connection.execute(text("UPDATE activities SET fit_status='fetched' WHERE id=:id"), {'id': activity})
+            connection.execute(text("UPDATE app_state SET calendar_head_version=0 WHERE id=1"))
+        if revision == "0010_ingest_fit":
+            connection.execute(text("UPDATE activities SET fit_status='fetched' WHERE id=:id"), {"id": activity})
             connection.commit()
-            with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
+            with pytest.raises(RuntimeError, match="restore_required_nonempty_mvp_schema"):
                 _migration(connection, previous, down=True)
             connection.rollback()
             assert connection.execute(text("SELECT to_regclass('fit_files') IS NOT NULL")).scalar_one()
-            connection.execute(text("UPDATE activities SET fit_status='not_fetched' WHERE id=:id"), {'id': activity})
+            connection.execute(text("UPDATE activities SET fit_status='not_fetched' WHERE id=:id"), {"id": activity})
         _migration(connection, previous, down=True)
         connection.commit()
     _migration(connection, HEAD)
     connection.commit()
-    assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == HEAD
+    assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
 
 
 def test_0020_refuses_to_drop_nonempty_tables(isolated_schema):
     connection = isolated_schema
-    _migration(connection, '0019_lap_intensity_end')
-    row_id = _insert(connection, 'daily_guidance', local_date=STAMP.date(),
-        engine='local_rules.v2', decision='proceed', rationale='synthetic', input_hash='a'*64)
+    _migration(connection, "0019_lap_intensity_end")
+    row_id = _insert(
+        connection,
+        "daily_guidance",
+        local_date=STAMP.date(),
+        engine="local_rules.v2",
+        decision="proceed",
+        rationale="synthetic",
+        input_hash="a" * 64,
+    )
     connection.commit()
-    with pytest.raises(RuntimeError, match='nonempty_table_drop_refused'):
-        _migration(connection, '0020_drop_planning_authority')
+    with pytest.raises(RuntimeError, match="nonempty_table_drop_refused"):
+        _migration(connection, "0020_drop_planning_authority")
     connection.rollback()
     assert connection.execute(text("SELECT to_regclass('daily_guidance') IS NOT NULL")).scalar_one()
-    assert connection.execute(text('SELECT id FROM daily_guidance')).scalar_one() == row_id
-    assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0019_lap_intensity_end'
+    assert connection.execute(text("SELECT id FROM daily_guidance")).scalar_one() == row_id
+    assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0019_lap_intensity_end"
 
 
 def test_database_subject_uniqueness_ranges_and_late_foreign_keys(isolated_schema):
@@ -295,127 +472,258 @@ def test_database_subject_uniqueness_ranges_and_late_foreign_keys(isolated_schem
     _migration(connection, HEAD)
     connection.commit()
     expected_foreign_keys = {
-        ('activities', 'fit_file_id', 'fit_files'),
-        ('checkins_v2', 'prompt_id', 'prompts'),
-        ('calendar_versions', 'block_version_id', 'block_versions'),
-        ('calendar_versions', 'proposal_id', 'coach_proposals'),
-        ('calendar_session_revisions', 'strength_slot_id', 'strength_routine_slots'),
-        ('block_versions', 'proposal_id', 'coach_proposals'),
-        ('block_decisions', 'proposal_id', 'coach_proposals'),
-        ('intensity_anchors', 'proposal_id', 'coach_proposals'),
+        ("activities", "fit_file_id", "fit_files"),
+        ("checkins_v2", "prompt_id", "prompts"),
+        ("calendar_versions", "block_version_id", "block_versions"),
+        ("calendar_versions", "proposal_id", "coach_proposals"),
+        ("calendar_session_revisions", "strength_slot_id", "strength_routine_slots"),
+        ("block_versions", "proposal_id", "coach_proposals"),
+        ("block_decisions", "proposal_id", "coach_proposals"),
+        ("intensity_anchors", "proposal_id", "coach_proposals"),
     }
-    actual_foreign_keys = {(table, column, fk['referred_table'])
+    actual_foreign_keys = {
+        (table, column, fk["referred_table"])
         for table in {item[0] for item in expected_foreign_keys}
         for fk in inspect(connection).get_foreign_keys(table)
-        for column in fk['constrained_columns']}
+        for column in fk["constrained_columns"]
+    }
     assert expected_foreign_keys <= actual_foreign_keys
-    activity = _insert(connection, 'activities', start_at=STAMP, original_start=STAMP.isoformat(),
-        local_date=STAMP.date(), sport='running')
-    manual = _insert(connection, 'manual_sessions', date=STAMP.date(), kind='run')
+    activity = _insert(
+        connection,
+        "activities",
+        start_at=STAMP,
+        original_start=STAMP.isoformat(),
+        local_date=STAMP.date(),
+        sport="running",
+    )
+    manual = _insert(connection, "manual_sessions", date=STAMP.date(), kind="run")
     connection.commit()
 
-    _insert(connection, 'prompts', kind='rpe', opens_at=STAMP, status='open')
+    _insert(connection, "prompts", kind="rpe", opens_at=STAMP, status="open")
     connection.commit()
-    _expect_integrity(connection,
+    _expect_integrity(
+        connection,
         "INSERT INTO prompts (id,kind,opens_at,status) VALUES (:id,'rpe',:at,'open')",
-        constraint='uq_prompts_kind_activity_session', id=uuid.uuid4(), at=STAMP)
-    _expect_integrity(connection,
+        constraint="uq_prompts_kind_activity_session",
+        id=uuid.uuid4(),
+        at=STAMP,
+    )
+    _expect_integrity(
+        connection,
         "INSERT INTO session_rpe (id,rpe,source,collected_at) VALUES (:id,5,'manual',:at)",
-        constraint='ck_session_rpe_subject', id=uuid.uuid4(), at=STAMP)
-    _expect_integrity(connection,
+        constraint="ck_session_rpe_subject",
+        id=uuid.uuid4(),
+        at=STAMP,
+    )
+    _expect_integrity(
+        connection,
         "INSERT INTO session_rpe (id,activity_id,manual_session_id,rpe,source,collected_at) VALUES (:id,:activity,:manual,5,'manual',:at)",
-        constraint='ck_session_rpe_subject', id=uuid.uuid4(), activity=activity, manual=manual, at=STAMP)
-    _expect_integrity(connection,
+        constraint="ck_session_rpe_subject",
+        id=uuid.uuid4(),
+        activity=activity,
+        manual=manual,
+        at=STAMP,
+    )
+    _expect_integrity(
+        connection,
         "INSERT INTO session_rpe (id,activity_id,rpe,source,collected_at) VALUES (:id,:activity,11,'manual',:at)",
-        constraint='ck_session_rpe_rpe', id=uuid.uuid4(), activity=activity, at=STAMP)
-    _insert(connection, 'session_rpe', activity_id=activity, rpe=0, source='manual', collected_at=STAMP)
-    _insert(connection, 'session_rpe', manual_session_id=manual, rpe=10, source='manual', collected_at=STAMP)
+        constraint="ck_session_rpe_rpe",
+        id=uuid.uuid4(),
+        activity=activity,
+        at=STAMP,
+    )
+    _insert(connection, "session_rpe", activity_id=activity, rpe=0, source="manual", collected_at=STAMP)
+    _insert(connection, "session_rpe", manual_session_id=manual, rpe=10, source="manual", collected_at=STAMP)
     connection.commit()
 
-    _insert(connection, 'session_completions', session_uid=uuid.uuid4(), status='skipped',
-        match_method='none', updated_at=STAMP)
+    _insert(
+        connection,
+        "session_completions",
+        session_uid=uuid.uuid4(),
+        status="skipped",
+        match_method="none",
+        updated_at=STAMP,
+    )
     connection.commit()
-    _expect_integrity(connection,
+    _expect_integrity(
+        connection,
         "INSERT INTO session_completions (id,session_uid,status,match_method,updated_at) VALUES (:id,:uid,'completed_as_planned','none',:at)",
-        constraint='ck_session_completions_status_subject', id=uuid.uuid4(), uid=uuid.uuid4(), at=STAMP)
-    _expect_integrity(connection,
+        constraint="ck_session_completions_status_subject",
+        id=uuid.uuid4(),
+        uid=uuid.uuid4(),
+        at=STAMP,
+    )
+    _expect_integrity(
+        connection,
         "INSERT INTO session_completions (id,session_uid,activity_id,manual_session_id,status,match_method,updated_at) VALUES (:id,:uid,:activity,:manual,'skipped','explicit',:at)",
-        constraint='ck_session_completions_subject', id=uuid.uuid4(), uid=uuid.uuid4(), activity=activity, manual=manual, at=STAMP)
-    _expect_integrity(connection,
+        constraint="ck_session_completions_subject",
+        id=uuid.uuid4(),
+        uid=uuid.uuid4(),
+        activity=activity,
+        manual=manual,
+        at=STAMP,
+    )
+    _expect_integrity(
+        connection,
         "INSERT INTO checkins_v2 (id,idempotency_key,kind,observed_at,context_tags) VALUES (:id,'bad-tag','exception',:at,ARRAY['invalid'])",
-        constraint='ck_checkins_v2_context_tags', id=uuid.uuid4(), at=STAMP)
-    _expect_integrity(connection,
+        constraint="ck_checkins_v2_context_tags",
+        id=uuid.uuid4(),
+        at=STAMP,
+    )
+    _expect_integrity(
+        connection,
         "INSERT INTO checkins_v2 (id,idempotency_key,kind,observed_at,context_tags,prompt_id) VALUES (:id,'bad-prompt','exception',:at,ARRAY[]::varchar[],:prompt)",
-        constraint='fk_checkins_v2_prompt_id', id=uuid.uuid4(), at=STAMP, prompt=uuid.uuid4())
-    _insert(connection, 'calendar_versions', number=1, kind='bootstrap', actor='system')
+        constraint="fk_checkins_v2_prompt_id",
+        id=uuid.uuid4(),
+        at=STAMP,
+        prompt=uuid.uuid4(),
+    )
+    _insert(connection, "calendar_versions", number=1, kind="bootstrap", actor="system")
     connection.commit()
-    _expect_integrity(connection,
+    _expect_integrity(
+        connection,
         "INSERT INTO calendar_session_revisions (id,session_uid,revision,calendar_version_number,local_date,kind,intent,certainty,strength_slot_id) VALUES (:id,:uid,1,1,:day,'strength','lift','committed',:slot)",
-        constraint='fk_calendar_session_revisions_strength_slot_id',
-        id=uuid.uuid4(), uid=uuid.uuid4(), day=STAMP.date(), slot=uuid.uuid4())
+        constraint="fk_calendar_session_revisions_strength_slot_id",
+        id=uuid.uuid4(),
+        uid=uuid.uuid4(),
+        day=STAMP.date(),
+        slot=uuid.uuid4(),
+    )
 
-    anchor = dict(anchor_key='fixture-aerobic', kind='hr_aerobic_upper', value_low=140,
-        unit='bpm', protocol='manual', confidence='high', status='active',
-        calibrated_at=STAMP, valid_from=STAMP.date(), review_after=STAMP.date())
-    _insert(connection, 'intensity_anchors', **anchor)
+    anchor = dict(
+        anchor_key="fixture-aerobic",
+        kind="hr_aerobic_upper",
+        value_low=140,
+        unit="bpm",
+        protocol="manual",
+        confidence="high",
+        status="active",
+        calibrated_at=STAMP,
+        valid_from=STAMP.date(),
+        review_after=STAMP.date(),
+    )
+    _insert(connection, "intensity_anchors", **anchor)
     connection.commit()
-    _expect_integrity(connection,
+    _expect_integrity(
+        connection,
         """INSERT INTO intensity_anchors (id,anchor_key,kind,value_low,unit,protocol,confidence,status,calibrated_at,valid_from,review_after)
            VALUES (:id,'bad-unit','hr_aerobic_upper',140,'mps','manual','high','active',:at,:day,:day)""",
-        id=uuid.uuid4(), at=STAMP, day=STAMP.date())
-    _expect_integrity(connection,
+        id=uuid.uuid4(),
+        at=STAMP,
+        day=STAMP.date(),
+    )
+    _expect_integrity(
+        connection,
         """INSERT INTO intensity_anchors (id,anchor_key,kind,value_low,value_high,unit,protocol,confidence,status,calibrated_at,valid_from,review_after)
            VALUES (:id,'bad-range','hr_aerobic_upper',150,140,'bpm','manual','high','active',:at,:day,:day)""",
-        id=uuid.uuid4(), at=STAMP, day=STAMP.date())
+        id=uuid.uuid4(),
+        at=STAMP,
+        day=STAMP.date(),
+    )
 
-    metric_config = dict(metric_id='fixture', method_version='v1', config='{}', config_hash='a'*64)
-    _insert(connection, 'metric_configs', **metric_config)
+    metric_config = dict(metric_id="fixture", method_version="v1", config="{}", config_hash="a" * 64)
+    _insert(connection, "metric_configs", **metric_config)
     connection.commit()
-    _expect_integrity(connection,
+    _expect_integrity(
+        connection,
         "INSERT INTO metric_configs (id,metric_id,method_version,config,config_hash) VALUES (:id,'fixture','v1','{}',:hash)",
-        id=uuid.uuid4(), hash='a'*64)
-    metric = dict(metric_id='fixture', method_version='v1', subject_type='activity',
-        subject_key=str(activity), status='available', reason_codes='{}', quality_flags='{}',
-        source_refs='{}', anchor_keys='{}', config_hash='a'*64,
-        calculated_at=STAMP, dependency_hash='b'*64, timezone='America/New_York')
-    _insert(connection, 'metric_results', **metric)
+        id=uuid.uuid4(),
+        hash="a" * 64,
+    )
+    metric = dict(
+        metric_id="fixture",
+        method_version="v1",
+        subject_type="activity",
+        subject_key=str(activity),
+        status="available",
+        reason_codes="{}",
+        quality_flags="{}",
+        source_refs="{}",
+        anchor_keys="{}",
+        config_hash="a" * 64,
+        calculated_at=STAMP,
+        dependency_hash="b" * 64,
+        timezone="America/New_York",
+    )
+    _insert(connection, "metric_results", **metric)
     connection.commit()
-    _expect_integrity(connection,
+    _expect_integrity(
+        connection,
         """INSERT INTO metric_results (id,metric_id,method_version,subject_type,subject_key,status,
              reason_codes,quality_flags,source_refs,anchor_keys,config_hash,calculated_at,
              dependency_hash,timezone)
              VALUES (:id,'fixture','v1','activity',:subject,'available','{}','{}','{}','{}',:config,:at,:dependency,'America/New_York')""",
-        constraint='uq_metric_results_identity', id=uuid.uuid4(), subject=str(activity), config='a'*64, dependency='b'*64, at=STAMP)
-    _expect_integrity(connection,
+        constraint="uq_metric_results_identity",
+        id=uuid.uuid4(),
+        subject=str(activity),
+        config="a" * 64,
+        dependency="b" * 64,
+        at=STAMP,
+    )
+    _expect_integrity(
+        connection,
         """INSERT INTO metric_results (id,metric_id,method_version,subject_type,subject_key,status,
              reason_codes,quality_flags,source_refs,anchor_keys,config_hash,calculated_at,
              dependency_hash,timezone)
              VALUES (:id,'fixture','v1','activity',:subject,'available','{}','{}','{}','{}',:config,:at,:dependency,'America/New_York')""",
-        constraint='uq_metric_results_current', id=uuid.uuid4(), subject=str(activity), config='a'*64, dependency='c'*64, at=STAMP)
+        constraint="uq_metric_results_current",
+        id=uuid.uuid4(),
+        subject=str(activity),
+        config="a" * 64,
+        dependency="c" * 64,
+        at=STAMP,
+    )
 
 
 def test_proposal_revision_upgrade_preserves_saved_proposals(isolated_schema):
     connection = isolated_schema
-    _migration(connection, '0015_coach_v2')
-    snapshot_id = _insert(connection, 'coach_snapshots', operation='review_rolling_plan', as_of=STAMP.date(),
-        generated_at=STAMP, calendar_version_number=0, data_revision=0, payload='{}', source_fingerprint='a'*64,
-        source_versions='{}', kb_digest='b'*64, payload_sha256='c'*64, kb_package_version='test', kb_routes='[]', approx_tokens=0)
-    for index, status in enumerate(['pending', 'accepted', 'rejected', 'stale']):
-        _insert(connection, 'coach_proposals', operation='review_rolling_plan', snapshot_id=snapshot_id,
-            base_calendar_version=0, status=status, submitted_at=STAMP, summary='Saved proposal',
-            rationale='Saved rationale', confidence='{}', payload=json.dumps({'summary': 'Saved proposal', 'changes': []}),
-            skill_version='running-coach.v1', input_hash=str(index)*64)
+    _migration(connection, "0015_coach_v2")
+    snapshot_id = _insert(
+        connection,
+        "coach_snapshots",
+        operation="review_rolling_plan",
+        as_of=STAMP.date(),
+        generated_at=STAMP,
+        calendar_version_number=0,
+        data_revision=0,
+        payload="{}",
+        source_fingerprint="a" * 64,
+        source_versions="{}",
+        kb_digest="b" * 64,
+        payload_sha256="c" * 64,
+        kb_package_version="test",
+        kb_routes="[]",
+        approx_tokens=0,
+    )
+    for index, status in enumerate(["pending", "accepted", "rejected", "stale"]):
+        _insert(
+            connection,
+            "coach_proposals",
+            operation="review_rolling_plan",
+            snapshot_id=snapshot_id,
+            base_calendar_version=0,
+            status=status,
+            submitted_at=STAMP,
+            summary="Saved proposal",
+            rationale="Saved rationale",
+            confidence="{}",
+            payload=json.dumps({"summary": "Saved proposal", "changes": []}),
+            skill_version="running-coach.v1",
+            input_hash=str(index) * 64,
+        )
     connection.commit()
     before, projection = _legacy_snapshot(connection)
-    _migration(connection, '0016_proposal_revisions')
+    _migration(connection, "0016_proposal_revisions")
     connection.commit()
     after, _ = _legacy_snapshot(connection, projection)
     assert before == after
-    history = connection.execute(text('''SELECT p.revision, r.revision, r.payload = p.payload, r.saved_at = p.submitted_at
-        FROM coach_proposals p JOIN coach_proposal_revisions r ON p.id=r.proposal_id''')).all()
+    history = connection.execute(
+        text("""SELECT p.revision, r.revision, r.payload = p.payload, r.saved_at = p.submitted_at
+        FROM coach_proposals p JOIN coach_proposal_revisions r ON p.id=r.proposal_id""")
+    ).all()
     assert history == [(1, 1, True, True)] * 4
-    with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
-        _migration(connection, '0015_coach_v2', down=True)
+    with pytest.raises(RuntimeError, match="restore_required_nonempty_mvp_schema"):
+        _migration(connection, "0015_coach_v2", down=True)
     connection.rollback()
 
 
@@ -423,44 +731,80 @@ def test_single_open_upgrade_archives_older_drafts_and_preserves_history(isolate
     from datetime import timedelta
 
     connection = isolated_schema
-    _migration(connection, '0016_proposal_revisions')
-    snapshot_id = _insert(connection, 'coach_snapshots', operation='review_rolling_plan', as_of=STAMP.date(),
-        generated_at=STAMP, calendar_version_number=0, data_revision=0, payload='{}', source_fingerprint='a'*64,
-        source_versions='{}', kb_digest='b'*64, payload_sha256='c'*64, kb_package_version='test', kb_routes='[]', approx_tokens=0)
-    proposal_values = dict(operation='review_rolling_plan', snapshot_id=snapshot_id, base_calendar_version=0,
-        summary='Saved proposal', rationale='Saved rationale', confidence='{}', payload='{"changes":[]}',
-        skill_version='running-coach.v1')
+    _migration(connection, "0016_proposal_revisions")
+    snapshot_id = _insert(
+        connection,
+        "coach_snapshots",
+        operation="review_rolling_plan",
+        as_of=STAMP.date(),
+        generated_at=STAMP,
+        calendar_version_number=0,
+        data_revision=0,
+        payload="{}",
+        source_fingerprint="a" * 64,
+        source_versions="{}",
+        kb_digest="b" * 64,
+        payload_sha256="c" * 64,
+        kb_package_version="test",
+        kb_routes="[]",
+        approx_tokens=0,
+    )
+    proposal_values = dict(
+        operation="review_rolling_plan",
+        snapshot_id=snapshot_id,
+        base_calendar_version=0,
+        summary="Saved proposal",
+        rationale="Saved rationale",
+        confidence="{}",
+        payload='{"changes":[]}',
+        skill_version="running-coach.v1",
+    )
     ids = []
-    for index, status in enumerate(['pending', 'stale', 'invalid', 'accepted', 'rejected']):
-        uid = _insert(connection, 'coach_proposals', **proposal_values, status=status,
-            submitted_at=STAMP+timedelta(minutes=index), input_hash=str(index)*64)
+    for index, status in enumerate(["pending", "stale", "invalid", "accepted", "rejected"]):
+        uid = _insert(
+            connection,
+            "coach_proposals",
+            **proposal_values,
+            status=status,
+            submitted_at=STAMP + timedelta(minutes=index),
+            input_hash=str(index) * 64,
+        )
         ids.append(uid)
-        connection.execute(text('''INSERT INTO coach_proposal_revisions
+        connection.execute(
+            text("""INSERT INTO coach_proposal_revisions
             (proposal_id, revision, saved_at, reason, payload, changed_change_ids, changed_fields)
-            VALUES (:id, 1, :saved, 'Original proposal', '{"changes":[]}', '{}', '{}')'''),
-            {'id':uid,'saved':STAMP+timedelta(minutes=10 if index==0 else index)})
+            VALUES (:id, 1, :saved, 'Original proposal', '{"changes":[]}', '{}', '{}')"""),
+            {"id": uid, "saved": STAMP + timedelta(minutes=10 if index == 0 else index)},
+        )
     connection.commit()
     _, projection = _legacy_snapshot(connection)
-    projection['coach_proposals'].remove('status')
-    projection['app_state'].remove('planning_authority')
-    del projection['daily_guidance']
+    projection["coach_proposals"].remove("status")
+    projection["app_state"].remove("planning_authority")
+    del projection["daily_guidance"]
     before, _ = _legacy_snapshot(connection, projection)
     _migration(connection, HEAD)
     connection.commit()
     after, _ = _legacy_snapshot(connection, projection)
     assert after == before
-    rows = {row.id:row for row in connection.execute(text('SELECT id,status,discarded_at FROM coach_proposals'))}
-    assert rows[ids[0]].status == 'pending'
-    assert [rows[uid].status for uid in ids[1:]] == ['discarded','discarded','accepted','rejected']
+    rows = {row.id: row for row in connection.execute(text("SELECT id,status,discarded_at FROM coach_proposals"))}
+    assert rows[ids[0]].status == "pending"
+    assert [rows[uid].status for uid in ids[1:]] == ["discarded", "discarded", "accepted", "rejected"]
     assert all(rows[uid].discarded_at is not None for uid in ids[1:3])
     assert rows[ids[0]].discarded_at is None
-    for status in ['pending','stale','invalid']:
+    for status in ["pending", "stale", "invalid"]:
         with pytest.raises(IntegrityError) as caught:
             with connection.begin_nested():
-                _insert(connection, 'coach_proposals', **proposal_values, status=status, submitted_at=STAMP, input_hash='f'*64)
-        assert caught.value.orig.diag.constraint_name == 'uq_coach_proposals_one_open'
-    with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
-        _migration(connection, '0016_proposal_revisions', down=True)
+                _insert(
+                    connection,
+                    "coach_proposals",
+                    **proposal_values,
+                    status=status,
+                    submitted_at=STAMP,
+                    input_hash="f" * 64,
+                )
+        assert caught.value.orig.diag.constraint_name == "uq_coach_proposals_one_open"
+    with pytest.raises(RuntimeError, match="restore_required_nonempty_mvp_schema"):
+        _migration(connection, "0016_proposal_revisions", down=True)
     connection.rollback()
 
 
@@ -468,71 +812,133 @@ def test_exception_schema_constraints_and_downgrade_guard(isolated_schema):
     connection = isolated_schema
     _migration(connection, HEAD)
     connection.commit()
-    snapshot = dict(as_of=STAMP.date(), generated_at=STAMP, calendar_version_number=0, data_revision=0, payload='{}',
-        source_fingerprint='a'*64, source_versions='{}', kb_digest='b'*64, payload_sha256='c'*64,
-        kb_package_version='test', kb_routes='[]', approx_tokens=0)
-    snapshot_id = _insert(connection, 'coach_snapshots', operation='exception_review', **snapshot)
-    proposal_id = _insert(connection, 'coach_proposals', operation='post_event_review', escalation='exception_review',
-        snapshot_id=snapshot_id, base_calendar_version=0, status='accepted', submitted_at=STAMP, summary='s',
-        rationale='r', confidence='{}', payload='{"changes":[]}', skill_version='running-coach.v1', input_hash='e'*64)
-    patch_id = _insert(connection, 'exception_patches', proposal_id=proposal_id, calendar_version_number=1,
-        category='training_response', severity='caution', ladder_level='next_session',
-        window_start=STAMP.date(), window_end=STAMP.date(), reassess_on=STAMP.date())
-    row = connection.execute(text('SELECT status, version, monitor, unchanged FROM exception_patches WHERE id=:id'), {'id': patch_id}).one()
-    assert (row.status, row.version, row.monitor, row.unchanged) == ('open', 1, [], [])
-    finding = dict(rule_code='FATIGUE_HIGH', rule_version='exceptions.v1', category='accumulated_fatigue',
-        severity='observe', entity_key='fatigue', summary='synthetic', evidence='[]', evidence_at=STAMP,
-        first_seen_at=STAMP, last_seen_at=STAMP)
-    _insert(connection, 'exception_findings', **finding, patch_id=patch_id)
+    snapshot = dict(
+        as_of=STAMP.date(),
+        generated_at=STAMP,
+        calendar_version_number=0,
+        data_revision=0,
+        payload="{}",
+        source_fingerprint="a" * 64,
+        source_versions="{}",
+        kb_digest="b" * 64,
+        payload_sha256="c" * 64,
+        kb_package_version="test",
+        kb_routes="[]",
+        approx_tokens=0,
+    )
+    snapshot_id = _insert(connection, "coach_snapshots", operation="exception_review", **snapshot)
+    proposal_id = _insert(
+        connection,
+        "coach_proposals",
+        operation="post_event_review",
+        escalation="exception_review",
+        snapshot_id=snapshot_id,
+        base_calendar_version=0,
+        status="accepted",
+        submitted_at=STAMP,
+        summary="s",
+        rationale="r",
+        confidence="{}",
+        payload='{"changes":[]}',
+        skill_version="running-coach.v1",
+        input_hash="e" * 64,
+    )
+    patch_id = _insert(
+        connection,
+        "exception_patches",
+        proposal_id=proposal_id,
+        calendar_version_number=1,
+        category="training_response",
+        severity="caution",
+        ladder_level="next_session",
+        window_start=STAMP.date(),
+        window_end=STAMP.date(),
+        reassess_on=STAMP.date(),
+    )
+    row = connection.execute(
+        text("SELECT status, version, monitor, unchanged FROM exception_patches WHERE id=:id"), {"id": patch_id}
+    ).one()
+    assert (row.status, row.version, row.monitor, row.unchanged) == ("open", 1, [], [])
+    finding = dict(
+        rule_code="FATIGUE_HIGH",
+        rule_version="exceptions.v1",
+        category="accumulated_fatigue",
+        severity="observe",
+        entity_key="fatigue",
+        summary="synthetic",
+        evidence="[]",
+        evidence_at=STAMP,
+        first_seen_at=STAMP,
+        last_seen_at=STAMP,
+    )
+    _insert(connection, "exception_findings", **finding, patch_id=patch_id)
     with pytest.raises(IntegrityError) as caught:
         with connection.begin_nested():
-            _insert(connection, 'exception_findings', **finding, status='addressed')
-    assert caught.value.orig.diag.constraint_name == 'uq_exception_findings_active'
-    _insert(connection, 'exception_findings', **finding, status='dismissed', closed_at=STAMP)
-    for column, value in [('category', 'other'), ('severity', 'urgent'), ('status', 'closed')]:
+            _insert(connection, "exception_findings", **finding, status="addressed")
+    assert caught.value.orig.diag.constraint_name == "uq_exception_findings_active"
+    _insert(connection, "exception_findings", **finding, status="dismissed", closed_at=STAMP)
+    for column, value in [("category", "other"), ("severity", "urgent"), ("status", "closed")]:
         with pytest.raises(IntegrityError) as caught:
             with connection.begin_nested():
-                _insert(connection, 'exception_findings', **{**finding, 'entity_key': 'x', column: value})
-        assert caught.value.orig.diag.constraint_name == f'ck_exception_findings_{column}'
+                _insert(connection, "exception_findings", **{**finding, "entity_key": "x", column: value})
+        assert caught.value.orig.diag.constraint_name == f"ck_exception_findings_{column}"
     block_uid = uuid.uuid4()
-    _insert(connection, 'blocks', block_uid=block_uid)
-    _insert(connection, 'block_versions', block_uid=block_uid, version=1, status='active', objective='o', rationale='r',
-        progression_dimension='none', constraints='{}', start_date=STAMP.date(), review_date=STAMP.date(),
-        objective_status='unresolved', benchmark='{"kind":"time_trial","protocol":"5 km solo"}')
-    result = dict(block_uid=block_uid, block_version=1, protocol='5 km solo')
-    _insert(connection, 'block_benchmarks', **result, match_method='manual')
-    for values, name in [(dict(match_method='auto'), 'uq_block_benchmarks_block_version'),
-                         (dict(block_version=2, match_method='auto', outcome='great'), 'ck_block_benchmarks_outcome'),
-                         (dict(block_version=3, match_method='guess'), 'ck_block_benchmarks_match_method')]:
+    _insert(connection, "blocks", block_uid=block_uid)
+    _insert(
+        connection,
+        "block_versions",
+        block_uid=block_uid,
+        version=1,
+        status="active",
+        objective="o",
+        rationale="r",
+        progression_dimension="none",
+        constraints="{}",
+        start_date=STAMP.date(),
+        review_date=STAMP.date(),
+        objective_status="unresolved",
+        benchmark='{"kind":"time_trial","protocol":"5 km solo"}',
+    )
+    result = dict(block_uid=block_uid, block_version=1, protocol="5 km solo")
+    _insert(connection, "block_benchmarks", **result, match_method="manual")
+    for values, name in [
+        (dict(match_method="auto"), "uq_block_benchmarks_block_version"),
+        (dict(block_version=2, match_method="auto", outcome="great"), "ck_block_benchmarks_outcome"),
+        (dict(block_version=3, match_method="guess"), "ck_block_benchmarks_match_method"),
+    ]:
         with pytest.raises(IntegrityError) as caught:
             with connection.begin_nested():
-                _insert(connection, 'block_benchmarks', **{**result, **values})
+                _insert(connection, "block_benchmarks", **{**result, **values})
         assert caught.value.orig.diag.constraint_name == name
     connection.commit()
-    with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
-        _migration(connection, '0017_single_open_proposal', down=True)
+    with pytest.raises(RuntimeError, match="restore_required_nonempty_mvp_schema"):
+        _migration(connection, "0017_single_open_proposal", down=True)
     connection.rollback()
-    connection.execute(text('DELETE FROM exception_findings'))
-    connection.execute(text('DELETE FROM exception_patches'))
-    connection.execute(text('DELETE FROM block_benchmarks'))
-    connection.execute(text('UPDATE block_versions SET benchmark = NULL'))
+    connection.execute(text("DELETE FROM exception_findings"))
+    connection.execute(text("DELETE FROM exception_patches"))
+    connection.execute(text("DELETE FROM block_benchmarks"))
+    connection.execute(text("UPDATE block_versions SET benchmark = NULL"))
     connection.commit()
-    with pytest.raises(RuntimeError, match='restore_required_nonempty_mvp_schema'):
-        _migration(connection, '0017_single_open_proposal', down=True)
+    with pytest.raises(RuntimeError, match="restore_required_nonempty_mvp_schema"):
+        _migration(connection, "0017_single_open_proposal", down=True)
     connection.rollback()
-    connection.execute(text('DELETE FROM coach_proposals'))
-    connection.execute(text('DELETE FROM coach_snapshots'))
+    connection.execute(text("DELETE FROM coach_proposals"))
+    connection.execute(text("DELETE FROM coach_snapshots"))
     connection.commit()
-    _migration(connection, '0017_single_open_proposal', down=True)
+    _migration(connection, "0017_single_open_proposal", down=True)
     connection.commit()
     assert not connection.execute(text("SELECT to_regclass('exception_findings') IS NOT NULL")).scalar_one()
     assert not connection.execute(text("SELECT to_regclass('block_benchmarks') IS NOT NULL")).scalar_one()
-    assert not connection.execute(text("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='block_versions' AND column_name='benchmark' AND table_schema=current_schema())")).scalar_one()
+    assert not connection.execute(
+        text(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='block_versions' AND column_name='benchmark' AND table_schema=current_schema())"
+        )
+    ).scalar_one()
     with pytest.raises(IntegrityError) as caught:
         with connection.begin_nested():
-            _insert(connection, 'coach_snapshots', operation='exception_review', **snapshot)
-    assert caught.value.orig.diag.constraint_name == 'ck_coach_snapshots_operation'
+            _insert(connection, "coach_snapshots", operation="exception_review", **snapshot)
+    assert caught.value.orig.diag.constraint_name == "ck_coach_snapshots_operation"
     connection.rollback()
     _migration(connection, HEAD)
     connection.commit()
-    assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == HEAD
+    assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
