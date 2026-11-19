@@ -116,8 +116,9 @@ def _coach(args) -> int:
     from pydantic import ValidationError
 
     from app.errors import AppError
-    from app.services import knowledge, proposals
+    from app.services import knowledge
     from app.services.decision_inputs import VerifiedKnowledge
+    from app.services.proposals.lifecycle import RevisionRequest, revise_proposal, submit_proposal
     from app.services.proposals.schema import DecisionError, ProposalDoc
     from app.services.timezone import athlete_tz
 
@@ -132,7 +133,7 @@ def _coach(args) -> int:
         if args.coach_command == 'schema':
             output({'protocol': 'coach_proposal.v1', 'activation': 'manual', 'required_authority': 'calendar',
                 'proposal': ProposalDoc.model_json_schema(),
-                'revision': proposals.RevisionRequest.model_json_schema()})
+                'revision': RevisionRequest.model_json_schema()})
             return 0
         if args.coach_command == 'snapshot':
             from app.services.snapshot import build_snapshot
@@ -151,7 +152,7 @@ def _coach(args) -> int:
                 return 2
             if args.coach_command == 'revise':
                 try:
-                    request = proposals.RevisionRequest(expected_revision=args.expected_revision,
+                    request = RevisionRequest(expected_revision=args.expected_revision,
                         reason=args.reason, document=raw)
                 except ValidationError:
                     output({'proposal_id': str(args.id), 'revision': None, 'status': 'invalid',
@@ -160,9 +161,9 @@ def _coach(args) -> int:
                     return 2
             with SessionLocal.begin() as session:
                 if args.coach_command == 'submit':
-                    submitted = proposals.submit_proposal(session, raw, now=now, resolve_kb=resolve_kb)
+                    submitted = submit_proposal(session, raw, now=now, resolve_kb=resolve_kb)
                 else:
-                    submitted = proposals.revise_proposal(session, args.id, request, now=now, resolve_kb=resolve_kb)
+                    submitted = revise_proposal(session, args.id, request, now=now, resolve_kb=resolve_kb)
             output({'proposal_id': str(submitted.proposal_id) if submitted.proposal_id else None,
                 'revision': submitted.revision, 'status': submitted.status,
                 'errors': [issue.to_json() for issue in submitted.issues]})

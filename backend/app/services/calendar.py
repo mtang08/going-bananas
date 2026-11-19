@@ -290,7 +290,7 @@ def _version_row(session: Session, state: AppState, *, kind: str, actor: str,
 
 
 def _stale_proposals(session: Session) -> list[uuid.UUID]:
-    from app.services.proposals import mark_pending_stale
+    from app.services.proposals.lifecycle import mark_pending_stale
     return mark_pending_stale(session, except_id=None)
 
 

@@ -19,6 +19,7 @@ from app.read.calendar import head_version
 from app.services import calendar, knowledge, proposals
 from app.services.decision_inputs import VerifiedKnowledge
 from app.services.proposals.context import load_context, snapshot_ref
+from app.services.proposals.lifecycle import RevisionRequest, discard_proposal, revise_proposal
 from app.services.proposals.schema import AnchorChange, DecisionError, SessionFields, anchor_key
 from app.services.proposals.validation import proposal_freshness
 from app.services.timezone import athlete_tz
@@ -113,7 +114,7 @@ def get_active_proposal(session: Session = Depends(get_session)) -> dict:
 def delete_proposal(proposal_id: uuid.UUID, expected_revision: int = Query(..., gt=0),
                     session: Session = Depends(get_session)) -> dict:
     try:
-        result = proposals.discard_proposal(session, proposal_id, expected_revision, now=datetime.now(UTC))
+        result = discard_proposal(session, proposal_id, expected_revision, now=datetime.now(UTC))
     except DecisionError as exc:
         session.rollback()
         raise AppError(exc.code, exc.message, exc.http_status, [issue.to_json() for issue in exc.fields]) from exc
@@ -167,10 +168,10 @@ def get_proposal_revision(proposal_id: uuid.UUID, revision: int, session: Sessio
 
 
 @router.post('/proposals/{proposal_id}/revise')
-def post_revision(proposal_id: uuid.UUID, body: proposals.RevisionRequest,
+def post_revision(proposal_id: uuid.UUID, body: RevisionRequest,
                   session: Session = Depends(get_session)) -> dict:
     try:
-        result = proposals.revise_proposal(session, proposal_id, body, now=datetime.now(UTC), resolve_kb=resolve_kb)
+        result = revise_proposal(session, proposal_id, body, now=datetime.now(UTC), resolve_kb=resolve_kb)
     except DecisionError as exc:
         session.rollback()
         raise AppError(exc.code, exc.message, exc.http_status, [issue.to_json() for issue in exc.fields]) from exc
