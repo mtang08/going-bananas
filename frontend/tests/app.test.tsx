@@ -53,6 +53,7 @@ const calendarView = {
   last_planned_date: '2026-11-28',
   sessions: [],
   completions: [],
+  recorded_runs: [],
 }
 const weeklyProjection = {
   week_start: '2026-11-09',

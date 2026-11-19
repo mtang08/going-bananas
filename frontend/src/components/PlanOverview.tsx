@@ -154,7 +154,7 @@ export function WeekOverview({ view, unit }: { view: CalendarView; unit: Unit })
                 (c) =>
                   c.status === 'extra' && c.local_date === day && !plannedUids.has(c.session_uid),
               )
-              const recorded = (view.recorded_runs ?? []).filter(
+              const recorded = view.recorded_runs.filter(
                 (run) => run.local_date === day && !linkedActivityIds.has(run.activity_id),
               )
               return (

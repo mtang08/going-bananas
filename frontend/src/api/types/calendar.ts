@@ -97,7 +97,7 @@ export interface CalendarView {
   last_planned_date: string | null
   sessions: SessionState[]
   completions: Completion[]
-  recorded_runs?: RecordedRun[]
+  recorded_runs: RecordedRun[]
 } // today/timezone/start/end [DTO fixed here]; head 0 = no calendar yet
 export interface WeeklyProjection {
   week_start: string

@@ -59,7 +59,7 @@ beforeEach(() => {
   requests = []; error = false; onCheckin.mockReset()
   digestFail = false
   calendar = { today: '2026-11-11', timezone: 'America/New_York', start: '2026-11-04', end: '2026-11-24',
-    head: 2, version: 2, undo: null, last_planned_date: null, sessions: baseSessions(), completions: [] }
+    head: 2, version: 2, undo: null, last_planned_date: null, sessions: baseSessions(), completions: [], recorded_runs: [] }
   vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
     const url = String(input), method = init?.method ?? 'GET'
     requests.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : null, headers: new Headers(init?.headers) })
