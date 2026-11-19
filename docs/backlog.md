@@ -206,6 +206,29 @@ Unspecified.
 **Open questions**
 Unspecified.
 
+### IDEA-010 — Integrate PTT and hip mobility work with benchmarks
+
+Recorded 2026-11-19. Status: idea. Priority: Unspecified.
+
+**Problem / context**
+The athlete wants PTT and hip mobility routine work included in training, with
+benchmarks to track progress.
+
+**Desired behavior**
+Support scheduling and tracking PTT and hip mobility routine work alongside
+the training plan, with benchmarks that show progress over time.
+
+**Acceptance checks**
+- The athlete can include PTT and hip mobility work in the plan and track
+  progress against relevant benchmarks.
+
+**Constraints**
+Unspecified.
+
+**Open questions**
+The meaning of PTT, the specific routine, and the desired benchmarks are
+unspecified.
+
 ## Coaching depth and evaluation
 
 ### Product direction — dashboards plus conversational coaching (IDEA-004)
