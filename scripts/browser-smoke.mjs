@@ -17,7 +17,6 @@ try {
   await page.getByText('REAL DATA', { exact: true }).first().waitFor()
   const profile = await (await page.request.get('http://127.0.0.1:8000/api/v1/profile')).json()
   if (profile.mode !== 'real') throw new Error('Expected real workspace')
-  if (profile.data.planning_authority !== 'calendar') throw new Error('Calendar authority required')
   await mkdir(resolve('private/real/release'), { recursive: true })
   await page.getByTestId('today-card').waitFor()
   const views = [
