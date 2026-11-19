@@ -65,6 +65,7 @@ const spacing: SpacingValue = {
     to_date: '2026-11-09', hours_min: 96, hours_max: 96, confidence: 'high' }],
 }
 const windows: MetricWindows = {
+  aerobic: { w28: null, w84: null },
   as_of: '2026-11-11', windows: [
     { days: 7, volume: null, srpe: null, intensity: null, long_run: null, srpe_strength: null },
     { days: 28, volume: metric('run_volume_frequency', volume),
@@ -228,7 +229,7 @@ describe('Trends', () => {
     mount()
     expect(await screen.findByText('No confirmed long run in available data.')).toBeInTheDocument()
     expect(screen.getByText('0 long runs in 28 days (partial)')).toBeInTheDocument()
-    expect(screen.getByText('Partial data: CLASSIFICATION_UNKNOWN, ACTIVITY_RESULT_MISSING, SYNC_COVERAGE_INCOMPLETE, SOURCE_PARTIAL')).toBeInTheDocument()
+    expect(screen.getByText('Partial data: CLASSIFICATION_UNKNOWN, Some runs not analysed yet, Sync incomplete for this window, SOURCE_PARTIAL')).toBeInTheDocument()
   })
   it('keeps an absent window explicit', async () => {
     mount()
