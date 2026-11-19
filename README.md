@@ -220,8 +220,10 @@ Inspect or update them in Settings.
 ## Verification
 
 ```sh
-make check                 # backend lint/types/unit tests + frontend checks/build
+make check                 # docs links + backend lint/types/unit tests + frontend checks/build
+make check-backend         # one layer; also check-frontend, check-docs
 make test-integration      # provision the isolated database and run PostgreSQL integration tests
+make test-integration TESTS=tests/integration/test_proposals.py
 python3 scripts/test_coach_skill_v2.py  # reviewed helper contract tests; no live writes
 ```
 
@@ -281,5 +283,5 @@ or interval structure. FIT-based detail is available where verified streams,
 workout matching, and calibration support it; route/weather adjustment remains
 outside this MVP. No model or wearable can diagnose or
 provide an injury guarantee. See [research scope](docs/research-integration.md),
-[contracts](docs/contracts.md), [P0 implementation, archived](docs/archive/p0-implementation.md),
+[contracts](docs/contracts.md), [architecture](docs/architecture.md),
 [release evidence](docs/release-checklist.md), and [handoff](docs/handoff.md).

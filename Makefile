@@ -1,7 +1,8 @@
 SHELL := /bin/bash
 RUN := ./scripts/run
 BACKUP := cd backend && uv run python -m app.cli backup "$$PRIVATE_DIR/backups/backup-$$(date +%Y%m%d-%H%M%S).tar.gz"
-.PHONY: doctor setup db-start db-stop migrate seed-demo dev build start check test-db-start test-db-stop test-integration test-integration-external test-e2e sync backup
+TESTS ?= tests/integration tests/test_ingestion_integration.py
+.PHONY: doctor setup db-start db-stop migrate seed-demo dev build start check test-db-start test-db-stop test-integration test-integration-external test-e2e sync backup check-backend check-frontend check-docs complexity
 
 doctor:
 	$(RUN) python3 scripts/doctor.py
@@ -22,17 +23,24 @@ build:
 	$(RUN) bash -c 'cd frontend && npm run build'
 start:
 	$(RUN) python3 scripts/serve.py
-check:
+check: check-docs check-backend check-frontend
+check-docs:
+	$(RUN) python3 scripts/check-docs.py
+check-backend:
 	$(RUN) bash -c 'cd backend && uv run ruff check . && uv run mypy app --ignore-missing-imports && uv run pytest tests/unit tests/test_*.py -m "not integration"'
+check-frontend:
 	$(RUN) bash -c 'cd frontend && npm run lint && npm run typecheck && npm test && npm run build'
+complexity:
+	$(RUN) bash -c 'cd backend && uv run ruff check app --select C901 --config "lint.mccabe.max-complexity=15" --output-format concise || true'
+
 test-db-start:
 	python3 scripts/test-db.py start
 test-db-stop:
 	python3 scripts/test-db.py stop
 test-integration:
-	python3 scripts/test-db.py test
+	python3 scripts/test-db.py test $(TESTS)
 test-integration-external:
-	python3 scripts/test-db.py test-external
+	python3 scripts/test-db.py test-external $(TESTS)
 test-e2e:
 	$(RUN) bash -c 'cd frontend && npx playwright test'
 sync:
