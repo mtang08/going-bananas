@@ -13,7 +13,8 @@ from typing import Any, cast
 from app.services.decision_inputs import canonical_json
 from app.services.knowledge import POLICY_MAP, load_manifest, load_route
 from app.services.proposals.schema import scope
-from app.services.snapshot import (
+from app.services.snapshot import build_payload, select_conditional_topics, select_recipe_ids
+from app.services.snapshot.common import (
     BLOCK,
     CALIB,
     DAILY,
@@ -25,9 +26,6 @@ from app.services.snapshot import (
     ROLLING,
     WEEKLY_DIGEST_MAX_CHARS,
     SnapshotInputs,
-    build_payload,
-    select_conditional_topics,
-    select_recipe_ids,
 )
 
 AS_OF = date(2026, 11, 16)
