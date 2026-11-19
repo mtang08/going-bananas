@@ -18,7 +18,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db import SessionLocal, engine
+from app.db import SessionLocal, engine, global_write_lock
 from app.logs import configure
 from app.models import AppState
 from app.services.backup import BackupError, create_backup, restore_backup
@@ -35,9 +35,7 @@ def _scope() -> str:
 
 
 def _prepare_calendar_preview(session: Session) -> AppState:
-    from app.services.calendar import LOCK_ID
-
-    session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
+    global_write_lock(session)
     state = session.get(AppState, 1, with_for_update=True)
     assert state is not None
     if state.calendar_head_version == 0:

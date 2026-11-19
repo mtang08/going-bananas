@@ -9,12 +9,12 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Protocol, TypedDict
 
-from sqlalchemy import delete, or_, select, text
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.adapters.garmin.fit import DECODER_VERSION, RUN_SPORTS, FitDecodeError, decode_fit, extract_fit
 from app.checkin_models import SessionRpe
-from app.db import bump_data_revision
+from app.db import bump_data_revision, global_write_lock
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep, FitFile
 from app.logs import exception_summary, get
 from app.models import Activity, ActivitySource, RawObject, SourceRecord
@@ -104,7 +104,7 @@ def _set_error(activity: Activity, fit: FitFile | None, code: str, now: datetime
 
 
 def _locked_rows(session: Session, activity_id: uuid.UUID) -> tuple[Activity, FitFile | None]:
-    session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+    global_write_lock(session)
     activity = session.get(Activity, activity_id, with_for_update=True, populate_existing=True)
     if activity is None:
         raise FitIngestError('activity_not_found')

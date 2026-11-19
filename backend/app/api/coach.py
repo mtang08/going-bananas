@@ -7,12 +7,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.core import envelope
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachProposalRevision, CoachSnapshot
-from app.db import get_session
+from app.db import get_session, global_write_lock
 from app.errors import AppError, fail
 from app.exception_models import ExceptionPatch
 from app.models import AppState
@@ -35,7 +35,7 @@ def proposal_summary(proposal: CoachProposal) -> dict:
 
 def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
     # Serialize read freshness against source writers before reading head/fingerprint.
-    session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+    global_write_lock(session)
     session.refresh(proposal)
     state = session.get(AppState, 1, populate_existing=True)
     head = state.calendar_head_version if state else 0

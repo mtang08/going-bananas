@@ -9,7 +9,7 @@ def test_strong_apply_locks_before_source_read_and_preview_does_not(monkeypatch,
     from types import SimpleNamespace
 
     import app.services.strong_import as strong_import
-    from app.services.sync import GLOBAL_WRITE_LOCK
+    from app.db import GLOBAL_WRITE_LOCK
 
     workout = SimpleNamespace(source_identity="synthetic", payload_hash="a" * 64,
                               row_count=1, local_date="2026-11-09")
@@ -24,7 +24,7 @@ def test_strong_apply_locks_before_source_read_and_preview_does_not(monkeypatch,
             return []
 
     class SessionProbe:
-        def execute(self, statement, params):
+        def execute(self, statement, params=None):
             events.append(("lock", str(statement), params))
 
         def scalars(self, _statement):
@@ -41,7 +41,7 @@ def test_strong_apply_locks_before_source_read_and_preview_does_not(monkeypatch,
     applying = True
     with pytest.raises(StopAtSource):
         strong_import.import_strong_csv(session, tmp_path, tmp_path / "synthetic.csv", apply=True)
-    assert events[0][0] == "lock" and events[0][2] == {"key": GLOBAL_WRITE_LOCK}
+    assert events[0][0] == "lock" and events[0][1] == f"SELECT pg_advisory_xact_lock({GLOBAL_WRITE_LOCK})"
     assert events[1] == ("source",)
 
 HEADER = "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\n"

@@ -7,16 +7,16 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import desc, select, text
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.api.core import envelope
-from app.db import bump_data_revision, get_session
+from app.db import bump_data_revision, get_session, global_write_lock
 from app.errors import fail
 from app.models import Activity
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, Goal
 from app.services.block_benchmark import RUN_SPORTS, active_block_version, benchmark_spec, benchmark_status, status_data
-from app.services.strength_routine import LOCK_ID, replace_routine, routine_view
+from app.services.strength_routine import replace_routine, routine_view
 from app.services.timezone import athlete_today, athlete_tz
 
 router = APIRouter()
@@ -109,7 +109,7 @@ class EventPatch(BaseModel):
 
 
 def _writer_lock(session: Session) -> None:
-    session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
+    global_write_lock(session)
 
 
 def _goal(row: Goal) -> dict:

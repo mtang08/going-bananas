@@ -7,14 +7,12 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.core import envelope
-from app.db import bump_data_revision, get_session
+from app.db import bump_data_revision, get_session, global_write_lock
 from app.errors import fail
 from app.exception_models import ExceptionFinding, ExceptionPatch
-from app.services.calendar import LOCK_ID
 from app.services.exceptions.detector import exceptions_view, finding_data, last_review_at, patch_data, run_detection
 from app.services.exceptions.lifecycle import close_finding, resolve_patch
 from app.services.timezone import athlete_today
@@ -35,10 +33,6 @@ class ResolveInput(BaseModel):
     note: str | None = Field(default=None, max_length=500)
 
 
-def _lock(session: Session) -> None:
-    session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
-
-
 @router.get('/exceptions')
 def get_exceptions(include: Literal['active', 'recent'] = 'active', session: Session = Depends(get_session)) -> dict:
     now = datetime.now(UTC)
@@ -50,7 +44,7 @@ def get_exceptions(include: Literal['active', 'recent'] = 'active', session: Ses
 
 @router.post('/exceptions/{finding_id}/dismiss')
 def dismiss_finding_route(finding_id: uuid.UUID, body: DismissInput, session: Session = Depends(get_session)) -> dict:
-    _lock(session)
+    global_write_lock(session)
     row = session.get(ExceptionFinding, finding_id, with_for_update=True)
     if row is None:
         fail('finding_not_found', 'Finding not found', 404)
@@ -68,7 +62,7 @@ def dismiss_finding_route(finding_id: uuid.UUID, body: DismissInput, session: Se
 
 @router.post('/exception-patches/{patch_id}/resolve')
 def resolve_patch_route(patch_id: uuid.UUID, body: ResolveInput, session: Session = Depends(get_session)) -> dict:
-    _lock(session)
+    global_write_lock(session)
     row = session.get(ExceptionPatch, patch_id, with_for_update=True)
     if row is None:
         fail('patch_not_found', 'Patch not found', 404)

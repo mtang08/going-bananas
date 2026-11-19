@@ -6,10 +6,11 @@ import statistics
 from collections.abc import Sequence
 from datetime import date, timedelta
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
+from app.db import global_read_lock
 from app.metrics.contract import RunFact
 from app.metrics.engine import activities_coverage_complete, load_runs
 from app.models import AppState, ManualSession
@@ -93,8 +94,7 @@ def recent_pace_mps(runs: Sequence[RunFact], as_of: date, days: int = 28) -> tup
 
 
 def weekly_projection(session: Session) -> dict:
-    # Calendar writers use the exclusive variant of this transaction lock.
-    session.execute(text('SELECT pg_advisory_xact_lock_shared(:key)'), {'key': calendar.LOCK_ID})
+    global_read_lock(session)
     today = calendar._today(session)
     week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)

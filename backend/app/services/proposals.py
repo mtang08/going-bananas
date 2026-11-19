@@ -11,9 +11,10 @@ from typing import Annotated, Any, Literal, cast
 from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, model_validator
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.db import global_write_lock
 from app.domain.cycle import opportunity
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.services.block_benchmark import BenchmarkOutcome, active_block_version
@@ -916,7 +917,7 @@ def _hash(value: Any) -> str:
 def _lock(session: Session) -> Any:
     from app.models import AppState
 
-    session.execute(text("SELECT pg_advisory_xact_lock(71382413)"))
+    global_write_lock(session)
     state = session.get(AppState, 1, with_for_update=True, populate_existing=True)
     assert state is not None
     return state
