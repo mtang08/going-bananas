@@ -2,8 +2,6 @@ import ast
 import re
 from pathlib import Path
 
-import pytest
-
 APP = Path(__file__).resolve().parents[2] / 'app'
 TZ_LITERAL_ALLOWED = {'services/timezone.py', 'models.py', 'adapters/garmin/normalize.py', 'demo_seed.py'}
 
@@ -38,8 +36,7 @@ def test_timezone_default_has_one_home():
     assert offenders == []
 
 
-@pytest.mark.xfail(strict=True, reason='ARCH-02b')
-def test_no_method_version_literals_outside_metric_modules():
+def test_consumers_use_registered_metric_versions():
     patterns = (
         re.compile(r"""latest_results\([^)]*['"]v\d+['"]"""),
         re.compile(r"""method_version\s*==\s*['"]v\d+['"]"""),
@@ -50,5 +47,6 @@ def test_no_method_version_literals_outside_metric_modules():
         if path != APP / 'metrics' / 'engine.py'
         for line_no, line in enumerate(path.read_text().splitlines(), start=1)
         if any(pattern.search(line) for pattern in patterns)
+        or (APP / 'metrics' not in path.parents and re.search(r'\blatest_results\s*\(', line))
     ]
     assert offenders == []

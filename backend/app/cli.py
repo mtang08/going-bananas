@@ -280,9 +280,12 @@ def main() -> int:
                 if args.metric != 'all':
                     query = query.where(MetricResult.metric_id == args.metric)
                 rows = list(session.scalars(query))
+                versions = {metric.metric_id: metric.method_version for metric in metrics_engine.REGISTRY.values()}
                 metric_summary = {'metric': args.metric, 'since': str(since), 'until': str(until),
                     'subjects': len({(row.metric_id, row.subject_key) for row in rows}),
-                    'results_current': sum(row.is_current for row in rows), 'history_rows': len(rows)}
+                    'results_current': sum(row.is_current and versions.get(row.metric_id) == row.method_version
+                                           for row in rows),
+                    'history_rows': len(rows)}
             print(json.dumps(metric_summary))
         elif args.command == "metrics-assess-session":
             from app.calendar_models import SessionCompletion
@@ -300,11 +303,11 @@ def main() -> int:
                 def snapshot(completion: SessionCompletion) -> dict[str, Any]:
                     interval = None
                     if activity_key is not None:
-                        interval = metrics_engine.latest_results(
-                            session, intervals.METRIC_ID, intervals.METHOD_VERSION, [activity_key],
+                        interval = metrics_engine.current_results(
+                            session, intervals.METRIC_ID, [activity_key],
                         ).get(activity_key)
-                    comparison = metrics_engine.latest_results(
-                        session, planned_actual.METRIC_ID, planned_actual.METHOD_VERSION, [session_key],
+                    comparison = metrics_engine.current_results(
+                        session, planned_actual.METRIC_ID, [session_key],
                     ).get(session_key)
                     comparison_snapshot = None
                     if comparison is not None:

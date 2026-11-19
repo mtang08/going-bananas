@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from urllib.parse import urlsplit
 
@@ -15,10 +16,12 @@ from app.checkin_models import Checkin, SymptomReport
 from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
 from app.config import settings
 from app.db import engine
+from app.metric_models import MetricResult
+from app.metrics.engine import REGISTRY, metric_modules
 from app.models import AppState, ProfileVersion
 from app.planning_models import Block, BlockVersion, Event, Goal
 from app.services import calendar
-from app.services.snapshot import load_inputs
+from app.services.snapshot import _load_metrics, load_inputs
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
@@ -115,3 +118,29 @@ def test_load_inputs_sections(seeded):
     assert inputs.events[0]['name'] == 'Synthetic 10K'
     assert inputs.active_block['status'] == 'active'
     assert inputs.timezone == 'America/New_York'
+
+
+def test_snapshot_metrics_ignore_other_current_versions(seeded, monkeypatch):
+    metric_modules()
+    activity_key = str(uuid.uuid4())
+    long_run = 'long_run_exposure'
+    rpe = 'session_rpe_load'
+    old_version = 'v1'
+    new_version = 'v2'
+    monkeypatch.setitem(REGISTRY, long_run, replace(REGISTRY[long_run], method_version=new_version))
+    monkeypatch.setitem(REGISTRY, rpe, replace(REGISTRY[rpe], method_version=old_version))
+    for metric in (long_run, rpe):
+        for version in (old_version, new_version):
+            seeded.add(MetricResult(
+                metric_id=metric, method_version=version, subject_type='activity', subject_key=activity_key,
+                status='available', source_refs={}, config_hash='synthetic', dependency_hash='synthetic',
+                timezone='UTC', calculated_at=NOW, is_current=True,
+            ))
+    seeded.flush()
+
+    rows = _load_metrics(seeded, TODAY, [{'activity_id': activity_key}])
+
+    assert [(row['metric_id'], row['method_version']) for row in rows if row['subject_key'] == activity_key] == [
+        (long_run, new_version),
+        (rpe, old_version),
+    ]

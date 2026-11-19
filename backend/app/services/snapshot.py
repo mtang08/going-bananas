@@ -1177,6 +1177,8 @@ def _load_prompts(session: Session, now: datetime) -> list[dict]:
 
 
 def _load_metrics(session: Session, as_of: date, runs: list[dict]) -> list[dict]:
+    from app.metrics.engine import current_result_filter
+
     metric_keys = (
         {f"w{n}:{as_of.isoformat()}" for n in (7, 14, 28, 56, 84)}
         | {f"w{n}:{as_of.isoformat()}:{kind}" for n in (7, 14, 28, 56, 84) for kind in ("run", "strength")}
@@ -1185,7 +1187,7 @@ def _load_metrics(session: Session, as_of: date, runs: list[dict]) -> list[dict]
     )
     metric_rows = session.scalars(
         select(MetricResult)
-        .where(MetricResult.is_current.is_(True), MetricResult.subject_key.in_(metric_keys))
+        .where(current_result_filter(), MetricResult.subject_key.in_(metric_keys))
         .order_by(MetricResult.metric_id, MetricResult.subject_key, MetricResult.id)
     ).all()
     metrics = [

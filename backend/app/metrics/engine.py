@@ -11,9 +11,10 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import event, func, inspect, select, text
+from sqlalchemy import and_, event, func, inspect, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import ColumnElement
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.fit_models import ActivityStream, FitFile
@@ -231,6 +232,16 @@ def current_results(session: Session, metric_id: str, subject_keys: Sequence[str
     if metric_id not in REGISTRY:
         raise ValueError('unknown_metric')
     return latest_results(session, metric_id, REGISTRY[metric_id].method_version, list(subject_keys))
+
+
+def current_result_filter() -> ColumnElement[bool]:
+    """Select current rows for the registered version of each metric."""
+    metric_modules()
+    versions = [(metric.metric_id, metric.method_version) for metric in REGISTRY.values()]
+    return and_(
+        MetricResultRow.is_current.is_(True),
+        tuple_(MetricResultRow.metric_id, MetricResultRow.method_version).in_(versions),
+    )
 
 
 def ensure_metric_config(session: Session, metric_id: str, method_version: str,
@@ -571,7 +582,7 @@ def _refresh_scopes(session: Session, scopes: Iterable[str]) -> list[MetricResul
     results.extend(_refresh_plans(session, [*touched_uids, *linked, *explicit_uids, *(_plan_uids(session) if broad else ())]))
     as_ofs = {today}
     current = session.execute(select(MetricResultRow.subject_key, MetricResultRow.metric_id).where(
-        MetricResultRow.is_current.is_(True), MetricResultRow.subject_type.in_(('window', 'night')))).all()
+        current_result_filter(), MetricResultRow.subject_type.in_(('window', 'night')))).all()
     stored_nights = set()
     for key, metric_id in current:
         match = re.fullmatch(r'w(\d+):(\d{4}-\d{2}-\d{2})(?::(?:run|strength))?', key)
