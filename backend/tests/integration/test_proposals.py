@@ -2,23 +2,18 @@
 
 from __future__ import annotations
 
-import os
 import uuid
 from datetime import UTC, date, datetime, timedelta
-from urllib.parse import urlsplit
 
 import pytest
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
-from app.config import settings
-from app.db import engine
 from app.exception_models import ExceptionFinding, ExceptionPatch
-from app.metrics.engine import install_triggers
 from app.models import AppState, ProfileVersion
-from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, Event, IntensityAnchor
+from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
 from app.services.proposals import DecisionError, DecisionRequest, decide_proposal, discard_proposal, submit_proposal
@@ -31,78 +26,6 @@ KB = VerifiedKnowledge("0" * 64, (), (), frozenset({"P001"}), frozenset({"REC001
 def _resolve(selection: tuple[dict, ...]) -> VerifiedKnowledge:
     assert selection == ()
     return KB
-
-
-@pytest.fixture
-def proposal_session(monkeypatch):
-    parsed = urlsplit(settings.database_url)
-    assert settings.app_mode == "test"
-    assert parsed.hostname in {"127.0.0.1", "localhost"} and parsed.port == int(os.environ.get('TEST_DATABASE_PORT', '55439'))
-    assert parsed.path == "/garmin_test"
-    monkeypatch.setattr(calendar, "_today", lambda session, now=None: TODAY)
-    install_triggers()
-    with engine.connect() as connection:
-        outer = connection.begin()
-        try:
-            with Session(bind=connection, join_transaction_mode="create_savepoint", expire_on_commit=False) as session:
-                session.info["metrics_now"] = NOW
-                session.execute(delete(ExceptionFinding))
-                session.execute(delete(ExceptionPatch))
-                session.execute(delete(BlockBenchmarkResult))
-                session.execute(delete(CoachDecisionKey))
-                session.execute(delete(CoachProposalChange))
-                session.execute(delete(CoachProposal))
-                session.execute(delete(CoachSnapshot))
-                session.execute(delete(SessionCompletion))
-                session.execute(delete(CalendarSessionRevision))
-                session.execute(delete(CalendarVersion))
-                session.execute(delete(BlockDecision))
-                session.execute(delete(BlockVersion))
-                session.execute(delete(Block))
-                session.execute(delete(IntensityAnchor))
-                state = session.get(AppState, 1, with_for_update=True)
-                state.calendar_head_version = 0
-                state.planning_authority = "calendar"
-                version = (session.scalar(select(func.max(ProfileVersion.version))) or 0) + 1
-                session.add(
-                    ProfileVersion(
-                        version=version,
-                        effective_at=NOW - timedelta(days=1),
-                        timezone="America/New_York",
-                        cycle_anchor=TODAY,
-                        anchor_confirmed=True,
-                        strength_days_confirmed=True,
-                        scheduled_strength_days=[0, 4],
-                        strength_schedule_mode="weekly",
-                        facts={},
-                        preferences={},
-                        unknowns=[],
-                    )
-                )
-                session.flush()
-                edits = [
-                    {
-                        "op": "add",
-                        "fields": {
-                            "local_date": date(2026, 11, day),
-                            "kind": kind,
-                            "intent": "Train",
-                            **({"recipe_id": "REC001", "planned_duration_s": 1800} if kind == "run" else {}),
-                        },
-                    }
-                    for day, kind in [
-                        (16, "strength"),
-                        (20, "strength"),
-                        (23, "strength"),
-                        (27, "strength"),
-                        (18, "run"),
-                    ]
-                ]
-                calendar.apply_edits(session, 0, edits, "Fixture")
-                session.commit()
-                yield session
-        finally:
-            outer.rollback()
 
 
 def _snapshot(session: Session, operation: str = "review_rolling_plan") -> tuple[CoachSnapshot, uuid.UUID]:
