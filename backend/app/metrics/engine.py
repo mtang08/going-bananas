@@ -648,9 +648,6 @@ def _before_flush(session: Session, _context, _instances) -> None:
     rows = [row for row in (*session.new, *session.dirty, *session.deleted) if isinstance(row, _source_types())]
     if not rows:
         return
-    with session.no_autoflush:
-        if session.scalar(select(AppState.planning_authority).where(AppState.id == 1)) != 'calendar':
-            return
     pending = session.info.setdefault('metrics_pending_sources', [])
     for row in rows:
         state = inspect(row)
@@ -748,8 +745,6 @@ def _before_commit(session: Session) -> None:
     session.flush()
     scopes = set(session.info.get('metrics_scopes', ()))
     if not scopes:
-        return
-    if session.scalar(select(AppState.planning_authority).where(AppState.id == 1)) != 'calendar':
         return
     from app.db import bump_data_revision
     with _refreshing(session):
