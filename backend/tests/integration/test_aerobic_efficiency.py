@@ -18,12 +18,13 @@ from sqlalchemy.orm import sessionmaker
 from app import cli
 from app.api.metrics import activity_execution, get_windows
 from app.config import settings
+from app.domain.local_time import date_in_zone
 from app.metric_models import MetricResult
 from app.metrics import aerobic, engine
 from app.migrations_head import EXPECTED_HEAD
 from app.models import Activity, ActivityAnnotation
 from app.services import calendar
-from app.services.timezone import athlete_tz, local_date
+from app.services.timezone import athlete_tz
 
 TODAY = date(2026, 11, 12)
 
@@ -65,7 +66,7 @@ def demo(monkeypatch, tmp_path, capsys):
 
 def activity_on(session, ago: int) -> Activity:
     day = TODAY - timedelta(days=ago)
-    return next(a for a in session.scalars(select(Activity)) if local_date(a.start_at, athlete_tz(session)) == day)
+    return next(a for a in session.scalars(select(Activity)) if date_in_zone(a.start_at, athlete_tz(session)) == day)
 
 
 def aero(session, ago: int):

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.domain.analytics import utc_date_bounds
 from app.domain.calendar_structure import expand_structure
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import classify
 from app.domain.sports import RUN_SPORTS
 from app.fit_models import ActivityStream, ActivityWorkoutStep
@@ -34,7 +35,7 @@ from app.metrics.contract import (
 from app.metrics.engine import activities_coverage_complete, latest_results, load_runs, register
 from app.metrics.intervals import FitStep, after_timer_seconds, expand_fit
 from app.models import Activity, ActivityAnnotation, AppState
-from app.services.timezone import athlete_tz, local_date
+from app.services.timezone import athlete_tz
 
 METRIC_ID = 'aerobic_efficiency'
 METHOD_VERSION = 'v1'
@@ -456,7 +457,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     plan = ({'recipe_id': revision.recipe_id, 'intent': revision.intent, 'structure': revision.structure}
             if revision and not revision.deleted and revision.kind == 'run' else None)
     refs = metric_source_refs(session, activity_id, session_uid, head)
-    day = local_date(activity.start_at, tz)
+    day = date_in_zone(activity.start_at, tz)
     cls: str | None = None
     if (annotation and annotation.excluded) or activity.resolution_state != 'resolved':
         outcome = _early(Status.not_applicable, 'ACTIVITY_EXCLUDED')

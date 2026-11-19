@@ -16,13 +16,14 @@ from app.config import settings
 from app.db import bump_data_revision, global_write_lock
 from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.cycle import opportunities
+from app.domain.local_time import date_in_zone
 from app.errors import fail
 from app.metrics.engine import load_runs
 from app.models import Activity, AppState, ManualSession
 from app.services.matching import PROTECTED_METHODS
 from app.services.profile import current_profile
 from app.services.strength_routine import routine_occurrences
-from app.services.timezone import athlete_today, athlete_tz, local_date
+from app.services.timezone import athlete_today, athlete_tz
 from app.strong_models import StrongWorkoutRow
 
 WRITE_FIELDS = frozenset({'local_date', 'slot', 'kind', 'recipe_id', 'custom', 'placeholder',
@@ -94,7 +95,7 @@ def state_at(session: Session, version: int) -> list[dict]:
 
 def _subject_date(session: Session, subject: object) -> date | None:
     if isinstance(subject, Activity):
-        return local_date(subject.start_at, athlete_tz(session))
+        return date_in_zone(subject.start_at, athlete_tz(session))
     if isinstance(subject, StrongWorkoutRow):
         return subject.local_date
     if isinstance(subject, ManualSession):

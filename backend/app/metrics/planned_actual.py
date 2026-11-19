@@ -24,7 +24,6 @@ from app.metrics.engine import activities_coverage_complete, current_results, lo
 from app.models import Activity, AppState, ManualSession, RawObject, SourceRecord
 from app.services.matching import candidates_for_session
 from app.services.timezone import athlete_tz
-from app.services.timezone import local_date as tz_local_date
 from app.strong_models import StrongWorkoutRow
 
 METRIC_ID = "planned_actual_session"
@@ -267,7 +266,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     if local_date is None and completion:
         if completion.activity_id:
             actual = session.get(Activity, completion.activity_id)
-            local_date = tz_local_date(actual.start_at, athlete_tz(session)) if actual else None
+            local_date = date_in_zone(actual.start_at, athlete_tz(session)) if actual else None
         elif completion.strong_workout_id:
             actual_strong = session.get(StrongWorkoutRow, completion.strong_workout_id)
             local_date = actual_strong.local_date if actual_strong else None
