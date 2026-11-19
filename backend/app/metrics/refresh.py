@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
-from app.db import global_write_lock
+from app.db import bump_data_revision, global_write_lock
 from app.metric_models import MetricResult as MetricResultRow
 from app.metrics.contract import MetricResultData
 from app.metrics.engine import (
@@ -173,7 +173,17 @@ def refresh_plans(session: Session, uids: Iterable[uuid.UUID]) -> list[MetricRes
     linked = list(session.scalars(select(SessionCompletion.activity_id).where(
         SessionCompletion.session_uid.in_([uuid.UUID(key) for key in keys]), SessionCompletion.activity_id.is_not(None))))
     refresh_runs(session, [uid for uid in linked if uid is not None])
-    return compute_subjects(session, 'planned_actual_session', keys)
+    from app.metrics.planned_actual import write_completion_status
+
+    results = compute_subjects(session, 'planned_actual_session', keys)
+    now = clock(session)
+    changed = False
+    for result in results:
+        if write_completion_status(session, result, now):
+            changed = True
+    if changed:
+        bump_data_revision(session)
+    return results
 
 
 def assess_completion(session: Session, session_uid: uuid.UUID) -> None:

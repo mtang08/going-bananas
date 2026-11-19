@@ -562,3 +562,34 @@ def test_deleting_completion_refreshes_its_plan(db, tmp_path):
         recomputed = current(session, 'planned_actual_session', str(uid))
         assert recomputed.value['overall_status'] == 'unknown'
         assert recomputed.id != skipped.id
+
+
+def test_planned_actual_compute_is_pure_and_refresh_writes_status(db, tmp_path):
+    from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
+
+    ids = seed(db, tmp_path)
+    uid = uuid.uuid4()
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        session.get(AppState, 1).calendar_head_version = 1
+        session.add(CalendarVersion(number=1, kind='bootstrap', actor='system'))
+        session.flush()
+        session.add(CalendarSessionRevision(session_uid=uid, revision=1, calendar_version_number=1,
+            local_date=TODAY, kind='run', intent='Test run', planned_duration_s=3000, certainty='committed'))
+        session.add(SessionCompletion(session_uid=uid, activity_id=ids[-1], status='unknown', match_method='explicit',
+            modification_reason='symptom_onset', version=1, input_version=1, updated_at=NOW))
+        session.commit()
+        session.execute(text("UPDATE session_completions SET status = 'unknown' WHERE session_uid = :uid"), {'uid': uid})
+        session.commit()
+        session.expire_all()
+        completion = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == uid))
+        version, revision = completion.version, get_revision(session)
+        engine.metric_modules()
+        result, = engine.REGISTRY['planned_actual_session'].compute(session, str(uid))
+        assert result.value['overall_status'] == 'completed_modified'
+        assert completion.status == 'unknown'
+        assert not session.dirty
+        refresh.assess_completion(session, uid)
+        assert completion.status == 'completed_modified'
+        assert completion.version == version + 1
+        assert get_revision(session) == revision + 1

@@ -1,8 +1,12 @@
-from datetime import date, timedelta
+import uuid
+from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 
-from app.metrics.planned_actual import _interval_components, component, planned_actual_outcome
+from app.metrics.contract import MetricResultData, Status
+from app.metrics.planned_actual import _interval_components, component, planned_actual_outcome, write_completion_status
 
 DAY = date(2026, 11, 19)
+NOW = datetime(2026, 11, 19, 12, tzinfo=UTC)
 WORK = [{"type": "work", "duration_type": "time", "duration_value": 60,
          "target": {"modality": "speed", "low": 3.0, "high": 4.0}}]
 
@@ -155,3 +159,35 @@ def test_today_unlinked_not_yet_due():
 def test_unlinked_by_user():
     result = assess(plan(local_date=DAY - timedelta(days=1)), linked(activity_id=None, match_method='user_marked'), None)
     assert result['reason_codes'] == ['UNLINKED_BY_USER']
+
+
+class _OneRowSession:
+    def __init__(self, row: object) -> None:
+        self.row = row
+
+    def scalar(self, _statement: object) -> object:
+        return self.row
+
+
+def _result(overall: str) -> MetricResultData:
+    return MetricResultData("planned_actual_session", "v1", "session", str(uuid.uuid4()), Status.available,
+                            (), (), {}, (), "0" * 64, value={"overall_status": overall})
+
+
+def test_write_completion_status_updates_linked_once() -> None:
+    row = SimpleNamespace(activity_id="a1", strong_workout_id=None, manual_session_id=None,
+                          status="unknown", version=1, updated_at=None)
+    session = _OneRowSession(row)
+    result = _result("completed_as_planned")
+    assert write_completion_status(session, result, NOW)
+    assert (row.status, row.version, row.updated_at) == ("completed_as_planned", 2, NOW)
+    assert not write_completion_status(session, result, NOW)
+    assert row.version == 2
+
+
+def test_write_completion_status_leaves_unlinked_and_missing_alone() -> None:
+    row = SimpleNamespace(activity_id=None, strong_workout_id=None, manual_session_id=None,
+                          status="unknown", version=1, updated_at=None)
+    assert not write_completion_status(_OneRowSession(row), _result("unknown"), NOW)
+    assert (row.status, row.version) == ("unknown", 1)
+    assert not write_completion_status(_OneRowSession(None), _result("completed_as_planned"), NOW)

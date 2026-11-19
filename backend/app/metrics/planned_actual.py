@@ -1,4 +1,4 @@
-"""Component level planned versus actual assessment and completion writeback."""
+"""Component level planned versus actual assessment, and the completion status it derives."""
 from __future__ import annotations
 
 import math
@@ -60,6 +60,11 @@ def _required_structure(plan: dict) -> tuple[bool, bool]:
     steps = expand_structure(structure)
     work = [step for step in steps if step["type"] == "work"]
     return bool(work), any((step.get("target") or {}).get("modality") == "speed" for step in work)
+
+
+def _derives_status(linked: bool, overall: str) -> bool:
+    """An assessment owns the completion status when a subject is linked or the outcome is skipped or extra."""
+    return linked or overall in ("skipped", "extra")
 
 
 def planned_actual_outcome(plan: dict | None, completion: dict | None, activity: dict | None,
@@ -159,7 +164,7 @@ def planned_actual_outcome(plan: dict | None, completion: dict | None, activity:
     outcome = {"status": status, "quality_status": "good" if status == "available" and not flags else
                "limited" if status == "partial" or flags else None,
                "value": values, "reason_codes": reasons, "quality_flags": flags}
-    if linked or values["overall_status"] in ("skipped", "extra"):
+    if _derives_status(linked, overall):
         outcome["derived_completion_status"] = overall
     return outcome
 
@@ -274,12 +279,6 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     candidates = candidates_for_session(session, uid) if plan else []
     coverage = activities_coverage_complete(session, local_date, local_date + date.resolution) if local_date else False
     outcome = planned_actual_outcome(plan_data, completion_data, activity, intervals, candidates, coverage, as_of)
-    if completion is not None and "derived_completion_status" in outcome:
-        derived = outcome["derived_completion_status"]
-        if completion.status != derived:
-            completion.status = derived
-            completion.version += 1
-            completion.updated_at = now
     refs = {"session_uid": str(uid), "plan": {"revision_id": str(plan.id),
             "revision": plan.revision, "calendar_version": plan.calendar_version_number,
             "structure_hash": sha256_json(plan.structure)} if plan else None,
@@ -294,3 +293,20 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
                              config_hash(CONFIG), window_label=local_date.isoformat() if local_date else None,
                              quality_status=QualityStatus(outcome["quality_status"]) if outcome["quality_status"] else None,
                              value=outcome["value"], unit=None, timezone=tz.key)]
+
+
+def write_completion_status(session: Session, result: MetricResultData, now: datetime) -> bool:
+    """Apply the derived completion status and report whether it changed."""
+    overall = (result.value or {}).get("overall_status")
+    if overall is None:
+        return False
+    completion = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == UUID(result.subject_key)))
+    if completion is None:
+        return False
+    linked = any((completion.activity_id, completion.strong_workout_id, completion.manual_session_id))
+    if not _derives_status(linked, overall) or completion.status == overall:
+        return False
+    completion.status = overall
+    completion.version += 1
+    completion.updated_at = now
+    return True
