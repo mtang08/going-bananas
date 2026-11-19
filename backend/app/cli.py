@@ -19,12 +19,13 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import SessionLocal, engine, global_write_lock
+from app.domain.local_time import date_in_zone
 from app.logs import configure
 from app.models import AppState
 from app.services.backup import BackupError, create_backup, restore_backup
 from app.services.export_import import import_export
 from app.services.sync import ADVISORY_LOCK, enqueue_catchup, enqueue_sync, run_one_job
-from app.services.timezone import DEFAULT_TIMEZONE, local_date
+from app.services.timezone import DEFAULT_TIMEZONE
 
 
 def _scope() -> str:
@@ -117,7 +118,7 @@ def _coach(args) -> int:
     from app.errors import AppError
     from app.services import knowledge, proposals
     from app.services.decision_inputs import VerifiedKnowledge
-    from app.services.timezone import athlete_tz, local_date
+    from app.services.timezone import athlete_tz
 
     def output(value, *, error=False):
         print(json.dumps(value, default=str, ensure_ascii=False), file=sys.stderr if error else sys.stdout)
@@ -135,7 +136,7 @@ def _coach(args) -> int:
         if args.coach_command == 'snapshot':
             from app.services.snapshot import build_snapshot
             with SessionLocal.begin() as session:
-                result = build_snapshot(session, args.operation, args.as_of or local_date(now, athlete_tz(session)), now=now)
+                result = build_snapshot(session, args.operation, args.as_of or date_in_zone(now, athlete_tz(session)), now=now)
             output(result)
             return 0
         if args.coach_command in {'submit', 'revise'}:
@@ -348,7 +349,7 @@ def main() -> int:
 
             with SessionLocal.begin() as session:
                 _prepare_calendar_preview(session)
-                today = local_date(datetime.now(UTC), ZoneInfo(DEFAULT_TIMEZONE))
+                today = date_in_zone(datetime.now(UTC), ZoneInfo(DEFAULT_TIMEZONE))
                 seed_demo(session, settings.private_dir, today)
             with SessionLocal() as session:
                 counts = demo_totals(session)

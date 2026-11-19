@@ -5,7 +5,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pytest
 
-from app.services.timezone import athlete_today, athlete_tz, local_date
+from app.domain.local_time import date_in_zone
+from app.services.timezone import athlete_today, athlete_tz
 
 NY = ZoneInfo("America/New_York")
 
@@ -18,18 +19,18 @@ class FakeSession:
         return self.name
 
 
-def test_a10_dst_fall_back_local_date():
+def test_a10_dst_fall_back_date_in_zone():
     first = datetime(2026, 11, 1, 5, 30, tzinfo=UTC)
     second = datetime(2026, 11, 1, 6, 30, tzinfo=UTC)
     assert first != second
-    assert local_date(first, NY) == date(2026, 11, 1)
-    assert local_date(second, NY) == date(2026, 11, 1)
-    assert local_date(datetime(2026, 11, 3, 4, 50, tzinfo=UTC), NY) == date(2026, 11, 2)
+    assert date_in_zone(first, NY) == date(2026, 11, 1)
+    assert date_in_zone(second, NY) == date(2026, 11, 1)
+    assert date_in_zone(datetime(2026, 11, 3, 4, 50, tzinfo=UTC), NY) == date(2026, 11, 2)
 
 
-def test_local_date_rejects_naive_instant():
+def test_date_in_zone_rejects_naive_instant():
     with pytest.raises(ValueError, match="^naive_instant$"):
-        local_date(datetime(2026, 11, 1, 5, 30), NY)
+        date_in_zone(datetime(2026, 11, 1, 5, 30), NY)
 
 
 def test_athlete_tz_defaults_without_profile():
