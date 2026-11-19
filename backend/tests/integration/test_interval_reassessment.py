@@ -5,7 +5,7 @@ import uuid
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from test_metrics_flow import NOW, TODAY, db, seed  # noqa: F401
 
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
@@ -66,6 +66,13 @@ def test_interval_reassessment_preserves_history(db, tmp_path, short_work, expec
         completion = SessionCompletion(session_uid=uid, activity_id=activity_id, status='unknown',
             match_method='auto_same_day', modification_reason=None, version=1, input_version=1, updated_at=NOW)
         session.add(completion)
+        # Seeding refreshes this activity. Make the pre-fix fixture its only current result.
+        session.execute(update(MetricResult).where(
+            MetricResult.metric_id == intervals.METRIC_ID,
+            MetricResult.method_version == intervals.METHOD_VERSION,
+            MetricResult.subject_key == str(activity_id),
+            MetricResult.is_current.is_(True),
+        ).values(is_current=False))
         stale = MetricResult(metric_id=intervals.METRIC_ID, method_version=intervals.METHOD_VERSION,
             subject_type='activity', subject_key=str(activity_id), status='not_assessable', value=None,
             reason_codes=['LAP_STEP_ORDER_MISMATCH'], quality_flags=[], source_refs={}, anchor_keys=[],
