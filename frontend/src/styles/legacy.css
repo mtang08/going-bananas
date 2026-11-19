@@ -73,8 +73,7 @@
   margin-bottom: 18px;
 }
 
-.grid:where(.two-thirds,
-.halves {
+.grid:where(.two-thirds, .halves) {
   display: grid;
   gap: 18px;
   margin-bottom: 18px;
@@ -505,7 +504,7 @@
   }
 
   .grid.two-thirds,
-.grid.halves {
+  .grid.halves {
     grid-template-columns: 1fr;
   }
 
