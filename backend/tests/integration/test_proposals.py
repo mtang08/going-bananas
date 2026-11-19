@@ -16,7 +16,7 @@ from app.models import AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
-from app.services.proposals import DecisionRequest, decide_proposal
+from app.services.proposals.decision import DecisionRequest, decide_proposal
 from app.services.proposals.lifecycle import discard_proposal, submit_proposal
 from app.services.proposals.schema import DecisionError
 

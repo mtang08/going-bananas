@@ -16,9 +16,10 @@ from app.db import get_session, global_write_lock
 from app.errors import AppError, fail
 from app.exception_models import ExceptionPatch
 from app.read.calendar import head_version
-from app.services import calendar, knowledge, proposals
+from app.services import calendar, knowledge
 from app.services.decision_inputs import VerifiedKnowledge
 from app.services.proposals.context import load_context, snapshot_ref
+from app.services.proposals.decision import DecisionRequest, decide_proposal
 from app.services.proposals.lifecycle import RevisionRequest, discard_proposal, revise_proposal
 from app.services.proposals.schema import AnchorChange, DecisionError, SessionFields, anchor_key
 from app.services.proposals.validation import proposal_freshness
@@ -131,10 +132,10 @@ def get_proposal(proposal_id: uuid.UUID, session: Session = Depends(get_session)
 
 
 @router.post('/proposals/{proposal_id}/decision')
-def post_decision(proposal_id: uuid.UUID, body: proposals.DecisionRequest,
+def post_decision(proposal_id: uuid.UUID, body: DecisionRequest,
                   session: Session = Depends(get_session)) -> dict:
     try:
-        result = proposals.decide_proposal(session, proposal_id, body, now=datetime.now(UTC), resolve_kb=resolve_kb)
+        result = decide_proposal(session, proposal_id, body, now=datetime.now(UTC), resolve_kb=resolve_kb)
     except DecisionError as exc:
         if exc.commit:
             session.commit()
