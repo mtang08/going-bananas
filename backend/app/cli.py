@@ -219,8 +219,8 @@ def main() -> int:
             return _coach(args)
         if args.command == "metrics-refresh-today":
             with SessionLocal.begin() as session:
-                summary = derived.refresh_today(session)
-            print(json.dumps(summary))
+                startup_summary = derived.refresh_today(session)
+            print(json.dumps(startup_summary))
         elif args.command == "metrics-recompute":
             from app.metric_models import MetricResult
             from app.metrics import engine as metrics_engine
