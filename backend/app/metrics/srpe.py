@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.checkin_models import SessionRpe
 from app.domain.analytics import utc_date_bounds
+from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.metrics.contract import MetricResultData, QualityStatus, Status, config_hash, coverage_label, sha256_json
 from app.metrics.engine import activities_coverage_complete, load_runs, metric_source_refs, register
@@ -238,7 +239,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     row = session.get(Activity, id_)
     if row is None or row.sport not in RUN_SPORTS:
         return []
-    day = row.start_at.astimezone(tz).date()
+    day = date_in_zone(row.start_at, tz)
     run_fact = next((r for r in load_runs(session, day, day + timedelta(days=1)) if r.activity_id == id_), None)
     rpes = _rpe_rows(session, "activity_id", id_)
     refs = {**metric_source_refs(session, id_), "activity_id": str(id_),

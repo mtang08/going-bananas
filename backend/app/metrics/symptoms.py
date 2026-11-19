@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.checkin_models import Checkin, SymptomReport
 from app.domain.analytics import utc_date_bounds
 from app.domain.associations import preceding_sessions
+from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.metrics.contract import MetricResultData, Status, config_hash, sha256_json
 from app.metrics.engine import load_runs, metric_source_refs, register
@@ -61,7 +62,7 @@ def linked_activity_for_checkin(session: Session, checkin: Checkin) -> UUID | No
     if checkin.activity_id is not None:
         return checkin.activity_id
     tz = athlete_tz(session)
-    day = checkin.observed_at.astimezone(tz).date()
+    day = date_in_zone(checkin.observed_at, tz)
     runs = load_runs(session, day - timedelta(days=3), day + timedelta(days=1))
     known = [r for r in runs if r.end_at is not None]
     known.sort(key=lambda r: str(r.activity_id))
@@ -138,7 +139,7 @@ def window_outcome(checkins: list[CheckinIn], tz: ZoneInfo) -> dict:
     for (site, side), items in sorted(grouped.items()):
         latest = max(enumerate(items), key=lambda pair: (pair[1].observed_at, pair[0]))[1]
         sites.append({"site": site, "side": side, "report_count": len(items),
-                      "recurrence_days": len({r.observed_at.astimezone(tz).date() for r in items if r.severity > 0}),
+                      "recurrence_days": len({date_in_zone(r.observed_at, tz) for r in items if r.severity > 0}),
                       "max_severity": round(max(r.severity for r in items), 1),
                       "latest_severity": round(latest.severity, 1), "latest_timing": latest.timing,
                       "gait_change_reported": any(r.gait_change == "yes" for r in items)})
@@ -200,7 +201,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     row = session.get(Activity, id_)
     if row is None or row.sport not in RUN_SPORTS:
         return []
-    day = row.start_at.astimezone(tz).date()
+    day = date_in_zone(row.start_at, tz)
     run = next((r for r in load_runs(session, day, day + timedelta(days=1)) if r.activity_id == id_), None)
     refs = {**metric_source_refs(session, id_), "activity_ids": [str(id_)]}
     if run is None:

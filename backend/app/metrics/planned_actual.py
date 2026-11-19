@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.domain.local_time import date_in_zone
 from app.metrics import intervals as interval_metric
 from app.metrics.contract import (
     MetricResultData,
@@ -187,7 +188,7 @@ def _activity(session: Session, completion: SessionCompletion) -> tuple[dict | N
         if activity_row is None:
             return None, {"activity_id": str(completion.activity_id), "resolution_state": None}
         tz = athlete_tz(session)
-        local_day = activity_row.start_at.astimezone(tz).date()
+        local_day = date_in_zone(activity_row.start_at, tz)
         eligible = any(r.activity_id == activity_row.id for r in load_runs(session, local_day,
                                                                           local_day + date.resolution))
         if not eligible:
@@ -275,7 +276,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
             local_date = actual_manual.date if actual_manual else None
     tz = athlete_tz(session)
     now = session.info.get("metrics_now") or datetime.now(UTC)
-    as_of = now.astimezone(tz).date()
+    as_of = date_in_zone(now, tz)
     candidates = candidates_for_session(session, uid) if plan else []
     coverage = activities_coverage_complete(session, local_date, local_date + date.resolution) if local_date else False
     outcome = planned_actual_outcome(plan_data, completion_data, activity, intervals, candidates, coverage, as_of)

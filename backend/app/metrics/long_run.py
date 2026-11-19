@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.checkin_models import Checkin, SymptomReport
 from app.domain.analytics import utc_date_bounds
+from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.metrics.contract import MetricResultData, QualityStatus, RunFact, Status, config_hash, sha256_json
 from app.metrics.engine import activities_coverage_complete, latest_results, load_runs, metric_source_refs, register
@@ -238,7 +239,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     activity = session.get(Activity, activity_id)
     if activity is None or activity.sport not in RUN_SPORTS:
         return []
-    day = activity.start_at.astimezone(tz).date()
+    day = date_in_zone(activity.start_at, tz)
     history = load_runs(session, day - timedelta(days=30), day + timedelta(days=1))
     run = next((r for r in history if r.activity_id == activity_id), None)
     refs = {**metric_source_refs(session, activity_id), "activity_ids": [str(activity_id)]}
