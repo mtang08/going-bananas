@@ -298,8 +298,8 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                 plain={plain}
               />
             )}
-            {(proposal.patch_resolutions?.length ?? 0) > 0 && (
-              <PatchUpdates items={proposal.patch_resolutions!} plain={plain} />
+            {proposal.patch_resolutions.length > 0 && (
+              <PatchUpdates items={proposal.patch_resolutions} plain={plain} />
             )}
             {(proposal.follow_up || proposal.escalation) && (
               <Card className="proposal-next-check">

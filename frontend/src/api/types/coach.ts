@@ -53,7 +53,7 @@ export interface AnchorChange {
 }
 export interface ProposalDetail extends Omit<ProposalSummary, 'change_count'> {
   revisions: ProposalRevision[]
-  decision_result?: ProposalDecisionResult | null
+  decision_result: ProposalDecisionResult | null
   snapshot_id: string
   rationale: string
   confidence: Record<string, string>
@@ -74,10 +74,10 @@ export interface ProposalDetail extends Omit<ProposalSummary, 'change_count'> {
   skill_version: string
   head: number
   is_current: boolean
-  exception?: ProposalException | null
-  event_review?: ProposalEventReview | null
-  patch_resolutions?: ProposalPatchResolution[]
-  patch?: Omit<Patch, 'session_uids' | 'reassess_due'> | null
+  exception: ProposalException | null
+  event_review: ProposalEventReview | null
+  patch_resolutions: ProposalPatchResolution[]
+  patch: Omit<Patch, 'session_uids' | 'reassess_due'> | null
 }
 export interface ProposalDecision {
   idempotency_key: string

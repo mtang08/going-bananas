@@ -22,6 +22,7 @@ beforeEach(()=>{
     summary:'Adjust the next week',rationale:'Keep the run manageable',confidence:{decision:'moderate',evidence:'high',data:'moderate'},
     base_calendar_version:7,base_block_version_id:null,snapshot_id:'snapshot',head:7,is_current:true,revision:1,revisions:[],
     evidence_ids:['E-AER-01'],policy_ids:['P001'],recipe_ids:['REC001'],follow_up:'Review after the run',escalation:null,
+    decision_result:null,exception:null,event_review:null,patch_resolutions:[],patch:null,
     block_change:null,anchor_changes:[],validation_errors:[],skill_version:'running-coach.v1',
     changes:['c1','c2','c3'].map((id,index)=>({change_id:id,op:'modify',session_uid:`s${index}`,
       before:{intent:'Easy',planned_duration_s:1800,structure:null},after:{planned_duration_s:2100},current:{intent:'Easy'},
