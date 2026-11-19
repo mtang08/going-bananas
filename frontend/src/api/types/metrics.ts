@@ -1,7 +1,8 @@
 export type MetricStatus =
   'available' | 'partial' | 'missing' | 'invalid' | 'not_applicable' | 'not_assessable'
 export interface MetricResult<V> {
-  id: string
+  /** Null for results computed on view. */
+  id: string | null
   metric_id: string
   method_version: string
   subject_type: 'activity' | 'session' | 'window' | 'night' | 'report'
