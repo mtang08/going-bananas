@@ -8,8 +8,15 @@ import {
   YAxis,
 } from 'recharts'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui'
-import { MISSING, dateLabel, fmtPaceFromSpeed, fmtPercent, signatureLabel } from '../api'
-import type { ProgressionPoint, Unit } from '../api'
+import {
+  MISSING,
+  dateLabel,
+  fmtPaceFromSpeed,
+  fmtPercent,
+  signatureLabel,
+  type Unit,
+} from '../lib/format'
+import type { ProgressionPoint } from '../api/types/metrics'
 import { reasonText } from '../lib/reasonLabels'
 
 const signed = (value: number | null) =>

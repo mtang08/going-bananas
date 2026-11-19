@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { WorkoutProgressionChart, WorkoutProgressionTable } from '../src/components/WorkoutProgression'
-import type { ProgressionPoint } from '../src/api'
+import type { ProgressionPoint } from '../src/api/types/metrics'
 
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
