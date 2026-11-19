@@ -13,13 +13,14 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_, select, text
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin as CheckinV2
 from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachSnapshot
+from app.db import global_write_lock
 from app.domain.athlete_facts import clinical_restriction
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
 from app.metric_models import MetricResult, Prompt
@@ -1436,7 +1437,7 @@ def build_snapshot(
 ) -> dict:
     from app.metrics.refresh import ensure_nights, ensure_windows
 
-    session.execute(text("SELECT pg_advisory_xact_lock(71382413)"))
+    global_write_lock(session)
     session.execute(select(AppState.id).where(AppState.id == 1).with_for_update())
     previous_now = session.info.get("metrics_now", _MISSING)
     session.info["metrics_now"] = now

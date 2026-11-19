@@ -50,3 +50,9 @@ def test_consumers_use_registered_metric_versions():
         or (APP / 'metrics' not in path.parents and re.search(r'\blatest_results\s*\(', line))
     ]
     assert offenders == []
+
+
+def test_global_lock_key_has_one_home():
+    offenders = [str(p.relative_to(APP)) for p in sorted(APP.rglob('*.py'))
+                 if '71382413' in p.read_text() and p.relative_to(APP) != Path('db.py')]
+    assert offenders == []
