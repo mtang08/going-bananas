@@ -1,7 +1,11 @@
 import { Button, Card, Input } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { put, qk, invalidateKeys, WEEKDAY_LABELS, type Profile, type Unit } from '../../api'
+import { put } from '../../api/client'
+import { qk, invalidateKeys } from '../../api/queryKeys'
+import { WEEKDAY_LABELS } from '../../api/types/blocks'
+import type { Profile } from '../../api/types/profile'
+import type { Unit } from '../../lib/format'
 import { ErrorText, Select, profileBody } from './shared'
 
 export function ReviewDay({ profile }: { profile: Profile }) {

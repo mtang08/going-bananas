@@ -2,7 +2,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Block } from '../src/pages/Block'
-import { fmtDuration, type BlockVersion, type BenchmarkStatus } from '../src/api'
+import { fmtDuration } from '../src/lib/format'
+import type { BlockVersion, BenchmarkStatus } from '../src/api/types/blocks'
 const BM={kind:'time_trial' as const,event_id:null,protocol:'5 km solo time trial, flat loop',distance_m:5000,planned_date:'2026-12-10',progress_if:'Faster than 21:40',consolidate_if:'Within 20 s of 21:40'}
 const status=(over:Partial<BenchmarkStatus>={}):BenchmarkStatus=>({status:'pending',match_method:null,activity_id:null,event_id:null,local_date:null,distance_m:null,result_s:null,rpe:null,scheduled_date:null,evidence_at:null,...over})
 let calls:{url:string;method:string;body:unknown;headers:Headers}[]=[]
