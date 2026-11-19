@@ -31,6 +31,7 @@ WINDOW_DAYS: tuple[int, ...] = ()
 DEPENDS_ON = ("work_interval_execution",)
 CONFIG: dict = {"ratio_met": .9, "ratio_partial": .5, "exceeded": 1.15,
           "step_met": 1, "target_met": .75, "target_partial": .4,
+          "partial_rule": "any_not_met.v1", "moved_rule": "assessed.v1",
           "precedence": ["skipped", "moved", "extra", "partial", "modified", "as_planned", "unknown"]}
 SENSIBLE_REASONS = {"symptom_onset", "fatigue", "illness"}
 
@@ -77,12 +78,10 @@ def planned_actual_outcome(plan: dict | None, completion: dict | None, activity:
     flags: list[str] = []
     if prior_status == "skipped" and match_method in {"explicit", "user_marked", "confirmed_move"}:
         values["overall_status"] = "skipped"
-    elif match_method == "confirmed_move" and linked and activity is not None:
-        values["overall_status"] = "moved"
-    elif prior_status == "extra" and linked and activity is not None:
+    elif prior_status == "extra" and match_method != "confirmed_move" and linked and activity is not None:
         values["overall_status"] = "extra"
     elif not linked:
-        if plan and plan.get("local_date") and plan["local_date"] > as_of:
+        if plan and plan.get("local_date") and plan["local_date"] >= as_of:
             reasons.append("NOT_YET_DUE")
         elif any(c.get("reason") == "AMBIGUOUS_MATCH" for c in candidates):
             reasons.append("AMBIGUOUS_MATCH")
@@ -126,8 +125,10 @@ def planned_actual_outcome(plan: dict | None, completion: dict | None, activity:
             if (step_raw is not None and step_raw < 1 and duration_raw is not None
                     and duration_raw < CONFIG["ratio_met"]):
                 values["overall_status"] = "partial"
+            elif any(c["status"] == "not_met" for c in components):
+                values["overall_status"] = "partial"
             elif (any(c["status"] != "not_assessable" for c in components) and
-                  (completion.get("modification_reason") or any(c["status"] in ("partially_met", "not_met")
+                  (completion.get("modification_reason") or any(c["status"] == "partially_met"
                                                                 for c in components))):
                 values["overall_status"] = "completed_modified"
             elif not unknown_component and all(c["status"] == "met" for c in components):
@@ -139,6 +140,11 @@ def planned_actual_outcome(plan: dict | None, completion: dict | None, activity:
                         and isinstance(measurement, (int, float)) and math.isfinite(measurement)):
                     if measurement / plan[planned_field] > CONFIG["exceeded"]:
                         flags.append("EXCEEDED")
+        if match_method == "confirmed_move" and activity is not None:
+            if values["overall_status"] == "partial":
+                flags.append("MOVED")
+            else:
+                values["overall_status"] = "moved"
         if completion.get("modification_reason") in SENSIBLE_REASONS:
             flags.append("SENSIBLE_MODIFICATION")
     overall = values["overall_status"]

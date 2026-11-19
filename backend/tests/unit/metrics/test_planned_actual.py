@@ -50,7 +50,7 @@ def test_unknown_and_missing_plan_and_skipped() -> None:
     assert empty["reason_codes"] == ["INSUFFICIENT_PLAN"]
     skipped = assess(plan(), linked(status="skipped", match_method="user_marked"), None)
     assert skipped["derived_completion_status"] == "skipped"
-    ambiguous = assess(plan(), None, None, candidates=[{"subject_key": "a1", "reason": "AMBIGUOUS_MATCH"}])
+    ambiguous = assess(plan(local_date=DAY - timedelta(days=1)), None, None, candidates=[{"subject_key": "a1", "reason": "AMBIGUOUS_MATCH"}])
     assert ambiguous["value"]["overall_status"] == "unknown"
     assert ambiguous["reason_codes"] == ["AMBIGUOUS_MATCH"]
 
@@ -127,3 +127,26 @@ def test_modification_reason_preserved() -> None:
                     {"kind": "run", "timer_s": 3000}, _five_rep_intervals(5))
     assert result["value"]["overall_status"] == "completed_modified"
     assert "SENSIBLE_MODIFICATION" in result["quality_flags"]
+
+
+def test_tiny_run_is_partial():
+    result = assess(plan(planned_duration_s=3600, structure=None), linked(), {"timer_s": 30})
+    assert result['value']['overall_status'] == 'partial'
+
+
+def test_structured_short_without_intervals_is_partial():
+    result = assess(plan(planned_duration_s=3600), linked(), {"timer_s": 1200})
+    assert result['value']['overall_status'] == 'partial'
+
+
+def test_confirmed_move_assesses_components():
+    for duration, overall, flags in [(30, 'partial', ['MOVED']), (3600, 'moved', [])]:
+        result = assess(plan(planned_duration_s=3600, structure=None), linked(match_method='confirmed_move'),
+                        {"timer_s": duration})
+        assert result['value']['overall_status'] == overall
+        assert result['value']['components'][0]['name'] == 'duration_ratio'
+        assert result['quality_flags'] == flags
+
+
+def test_today_unlinked_not_yet_due():
+    assert assess(plan(local_date=DAY), None, None)['reason_codes'] == ['NOT_YET_DUE']
