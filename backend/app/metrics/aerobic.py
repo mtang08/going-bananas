@@ -366,7 +366,7 @@ def window_outcome(entries: list[dict], start: date, days: int, coverage_complet
                 continue
             key = next(f for f in CONFIG['window_excluded_flags'] if f in result['quality_flags'])
         else:
-            key = (list(result['reason_codes']) or [str(result['status']).upper()])[0]
+            key = next(iter(result['reason_codes']), 'NO_RESULT')
         not_counted[key] = not_counted.get(key, 0) + 1
     points = [{'activity_id': e['activity_id'], 'local_date': e['local_date'].isoformat(),
                'session_class': e['result']['value'].get('session_class'),
