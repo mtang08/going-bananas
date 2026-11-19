@@ -18,7 +18,7 @@ frontend/src (React, React Query, hash routing)
 ```
 
 - API data responses use `{schema_version, data_revision, mode, data}`. Error responses use `{error: {code, message, retryable, request_id, fields}}`.
-- Browser writes must send `X-Local-Request: 1` and a local `Origin`. The server binds to loopback only.
+- Writes require `X-Local-Request: 1`. The server rejects non-local origins when an `Origin` is supplied and binds to loopback only.
 - `backend/tests/unit/test_layering.py` enforces the one-way rules: services, metrics, domain, and adapters may depend only on layers below the API. Domain code is framework independent and the default timezone literal has one home.
 - Ordinary requests, metrics, imports, and calendar expansion never call a model. Coaching reasoning happens in the repo-local Codex skill, which reads a filtered snapshot and submits a pending proposal that the athlete accepts in the app.
 
@@ -30,7 +30,7 @@ Source writes and the refreshes they trigger share a transaction.
 2. The API and CLI call `services.derived.install()`. Its session listeners use the old and new values of changed rows to emit refresh scopes (`activity`, `checkin`, `strength`, `plan`, `date`, `since`, `recovery_dates`, `timezone`, `revision`). Planning-only rows emit `revision`.
 3. At commit, the listeners take `db.global_write_lock` and bump `data_revision`. When the scopes require refresh, they rematch affected days, recompute metrics through `metrics/refresh.py`, and update prompts in the same transaction. A refresh failure rolls back the source write.
 4. Metric GETs take the shared advisory lock and serve current stored results or compute missing results and results from an outdated configuration in memory. In-memory results have a null ID. `metrics-refresh-today` refreshes metrics and prompts at server startup. The workout-progression views and weekly digest serve stored rows. After a metric configuration change, use `metrics-recompute` to refresh those rows.
-5. The coach loop consumes those results: a snapshot pins the calendar version and a source fingerprint. A change to either can make a pending proposal stale. Accepting a proposal re-checks freshness and writes a new calendar version atomically.
+5. The coach loop consumes those results: a snapshot pins the calendar version and a source fingerprint. A change to either can make a pending proposal stale. Accepting a proposal re-checks freshness and writes any calendar edits atomically in a new version.
 
 ## Metric identity
 
@@ -38,9 +38,10 @@ A stored result is identified by `metric_id`, `method_version`, and `subject_key
 
 - `method_version` (for example `v1`) names the calculation semantics. A change of meaning needs a new version. Rows of the old version stay.
 - `config_hash` is the SHA-256 of the metric's canonical config JSON. Configs are stored in `metric_configs`. A config change produces a new hash and therefore new rows.
+- `anchor_set_hash` represents the anchors used by the calculation, including each anchor's kind, key, and content hash. It is null when no anchors are used.
 - `dependency_hash` covers the source references, config hash, anchor-set hash, timezone, and the calculator's own dependency hash. A result whose provenance is incomplete is stored as `invalid` with reason `MISSING_PROVENANCE` and no value.
 
-Two unique indexes enforce this: `uq_metric_results_identity` (all identity columns) and `uq_metric_results_current` (one `is_current` row per metric, version, and subject). Upserting an identity that already exists marks that row current. A different identity keeps the previous row with `is_current = false`. Current-result reads filter on `is_current` and the registered method version.
+Two unique indexes enforce this: `uq_metric_results_identity` (all identity fields, with a null `anchor_set_hash` indexed as an empty string) and `uq_metric_results_current` (one `is_current` row per metric, version, and subject). Upserting an identity that already exists marks that row current. A different identity keeps the previous row with `is_current = false`. Current-result reads filter on `is_current` and the registered method version.
 
 ## Modes
 
