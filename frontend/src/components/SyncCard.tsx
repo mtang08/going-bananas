@@ -7,7 +7,8 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
-import { api, dateLabel, post, type SyncJob, type SyncStatus } from '../api'
+import { api, dateLabel, post } from '../api'
+import type { SyncJob, SyncStatus } from '../api/types/sync'
 import { QueryState } from './QueryState'
 import { relativeTime, stateLabel } from './shared'
 import { Badge, Button, Card } from './ui'
@@ -72,8 +73,8 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
   }, [finished, jobs, qc])
 
   const real = status.data?.mode === 'real'
-  const datasets = status.data?.data?.datasets ?? []
-  const activeJobs = status.data?.data?.active_jobs ?? []
+  const datasets = status.data?.data.datasets ?? []
+  const activeJobs = status.data?.data.active_jobs ?? []
   const lastSuccess = datasets.reduce<string | null>(
     (latest, d) =>
       d.last_success_at && (!latest || Date.parse(d.last_success_at) > Date.parse(latest))

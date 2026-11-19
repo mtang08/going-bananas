@@ -16,78 +16,6 @@ export interface Envelope<T> {
   mode: Mode
   data: T
 }
-export interface RunClassification {
-  method: string
-  suggested_label: 'easy' | 'quality' | 'long' | 'other' | null
-  effective_label: 'easy' | 'quality' | 'long' | 'other' | 'unknown'
-  label_source: 'manual' | 'source' | 'heuristic' | 'unknown'
-  confidence: 'confirmed' | 'medium' | 'low' | 'insufficient'
-  reasons: string[]
-  metrics?: Record<string, number | string | null>
-}
-export interface Activity {
-  id: string
-  start_at: string
-  local_date: string
-  sport: string
-  subtype?: string | null
-  distance_m: number | null
-  elapsed_s: number | null
-  moving_s: number | null
-  moving_pace_s_per_km: number | null
-  workout_label?: string | null
-  classification?: RunClassification
-  resolution_state?: string
-  source?: string | null
-  provenance?: Record<string, unknown>
-  annotations?: {
-    version: number
-    workout_label?: string | null
-    notes?: string | null
-    excluded?: boolean
-  }
-  sources?: unknown[]
-}
-export interface Profile {
-  version: number
-  timezone: string
-  cycle_anchor: string | null
-  anchor_confirmed: boolean
-  strength_days_confirmed: boolean
-  scheduled_strength_days: number[]
-  strength_schedule_mode: 'weekly' | 'alternating'
-  strength_week_a_start: string | null
-  strength_week_a_days: number[]
-  strength_week_b_days: number[]
-  mobility_week_a_days: number[]
-  mobility_week_b_days: number[]
-  mobility_optional_days: number[]
-  facts: Record<string, unknown>
-  preferences: Record<string, unknown>
-  unknowns: string[]
-}
-export interface SyncDataset {
-  dataset: string
-  status?: string
-  last_attempt_at?: string | null
-  last_success_at?: string | null
-  newest_observation_at?: string | null
-  requested_start?: string | null
-  requested_end?: string | null
-  fully_enumerated?: boolean | null
-  reason?: string | null
-}
-export interface SyncJob {
-  id: string
-  dataset: string
-  status: 'queued' | 'running' | 'retry_wait' | 'succeeded' | 'failed'
-  error_code?: string | null
-}
-export interface SyncStatus {
-  datasets?: SyncDataset[]
-  active_jobs?: SyncJob[]
-}
-
 export function validDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const [year, month, day] = value.split('-').map(Number)
@@ -212,6 +140,10 @@ export * from './api/types/coach'
 export * from './api/types/metrics'
 export * from './api/types/blocks'
 export * from './api/types/anchors'
+// TRANSITIONAL (ARCH-14y9): importers move to the type modules in ARCH-14y2-14y9, then api.ts is deleted
+export * from './api/types/activity'
+export * from './api/types/profile'
+export * from './api/types/sync'
 
 export type Unit = 'mi' | 'km'
 export const MISSING = 'missing'
