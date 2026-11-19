@@ -3,18 +3,32 @@ from __future__ import annotations
 
 import math
 import statistics
+import uuid
 from dataclasses import dataclass
 from typing import Any, cast
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.domain.session_class import classify
+from app.fit_models import ActivityStream, ActivityWorkoutStep
 from app.metrics.contract import (
+    MetricResultData,
     QualityStatus,
     Status,
+    config_hash,
     coverage_label,
     integrate_timer_on,
+    metric_source_refs,
     plausible_hr,
     plausible_speed,
 )
-from app.metrics.intervals import after_timer_seconds
+from app.metrics.engine import register
+from app.metrics.intervals import FitStep, after_timer_seconds, expand_fit
+from app.models import Activity, ActivityAnnotation, AppState
+from app.services.calendar_structure import expand_structure
+from app.services.timezone import athlete_tz, local_date
 
 METRIC_ID = 'aerobic_efficiency'
 METHOD_VERSION = 'v1'
@@ -285,3 +299,94 @@ def aerobic_outcome(stream: AeroStream | None, *, treadmill: bool = False) -> di
             'quality_status': quality.value, 'value': value,
             'reason_codes': [] if quality == QualityStatus.good else ['LOW_COVERAGE'],
             'quality_flags': sorted(flags)}
+
+
+RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
+
+
+def run_class(plan: dict | None, watch_work_steps: int, label: str | None) -> tuple[str, str | None]:
+    """Return (session_class, not_applicable_reason or None) per D11."""
+    if plan is not None:
+        structure = plan.get('structure')
+        work = sum(step['type'] == 'work' for step in expand_structure(structure)) if structure else 0
+        if work >= CONFIG['structured_min_work_steps']:
+            return 'structured', 'STRUCTURED_SESSION'
+        cls = classify('run', plan.get('recipe_id'), plan.get('intent'))
+        if cls in ('easy', 'long'):
+            return cls, None
+        if cls != 'unknown':
+            return cls, 'NOT_EASY_OR_LONG'
+    if label in ('easy', 'long'):
+        return label, None
+    if label in ('quality', 'other'):
+        return label, 'NOT_EASY_OR_LONG'
+    if watch_work_steps >= CONFIG['structured_min_work_steps']:
+        return 'structured', 'STRUCTURED_SESSION'
+    return 'unplanned', None
+
+
+def _watch_work_steps(session: Session, activity_id: uuid.UUID) -> int:
+    rows = session.scalars(select(ActivityWorkoutStep).where(ActivityWorkoutStep.activity_id == activity_id)
+                           .order_by(ActivityWorkoutStep.message_index)).all()
+    if not rows:
+        return 0
+    try:
+        expanded = expand_fit([FitStep(r.message_index, r.duration_type, r.intensity, r.duration_value,
+                                       r.target_type, r.target_low, r.target_high, r.repeat_from, r.repeat_count)
+                               for r in rows])
+    except ValueError:
+        return CONFIG['structured_min_work_steps']  # unreadable repeat: treat as structured
+    return sum(step.intensity in ('active', 'interval') for step in expanded)
+
+
+def _result(subject_type: str, key: str, outcome: dict, refs: dict, tz: str, label: str,
+            start=None, end=None) -> MetricResultData:
+    return MetricResultData(METRIC_ID, METHOD_VERSION, subject_type, key, Status(outcome['status']),
+                            tuple(outcome['reason_codes']), tuple(outcome['quality_flags']), refs, (),
+                            config_hash(CONFIG), window_start=start, window_end=end, window_label=label,
+                            quality_status=QualityStatus(outcome['quality_status']) if outcome['quality_status'] else None,
+                            value=outcome['value'], unit='m_per_beat', timezone=tz)
+
+
+@register(METRIC_ID, METHOD_VERSION, DEPENDS_ON)
+def compute(session: Session, subject_key: str) -> list[MetricResultData]:
+    tz = athlete_tz(session)
+    try:
+        activity_id = uuid.UUID(subject_key)
+    except ValueError as exc:
+        raise ValueError('invalid_subject_key') from exc
+    activity = session.get(Activity, activity_id)
+    if activity is None or activity.sport not in RUN_SPORTS:
+        return []
+    annotation = session.scalar(select(ActivityAnnotation).where(ActivityAnnotation.activity_id == activity_id)
+                                .order_by(ActivityAnnotation.version.desc()).limit(1))
+    state = session.get(AppState, 1)
+    head = state.calendar_head_version if state else 0
+    completion = session.scalar(select(SessionCompletion).where(SessionCompletion.activity_id == activity_id))
+    session_uid = completion.session_uid if completion else None
+    revision = session.scalar(select(CalendarSessionRevision).where(
+        CalendarSessionRevision.session_uid == session_uid,
+        CalendarSessionRevision.calendar_version_number <= head)
+        .order_by(CalendarSessionRevision.calendar_version_number.desc()).limit(1)) if session_uid and head else None
+    plan = ({'recipe_id': revision.recipe_id, 'intent': revision.intent, 'structure': revision.structure}
+            if revision and not revision.deleted and revision.kind == 'run' else None)
+    refs = metric_source_refs(session, activity_id, session_uid, head)
+    day = local_date(activity.start_at, tz)
+    cls: str | None = None
+    if (annotation and annotation.excluded) or activity.resolution_state != 'resolved':
+        outcome = _early(Status.not_applicable, 'ACTIVITY_EXCLUDED')
+    else:
+        cls, ineligible = run_class(plan, _watch_work_steps(session, activity_id),
+                                    annotation.workout_label if annotation else None)
+        if ineligible:
+            outcome = _early(Status.not_applicable, ineligible)
+        else:
+            row = session.get(ActivityStream, activity_id)
+            stream = AeroStream(row.t_s, row.hr_bpm, row.speed_mps, row.altitude_m,
+                                [tuple(pair) for pair in row.timer_on], tuple(row.quality_flags)) if row else None
+            outcome = aerobic_outcome(stream, treadmill=activity.sport == 'treadmill_running')
+    if outcome['value'] is not None:
+        outcome['value'].update(activity_id=str(activity_id), local_date=day.isoformat(),
+                                sport=activity.sport, session_class=cls)
+    return [_result('activity', subject_key, outcome, refs, tz.key, day.isoformat(),
+                    activity.start_at, activity.end_at)]
