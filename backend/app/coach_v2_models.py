@@ -25,7 +25,7 @@ from app.models import uuid_pk
 
 
 class CoachSnapshot(Base):
-    __tablename__ = 'coach_snapshots'
+    __tablename__ = "coach_snapshots"
     id: Mapped[uuid.UUID] = uuid_pk()
     operation: Mapped[str] = mapped_column(String(32), nullable=False)
     as_of: Mapped[date] = mapped_column(Date, nullable=False)
@@ -41,14 +41,20 @@ class CoachSnapshot(Base):
     kb_package_version: Mapped[str] = mapped_column(String(30), nullable=False)
     kb_routes: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     approx_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
-    __table_args__ = (CheckConstraint("operation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change','exception_review','post_event_review')", name='ck_coach_snapshots_operation'),)
+    __table_args__ = (
+        CheckConstraint(
+            "operation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change','exception_review','post_event_review')",
+            name="ck_coach_snapshots_operation",
+        ),
+    )
+
 
 class CoachProposal(Base):
-    __tablename__ = 'coach_proposals'
+    __tablename__ = "coach_proposals"
     id: Mapped[uuid.UUID] = uuid_pk()
-    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default='1')
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     operation: Mapped[str] = mapped_column(String(32), nullable=False)
-    snapshot_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('coach_snapshots.id'), nullable=False)
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("coach_snapshots.id"), nullable=False)
     base_calendar_version: Mapped[int] = mapped_column(Integer, nullable=False)
     base_block_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     status: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -58,9 +64,9 @@ class CoachProposal(Base):
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     rationale: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    evidence_ids: Mapped[list[Any]] = mapped_column(ARRAY(Text), nullable=False, default=list, server_default='{}')
-    policy_ids: Mapped[list[Any]] = mapped_column(ARRAY(Text), nullable=False, default=list, server_default='{}')
-    recipe_ids: Mapped[list[Any]] = mapped_column(ARRAY(Text), nullable=False, default=list, server_default='{}')
+    evidence_ids: Mapped[list[Any]] = mapped_column(ARRAY(Text), nullable=False, default=list, server_default="{}")
+    policy_ids: Mapped[list[Any]] = mapped_column(ARRAY(Text), nullable=False, default=list, server_default="{}")
+    recipe_ids: Mapped[list[Any]] = mapped_column(ARRAY(Text), nullable=False, default=list, server_default="{}")
     follow_up: Mapped[str | None] = mapped_column(Text)
     escalation: Mapped[str | None] = mapped_column(String(32))
     block_change: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
@@ -72,11 +78,33 @@ class CoachProposal(Base):
     validation_errors: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     skill_version: Mapped[str] = mapped_column(String(20), nullable=False)
     input_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    __table_args__ = (CheckConstraint("operation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change','exception_review','post_event_review')", name='ck_coach_proposals_operation'), CheckConstraint("status IN ('pending','accepted','partially_accepted','rejected','stale','invalid','discarded')", name='ck_coach_proposals_status'), CheckConstraint("escalation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change','exception_review','post_event_review')", name='ck_coach_proposals_escalation'), Index('uq_coach_proposals_one_open', text('(true)'), unique=True, postgresql_where=text("status IN ('pending','stale','invalid')")))
+    __table_args__ = (
+        CheckConstraint(
+            "operation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change','exception_review','post_event_review')",
+            name="ck_coach_proposals_operation",
+        ),
+        CheckConstraint(
+            "status IN ('pending','accepted','partially_accepted','rejected','stale','invalid','discarded')",
+            name="ck_coach_proposals_status",
+        ),
+        CheckConstraint(
+            "escalation IN ('proceed_or_modify_today','review_rolling_plan','review_training_block','select_quality_session','recalibrate_intensity','handle_goal_or_race_change','exception_review','post_event_review')",
+            name="ck_coach_proposals_escalation",
+        ),
+        Index(
+            "uq_coach_proposals_one_open",
+            text("(true)"),
+            unique=True,
+            postgresql_where=text("status IN ('pending','stale','invalid')"),
+        ),
+    )
+
 
 class CoachProposalRevision(Base):
-    __tablename__ = 'coach_proposal_revisions'
-    proposal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('coach_proposals.id', ondelete='CASCADE'), primary_key=True)
+    __tablename__ = "coach_proposal_revisions"
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("coach_proposals.id", ondelete="CASCADE"), primary_key=True
+    )
     revision: Mapped[int] = mapped_column(Integer, primary_key=True)
     saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
@@ -87,9 +115,9 @@ class CoachProposalRevision(Base):
 
 
 class CoachProposalChange(Base):
-    __tablename__ = 'coach_proposal_changes'
+    __tablename__ = "coach_proposal_changes"
     id: Mapped[uuid.UUID] = uuid_pk()
-    proposal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('coach_proposals.id'), nullable=False)
+    proposal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("coach_proposals.id"), nullable=False)
     change_id: Mapped[str] = mapped_column(String(12), nullable=False)
     op: Mapped[str] = mapped_column(String(10), nullable=False)
     session_uid: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
@@ -97,12 +125,17 @@ class CoachProposalChange(Base):
     after: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     decision: Mapped[str] = mapped_column(String(10), nullable=False)
-    __table_args__ = (UniqueConstraint('proposal_id','change_id'), CheckConstraint("op IN ('add','modify','move','delete')", name='ck_coach_proposal_changes_op'), CheckConstraint("decision IN ('pending','accepted','rejected')", name='ck_coach_proposal_changes_decision'),)
+    __table_args__ = (
+        UniqueConstraint("proposal_id", "change_id"),
+        CheckConstraint("op IN ('add','modify','move','delete')", name="ck_coach_proposal_changes_op"),
+        CheckConstraint("decision IN ('pending','accepted','rejected')", name="ck_coach_proposal_changes_decision"),
+    )
+
 
 class CoachDecisionKey(Base):
-    __tablename__ = 'coach_decision_keys'
+    __tablename__ = "coach_decision_keys"
     idempotency_key: Mapped[str] = mapped_column(String(100), primary_key=True)
-    proposal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('coach_proposals.id'), nullable=False)
+    proposal_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("coach_proposals.id"), nullable=False)
     decision_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     result: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

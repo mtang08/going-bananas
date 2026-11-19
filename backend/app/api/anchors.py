@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 class AnchorInput(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
     kind: str
     value_low: float
     value_high: float | None = None
@@ -35,15 +35,17 @@ class AnchorInput(BaseModel):
     supersedes_key: str | None = None
 
 
-@router.get('/anchors')
+@router.get("/anchors")
 def get_anchors(session: Session = Depends(get_session)) -> dict:
-    rows = session.scalars(select(IntensityAnchor).order_by(
-        IntensityAnchor.kind, IntensityAnchor.valid_from,
-        IntensityAnchor.calibrated_at, IntensityAnchor.anchor_key)).all()
-    return envelope(session, {'items': [anchor_data(row) for row in rows]})
+    rows = session.scalars(
+        select(IntensityAnchor).order_by(
+            IntensityAnchor.kind, IntensityAnchor.valid_from, IntensityAnchor.calibrated_at, IntensityAnchor.anchor_key
+        )
+    ).all()
+    return envelope(session, {"items": [anchor_data(row) for row in rows]})
 
 
-@router.post('/anchors')
+@router.post("/anchors")
 def post_anchor(body: AnchorInput, session: Session = Depends(get_session)) -> dict:
     data = create_anchor(session, body.model_dump(exclude_none=True))
     session.commit()

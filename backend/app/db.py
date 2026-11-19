@@ -15,8 +15,8 @@ class Base(DeclarativeBase):
 engine = create_engine(settings.database_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 GLOBAL_WRITE_LOCK = 71382413
-_WRITE_LOCK = text(f'SELECT pg_advisory_xact_lock({GLOBAL_WRITE_LOCK})')
-_READ_LOCK = text(f'SELECT pg_advisory_xact_lock_shared({GLOBAL_WRITE_LOCK})')
+_WRITE_LOCK = text(f"SELECT pg_advisory_xact_lock({GLOBAL_WRITE_LOCK})")
+_READ_LOCK = text(f"SELECT pg_advisory_xact_lock_shared({GLOBAL_WRITE_LOCK})")
 
 
 def global_write_lock(session: Session) -> None:
@@ -36,16 +36,18 @@ def get_session() -> Generator[Session, None, None]:
 
 def get_revision(session: Session) -> int:
     from app.models import AppState
+
     state = session.get(AppState, 1)
     return state.data_revision if state else 0
 
 
 def bump_data_revision(session: Session) -> int:
     from app.models import AppState
+
     outer = session.get_transaction()
     if outer is None:
         outer = session.begin()
-    marker = session.info.get('source_revision_bump')
+    marker = session.info.get("source_revision_bump")
     if marker is not None and marker[0] is outer:
         return marker[1]
     global_write_lock(session)
@@ -56,29 +58,29 @@ def bump_data_revision(session: Session) -> int:
     assert state is not None and current is not None
     state.data_revision = current + 1
     session.flush()
-    session.info['source_revision_bump'] = (outer, state.data_revision)
+    session.info["source_revision_bump"] = (outer, state.data_revision)
     return state.data_revision
 
 
-@event.listens_for(Session, 'after_transaction_create')
+@event.listens_for(Session, "after_transaction_create")
 def _save_nested_revision_marker(session, transaction):
     if transaction.nested:
-        transaction._source_revision_inherited = session.info.get('source_revision_bump')
+        transaction._source_revision_inherited = session.info.get("source_revision_bump")
 
 
-@event.listens_for(Session, 'after_soft_rollback')
+@event.listens_for(Session, "after_soft_rollback")
 def _restore_nested_revision_marker(session, transaction):
     if transaction.nested:
-        inherited = getattr(transaction, '_source_revision_inherited', None)
+        inherited = getattr(transaction, "_source_revision_inherited", None)
         if inherited is None:
-            session.info.pop('source_revision_bump', None)
+            session.info.pop("source_revision_bump", None)
         else:
-            session.info['source_revision_bump'] = inherited
+            session.info["source_revision_bump"] = inherited
     else:
-        session.info.pop('source_revision_bump', None)
+        session.info.pop("source_revision_bump", None)
 
 
-@event.listens_for(Session, 'after_transaction_end')
+@event.listens_for(Session, "after_transaction_end")
 def _clear_outer_revision_marker(session, transaction):
     if transaction.parent is None:
-        session.info.pop('source_revision_bump', None)
+        session.info.pop("source_revision_bump", None)

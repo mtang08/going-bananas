@@ -24,10 +24,14 @@ from app.models import uuid_pk
 
 
 class FitFile(Base):
-    __tablename__ = 'fit_files'
+    __tablename__ = "fit_files"
     id: Mapped[uuid.UUID] = uuid_pk()
-    raw_object_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('raw_objects.id'), nullable=False, unique=True)
-    activity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('activities.id'), nullable=False, unique=True)
+    raw_object_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("raw_objects.id"), nullable=False, unique=True
+    )
+    activity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("activities.id"), nullable=False, unique=True
+    )
     zip_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(String(100))
@@ -40,10 +44,11 @@ class FitFile(Base):
     message_inventory: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     device: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
 
+
 class ActivityLap(Base):
-    __tablename__ = 'activity_laps'
+    __tablename__ = "activity_laps"
     id: Mapped[uuid.UUID] = uuid_pk()
-    activity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('activities.id'), nullable=False)
+    activity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("activities.id"), nullable=False)
     lap_index: Mapped[int] = mapped_column(Integer, nullable=False)
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     timer_s: Mapped[float | None] = mapped_column(Float)
@@ -57,22 +62,29 @@ class ActivityLap(Base):
     end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     intensity: Mapped[str | None] = mapped_column(String(20))
     __table_args__ = (
-        UniqueConstraint('activity_id', 'lap_index'),
+        UniqueConstraint("activity_id", "lap_index"),
         CheckConstraint(
             "intensity IS NULL OR intensity IN ('active','rest','warmup','cooldown','recovery','interval','other')",
-            name='ck_activity_laps_intensity',
+            name="ck_activity_laps_intensity",
         ),
     )
 
+
 class ActivityWorkoutStep(Base):
-    __tablename__ = 'activity_workout_steps'
+    __tablename__ = "activity_workout_steps"
     id: Mapped[uuid.UUID] = uuid_pk()
-    activity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('activities.id'), nullable=False)
+    activity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("activities.id"), nullable=False)
     message_index: Mapped[int] = mapped_column(Integer, nullable=False)
     step_name: Mapped[str | None] = mapped_column(String(100))
     intensity: Mapped[str | None] = mapped_column(String(20))
     duration_type: Mapped[str] = mapped_column(String(30), nullable=False)
-    __table_args__ = (UniqueConstraint('activity_id','message_index'), CheckConstraint("intensity IN ('active','rest','warmup','cooldown','recovery','interval','other')", name='ck_activity_workout_steps_intensity'))
+    __table_args__ = (
+        UniqueConstraint("activity_id", "message_index"),
+        CheckConstraint(
+            "intensity IN ('active','rest','warmup','cooldown','recovery','interval','other')",
+            name="ck_activity_workout_steps_intensity",
+        ),
+    )
     duration_value: Mapped[float | None] = mapped_column(Float)
     target_type: Mapped[str | None] = mapped_column(String(30))
     target_low: Mapped[float | None] = mapped_column(Float)
@@ -80,9 +92,10 @@ class ActivityWorkoutStep(Base):
     repeat_from: Mapped[int | None] = mapped_column(Integer)
     repeat_count: Mapped[int | None] = mapped_column(Integer)
 
+
 class ActivityStream(Base):
-    __tablename__ = 'activity_streams'
-    activity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('activities.id'), primary_key=True)
+    __tablename__ = "activity_streams"
+    activity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("activities.id"), primary_key=True)
     t_s: Mapped[list[Any]] = mapped_column(ARRAY(Integer), nullable=False)
     hr_bpm: Mapped[list[Any]] = mapped_column(ARRAY(SmallInteger), nullable=False)
     speed_mps: Mapped[list[Any]] = mapped_column(ARRAY(REAL), nullable=False)
@@ -92,4 +105,4 @@ class ActivityStream(Base):
     timer_on: Mapped[list[Any]] = mapped_column(ARRAY(Integer, dimensions=2), nullable=False)
     sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
     max_gap_s: Mapped[int] = mapped_column(Integer, nullable=False)
-    quality_flags: Mapped[list[Any]] = mapped_column(ARRAY(Text), nullable=False, default=list, server_default='{}')
+    quality_flags: Mapped[list[Any]] = mapped_column(ARRAY(Text), nullable=False, default=list, server_default="{}")

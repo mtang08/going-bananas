@@ -29,8 +29,11 @@ from app.services.timezone import DEFAULT_TIMEZONE
 
 
 def _scope() -> str:
-    if not (os.getenv("GARMIN_API_KEY") or os.getenv("GARMIN_PERSONAL_API_KEY") or
-            Path(os.getenv("GARMIN_KEY_FILE", settings.private_dir / "garmin-key")).is_file()):
+    if not (
+        os.getenv("GARMIN_API_KEY")
+        or os.getenv("GARMIN_PERSONAL_API_KEY")
+        or Path(os.getenv("GARMIN_KEY_FILE", settings.private_dir / "garmin-key")).is_file()
+    ):
         raise ValueError("garmin_credential_missing")
     return "auto"  # Every live page is bound to its verified Garmin ownerId.
 
@@ -44,9 +47,10 @@ def _prepare_calendar_preview(session: Session) -> AppState:
         metadata.reflect(bind=session.connection())
         if state.data_revision != 0 or any(
             session.scalar(select(1).select_from(table).limit(1)) is not None
-            for table in metadata.tables.values() if table.name not in {'app_state', 'alembic_version'}
+            for table in metadata.tables.values()
+            if table.name not in {"app_state", "alembic_version"}
         ):
-            raise ValueError('calendar_preview_requires_empty_database')
+            raise ValueError("calendar_preview_requires_empty_database")
     return state
 
 
@@ -78,7 +82,8 @@ def _parse() -> argparse.Namespace:
     fit = sub.add_parser("fit-backfill")
     fit.add_argument("--since", type=date.fromisoformat, required=True)
     reprocess = sub.add_parser(
-        "fit-reprocess", description="Re-decode retained FIT archives offline. "
+        "fit-reprocess",
+        description="Re-decode retained FIT archives offline. "
         "Applying re-runs metric refresh and same-day matching for the touched dates.",
     )
     reprocess.add_argument("--since", type=date.fromisoformat, required=True)
@@ -87,28 +92,31 @@ def _parse() -> argparse.Namespace:
     strong = sub.add_parser("strong-import")
     strong.add_argument("csv", type=Path)
     strong.add_argument("--apply", action="store_true")
-    coach = sub.add_parser('coach')
-    coach_sub = coach.add_subparsers(dest='coach_command', required=True)
-    coach_sub.add_parser('schema')
+    coach = sub.add_parser("coach")
+    coach_sub = coach.add_subparsers(dest="coach_command", required=True)
+    coach_sub.add_parser("schema")
     from app.services.knowledge import SUPPORTED_OPERATIONS
-    snapshot = coach_sub.add_parser('snapshot')
-    snapshot.add_argument('--operation', choices=sorted(SUPPORTED_OPERATIONS), required=True)
-    snapshot.add_argument('--as-of', type=date.fromisoformat)
-    query = coach_sub.add_parser('query')
-    query.add_argument('name', choices=['activity_execution', 'long_run_history', 'recovery_nights', 'calendar_diff', 'explain_metric'])
-    query.add_argument('--activity-id', type=uuid.UUID)
-    query.add_argument('--start', type=date.fromisoformat)
-    query.add_argument('--end', type=date.fromisoformat)
-    query.add_argument('--from', dest='from_version', type=int)
-    query.add_argument('--to', dest='to_version', type=int)
-    query.add_argument('--result-id', type=uuid.UUID)
-    submit = coach_sub.add_parser('submit')
-    submit.add_argument('--file', type=Path, required=True)
-    revise = coach_sub.add_parser('revise')
-    revise.add_argument('id', type=uuid.UUID)
-    revise.add_argument('--expected-revision', type=int, required=True)
-    revise.add_argument('--reason', required=True)
-    revise.add_argument('--file', type=Path, required=True)
+
+    snapshot = coach_sub.add_parser("snapshot")
+    snapshot.add_argument("--operation", choices=sorted(SUPPORTED_OPERATIONS), required=True)
+    snapshot.add_argument("--as-of", type=date.fromisoformat)
+    query = coach_sub.add_parser("query")
+    query.add_argument(
+        "name", choices=["activity_execution", "long_run_history", "recovery_nights", "calendar_diff", "explain_metric"]
+    )
+    query.add_argument("--activity-id", type=uuid.UUID)
+    query.add_argument("--start", type=date.fromisoformat)
+    query.add_argument("--end", type=date.fromisoformat)
+    query.add_argument("--from", dest="from_version", type=int)
+    query.add_argument("--to", dest="to_version", type=int)
+    query.add_argument("--result-id", type=uuid.UUID)
+    submit = coach_sub.add_parser("submit")
+    submit.add_argument("--file", type=Path, required=True)
+    revise = coach_sub.add_parser("revise")
+    revise.add_argument("id", type=uuid.UUID)
+    revise.add_argument("--expected-revision", type=int, required=True)
+    revise.add_argument("--reason", required=True)
+    revise.add_argument("--file", type=Path, required=True)
     return parser.parse_args()
 
 
@@ -130,85 +138,131 @@ def _coach(args) -> int:
 
     try:
         now = datetime.now(UTC)
-        if args.coach_command == 'schema':
-            output({'protocol': 'coach_proposal.v1', 'activation': 'manual', 'required_authority': 'calendar',
-                'proposal': ProposalDoc.model_json_schema(),
-                'revision': RevisionRequest.model_json_schema()})
+        if args.coach_command == "schema":
+            output(
+                {
+                    "protocol": "coach_proposal.v1",
+                    "activation": "manual",
+                    "required_authority": "calendar",
+                    "proposal": ProposalDoc.model_json_schema(),
+                    "revision": RevisionRequest.model_json_schema(),
+                }
+            )
             return 0
-        if args.coach_command == 'snapshot':
+        if args.coach_command == "snapshot":
             from app.services.snapshot.build import build_snapshot
+
             with SessionLocal.begin() as session:
-                result = build_snapshot(session, args.operation, args.as_of or date_in_zone(now, athlete_tz(session)), now=now)
+                result = build_snapshot(
+                    session, args.operation, args.as_of or date_in_zone(now, athlete_tz(session)), now=now
+                )
             output(result)
             return 0
-        if args.coach_command in {'submit', 'revise'}:
+        if args.coach_command in {"submit", "revise"}:
             try:
-                raw = json.loads(args.file.read_text(encoding='utf-8'))
+                raw = json.loads(args.file.read_text(encoding="utf-8"))
                 if not isinstance(raw, dict):
-                    raise ValueError('not_object')
+                    raise ValueError("not_object")
             except (OSError, UnicodeError, ValueError):
-                output({'proposal_id': None, 'revision': None, 'status': 'invalid', 'errors': [
-                    {'code': 'V1.schema', 'path': '', 'message': 'File is not a JSON object'}]})
+                output(
+                    {
+                        "proposal_id": None,
+                        "revision": None,
+                        "status": "invalid",
+                        "errors": [{"code": "V1.schema", "path": "", "message": "File is not a JSON object"}],
+                    }
+                )
                 return 2
-            if args.coach_command == 'revise':
+            if args.coach_command == "revise":
                 try:
-                    request = RevisionRequest(expected_revision=args.expected_revision,
-                        reason=args.reason, document=raw)
+                    request = RevisionRequest(
+                        expected_revision=args.expected_revision, reason=args.reason, document=raw
+                    )
                 except ValidationError:
-                    output({'proposal_id': str(args.id), 'revision': None, 'status': 'invalid',
-                        'error': 'invalid_revision_request', 'errors': [
-                            {'code': 'invalid_revision_request', 'path': '', 'message': 'Invalid revision request'}]})
+                    output(
+                        {
+                            "proposal_id": str(args.id),
+                            "revision": None,
+                            "status": "invalid",
+                            "error": "invalid_revision_request",
+                            "errors": [
+                                {"code": "invalid_revision_request", "path": "", "message": "Invalid revision request"}
+                            ],
+                        }
+                    )
                     return 2
             with SessionLocal.begin() as session:
-                if args.coach_command == 'submit':
+                if args.coach_command == "submit":
                     submitted = submit_proposal(session, raw, now=now, resolve_kb=resolve_kb)
                 else:
                     submitted = revise_proposal(session, args.id, request, now=now, resolve_kb=resolve_kb)
-            output({'proposal_id': str(submitted.proposal_id) if submitted.proposal_id else None,
-                'revision': submitted.revision, 'status': submitted.status,
-                'errors': [issue.to_json() for issue in submitted.issues]})
-            return {'pending': 0, 'stale': 3}.get(submitted.status, 2)
-        required = {'activity_execution': ('activity_id',), 'long_run_history': ('start', 'end'),
-            'recovery_nights': ('start', 'end'), 'calendar_diff': ('from_version', 'to_version'),
-            'explain_metric': ('result_id',)}
-        flags = {'from_version': '--from', 'to_version': '--to'}
+            output(
+                {
+                    "proposal_id": str(submitted.proposal_id) if submitted.proposal_id else None,
+                    "revision": submitted.revision,
+                    "status": submitted.status,
+                    "errors": [issue.to_json() for issue in submitted.issues],
+                }
+            )
+            return {"pending": 0, "stale": 3}.get(submitted.status, 2)
+        required = {
+            "activity_execution": ("activity_id",),
+            "long_run_history": ("start", "end"),
+            "recovery_nights": ("start", "end"),
+            "calendar_diff": ("from_version", "to_version"),
+            "explain_metric": ("result_id",),
+        }
+        flags = {"from_version": "--from", "to_version": "--to"}
         for field in required[args.name]:
             if getattr(args, field) is None:
-                output({'error': 'missing_argument', 'message': f"{flags.get(field, '--'+field.replace('_','-'))} required"}, error=True)
+                output(
+                    {
+                        "error": "missing_argument",
+                        "message": f"{flags.get(field, '--' + field.replace('_', '-'))} required",
+                    },
+                    error=True,
+                )
                 return 2
         from app.api.metrics import activity_execution, explain_metric, long_run_history, recovery_nights
         from app.services.calendar import calendar_diff
+
         data: Any
         with SessionLocal() as session:
-            if args.name == 'activity_execution':
+            if args.name == "activity_execution":
                 data = activity_execution(session, args.activity_id)
-            elif args.name == 'long_run_history':
+            elif args.name == "long_run_history":
                 data = long_run_history(session, args.start, args.end)
-            elif args.name == 'recovery_nights':
+            elif args.name == "recovery_nights":
                 data = recovery_nights(session, args.start, args.end)
-            elif args.name == 'calendar_diff':
+            elif args.name == "calendar_diff":
                 data = calendar_diff(session, args.from_version, args.to_version)
             else:
                 data = explain_metric(session, args.result_id)
-            output({'query': args.name, 'data': data})
+            output({"query": args.name, "data": data})
         return 0
     except knowledge.KnowledgeIntegrityError:
-        output({'error': 'knowledge_unavailable'}, error=True)
+        output({"error": "knowledge_unavailable"}, error=True)
         return 4
     except DecisionError as exc:
-        if args.coach_command in {'submit', 'revise'}:
-            output({'proposal_id': str(args.id) if args.coach_command == 'revise' else None,
-                'revision': None, 'status': 'invalid', 'error': exc.code,
-                'errors': [issue.to_json() for issue in exc.fields]
-                or [{'code': exc.code, 'path': '', 'message': exc.message}]})
+        if args.coach_command in {"submit", "revise"}:
+            output(
+                {
+                    "proposal_id": str(args.id) if args.coach_command == "revise" else None,
+                    "revision": None,
+                    "status": "invalid",
+                    "error": exc.code,
+                    "errors": [issue.to_json() for issue in exc.fields]
+                    or [{"code": exc.code, "path": "", "message": exc.message}],
+                }
+            )
         else:
-            output({'error': exc.code, 'message': exc.message}, error=True)
-        return 3 if exc.code == 'stale_evidence' else 2
+            output({"error": exc.code, "message": exc.message}, error=True)
+        return 3 if exc.code == "stale_evidence" else 2
     except AppError as exc:
-        output({'error': exc.code}, error=True)
+        output({"error": exc.code}, error=True)
         return 4 if exc.status_code == 404 else 2
     except Exception:
-        output({'error': 'unexpected_error'}, error=True)
+        output({"error": "unexpected_error"}, error=True)
         return 1
 
 
@@ -216,6 +270,7 @@ def main() -> int:
     args = _parse()
     configure(settings.private_dir)
     from app.services import derived
+
     derived.install()
     try:
         if args.command == "coach":
@@ -228,15 +283,16 @@ def main() -> int:
             from app.metric_models import MetricResult
             from app.metrics import engine as metrics_engine
             from app.metrics import refresh
+
             metrics_engine.metric_modules()
-            if args.metric != 'all' and args.metric not in metrics_engine.REGISTRY:
-                raise ValueError('invalid_metric')
+            if args.metric != "all" and args.metric not in metrics_engine.REGISTRY:
+                raise ValueError("invalid_metric")
             with SessionLocal.begin() as session:
                 today = refresh.local_today(session)
                 since, until = args.since or today - timedelta(days=83), args.until or today
                 if since > until or until > today:
-                    raise ValueError('invalid_date_window')
-                if args.metric != 'all':
+                    raise ValueError("invalid_date_window")
+                if args.metric != "all":
                     wanted = {args.metric}
                     pending = [args.metric]
                     while pending:
@@ -244,19 +300,24 @@ def main() -> int:
                             if dependency not in wanted:
                                 wanted.add(dependency)
                                 pending.append(dependency)
-                    session.info['metrics_filter'] = wanted
+                    session.info["metrics_filter"] = wanted
                 for day_offset in range((until - since).days + 1):
                     refresh.ensure_windows(session, since + timedelta(days=day_offset))
                 query = select(MetricResult)
-                if args.metric != 'all':
+                if args.metric != "all":
                     query = query.where(MetricResult.metric_id == args.metric)
                 rows = list(session.scalars(query))
                 versions = {metric.metric_id: metric.method_version for metric in metrics_engine.REGISTRY.values()}
-                metric_summary = {'metric': args.metric, 'since': str(since), 'until': str(until),
-                    'subjects': len({(row.metric_id, row.subject_key) for row in rows}),
-                    'results_current': sum(row.is_current and versions.get(row.metric_id) == row.method_version
-                                           for row in rows),
-                    'history_rows': len(rows)}
+                metric_summary = {
+                    "metric": args.metric,
+                    "since": str(since),
+                    "until": str(until),
+                    "subjects": len({(row.metric_id, row.subject_key) for row in rows}),
+                    "results_current": sum(
+                        row.is_current and versions.get(row.metric_id) == row.method_version for row in rows
+                    ),
+                    "history_rows": len(rows),
+                }
             print(json.dumps(metric_summary))
         elif args.command == "metrics-assess-session":
             from app.calendar_models import SessionCompletion
@@ -269,39 +330,45 @@ def main() -> int:
             with SessionLocal() as session:
                 completion = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == uid))
                 if completion is None:
-                    raise ValueError('completion_not_found')
+                    raise ValueError("completion_not_found")
                 activity_key = str(completion.activity_id) if completion.activity_id is not None else None
 
                 def snapshot(completion: SessionCompletion) -> dict[str, Any]:
                     interval = None
                     if activity_key is not None:
                         interval = metrics_engine.current_results(
-                            session, intervals.METRIC_ID, [activity_key],
+                            session,
+                            intervals.METRIC_ID,
+                            [activity_key],
                         ).get(activity_key)
                     comparison = metrics_engine.current_results(
-                        session, planned_actual.METRIC_ID, [session_key],
+                        session,
+                        planned_actual.METRIC_ID,
+                        [session_key],
                     ).get(session_key)
                     comparison_snapshot = None
                     if comparison is not None:
                         assert comparison.value is not None
                         comparison_snapshot = {
-                            'status': comparison.status,
-                            'overall_status': comparison.value['overall_status'],
-                            'components': comparison.value['components'],
-                            'reason_codes': comparison.reason_codes,
-                            'config_hash': comparison.config_hash,
+                            "status": comparison.status,
+                            "overall_status": comparison.value["overall_status"],
+                            "components": comparison.value["components"],
+                            "reason_codes": comparison.reason_codes,
+                            "config_hash": comparison.config_hash,
                         }
                     return {
-                        'completion_status': completion.status,
-                        'completion_version': completion.version,
-                        'interval': {
-                            'status': interval.status,
-                            'reason_codes': interval.reason_codes,
-                            'quality_flags': interval.quality_flags,
-                            'step_completion_ratio': (interval.value or {}).get('step_completion_ratio'),
-                            'config_hash': interval.config_hash,
-                        } if interval is not None else None,
-                        'planned_actual': comparison_snapshot,
+                        "completion_status": completion.status,
+                        "completion_version": completion.version,
+                        "interval": {
+                            "status": interval.status,
+                            "reason_codes": interval.reason_codes,
+                            "quality_flags": interval.quality_flags,
+                            "step_completion_ratio": (interval.value or {}).get("step_completion_ratio"),
+                            "config_hash": interval.config_hash,
+                        }
+                        if interval is not None
+                        else None,
+                        "planned_actual": comparison_snapshot,
                     }
 
                 before = snapshot(completion)
@@ -311,19 +378,29 @@ def main() -> int:
                     session.commit()
                 else:
                     session.rollback()
-            print(json.dumps({
-                'session_uid': session_key, 'activity_id': activity_key, 'applied': args.apply,
-                'before': before, 'after': after,
-            }, sort_keys=True, default=str))
+            print(
+                json.dumps(
+                    {
+                        "session_uid": session_key,
+                        "activity_id": activity_key,
+                        "applied": args.apply,
+                        "before": before,
+                        "after": after,
+                    },
+                    sort_keys=True,
+                    default=str,
+                )
+            )
         elif args.command == "fit-backfill":
             from app.adapters.garmin.personal import GarminPersonalSource
             from app.services.fit_ingest import backfill_fit
-            if settings.app_mode != 'real':
-                raise ValueError('real_mode_required')
+
+            if settings.app_mode != "real":
+                raise ValueError("real_mode_required")
             if args.since > date.today():
-                raise ValueError('invalid_date_window')
-            key_file = Path(os.getenv('GARMIN_KEY_FILE', settings.private_dir / 'garmin-key'))
-            with GarminPersonalSource(key_file, settings.private_dir / 'garmin-token.json') as source:
+                raise ValueError("invalid_date_window")
+            key_file = Path(os.getenv("GARMIN_KEY_FILE", settings.private_dir / "garmin-key"))
+            with GarminPersonalSource(key_file, settings.private_dir / "garmin-token.json") as source:
                 print(json.dumps(backfill_fit(SessionLocal, source, settings.private_dir, args.since)))
         elif args.command == "fit-reprocess":
             from app.services.fit_ingest import reprocess_fits
@@ -337,6 +414,7 @@ def main() -> int:
             print(json.dumps({"mode": "apply" if args.apply else "dry_run", **summary}))
         elif args.command == "strong-import":
             from app.services.strong_import import import_strong_csv
+
             with SessionLocal() as session:
                 strong_summary = import_strong_csv(session, settings.private_dir, args.csv, apply=args.apply)
                 if args.apply:
@@ -367,8 +445,10 @@ def main() -> int:
                 with SessionLocal.begin() as session:
                     jobs = [enqueue_sync(session, start, end, "activities")]
                     recovery_start = start if args.start else end - timedelta(days=6)
-                    jobs += [enqueue_sync(session, recovery_start, end, dataset)
-                             for dataset in ("sleep", "hrv", "resting_hr")]
+                    jobs += [
+                        enqueue_sync(session, recovery_start, end, dataset)
+                        for dataset in ("sleep", "hrv", "resting_hr")
+                    ]
                     print(json.dumps({"job_ids": [str(job.id) for job in jobs]}))
                 results = [run_one_job(settings.private_dir, key_file, scope) for _ in jobs]
                 print(json.dumps({"results": results}))
