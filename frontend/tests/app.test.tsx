@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { App, parseHash } from '../src/App'
+import { digest } from './fixtures/weekly-digest'
 
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -75,6 +76,12 @@ const weeklyProjection = {
   plan_through: '2026-11-28',
   activity_coverage_complete: true,
 }
+const weeklyDigest = digest({
+  today: calendarView.today,
+  days_elapsed: 7,
+  timezone: calendarView.timezone,
+  calendar_version: calendarView.head,
+})
 const execution = {
   activity: {
     id: 'run-1',
@@ -202,6 +209,8 @@ beforeEach(() => {
         } as Response
       if (url.endsWith('/calendar/weekly-projection'))
         return { ok: true, status: 200, json: async () => wrap(weeklyProjection) } as Response
+      if (url.endsWith('/calendar/weekly-digest'))
+        return { ok: true, status: 200, json: async () => wrap(weeklyDigest) } as Response
       if (url.includes('/profile') && method === 'PUT')
         profileRecord = {
           ...profileRecord,
