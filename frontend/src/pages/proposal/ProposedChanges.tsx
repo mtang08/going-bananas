@@ -1,3 +1,4 @@
+import type { ProposalChange } from '../../api/types/coach'
 import {
   Badge,
   Button,
