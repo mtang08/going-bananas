@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.db import global_write_lock
 from app.errors import fail
 from app.metrics.contract import sha256_json
 from app.planning_models import IntensityAnchor
@@ -102,7 +103,7 @@ def _validate_value(kind: str, low: float, high: float | None) -> None:
 
 
 def create_anchor(session: Session, fields: dict[str, Any]) -> dict[str, Any]:
-    session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+    global_write_lock(session)
     allowed = {'kind', 'value_low', 'value_high', 'unit', 'protocol', 'confidence',
                'calibrated_at', 'valid_from', 'review_after', 'source_activity_id',
                'source_event_id', 'proposal_id', 'conditions', 'notes', 'supersedes_key'}

@@ -11,12 +11,13 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, event, func, inspect, select, text, tuple_
+from sqlalchemy import and_, event, func, inspect, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import ColumnElement
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.db import global_write_lock
 from app.fit_models import ActivityStream, FitFile
 from app.metric_models import MetricConfig
 from app.metric_models import MetricResult as MetricResultRow
@@ -282,7 +283,7 @@ def _result_dependency(result: MetricResultData) -> tuple[str, bool]:
 def upsert_results(session: Session, results: list[MetricResultData]) -> None:
     if not results:
         return
-    session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+    global_write_lock(session)
     calculated_at = session.info.get('metrics_now') or datetime.now(UTC)
     timezone = _profile_timezone(session)
     for raw in results:
@@ -379,7 +380,7 @@ def _refreshing(session: Session):
     session.info['metrics_depth'] = depth + 1
     try:
         if depth == 0:
-            session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+            global_write_lock(session)
             session.info['metrics_computed'] = set()
             ensure_configs(session)
         yield

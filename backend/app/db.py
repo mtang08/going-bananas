@@ -14,6 +14,19 @@ class Base(DeclarativeBase):
 
 engine = create_engine(settings.database_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+GLOBAL_WRITE_LOCK = 71382413
+_WRITE_LOCK = text(f'SELECT pg_advisory_xact_lock({GLOBAL_WRITE_LOCK})')
+_READ_LOCK = text(f'SELECT pg_advisory_xact_lock_shared({GLOBAL_WRITE_LOCK})')
+
+
+def global_write_lock(session: Session) -> None:
+    """Serialize source, calendar, proposal, and metric writers until this transaction ends."""
+    session.execute(_WRITE_LOCK)
+
+
+def global_read_lock(session: Session) -> None:
+    """Wait for in-flight writers, then read a consistent view until this transaction ends."""
+    session.execute(_READ_LOCK)
 
 
 def get_session() -> Generator[Session, None, None]:
@@ -35,7 +48,7 @@ def bump_data_revision(session: Session) -> int:
     marker = session.info.get('source_revision_bump')
     if marker is not None and marker[0] is outer:
         return marker[1]
-    session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+    global_write_lock(session)
     # Read the revision under the lock even if this identity was loaded
     # earlier, preserving other pending AppState fields (e.g. plan head).
     current = session.scalar(select(AppState.data_revision).where(AppState.id == 1).with_for_update())
