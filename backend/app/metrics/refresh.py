@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.db import bump_data_revision, global_write_lock
+from app.domain.local_time import date_in_zone
 from app.metric_models import MetricResult as MetricResultRow
 from app.metrics.contract import MetricResultData
 from app.metrics.engine import (
@@ -29,7 +30,8 @@ from app.metrics.engine import (
     ordered_registry,
     upsert_results,
 )
-from app.models import Activity, AppState
+from app.models import Activity
+from app.read.calendar import latest_revisions, recent_revision_dates
 from app.services.timezone import athlete_today, athlete_tz
 
 
@@ -65,14 +67,6 @@ def parse_scope(scope: str) -> tuple[str, Any]:
 
 # A stored hard_session_spacing window refreshes only when a changed date is within this distance of its as-of date.
 SPACING_REACH_DAYS = 14
-
-
-def _plan_dates(session: Session, uid: uuid.UUID) -> set[date]:
-    """The days of a session's two latest revisions: where it is now and where it was before this change."""
-    return set(session.scalars(select(CalendarSessionRevision.local_date)
-                               .where(CalendarSessionRevision.session_uid == uid)
-                               .order_by(CalendarSessionRevision.calendar_version_number.desc(),
-                                         CalendarSessionRevision.revision.desc()).limit(2)))
 
 
 def clock(session: Session) -> datetime:
@@ -134,7 +128,7 @@ def activities_between(session: Session, start: date, end: date) -> list[uuid.UU
         Activity.start_at >= datetime.combine(start - timedelta(days=1), datetime.min.time(), tzinfo=zone),
         Activity.start_at < datetime.combine(end + timedelta(days=2), datetime.min.time(), tzinfo=zone))
         .order_by(Activity.start_at, Activity.id)).all()
-    return [uid for uid, stamp in rows if start <= stamp.astimezone(zone).date() <= end]
+    return [uid for uid, stamp in rows if start <= date_in_zone(stamp, zone) <= end]
 
 
 def refresh_runs(session: Session, activity_ids: Iterable[uuid.UUID]) -> list[MetricResultData]:
@@ -159,13 +153,10 @@ def _refresh_strength(session: Session, start: date, end: date) -> list[MetricRe
 
 
 def _plan_uids(session: Session, start: date | None = None, end: date | None = None) -> list[uuid.UUID]:
-    from app.services.calendar import state_at
-    head = session.scalar(select(AppState.calendar_head_version).where(AppState.id == 1)) or 0
-    if not head:
-        return []
-    rows = state_at(session, head)
-    return [uuid.UUID(str(row['session_uid'])) for row in rows
-            if (start is None or row['local_date'] >= start) and (end is None or row['local_date'] <= end)]
+    rows = sorted((row for row in latest_revisions(session).values() if not row.deleted),
+                  key=lambda row: (row.local_date, row.slot, str(row.session_uid)))
+    return [row.session_uid for row in rows
+            if (start is None or row.local_date >= start) and (end is None or row.local_date <= end)]
 
 
 def refresh_plans(session: Session, uids: Iterable[uuid.UUID]) -> list[MetricResultData]:
@@ -222,7 +213,7 @@ def _all_dates(session: Session) -> set[date]:
     from app.models import ManualSession, RecoveryObservation
     from app.strong_models import StrongWorkoutRow
     zone = athlete_tz(session)
-    dates = {stamp.astimezone(zone).date() for stamp in session.scalars(select(Activity.start_at))}
+    dates = {date_in_zone(stamp, zone) for stamp in session.scalars(select(Activity.start_at))}
     dates.update(session.scalars(select(ManualSession.date)))
     dates.update(session.scalars(select(StrongWorkoutRow.local_date)))
     dates.update(session.scalars(select(RecoveryObservation.source_date)))
@@ -263,17 +254,17 @@ def scope_targets(session: Session, scopes: Iterable[str]) -> Targets:
         elif kind == 'plan':
             assert isinstance(value, uuid.UUID)
             targets.plan_uids.add(value)
-            targets.dates.update(_plan_dates(session, value))
+            targets.dates.update(recent_revision_dates(session, value))
         elif kind == 'activity':
             assert isinstance(value, uuid.UUID)
             targets.activity_ids.add(value)
             row = session.get(Activity, value)
             if row:
-                targets.dates.add(row.start_at.astimezone(zone).date())
+                targets.dates.add(date_in_zone(row.start_at, zone))
         elif kind == 'checkin':
             checkin = session.get(Checkin, value)
             if checkin:
-                day = checkin.observed_at.astimezone(zone).date()
+                day = date_in_zone(checkin.observed_at, zone)
                 targets.dates.update(day - timedelta(days=n) for n in range(3))
                 targets.recovery_dates.add(day)
                 if checkin.activity_id:

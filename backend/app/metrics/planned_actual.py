@@ -21,7 +21,8 @@ from app.metrics.contract import (
     sha256_json,
 )
 from app.metrics.engine import activities_coverage_complete, current_results, load_runs, metric_source_refs, register
-from app.models import Activity, AppState, ManualSession, RawObject, SourceRecord
+from app.models import Activity, ManualSession, RawObject, SourceRecord
+from app.read.calendar import latest_revision
 from app.services.matching import candidates_for_session
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
@@ -170,14 +171,7 @@ def planned_actual_outcome(plan: dict | None, completion: dict | None, activity:
 
 
 def _current_plan(session: Session, uid: UUID) -> CalendarSessionRevision | None:
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
-    if head == 0:
-        return None
-    row = session.scalar(select(CalendarSessionRevision).where(CalendarSessionRevision.session_uid == uid,
-                         CalendarSessionRevision.calendar_version_number <= head)
-                         .order_by(CalendarSessionRevision.calendar_version_number.desc(),
-                                   CalendarSessionRevision.revision.desc()).limit(1))
+    row = latest_revision(session, uid)
     return row if row and not row.deleted else None
 
 

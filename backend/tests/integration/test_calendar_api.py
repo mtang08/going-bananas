@@ -15,6 +15,7 @@ from app.calendar_models import CalendarSessionRevision, CalendarVersion, Sessio
 from app.coach_v2_models import CoachProposal, CoachSnapshot
 from app.exception_models import ExceptionPatch
 from app.models import Activity, AppState, ProfileVersion
+from app.read.calendar import latest_revisions
 from app.services import calendar
 from app.services.matching import rematch_dates
 
@@ -205,7 +206,7 @@ def test_rollback_keeps_deleted_historical_target_absent_and_restores_future(cal
             history_edits=[{'op': 'add', 'session_uid': historical_uid, 'fields': {
                 'local_date': date(2026, 11, 14), 'kind': 'run', 'recipe_id': 'REC003',
                 'intent': 'Historical fixture', 'planned_duration_s': 60}}])
-        head2 = calendar._latest(session, 2)
+        head2 = latest_revisions(session, 2)
         future = next(row for row in head2.values() if row.local_date == date(2026, 11, 18)
                       and row.kind == 'run')
         state = session.get(AppState, 1)

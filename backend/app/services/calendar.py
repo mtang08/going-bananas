@@ -20,6 +20,7 @@ from app.domain.local_time import date_in_zone
 from app.errors import fail
 from app.metrics.engine import load_runs
 from app.models import Activity, AppState, ManualSession
+from app.read.calendar import head_version, latest_revisions
 from app.services.matching import PROTECTED_METHODS
 from app.services.profile import current_profile
 from app.services.strength_routine import routine_occurrences
@@ -48,28 +49,11 @@ def _lock(session: Session, expected_head: int | None = None) -> AppState:
     return state
 
 
-def _head(session: Session) -> int:
-    state = session.get(AppState, 1)
-    return state.calendar_head_version if state else 0
-
-
 def _check_version(session: Session, version: int) -> None:
-    if version < 0 or version > _head(session):
+    if version < 0 or version > head_version(session):
         fail('calendar_version_not_found', 'Calendar version not found', 404)
     if version and session.scalar(select(CalendarVersion.id).where(CalendarVersion.number == version)) is None:
         fail('calendar_version_not_found', 'Calendar version not found', 404)
-
-
-def _latest(session: Session, version: int) -> dict[uuid.UUID, CalendarSessionRevision]:
-    if version == 0:
-        return {}
-    rows = session.scalars(select(CalendarSessionRevision)
-        .where(CalendarSessionRevision.calendar_version_number <= version)
-        .order_by(CalendarSessionRevision.session_uid,
-                  desc(CalendarSessionRevision.calendar_version_number),
-                  desc(CalendarSessionRevision.revision))
-        .distinct(CalendarSessionRevision.session_uid)).all()
-    return {row.session_uid: row for row in rows}
 
 
 def _fields(row: CalendarSessionRevision) -> dict:
@@ -89,7 +73,7 @@ def _row_data(row: CalendarSessionRevision, today: date | None = None) -> dict:
 def state_at(session: Session, version: int) -> list[dict]:
     _check_version(session, version)
     today = calendar_today(session)
-    return [_row_data(row, today) for row in sorted(_latest(session, version).values(),
+    return [_row_data(row, today) for row in sorted(latest_revisions(session, version).values(),
         key=lambda row: (row.local_date, row.slot, str(row.session_uid))) if not row.deleted]
 
 
@@ -115,7 +99,7 @@ def _completion_date(session: Session, row: SessionCompletion, planned: dict[uui
 
 def completion_data(session: Session, row: SessionCompletion, version: int | None = None) -> dict:
     planned = {item['session_uid']: item for item in state_at(session,
-        _head(session) if version is None else version)}
+        head_version(session) if version is None else version)}
     return {'id': row.id, 'session_uid': row.session_uid,
         'activity_id': row.activity_id, 'strong_workout_id': row.strong_workout_id,
         'manual_session_id': row.manual_session_id, 'status': row.status,
@@ -143,8 +127,8 @@ def _protected(session: Session, uid: uuid.UUID,
 
 
 def _inverse(session: Session, current_version: int, target_version: int) -> tuple[list[dict], list[uuid.UUID]]:
-    current = _latest(session, current_version)
-    target = _latest(session, target_version)
+    current = latest_revisions(session, current_version)
+    target = latest_revisions(session, target_version)
     today = calendar_today(session)
     changes = []
     protected = []
@@ -163,7 +147,7 @@ def _inverse(session: Session, current_version: int, target_version: int) -> tup
 def calendar_diff(session: Session, from_version: int, to_version: int) -> dict:
     _check_version(session, from_version)
     _check_version(session, to_version)
-    before, after = _latest(session, from_version), _latest(session, to_version)
+    before, after = latest_revisions(session, from_version), latest_revisions(session, to_version)
     changes = []
     for uid in sorted(before.keys() | after.keys(), key=str):
         left, right = before.get(uid), after.get(uid)
@@ -181,7 +165,7 @@ def calendar_diff(session: Session, from_version: int, to_version: int) -> dict:
 def calendar_view(session: Session, start: date, end: date, version: int | None = None) -> dict:
     if start > end:
         fail('invalid_date_window', 'Start must be on or before end')
-    head = _head(session)
+    head = head_version(session)
     requested = head if version is None else version
     _check_version(session, requested)
     all_head = state_at(session, head)
@@ -317,7 +301,7 @@ def apply_edits(session: Session, expected_head: int, edits: list[dict], reason:
     state = _lock(session, expected_head)
     if not isinstance(edits, list) or not edits:
         fail('edit_no_change', 'No calendar changes supplied')
-    current = _latest(session, expected_head)
+    current = latest_revisions(session, expected_head)
     today = calendar_today(session)
     prepared = []
     seen = set()
@@ -398,7 +382,7 @@ def rollback_calendar(session: Session, expected_head: int, to_version: int,
         fail('rollback_no_change', 'No eligible calendar change to restore')
     if protected and not reason:
         fail('rollback_reason_required', 'Reason required when preserving protected sessions')
-    current, target = _latest(session, expected_head), _latest(session, to_version)
+    current, target = latest_revisions(session, expected_head), latest_revisions(session, to_version)
     version = _version_row(session, state, kind='rollback', actor='user', reason=reason,
         restored_from_number=to_version)
     session.flush()
@@ -559,7 +543,7 @@ def seed_demo_calendar(session: Session, *, anchor_date: date, start_date: date,
         start_date=start_date, today=calendar_today(session, now))
     if not prepared:
         return result
-    existing = _latest(session, state.calendar_head_version)
+    existing = latest_revisions(session, state.calendar_head_version)
     if seen & existing.keys():
         fail('invalid_demo_history', 'Demo session UID already exists')
     version = _version_row(session, state, kind='manual_edit', actor='system',
@@ -640,7 +624,7 @@ def put_completion(session: Session, session_uid: uuid.UUID, body: dict,
         else:
             fail('subject_already_linked', 'Subject already linked', 409)
         session.flush()
-    planned = _latest(session, _head(session)).get(session_uid)
+    planned = latest_revisions(session, head_version(session)).get(session_uid)
     actual_date = None
     for field, value in subjects.items():
         if value is not None:

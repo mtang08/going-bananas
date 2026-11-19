@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -40,3 +41,11 @@ def latest_revision(session: Session, session_uid: uuid.UUID,
                CalendarSessionRevision.calendar_version_number <= at)
         .order_by(desc(CalendarSessionRevision.calendar_version_number),
                   desc(CalendarSessionRevision.revision)).limit(1))
+
+
+def recent_revision_dates(session: Session, session_uid: uuid.UUID) -> set[date]:
+    """The days of a session's two latest revisions: where it is now and where it was before this change."""
+    return set(session.scalars(select(CalendarSessionRevision.local_date)
+                               .where(CalendarSessionRevision.session_uid == session_uid)
+                               .order_by(CalendarSessionRevision.calendar_version_number.desc(),
+                                         CalendarSessionRevision.revision.desc()).limit(2)))

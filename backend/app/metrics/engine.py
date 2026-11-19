@@ -4,18 +4,17 @@ import importlib
 import json
 import re
 import uuid
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import ColumnElement
 
-from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.calendar_models import SessionCompletion
 from app.db import global_write_lock
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep, FitFile
 from app.metric_models import MetricConfig
@@ -33,11 +32,12 @@ from app.models import (
     Activity,
     ActivityAnnotation,
     ActivitySource,
-    AppState,
     CoverageInterval,
     RawObject,
     SourceRecord,
 )
+from app.read.activities import eligible_runs, latest_annotation
+from app.read.calendar import head_version, latest_revision
 from app.services.timezone import athlete_tz
 
 METRIC_MODULES = ('volume', 'long_run', 'srpe', 'symptoms', 'intensity', 'intervals', 'recovery', 'planned_actual', 'spacing', 'aerobic')
@@ -90,15 +90,6 @@ def ordered_registry() -> list[RegisteredMetric]:
 
 def _profile_timezone(session: Session) -> str:
     return athlete_tz(session).key
-
-
-def _latest_annotations(session: Session, activity_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ActivityAnnotation]:
-    """Highest annotation version per activity, in one query."""
-    if not activity_ids:
-        return {}
-    rows = session.scalars(select(ActivityAnnotation).where(ActivityAnnotation.activity_id.in_(activity_ids))
-                           .order_by(ActivityAnnotation.activity_id, ActivityAnnotation.version))
-    return {row.activity_id: row for row in rows}
 
 
 def _decoded_row(row: Any) -> dict[str, Any]:
@@ -157,25 +148,16 @@ def _activity_identities(session: Session, activities: Sequence[Activity],
     return identities
 
 
-def load_runs(session: Session, start_date: date, end_date_excl: date) -> list[RunFact]:
-    zone = ZoneInfo(_profile_timezone(session))
-    start_utc = datetime.combine(start_date - timedelta(days=1), datetime.min.time(), tzinfo=zone).astimezone(UTC)
-    end_utc = datetime.combine(end_date_excl + timedelta(days=1), datetime.min.time(), tzinfo=zone).astimezone(UTC)
-    activities = session.scalars(select(Activity).where(
-        Activity.sport.in_(('running', 'trail_running', 'treadmill_running')),
-        Activity.resolution_state == 'resolved', Activity.start_at >= start_utc,
-        Activity.start_at < end_utc).order_by(Activity.start_at, Activity.id)).all()
-    candidates = [(activity, activity.start_at.astimezone(zone).date()) for activity in activities]
-    candidates = [(activity, local) for activity, local in candidates if start_date <= local < end_date_excl]
-    annotations = _latest_annotations(session, [activity.id for activity, _ in candidates])
-    kept = [(activity, local) for activity, local in candidates
-            if not (annotations.get(activity.id) and annotations[activity.id].excluded)]
-    identities = _activity_identities(session, [activity for activity, _ in kept], annotations)
+def load_runs(session: Session, start_date: date | None = None,
+              end_date_excl: date | None = None) -> list[RunFact]:
+    runs = eligible_runs(session, start_date, end_date_excl)
+    identities = _activity_identities(session, [run.activity for run in runs],
+                                      {run.activity.id: run.annotation for run in runs if run.annotation})
     result: list[RunFact] = []
-    for activity, local_date in kept:
-        annotation = annotations.get(activity.id)
+    for run in runs:
+        activity, annotation = run.activity, run.annotation
         source_revision, refs = identities[activity.id]
-        result.append(RunFact(activity.id, activity.start_at, activity.end_at, local_date,
+        result.append(RunFact(activity.id, activity.start_at, activity.end_at, run.local_date,
                               activity.sport, activity.timer_s, activity.distance_m,
                               annotation.workout_label if annotation and annotation.workout_label else activity.source_workout_label,
                               refs, source_revision))
@@ -373,21 +355,14 @@ def metric_source_refs(session: Session, activity_id: uuid.UUID, session_uid: uu
     activity = session.get(Activity, activity_id)
     if activity is None:
         raise ValueError('activity_not_found')
-    annotation = _latest_annotations(session, [activity_id]).get(activity_id)
+    annotation = latest_annotation(session, activity_id)
     source_revision, activity_refs = _activity_identities(session, [activity], {activity_id: annotation} if annotation else {})[activity_id]
-    selected_version = calendar_version
-    if selected_version is None:
-        state = session.get(AppState, 1)
-        selected_version = state.calendar_head_version if state else 0
+    selected_version = head_version(session) if calendar_version is None else calendar_version
     plan: dict[str, Any] | None = None
-    if session_uid and selected_version > 0:
-        revision = session.scalar(select(CalendarSessionRevision).where(
-            CalendarSessionRevision.session_uid == session_uid,
-            CalendarSessionRevision.calendar_version_number <= selected_version)
-            .order_by(CalendarSessionRevision.calendar_version_number.desc()).limit(1))
-        if revision and not revision.deleted:
-            plan = {'session_uid': str(session_uid), 'revision_id': str(revision.id),
-                    'calendar_version': selected_version, 'structure_hash': sha256_json(revision.structure)}
+    revision = latest_revision(session, session_uid, selected_version) if session_uid else None
+    if revision and not revision.deleted:
+        plan = {'session_uid': str(session_uid), 'revision_id': str(revision.id),
+                'calendar_version': selected_version, 'structure_hash': sha256_json(revision.structure)}
     completion = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == session_uid)) if session_uid else None
     return {'activity': {'id': str(activity_id), 'source_revision': source_revision,
                          'source_refs': activity_refs}, 'fit': activity_refs['fit'],

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -26,6 +26,7 @@ from app.models import (
     ActivitySource,
     ProfileVersion,
 )
+from app.read.activities import latest_annotation, latest_annotations
 from app.services.coverage import coverage
 from app.services.profile import current_profile, profile_data
 from app.services.run_classification import RunObservation, classify_history
@@ -45,18 +46,6 @@ def date_window(session: Session, start_date: date | None, end_date: date | None
     if start > end or (end-start).days >= 366:
         fail('invalid_date_range', 'Date range must be ordered and at most 366 days')
     return start, end
-
-
-def annotation(session: Session, activity_id: uuid.UUID) -> ActivityAnnotation | None:
-    return latest_annotations(session, [activity_id]).get(activity_id)
-
-
-def latest_annotations(session: Session, activity_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ActivityAnnotation]:
-    if not activity_ids:
-        return {}
-    rows = session.scalars(select(ActivityAnnotation).where(ActivityAnnotation.activity_id.in_(activity_ids))
-                           .order_by(ActivityAnnotation.activity_id, ActivityAnnotation.version))
-    return {row.activity_id: row for row in rows}
 
 
 def run_classifications(session: Session, rows: Sequence[Activity]) -> dict[str, dict]:
@@ -90,7 +79,7 @@ def activity_data(session: Session, a: Activity, detail: bool = False,
                   classifications: dict[str, dict] | None = None, *,
                   annotations: Mapping[uuid.UUID, ActivityAnnotation] | None = None,
                   zone: ZoneInfo | None = None) -> dict:
-    ann = annotations.get(a.id) if annotations is not None else annotation(session, a.id)
+    ann = annotations.get(a.id) if annotations is not None else latest_annotation(session, a.id)
     zone = zone or athlete_tz(session)
     classification = (classifications if classifications is not None else run_classifications(session, [a])).get(str(a.id))
     label = classification['effective_label'] if classification else (
@@ -231,7 +220,7 @@ def patch_annotation(activity_id: uuid.UUID, body: AnnotationInput, session: Ses
     row = session.get(Activity, activity_id)
     if not row:
         fail('not_found', 'Activity not found', 404)
-    old = annotation(session, activity_id)
+    old = latest_annotation(session, activity_id)
     if body.expected_version != (old.version if old else 0):
         fail('version_conflict', 'Annotation changed; reload activity', 409)
     ann = ActivityAnnotation(activity_id=activity_id, version=body.expected_version+1,

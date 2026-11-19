@@ -21,6 +21,7 @@ from app.metrics import planned_actual
 from app.metrics.contract import RunFact
 from app.metrics.engine import activities_coverage_complete, current_results, load_runs
 from app.models import Activity, ManualSession
+from app.read.calendar import head_version, latest_revisions
 from app.services import calendar
 from app.services.timezone import athlete_tz
 from app.services.weekly_projection import planned_distance, recent_pace_mps
@@ -195,8 +196,8 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
     week_end = week_start + timedelta(days=6)
     as_of = min(week_end, today)
     timezone = athlete_tz(session)
-    head = calendar._head(session)
-    latest = [row for row in calendar._latest(session, head).values() if week_start <= row.local_date <= week_end]
+    head = head_version(session)
+    latest = [row for row in latest_revisions(session, head).values() if week_start <= row.local_date <= week_end]
     sessions = [calendar._row_data(row) for row in latest if not row.deleted]
     removed = [{'session_uid': row.session_uid, 'local_date': row.local_date, 'kind': row.kind}
                for row in latest if row.deleted]
