@@ -38,6 +38,7 @@ CONFIG = {
     'segment_source': 'plan_plus_wkt_step_index',
     'completion_tolerance': {'time_s_max': 1.0, 'time_fraction': 0.005, 'distance_ratio': 0.99},
     'watch_plan_value_rule': {'equal_within': 0.01, 'mismatch_above': 0.5},
+    'lap_intensity_rule': 'flag_only.v1',
     'alignment_rule': 'monotone_min_cost_split_omit.v1',
     'alignment_costs': {'split': 1, 'omit_nonwork': 2, 'omit_work': 10},
     'missing_rep_reason_rule': 'top_level.v1',
@@ -107,6 +108,8 @@ class LapIn:
     elapsed_s: float | None = None
     distance_m: float | None = None
     wkt_step_index: int | None = None
+    end_offset_s: float | None = None
+    intensity: str | None = None
 
 
 @dataclass(frozen=True)
@@ -267,6 +270,12 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
         return _early(Status.not_assessable, align.error)
     reasons: set[str] = set()
     flags: set[str] = set(align.flags)
+    for step_position, positions in enumerate(align.assigned):
+        work_step = step_position in paired
+        for position in positions:
+            intensity = ordered_laps[position].intensity
+            if intensity is not None and (intensity in ('active', 'interval')) != work_step:
+                flags.add('LAP_INTENSITY_DISAGREES')
     if differs:
         reasons.add('WATCH_PLAN_DURATION_DIFFERS')
     if any(position in paired for position in align.omitted):
@@ -318,8 +327,13 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
                     a = lap.start_offset_s
                     next_lap = min((other for other in ordered_laps if other.start_offset_s > a),
                                    key=lambda other: other.start_offset_s, default=None)
-                    b = a + lap.elapsed_s if _number(lap.elapsed_s) else (
-                        next_lap.start_offset_s if next_lap else None)
+                    b: float | None
+                    if _number(lap.elapsed_s):
+                        b = a + lap.elapsed_s
+                    elif _number(lap.end_offset_s):
+                        b = lap.end_offset_s
+                    else:
+                        b = next_lap.start_offset_s if next_lap else None
                     if b is None:
                         issue = 'LAP_END_UNKNOWN'
                         break
@@ -515,7 +529,8 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
                 lap_rows = session.scalars(select(ActivityLap).where(
                     ActivityLap.activity_id == activity_id).order_by(ActivityLap.lap_index)).all()
                 laps = [LapIn(row.lap_index, (row.start_at - activity.start_at).total_seconds(),
-                              row.timer_s, row.elapsed_s, row.distance_m, row.wkt_step_index)
+                              row.timer_s, row.elapsed_s, row.distance_m, row.wkt_step_index,
+                              (row.end_at - activity.start_at).total_seconds() if row.end_at else None, row.intensity)
                         for row in lap_rows]
                 stream_row = session.get(ActivityStream, activity_id)
                 stream = ExecStream(stream_row.t_s, stream_row.hr_bpm, stream_row.speed_mps,
