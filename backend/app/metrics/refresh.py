@@ -31,7 +31,7 @@ from app.metrics.engine import (
     upsert_results,
 )
 from app.models import Activity
-from app.read.calendar import latest_revisions, recent_revision_dates
+from app.read.calendar import head_version, latest_revisions, recent_revision_dates
 from app.services.timezone import athlete_today, athlete_tz
 
 
@@ -154,7 +154,8 @@ def _refresh_strength(session: Session, start: date, end: date) -> list[MetricRe
 
 def _plan_uids(session: Session, start: date | None = None, end: date | None = None,
                *, days: set[date] | None = None) -> list[uuid.UUID]:
-    rows = sorted((row for row in latest_revisions(session).values() if not row.deleted),
+    head = head_version(session, populate_existing=True)
+    rows = sorted((row for row in latest_revisions(session, head).values() if not row.deleted),
                   key=lambda row: (row.local_date, row.slot, str(row.session_uid)))
     return [row.session_uid for row in rows
             if (start is None or row.local_date >= start) and (end is None or row.local_date <= end)
