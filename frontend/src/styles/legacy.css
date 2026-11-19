@@ -1004,20 +1004,6 @@
   width: 100%;
 }
 
-.draft-list {
-  margin: 15px 0;
-  max-height: 170px;
-  overflow: auto;
-}
-
-.draft-list > div {
-  display: flex;
-  justify-content: space-between;
-  padding: 7px 0;
-  border-bottom: 1px solid #eef0e9;
-  font-size: 0.74rem;
-}
-
 .conflict-actions {
   display: flex;
   align-items: center;
@@ -1148,20 +1134,6 @@
 }
 
 /* Research-guided daily and weekly decisions */
-.coach-page {
-  max-width: 1200px;
-}
-
-.coach-input,
-.coach-result {
-  margin-bottom: 24px;
-}
-
-.coach-input-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-}
 
 .coach-actions {
   display: flex;
@@ -1169,112 +1141,6 @@
   gap: 12px;
   flex-wrap: wrap;
   margin: 16px 0;
-}
-
-.coach-session {
-  padding: 22px;
-  background: #f4f5ed;
-  border: 1px solid #e5e9da;
-  border-radius: 14px;
-  margin: 20px 0;
-}
-
-.coach-session h3 {
-  margin: 10px 0;
-  text-transform: capitalize;
-}
-
-.coach-result > h2 {
-  font-family: var(--font-sans);
-  font-size: 28px;
-  line-height: 1.35;
-  max-width: 900px;
-}
-
-.coach-result-heading {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.coach-result p {
-  line-height: 1.65;
-}
-
-.coach-result details {
-  padding: 14px 0;
-}
-
-.coach-result summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.coach-lines {
-  padding-left: 21px;
-  line-height: 1.7;
-}
-
-.coach-lines li + li {
-  margin-top: 7px;
-}
-
-.coach-followup,
-.coach-outcome {
-  border-top: 1px solid #e5e7df;
-  margin-top: 24px;
-  padding-top: 18px;
-}
-
-.coach-evidence summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.coach-result .seek_clinical_input,
-.coach-result .rest {
-  background: #fae8df;
-  color: #87462a;
-}
-
-.coach-result .modify {
-  background: #f3edce;
-  color: #6d5d25;
-}
-
-.coach-result .proceed {
-  background: #e3edda;
-  color: #3d5b34;
-}
-
-.coach-input select,
-.coach-outcome select {
-  width: 100%;
-}
-
-.coach-outcome textarea {
-  width: 100%;
-}
-
-@media (max-width: 700px) {
-  .coach-input-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .coach-result > h2 {
-    font-size: 23px;
-  }
-
-  .coach-result {
-    padding: 20px;
-  }
-
-  .coach-page .toolbar {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
 }
 
 .day-tag.recurring {
@@ -1317,76 +1183,6 @@
 .prescription > span {
   display: block;
   margin-top: 4px;
-}
-
-.session-prescription {
-  font-size: 0.78rem;
-  line-height: 1.6;
-}
-
-.session-prescription p {
-  margin: 8px 0;
-}
-
-.session-prescription small {
-  display: block;
-  margin-top: 8px;
-  color: var(--muted-foreground);
-}
-
-.agent-history {
-  margin-bottom: 24px;
-}
-
-.agent-revision {
-  padding: 14px 0;
-  border-top: 1px solid #edf0e9;
-  font-size: 0.8rem;
-  line-height: 1.6;
-}
-
-.agent-revision summary,
-.legacy-guidance > summary {
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.agent-revision > p {
-  margin-top: 12px;
-}
-
-.agent-history .field textarea {
-  display: block;
-  width: 100%;
-  margin-top: 8px;
-}
-
-.legacy-guidance {
-  margin-top: 24px;
-  padding: 20px;
-  border: 1px solid #e0e5d9;
-  border-radius: 12px;
-}
-
-.legacy-guidance > p {
-  font-size: 0.78rem;
-  color: var(--muted-foreground);
-  margin-top: 14px;
-}
-
-.legacy-guidance .page-content {
-  padding: 20px 0 0;
-}
-
-.legacy-guidance h1 {
-  font-size: 1.8rem;
-}
-
-.coach-input .command {
-  display: block;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  font-size: 0.76rem;
 }
 
 .day-card .planned {
@@ -1450,7 +1246,6 @@
   white-space: pre-wrap;
 }
 
-.pending-proposals article,
 .block-history {
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--border, #d8ddd6);
