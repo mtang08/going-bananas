@@ -1,15 +1,8 @@
 import { Badge, Button, Card } from './ui'
-import {
-  MARKER_LABELS,
-  dateLabel,
-  fmtDistance,
-  fmtDuration,
-  fmtPercent,
-  pageHref,
-  sessionTitle,
-  type Unit,
-  type WeeklyDigest as WeeklyDigestData,
-} from '../api'
+import { MARKER_LABELS, type WeeklyDigest as WeeklyDigestData } from '../api/types/calendar'
+import { dateLabel, fmtDistance, fmtDuration, fmtPercent, type Unit } from '../lib/format'
+import { pageHref } from '../lib/routes'
+import { sessionTitle } from '../lib/session'
 import { COMPONENT_LABELS, COMPONENT_STATUS_LABELS, reasonText } from '../lib/reasonLabels'
 import './plan-overview.css'
 

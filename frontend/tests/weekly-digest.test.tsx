@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { DigestRow, WeeklyDigest as WeeklyDigestData } from '../src/api'
+import type { DigestRow, WeeklyDigest as WeeklyDigestData } from '../src/api/types/calendar'
 import { WeeklyDigest } from '../src/components/WeeklyDigest'
 import { digest } from './fixtures/weekly-digest'
 
