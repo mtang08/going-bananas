@@ -41,7 +41,7 @@ from app.services.decision_inputs import VerifiedKnowledge, canonical_json, coll
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection
 from app.services.operations import OPERATIONS
-from app.services.proposals import DecisionError, derive_certainty, is_quality_slot, scope
+from app.services.proposals import derive_certainty, is_quality_slot, scope
 from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
 from app.services.weekly_digest import DIGEST_SCHEMA, HEADLINE_KINDS, NOT_DONE_OUTCOMES, load_week, week_bounds
@@ -1437,9 +1437,7 @@ def build_snapshot(
     from app.metrics.engine import ensure_nights, ensure_windows
 
     session.execute(text("SELECT pg_advisory_xact_lock(71382413)"))
-    state = session.get(AppState, 1, with_for_update=True, populate_existing=True)
-    if state is None or state.planning_authority != "calendar":
-        raise DecisionError("planning_not_active", "Calendar planning is not active", 409)
+    session.execute(select(AppState.id).where(AppState.id == 1).with_for_update())
     previous_now = session.info.get("metrics_now", _MISSING)
     session.info["metrics_now"] = now
     try:
