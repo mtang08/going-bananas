@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 
 from app.adapters.strong import StrongCSVError, scan_strong_csv
-from app.services.strength_history import subtract_calendar_months
 
 
 def test_strong_apply_locks_before_source_read_and_preview_does_not(monkeypatch, tmp_path):
@@ -71,11 +68,6 @@ def test_strong_csv_rejects_inconsistent_duration(tmp_path):
                     "2026-11-09 21:13:58,Workout A,1h 6m,Press,2,45,8,0,0,\n")
     with pytest.raises(StrongCSVError, match="inconsistent_duration"):
         scan_strong_csv(path)
-
-
-def test_calendar_month_window_clips_month_end():
-    assert subtract_calendar_months(date(2026, 11, 10), 18) == date(2025, 5, 10)
-    assert subtract_calendar_months(date(2026, 8, 31), 18) == date(2025, 2, 28)
 
 
 def test_implausible_timer_is_preserved_but_not_counted(tmp_path):

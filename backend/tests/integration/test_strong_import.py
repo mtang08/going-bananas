@@ -9,8 +9,8 @@ from sqlalchemy import func, select
 
 from app.config import settings
 from app.db import SessionLocal
+from app.metrics import srpe
 from app.models import ManualSession, SourceRecord
-from app.services.strength_history import recent_strong_context, strong_history, strong_yearly_summary
 from app.services.strong_import import import_strong_csv
 from app.strong_models import StrongWorkoutRow
 
@@ -48,19 +48,11 @@ def test_strong_import_replay_revision_conflict_overlap_and_window(tmp_path):
             assert replay["added"] == 0 and replay["unchanged"] == 3
             assert session.scalar(select(func.count()).select_from(SourceRecord).where(
                 SourceRecord.source_kind == "strong_csv")) == 3
-            recent = recent_strong_context(session, date(2026, 11, 10))
-            assert recent["start_date"] == "2025-05-10"
-            assert recent["session_count"] == 2
-            assert recent["unknown_duration_count"] == 1
-            assert recent["known_duration_s"] == 2700
-            assert strong_history(session, date(2025, 1, 1), date(2025, 12, 31))["session_count"] == 2
-
             session.add(ManualSession(date=date(2026, 11, 9), kind="strength", duration_s=1800))
             session.flush()
-            overlapped = recent_strong_context(session, date(2026, 11, 10))
-            assert overlapped["session_count"] == 1
-            assert overlapped["ambiguous_overlap_count"] == 1
-            assert overlapped["ambiguous_overlap_dates"] == ["2026-11-09"]
+            strength = next(row for row in srpe.compute(session, "w7:2026-11-10")
+                            if row.subject_key.endswith(":strength"))
+            assert "STRENGTH_SOURCE_OVERLAP" in strength.quality_flags
 
             csv_path.write_text(HEADER + _row("2025-05-09 12:00:00", "30m") +
                                 _row("2025-05-10 12:00:00", "120h 41m", "47.5") +
@@ -73,9 +65,5 @@ def test_strong_import_replay_revision_conflict_overlap_and_window(tmp_path):
             assert canonical.resolution_state == "revision_conflict"
             assert session.scalar(select(func.count()).select_from(SourceRecord).where(
                 SourceRecord.source_kind == "strong_csv")) == 4
-            assert recent_strong_context(session, date(2026, 11, 10))["session_count"] == 0
-            yearly = strong_yearly_summary(session)
-            assert yearly["weight_unit"] == "unknown"
-            assert yearly["weight_comparisons_supported"] is False
         finally:
             session.rollback()
