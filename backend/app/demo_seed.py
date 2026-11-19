@@ -219,8 +219,7 @@ def _history(today: date, slots: dict[str, StrengthRoutineSlot]) -> list[dict]:
 
 def seed_demo(session: Session, private_dir: Path, today: date) -> dict[str, int]:
     state = session.get(AppState, 1)
-    if state is None or state.planning_authority != 'calendar':
-        raise ValueError('calendar_preview_authority_required')
+    assert state is not None
     now = datetime.now(UTC)
     first_run = state.calendar_head_version == 0
     if first_run:

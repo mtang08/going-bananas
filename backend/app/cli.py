@@ -18,12 +18,12 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db import SessionLocal, bump_data_revision, engine
+from app.db import SessionLocal, engine
 from app.logs import configure
-from app.models import Activity, AppState, ProfileVersion
+from app.models import AppState
 from app.services.backup import BackupError, create_backup, restore_backup
 from app.services.export_import import import_export
-from app.services.sync import ADVISORY_LOCK, enqueue_catchup, enqueue_sync, import_activity_page, run_one_job
+from app.services.sync import ADVISORY_LOCK, enqueue_catchup, enqueue_sync, run_one_job
 from app.services.timezone import DEFAULT_TIMEZONE, local_date
 
 
@@ -34,49 +34,27 @@ def _scope() -> str:
     return "auto"  # Every live page is bound to its verified Garmin ownerId.
 
 
-def _demo_records() -> list[dict]:
-    today = date.today()
-    def stamp(days_ago: int) -> str:
-        return (today - timedelta(days=days_ago)).isoformat() + "T12:00:00Z"
-    return [
-        {"activityId": 1001, "startTimeGMT": stamp(13), "activityType": {"typeKey": "running"},
-         "distance": 1609.344, "elapsedDuration": 700, "movingDuration": 600},
-        {"activityId": 1002, "startTimeGMT": stamp(7), "activityType": {"typeKey": "running"},
-         "distance": 3218.688, "elapsedDuration": 1300, "movingDuration": 1250},
-        {"activityId": 1003, "startTimeGMT": stamp(4), "activityType": {"typeKey": "running"},
-         "distance": 4828.032, "elapsedDuration": 1950, "movingDuration": 1890},
-        {"activityId": 1004, "startTimeGMT": stamp(1), "activityType": {"typeKey": "running"},
-         "distance": 6437.376, "elapsedDuration": 2400, "movingDuration": 2350},
-        {"activityId": 1005, "startTimeGMT": stamp(2), "activityType": {"typeKey": "strength_training"},
-         "elapsedDuration": 2700, "movingDuration": 2400},
-    ]
-
-
 def _prepare_calendar_preview(session: Session) -> AppState:
     from app.services.calendar import LOCK_ID
 
     session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
     state = session.get(AppState, 1, with_for_update=True)
-    if state is None:
-        raise ValueError('calendar_preview_authority_required')
-    if state.planning_authority == 'legacy':
+    assert state is not None
+    if state.calendar_head_version == 0:
         metadata = MetaData()
         metadata.reflect(bind=session.connection())
-        if state.calendar_head_version != 0 or state.data_revision != 0 or any(
+        if state.data_revision != 0 or any(
             session.scalar(select(1).select_from(table).limit(1)) is not None
             for table in metadata.tables.values() if table.name not in {'app_state', 'alembic_version'}
         ):
             raise ValueError('calendar_preview_requires_empty_database')
-        state.planning_authority = 'calendar'
-        session.flush()
     return state
 
 
 def _parse() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
-    seed = sub.add_parser("seed-demo")
-    seed.add_argument("--calendar-preview", action="store_true")
+    sub.add_parser("seed-demo")
     sync = sub.add_parser("sync")
     sync.add_argument("--start", type=date.fromisoformat)
     sync.add_argument("--end", type=date.fromisoformat)
@@ -90,9 +68,6 @@ def _parse() -> argparse.Namespace:
     restore.add_argument("archive", type=Path)
     restore.add_argument("--target-database-name", required=True)
     restore.add_argument("--target-private-dir", required=True, type=Path)
-    profile = sub.add_parser("init-profile")
-    profile.add_argument("--timezone", default=DEFAULT_TIMEZONE)
-    profile.add_argument("--facts-file", type=Path)
     metrics = sub.add_parser("metrics-recompute")
     metrics.add_argument("--metric", default="all")
     metrics.add_argument("--since", type=date.fromisoformat)
@@ -365,25 +340,14 @@ def main() -> int:
         elif args.command == "seed-demo":
             if settings.app_mode != "demo":
                 raise ValueError("demo_mode_required")
+            from app.demo_seed import demo_totals, seed_demo
+
             with SessionLocal.begin() as session:
-                state: AppState | None
-                if args.calendar_preview:
-                    state = _prepare_calendar_preview(session)
-                    if state.calendar_head_version == 0 and session.scalar(select(Activity.id).limit(1)):
-                        raise ValueError("calendar_preview_requires_empty_activities")
-                    from app.demo_seed import seed_demo
-                    today = local_date(datetime.now(UTC), ZoneInfo(DEFAULT_TIMEZONE))
-                    counts = seed_demo(session, settings.private_dir, today)
-                else:
-                    state = session.get(AppState, 1)
-                    if state is not None and state.planning_authority != 'legacy':
-                        raise ValueError("legacy_authority_required")
-                    counts = import_activity_page(session, settings.private_dir, _demo_records(),
-                                                  account_scope="synthetic-demo", source_kind="demo_fixture")
-            if args.calendar_preview:
-                from app.demo_seed import demo_totals
-                with SessionLocal() as session:
-                    counts = demo_totals(session)
+                _prepare_calendar_preview(session)
+                today = local_date(datetime.now(UTC), ZoneInfo(DEFAULT_TIMEZONE))
+                seed_demo(session, settings.private_dir, today)
+            with SessionLocal() as session:
+                counts = demo_totals(session)
             print(json.dumps(counts, sort_keys=True))
         elif args.command in {"sync", "worker"}:
             if settings.app_mode != "real":
@@ -443,19 +407,6 @@ def main() -> int:
             target_url = current_url.set(database=args.target_database_name).render_as_string(hide_password=False)
             manifest = restore_backup(args.archive, target_url, args.target_private_dir)
             print(json.dumps({"restored_at": manifest["created_at"], "file_count": len(manifest["files"])}))
-        elif args.command == "init-profile":
-            facts = json.loads(args.facts_file.read_text()) if args.facts_file else {}
-            if not isinstance(facts, dict):
-                raise ValueError("invalid_profile_facts")
-            with SessionLocal.begin() as session:
-                latest = session.scalar(select(ProfileVersion).order_by(ProfileVersion.version.desc()))
-                if latest:
-                    raise ValueError("profile_already_initialized")
-                session.add(ProfileVersion(version=1, effective_at=datetime.now(UTC),
-                                           timezone=args.timezone, facts=facts, preferences={},
-                                           unknowns=[]))
-                bump_data_revision(session)
-            print(json.dumps({"profile_version": 1}))
         return 0
     except (ValueError, BackupError) as exc:
         # Known safe codes only; never echo raw network exceptions or payloads.
