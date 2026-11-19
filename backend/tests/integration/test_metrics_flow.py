@@ -507,10 +507,16 @@ def test_planning_only_writes_bump_revision_without_refresh(db, tmp_path, monkey
         session.commit()
         assert calls == []
         assert get_revision(session) == revision + 2
-        session.add(ProfileVersion(version=3, effective_at=NOW, timezone='Europe/London',
-                                   facts={}, preferences={}, unknowns=[]))
+        changed_profile = ProfileVersion(version=3, effective_at=NOW, timezone='Europe/London',
+                                         facts={}, preferences={}, unknowns=[])
+        session.add(changed_profile)
         session.commit()
-        assert len(calls) == 1 and 'timezone' in calls[0]
+        assert calls == [{'timezone'}]
+
+        session.delete(changed_profile)
+        session.commit()
+        assert calls == [{'timezone'}, {'timezone'}]
+        assert get_revision(session) == revision + 4
 
 
 def test_spacing_windows_refresh_only_near_changed_dates(db, tmp_path, monkeypatch):
