@@ -202,4 +202,14 @@
   .home-quiet-state p {
     margin: 0;
   }
+
+  .digest-toggle {
+    display: flex;
+    gap: 6px;
+  }
+  .digest-headline {
+    display: block;
+    font-size: 1.1rem;
+    margin: 8px 0 4px;
+  }
 }
