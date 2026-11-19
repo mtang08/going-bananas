@@ -26,7 +26,7 @@ from app.domain.calendar_structure import work_signature
 from app.domain.local_time import date_in_zone
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
 from app.metric_models import MetricResult, Prompt
-from app.models import Activity, AppState, ProfileVersion
+from app.models import Activity, AppState
 from app.planning_models import (
     BlockBenchmarkResult,
     BlockDecision,
@@ -39,10 +39,11 @@ from app.planning_models import (
 from app.services.block_benchmark import active_block_version
 from app.services.calendar import state_at
 from app.services.coverage import coverage
-from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
+from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs, digest
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection
 from app.services.operations import OPERATIONS
+from app.services.profile import current_profile
 from app.services.proposals import derive_certainty, is_quality_slot, scope
 from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
@@ -104,7 +105,7 @@ def _source_provenance(source_versions: dict[str, Any]) -> dict[str, Any]:
             kind, count = "scalar", 0 if value is None else 1
         collections[key] = {"kind": kind, "count": count}
     return {
-        "sha256": hashlib.sha256(canonical_json(source_versions).encode()).hexdigest(),
+        "sha256": digest(source_versions),
         "collections": collections,
     }
 
@@ -1390,7 +1391,7 @@ def _load_review_recommended(session: Session, as_of: date) -> list[dict]:
 def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInputs:
     zone = athlete_tz(session)
     state = session.get(AppState, 1)
-    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
+    profile = current_profile(session)
     head = state.calendar_head_version if state else 0
     first = as_of - timedelta(days=120)
     sessions = _load_sessions(session, head, first, as_of)

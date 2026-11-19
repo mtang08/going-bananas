@@ -24,13 +24,13 @@ from app.models import (
     AppState,
     CoverageInterval,
     ManualSession,
-    ProfileVersion,
     RawObject,
     RecoveryObservation,
     SourceRecord,
 )
 from app.planning_models import Event, Goal, IntensityAnchor, StrengthRoutineSlot
 from app.services.block_benchmark import active_block_version
+from app.services.profile import current_profile
 from app.strong_models import StrongWorkoutRow
 
 
@@ -51,6 +51,10 @@ def canonical_json(value: Any) -> str:
     return json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False, default=_json_default
     )
+
+
+def digest(value: Any) -> str:
+    return hashlib.sha256(canonical_json(value).encode()).hexdigest()
 
 
 def _json_default(value: Any) -> str:
@@ -75,7 +79,7 @@ def fingerprint_vector(source_versions: dict, kb: VerifiedKnowledge) -> dict:
 
 
 def fingerprint(source_versions: dict, kb: VerifiedKnowledge) -> str:
-    return hashlib.sha256(canonical_json(fingerprint_vector(source_versions, kb)).encode()).hexdigest()
+    return digest(fingerprint_vector(source_versions, kb))
 
 
 def _wire(value: Any) -> Any:
@@ -96,7 +100,7 @@ def collect_decision_inputs(
     from app.checkin_models import Checkin as CheckinV2
     from app.checkin_models import SymptomReport
 
-    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
+    profile = current_profile(session)
     app_state = session.get(AppState, 1)
     checkins = _sorted(session, CheckinV2, CheckinV2.id)
     checkin_ids = {row.id for row in checkins}
@@ -122,9 +126,9 @@ def collect_decision_inputs(
         "profile": {
             "version": profile.version,
             "timezone": profile.timezone,
-            "facts_hash": hashlib.sha256(canonical_json(profile.facts or {}).encode()).hexdigest(),
-            "preferences_hash": hashlib.sha256(canonical_json(profile.preferences or {}).encode()).hexdigest(),
-            "unknowns_hash": hashlib.sha256(canonical_json(profile.unknowns or []).encode()).hexdigest(),
+            "facts_hash": digest(profile.facts or {}),
+            "preferences_hash": digest(profile.preferences or {}),
+            "unknowns_hash": digest(profile.unknowns or []),
         }
         if profile
         else None,
