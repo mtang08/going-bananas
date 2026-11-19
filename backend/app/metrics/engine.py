@@ -654,8 +654,12 @@ def _before_flush(session: Session, _context, _instances) -> None:
         changes = {attribute.key for attribute in state.attrs if attribute.history.has_changes()}
         if isinstance(row, SessionCompletion) and state.persistent and changes <= {'status', 'version', 'updated_at'}:
             continue
-        if state.persistent and row not in session.deleted and not changes:
-            continue
+        if state.persistent and row not in session.deleted:
+            if not changes:
+                continue
+            # Retry diagnostics do not change the decoded FIT inputs.
+            if isinstance(row, FitFile) and changes <= {'last_attempt_at', 'last_error'}:
+                continue
         old = {}
         if state.identity is not None:
             table = state.mapper.local_table
