@@ -7,25 +7,27 @@ Paths below are relative to `frontend/`.
 
 | Concern | Entry point |
 | --- | --- |
-| Bootstrap, routing, navigation | `src/main.tsx`, `src/App.tsx` (hash routing; pages render once the profile has loaded) |
-| HTTP and wire types | `src/api.ts`, `src/api/types/` |
+| Bootstrap, routing, navigation | `src/main.tsx`, `src/App.tsx` (hash routing) |
+| HTTP, query keys, wire types | `src/api/client.ts`, `src/api/queryKeys.ts`, `src/api/types/` (import each symbol from its defining module) |
+| Formatting and plan helpers | `src/lib/format.ts`, `src/lib/structure.ts`, `src/lib/session.ts`, `src/lib/routes.ts`, `src/lib/reasonLabels.ts` |
 | Query helpers | `src/components/shared.ts`, `src/components/QueryState.tsx` |
-| Current athlete loop | `src/pages/Home.tsx`, `Calendar.tsx`, `ProposalReview.tsx`, `CheckinModalV2.tsx` |
-| Blocks/configuration | `src/pages/Block.tsx`, `PlanningSettings.tsx`, `Settings.tsx` |
-| Analytics/history | `src/pages/Trends.tsx`, `Activity.tsx`, `History.tsx`, `Strength.tsx` |
-| Legacy views | `src/pages/Overview.tsx`, `Cycle.tsx`, `Coach.tsx`, `CheckinModal.tsx`, `src/PlanViews.tsx` |
+| Current athlete loop | `src/pages/Home.tsx`, `src/pages/Calendar.tsx`, `src/pages/ProposalReview.tsx` (sections in `src/pages/proposal/`), `src/pages/CheckinModalV2.tsx` |
+| Blocks/configuration | `src/pages/Block.tsx`, `src/pages/PlanningSettings.tsx` (sections in `src/pages/settings/`) |
+| Analytics/activity | `src/pages/Trends.tsx`, `src/pages/Activity.tsx`, `src/pages/Guide.tsx` |
+| Weekly digest and workout export | `src/components/WeeklyDigest.tsx`, `src/components/weeklyWorkoutExport.ts` |
 | Shared domain visuals | `src/components/`: workout structure, plan overview, weekly mileage, activity/recovery |
 | UI primitives and theme | `src/components/ui/`, `src/components/Modal.tsx`, `src/theme.css`, `src/styles.css` |
 
 Use React Query for server state and the shared API client for envelopes, errors,
-and local-request headers. Invalidate affected queries after mutations. Treat
-server validation and current revisions as authoritative; changing a draft must
-not leave selections bound to its previous revision.
+and local-request headers. Define every query key in `src/api/queryKeys.ts`.
+Keep invalidations narrower than the bare `['v2']` prefix by targeting the query
+families each mutation changes. Treat server validation and current revisions as
+authoritative. Clear selections tied to a previous revision when a draft changes.
 
 Use local shadcn/Radix primitives, Tailwind v4 semantic tokens, and the existing
 Modal for focus/Escape behavior. Read [the UI guide](../docs/ui-system.md) for
 component changes. Keep feature CSS local and avoid broad global control styles.
-Preserve style layer ordering in `main.tsx`. Format touched files, not the repo.
+Preserve style layer ordering in `src/main.tsx`. Format touched files, not the repo.
 
 Show loading, error, missing, provisional, pending, and accepted states accurately.
 Use real labels and keyboard-accessible controls. Unknown values must not display
