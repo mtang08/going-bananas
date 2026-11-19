@@ -1,0 +1,13 @@
+# Formatting-only commits (Ruff and Prettier).
+# ARCH-12b: ruff format adapters-domain
+7e193e2d8542db71219d613e8ea6539197722909
+# ARCH-12c: ruff format metrics
+1353a6b7d2f5285b29c20c7e7b193b11ae10a6d6
+# ARCH-12d: ruff format services
+8b773495cc11edbb0c84850507e346c95e861c88
+# ARCH-12e: ruff format api-and-app-root
+64515f3928eac25c5997d1cd8809a379996a43ec
+# ARCH-12f: ruff format tests
+a7cc3559e92a332308d3832c5e3a9b4212fe4a85
+# ARCH-12g: prettier format
+94944861af53681fce44e3c4b77ff73c92d2fadc
