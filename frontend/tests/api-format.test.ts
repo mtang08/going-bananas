@@ -245,11 +245,11 @@ const anchorCreate: AnchorCreate = {
 }
 const completionPut: CompletionPut = { activity_id: 'activity-a' }
 void [goalCreate, suggestedSlot, anchorCreate, completionPut]
-// @ts-expect-error create requests cannot set status
 const invalidGoal: GoalCreate = {
   text: 'Run well',
   horizon: 'season',
   priority: 1,
+  // @ts-expect-error create requests cannot set status
   status: 'active',
 }
 // @ts-expect-error anchor creation requires valid_from
