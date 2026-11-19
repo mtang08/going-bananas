@@ -83,6 +83,8 @@ def planned_actual_outcome(plan: dict | None, completion: dict | None, activity:
     elif not linked:
         if plan and plan.get("local_date") and plan["local_date"] >= as_of:
             reasons.append("NOT_YET_DUE")
+        elif match_method == "user_marked" and prior_status != "skipped":
+            reasons.append("UNLINKED_BY_USER")
         elif any(c.get("reason") == "AMBIGUOUS_MATCH" for c in candidates):
             reasons.append("AMBIGUOUS_MATCH")
         elif any(c.get("reason") == "MOVE_CANDIDATE" for c in candidates):

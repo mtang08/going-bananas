@@ -1,5 +1,6 @@
 export const REASON_LABELS: Record<string, string> = {
   REPS_EXCLUDED: 'Some reps left out of pace and HR',
+  UNLINKED_BY_USER: 'You unlinked the recorded run',
   NO_LINKED_ACTIVITY: 'No run linked',
   INTERVAL_RESULT_MISSING: 'Rep analysis not computed yet',
   TREADMILL: 'Treadmill: pace estimated by the watch',
