@@ -29,8 +29,6 @@ describe('planning wire', () => {
     if (!profile(wire.profile_weekly) || !profile(wire.profile_alternating)) throw Error('fixture')
     expect(wire.profile_weekly.strength_schedule_mode).toBe('weekly')
     expect(wire.profile_alternating.strength_week_a_days).toEqual([1, 4])
-    const writeFields = Object.fromEntries(Object.entries(wire.profile_weekly).filter(([key]) => key !== 'planning_authority' && key !== 'version'))
-    expect({ expected_version: wire.profile_weekly.version, ...writeFields }).not.toHaveProperty('planning_authority')
   })
   it('keeps null unknown distinct from numeric zero', () => {
     expect(metric(wire.volume_all_missing, volume)).toBe(true)

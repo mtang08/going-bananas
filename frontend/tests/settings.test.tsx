@@ -9,7 +9,7 @@ let requests: { url: string; method: string; body: Record<string, unknown> | nul
 const clients: QueryClient[] = []
 beforeEach(() => {
   requests = []; head = 0; anchors = []; events = []; conflict = null
-  profile = { planning_authority: 'calendar', version: 3, timezone: 'America/New_York', cycle_anchor: null, anchor_confirmed: false,
+  profile = { version: 3, timezone: 'America/New_York', cycle_anchor: null, anchor_confirmed: false,
     strength_days_confirmed: true, strength_schedule_mode: 'weekly', scheduled_strength_days: [0, 4], strength_week_a_start: null,
     strength_week_a_days: [], strength_week_b_days: [], mobility_week_a_days: [], mobility_week_b_days: [], mobility_optional_days: [], facts: {}, preferences: {}, unknowns: [] }
   routine = { version: 0, suggested: true, schedule: { ...profile }, slots: [

@@ -45,7 +45,7 @@ beforeEach(()=>{
     }
     if(failReload && url.includes('/coach/proposals/')) throw new Error('offline')
     if(url.endsWith('/calendar'))return {ok:true,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:{today:'2026-11-16',sessions:[unchangedSession]}})}
-    return {ok:true,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:url.endsWith('/profile')?{planning_authority:'calendar'}:proposal})}
+    return {ok:true,json:async()=>({schema_version:'v1',mode:'demo',data_revision:1,data:url.endsWith('/profile')?{}:proposal})}
   }))
 })
 afterEach(()=>{cleanup();clients.forEach(client=>client.clear());clients.length=0;vi.unstubAllGlobals()})

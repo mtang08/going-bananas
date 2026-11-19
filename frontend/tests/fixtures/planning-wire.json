@@ -196,7 +196,6 @@
     "trigger_codes": []
   },
   "profile_weekly": {
-    "planning_authority": "calendar",
     "version": 1,
     "timezone": "America/New_York",
     "cycle_anchor": null,
@@ -218,7 +217,6 @@
     "unknowns": []
   },
   "profile_alternating": {
-    "planning_authority": "calendar",
     "version": 1,
     "timezone": "America/New_York",
     "cycle_anchor": null,
