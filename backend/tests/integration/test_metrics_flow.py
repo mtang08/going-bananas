@@ -19,7 +19,7 @@ from app.checkin_models import SessionRpe
 from app.config import settings
 from app.db import bump_data_revision, get_revision
 from app.metric_models import MetricResult, Prompt
-from app.metrics import refresh
+from app.metrics import engine, refresh
 from app.models import Activity, AppState, CoverageInterval, ProfileVersion
 from app.services import derived
 from app.services.sync import import_activity_page
@@ -464,3 +464,24 @@ def test_calendar_edit_cost_does_not_grow_with_history(db, tmp_path, caplog):
     assert baseline > 0
     assert grown <= baseline + 10
     assert any(record.getMessage().startswith('refresh ') for record in caplog.records)
+
+
+def test_load_runs_statement_count_does_not_grow_with_runs(db, tmp_path):
+    seed(db, tmp_path)
+    window = (date(2024, 1, 1), TODAY + timedelta(days=1))
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        before = _statements(session, lambda: engine.load_runs(session, *window))
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        more = [{'activityId': 6000 + n,
+                 'startTimeGMT': (datetime(2024, 9, 1, 12, tzinfo=UTC) + timedelta(days=5 * n)).isoformat(),
+                 'activityType': {'typeKey': 'running'}, 'duration': 1800, 'distance': 5000} for n in range(8)]
+        import_activity_page(session, tmp_path, more, account_scope='synthetic-metrics', source_kind='demo_fixture')
+        session.commit()
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        facts = engine.load_runs(session, *window)
+        after = _statements(session, lambda: engine.load_runs(session, *window))
+    assert len(facts) == 12
+    assert after == before
