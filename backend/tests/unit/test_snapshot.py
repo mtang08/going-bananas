@@ -745,8 +745,7 @@ def test_exception_summary_counts() -> None:
     summary = build_payload(source, ROLLING)["exception_summary"]
     assert (summary["window_start"], summary["window_end"]) == ("2026-11-03", "2026-11-16")
     assert summary["rpe_mismatch"] == {"easy_above": 1, "long_above": 1, "quality_above": 0, "quality_below": 1}
-    assert summary["quality_sessions"] == {"planned": 3, "completed_as_planned": 1, "modified_by_patch": 1,
-                                           "removed_by_patch": 1, "failed": 1}
+    assert "quality_sessions" not in summary
     assert summary["recurring_symptom_sites"] == [{"site_key": "ankle|left", "distinct_days_14": 2}]
     assert summary["since_last_review"] == "2026-11-10"
     assert len(summary["findings"]) == 30

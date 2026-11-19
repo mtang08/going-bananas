@@ -21,7 +21,7 @@ from app.checkin_models import Checkin as CheckinV2
 from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachSnapshot
 from app.domain.athlete_facts import clinical_restriction
-from app.domain.session_class import LONG_RECIPE, QUALITY_CLASSES, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
+from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
 from app.metric_models import MetricResult, Prompt
 from app.models import Activity, AppState, ProfileVersion
 from app.planning_models import (
@@ -536,46 +536,6 @@ def _exceptions_section(inputs: SnapshotInputs) -> dict:
     }
 
 
-def _quality_sessions(inputs: SnapshotInputs, start: date) -> dict:
-    def cls_of(row: dict) -> str:
-        return classify(row.get("kind") or "", row.get("recipe_id"), row.get("intent"))
-
-    completions = {str(c["session_uid"]): c for c in inputs.completions}
-    head = [
-        s for s in inputs.sessions
-        if _between(s.get("local_date"), start, inputs.as_of) and cls_of(s) in QUALITY_CLASSES
-    ]
-    removed = modified = 0
-    for proposal in inputs.proposals:
-        if proposal.get("operation") != EXCEPTION:
-            continue
-        for change in proposal.get("changes", []):
-            if change.get("decision") != "accepted":
-                continue
-            before = change.get("before") or {}
-            if not _between(before.get("local_date"), start, inputs.as_of) or cls_of(before) not in QUALITY_CLASSES:
-                continue
-            after_cls = cls_of({**before, **(change.get("after") or {})})
-            if change.get("op") == "delete" or after_cls not in QUALITY_CLASSES:
-                removed += 1
-            elif change.get("op") in {"modify", "move"}:
-                modified += 1
-    since = inputs.now - timedelta(days=SUMMARY_DAYS)
-    return {
-        "planned": len(head) + removed,
-        "completed_as_planned": sum(
-            1 for s in head
-            if (completions.get(str(s["session_uid"])) or {}).get("status") == "completed_as_planned"
-        ),
-        "modified_by_patch": modified,
-        "removed_by_patch": removed,
-        "failed": sum(
-            1 for f in inputs.exception_findings
-            if f.get("rule_code") == "SESSION_FAILED" and _instant(f["first_seen_at"]) >= since
-        ),
-    }
-
-
 def _exception_summary(inputs: SnapshotInputs) -> dict:
     start = inputs.as_of - timedelta(days=SUMMARY_DAYS - 1)
     since = inputs.now - timedelta(days=SUMMARY_DAYS)
@@ -622,7 +582,6 @@ def _exception_summary(inputs: SnapshotInputs) -> dict:
         "findings": [_view(f, finding_keys) for f in findings],
         "patches": [dict(_view(p, patch_keys), changes_count=len(p.get("session_uids") or [])) for p in patches],
         "rpe_mismatch": mismatch,
-        "quality_sessions": _quality_sessions(inputs, start),
         "recurring_symptom_sites": sites,
         "open_escalations": sum(
             1 for f in inputs.exception_findings
