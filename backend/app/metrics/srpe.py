@@ -14,7 +14,13 @@ from app.checkin_models import SessionRpe
 from app.domain.analytics import utc_date_bounds
 from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
-from app.metrics.contract import MetricResultData, QualityStatus, Status, config_hash, coverage_label, sha256_json
+from app.metrics.contract import (
+    MetricResultData,
+    QualityStatus,
+    coverage_label,
+    result_from_outcome,
+    sha256_json,
+)
 from app.metrics.engine import activities_coverage_complete, load_runs, metric_source_refs, register
 from app.models import Activity, ManualSession, RawObject, SourceRecord
 from app.services.timezone import athlete_tz
@@ -122,13 +128,9 @@ def _fact(key: str, kind: str, day: date, duration: float | None, rows: list[Ses
 
 def _result(key: str, outcome: dict, refs: dict, timezone: str, start: datetime | None,
             end: datetime | None, *, is_window: bool = False, label: str | None = None) -> MetricResultData:
-    return MetricResultData(METRIC_ID, METHOD_VERSION, "window" if is_window else "activity", key,
-                            Status(outcome["status"]), tuple(outcome["reason_codes"]),
-                            tuple(outcome["quality_flags"]), refs, (), config_hash(CONFIG),
-                            window_start=start, window_end=end,
-                            window_label=key if is_window else label,
-                            quality_status=QualityStatus(outcome["quality_status"]) if outcome["quality_status"] else None,
-                            value=outcome["value"], unit="AU", timezone=timezone)
+    return result_from_outcome(METRIC_ID, METHOD_VERSION, CONFIG, key=key, outcome=outcome, refs=refs,
+                               timezone=timezone, subject_type="window" if is_window else "activity", unit="AU",
+                               window_start=start, window_end=end, window_label=key if is_window else label)
 
 
 def _strong_refs(session: Session, row: StrongWorkoutRow) -> dict:
