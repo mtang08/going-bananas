@@ -52,7 +52,7 @@ export interface SessionState extends SessionFields {
   deleted: boolean
   is_original: boolean
   changed_by_version: number
-  exception_patch?: SessionPatchRef | null
+  exception_patch: SessionPatchRef | null
 }
 export type CompletionStatus =
   | 'completed_as_planned'
