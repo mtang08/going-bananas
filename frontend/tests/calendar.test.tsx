@@ -541,6 +541,24 @@ describe('Calendar', () => {
       within(row('2026-11-19')).queryByRole('button', { name: 'Edit' }),
     ).not.toBeInTheDocument()
   })
+  it('offers outcome recording only for the unlinked unknown past session', async () => {
+    head = {
+      ...view,
+      completions: [
+        { ...completion, id: 'c3', session_uid: 's3', activity_id: 'a1', status: 'unknown' },
+        { ...completion, id: 'c4', activity_id: null, status: 'unknown', match_method: 'none' },
+      ],
+    }
+    mount()
+    await screen.findByText('Version 2')
+    const linked = within(row('2026-11-09'))
+    expect(linked.getByText('Recorded · comparison unavailable')).toBeInTheDocument()
+    expect(linked.queryByText('Not recorded')).not.toBeInTheDocument()
+    expect(linked.queryByRole('button', { name: 'Record outcome' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Record outcome' })).not.toBeInTheDocument()
+    fireEvent.click(within(row('2026-11-08')).getByRole('button', { name: 'Record outcome' }))
+    expect(screen.getByRole('dialog', { name: 'Record outcome' })).toBeInTheDocument()
+  })
   it('shows mutation errors inside the open editor', async () => {
     writeError = 422
     mount()

@@ -204,8 +204,7 @@ export function Calendar({ unit }: { unit: Unit }) {
                 completion.manual_session_id,
               ))
           const canEdit = writable && day >= today && !s.locked && !protectedCompletion
-          const canRecord =
-            writable && day < today && (!completion || completion.status === 'unknown')
+          const canRecord = writable && day < today && !protectedCompletion
           return (
             <div
               className={`session-row certainty-${s.certainty}`}
