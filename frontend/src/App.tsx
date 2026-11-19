@@ -73,7 +73,6 @@ export function App() {
   }
   const ready = useServer<{ status: string; database?: boolean }>(['ready'], '/health/ready')
   const profile = useServer<Profile>(['profile'], '/profile')
-  const authority = profile.data?.data.planning_authority
   const mode = profile.data?.mode || ready.data?.mode
   useEffect(() => {
     const update = () => {
@@ -230,16 +229,7 @@ export function App() {
             Loading training workspace…
           </div>
         )}
-        {authority === 'legacy' && (
-          <section className="page-content">
-            <div className="notice warning" role="status" data-testid="cutover-required">
-              <strong>Planning cutover required.</strong> This workspace still uses the retired
-              legacy planner. Run <code>python -m app.cli planning-cutover --dry-run</code>, then{' '}
-              <code>--apply</code> (see docs/operations.md), and reload.
-            </div>
-          </section>
-        )}
-        {authority === 'calendar' && (
+        {profile.data && (
           <>
             {page === 'home' && <Home unit={unit} onCheckin={openCheckin} />}
             {page === 'calendar' && <Calendar unit={unit} />}
@@ -257,7 +247,7 @@ export function App() {
           Local training record · {modeLabel(mode)} · metrics are descriptive
         </footer>
       </div>
-      {checkinOpen && authority === 'calendar' && (
+      {checkinOpen && profile.data && (
         <CheckinModalV2 request={checkinRequest} close={closeCheckin} />
       )}
     </div>

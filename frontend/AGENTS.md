@@ -7,7 +7,7 @@ Paths below are relative to `frontend/`.
 
 | Concern | Entry point |
 | --- | --- |
-| Bootstrap, routing, navigation | `src/main.tsx`, `src/App.tsx` (hash routing; profile `planning_authority` chooses current/legacy views) |
+| Bootstrap, routing, navigation | `src/main.tsx`, `src/App.tsx` (hash routing; pages render once the profile has loaded) |
 | HTTP and wire types | `src/api.ts`, `src/api/types/` |
 | Query helpers | `src/components/shared.ts`, `src/components/QueryState.tsx` |
 | Current athlete loop | `src/pages/Home.tsx`, `Calendar.tsx`, `ProposalReview.tsx`, `CheckinModalV2.tsx` |

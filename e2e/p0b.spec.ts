@@ -91,7 +91,6 @@ test.beforeAll(async ({request})=>{
   expect(profile.ok()).toBe(true)
   const envelope = await profile.json()
   expect(envelope.mode).toBe('demo')
-  expect(envelope.data.planning_authority).toBe('calendar')
 })
 
 test('p0b: weekly untick one accept rest',async ({page,request})=>{

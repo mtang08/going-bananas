@@ -25,7 +25,6 @@ const wrap = (data: unknown) => ({
   data,
 })
 const profile = {
-  planning_authority: 'calendar' as 'legacy' | 'calendar',
   version: 1,
   timezone: 'America/New_York',
   cycle_anchor: '2026-11-02',
@@ -336,7 +335,7 @@ describe('authority shell', () => {
     expect(screen.getByRole('heading', { name: 'Something to report?' })).toBeInTheDocument()
   })
   it('routes an activity deep link and keeps existing settings controls', async () => {
-    profileRecord = { ...profile, planning_authority: 'calendar' }
+    profileRecord = { ...profile }
     window.location.hash = '#activity/run-1'
     mount()
     expect(await screen.findByRole('heading', { name: /Run ·/ })).toBeInTheDocument()
@@ -385,12 +384,5 @@ describe('authority shell', () => {
       await screen.findByText(/Could not load the training workspace: boom/),
     ).toBeInTheDocument()
     expect(screen.queryByText('Loading training workspace…')).not.toBeInTheDocument()
-  })
-  it('asks for the cutover in a legacy workspace', async () => {
-    profileRecord = { ...profile, planning_authority: 'legacy' }
-    mount()
-    expect(await screen.findByTestId('cutover-required')).toBeInTheDocument()
-    expect(screen.queryByTestId('today-card')).not.toBeInTheDocument()
-    expect(requests.some((request) => request.url.endsWith('/calendar'))).toBe(false)
   })
 })
