@@ -86,6 +86,7 @@ const view: CalendarView = {
   last_planned_date: '2026-11-19',
   sessions,
   completions: [completion],
+  recorded_runs: [],
   undo: {
     target_version: 1,
     eligible: true,

@@ -1,4 +1,3 @@
-import type { QueryClient } from '@tanstack/react-query'
 import { RECIPE_LABELS } from './api/types/calendar'
 import type {
   Completion,
@@ -16,78 +15,6 @@ export interface Envelope<T> {
   mode: Mode
   data: T
 }
-export interface RunClassification {
-  method: string
-  suggested_label: 'easy' | 'quality' | 'long' | 'other' | null
-  effective_label: 'easy' | 'quality' | 'long' | 'other' | 'unknown'
-  label_source: 'manual' | 'source' | 'heuristic' | 'unknown'
-  confidence: 'confirmed' | 'medium' | 'low' | 'insufficient'
-  reasons: string[]
-  metrics?: Record<string, number | string | null>
-}
-export interface Activity {
-  id: string
-  start_at: string
-  local_date: string
-  sport: string
-  subtype?: string | null
-  distance_m: number | null
-  elapsed_s: number | null
-  moving_s: number | null
-  moving_pace_s_per_km: number | null
-  workout_label?: string | null
-  classification?: RunClassification
-  resolution_state?: string
-  source?: string | null
-  provenance?: Record<string, unknown>
-  annotations?: {
-    version: number
-    workout_label?: string | null
-    notes?: string | null
-    excluded?: boolean
-  }
-  sources?: unknown[]
-}
-export interface Profile {
-  version: number
-  timezone: string
-  cycle_anchor: string | null
-  anchor_confirmed: boolean
-  strength_days_confirmed: boolean
-  scheduled_strength_days: number[]
-  strength_schedule_mode: 'weekly' | 'alternating'
-  strength_week_a_start: string | null
-  strength_week_a_days: number[]
-  strength_week_b_days: number[]
-  mobility_week_a_days: number[]
-  mobility_week_b_days: number[]
-  mobility_optional_days: number[]
-  facts: Record<string, unknown>
-  preferences: Record<string, unknown>
-  unknowns: string[]
-}
-export interface SyncDataset {
-  dataset: string
-  status?: string
-  last_attempt_at?: string | null
-  last_success_at?: string | null
-  newest_observation_at?: string | null
-  requested_start?: string | null
-  requested_end?: string | null
-  fully_enumerated?: boolean | null
-  reason?: string | null
-}
-export interface SyncJob {
-  id: string
-  dataset: string
-  status: 'queued' | 'running' | 'retry_wait' | 'succeeded' | 'failed'
-  error_code?: string | null
-}
-export interface SyncStatus {
-  datasets?: SyncDataset[]
-  active_jobs?: SyncJob[]
-}
-
 export function validDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const [year, month, day] = value.split('-').map(Number)
@@ -212,6 +139,12 @@ export * from './api/types/coach'
 export * from './api/types/metrics'
 export * from './api/types/blocks'
 export * from './api/types/anchors'
+// TRANSITIONAL (ARCH-14y9): importers move to the type modules in ARCH-14y2-14y9, then api.ts is deleted
+export * from './api/types/activity'
+export * from './api/types/profile'
+export * from './api/types/sync'
+// TRANSITIONAL (ARCH-14y9): importers move to api/queryKeys in ARCH-14y2-14y9, then api.ts is deleted
+export { qk, invalidateKeys } from './api/queryKeys'
 
 export type Unit = 'mi' | 'km'
 export const MISSING = 'missing'
@@ -396,9 +329,6 @@ export function sessionMarker(
   if (c?.activity_id || c?.strong_workout_id || c?.manual_session_id) return 'recorded'
   return s.local_date < today ? 'not_recorded' : 'planned'
 }
-export function invalidateKeys(qc: QueryClient, keys: readonly (readonly unknown[])[]): void {
-  for (const key of keys) void qc.invalidateQueries({ queryKey: [...key] })
-}
 export const pageHref = {
   home: '#home',
   calendar: '#calendar',
@@ -406,33 +336,3 @@ export const pageHref = {
   settings: '#settings',
   activity: (id: string) => `#activity/${encodeURIComponent(id)}`,
 } as const
-export const qk = {
-  calendar: ['v2', 'calendar'] as const,
-  calendarView: (version: number | 'head') => ['v2', 'calendar', 'view', version] as const,
-  calendarVersions: ['v2', 'calendar', 'versions'] as const,
-  calendarDiff: (from: number, to: number) => ['v2', 'calendar', 'diff', from, to] as const,
-  weeklyDigest: (weekStart: string | 'current') =>
-    ['v2', 'calendar', 'weekly-digest', weekStart] as const,
-  prompts: ['v2', 'prompts'] as const,
-  checkins: ['v2', 'checkins'] as const,
-  metrics: ['v2', 'metrics'] as const,
-  metricsWindows: ['v2', 'metrics', 'windows'] as const,
-  metricsRecovery: (start: string, end: string) =>
-    ['v2', 'metrics', 'recovery', start, end] as const,
-  activityExecution: (id: string) => ['v2', 'metrics', 'execution', id] as const,
-  workoutProgression: (groupBy: string) =>
-    ['v2', 'metrics', 'workout-progression', groupBy] as const,
-  workoutHistory: (id: string) => ['v2', 'metrics', 'workout-history', id] as const,
-  activity: (id: string) => ['v2', 'activity', id] as const,
-  activitiesNear: (start: string, end: string) =>
-    ['v2', 'activities', start, end, 'running', null] as const,
-  coach: ['v2', 'coach'] as const,
-  exceptions: ['v2', 'exceptions'] as const,
-  goals: ['v2', 'goals'] as const,
-  events: ['v2', 'events'] as const,
-  anchors: ['v2', 'anchors'] as const,
-  strengthRoutine: ['v2', 'strength-routine'] as const,
-  blocksActive: ['v2', 'blocks', 'active'] as const,
-  blockBenchmarks: ['v2', 'blocks', 'benchmarks'] as const,
-  profile: ['profile'] as const,
-}

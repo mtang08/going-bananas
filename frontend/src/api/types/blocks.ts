@@ -9,7 +9,6 @@ export interface Goal {
   version: number
 }
 export type GoalCreate = Omit<Goal, 'id' | 'version' | 'status'>
-export type GoalPatch = Partial<GoalCreate> & { expected_version: number; status?: Goal['status'] }
 export type EventPriority = 'target' | 'supported_exposure' | 'benchmark' | 'optional'
 export type EventStatus = 'planned' | 'registered' | 'completed' | 'cancelled'
 export interface RaceEvent {
@@ -23,7 +22,6 @@ export interface RaceEvent {
   version: number
 }
 export type RaceEventCreate = Omit<RaceEvent, 'id' | 'version'>
-export type RaceEventPatch = Partial<RaceEventCreate> & { expected_version: number }
 export interface StrengthRoutineSlot {
   id: string | null
   label: string
@@ -51,10 +49,6 @@ export interface StrengthRoutine {
   suggested: boolean
   schedule: ConfirmedSchedule
 } // [DTO fixed here] version 0 + suggested=true: nothing saved, slots pre-filled from Strong (D13)
-export interface StrengthRoutinePut {
-  expected_version: number
-  slots: Omit<StrengthRoutineSlot, 'id' | 'version'>[]
-}
 export interface BlockVersion {
   id: string
   block_uid: string

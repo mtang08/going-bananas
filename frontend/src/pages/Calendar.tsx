@@ -184,7 +184,7 @@ export function Calendar({ unit }: { unit: Unit }) {
       .filter((s) => !s.deleted && s.local_date === day)
       .sort((a, b) => a.slot - b.slot)
     const extra = data.completions.filter((c) => c.status === 'extra' && c.local_date === day)
-    const recorded = (data.recorded_runs ?? []).filter((run) => run.local_date === day)
+    const recorded = data.recorded_runs.filter((run) => run.local_date === day)
     const writable = viewVersion === null
     return (
       <div

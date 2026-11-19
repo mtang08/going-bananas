@@ -45,9 +45,6 @@ export interface CheckinV2 {
   schema_version: number
   exceptions?: CheckinExceptions
 }
-export interface CheckinList {
-  items: CheckinV2[]
-}
 export type PromptKind = 'rpe' | 'delayed_symptom' | 'unmatched_session' | 'missing_activity'
 export interface Prompt {
   id: string
