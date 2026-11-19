@@ -7,6 +7,7 @@ inside `refreshing(session)`, which takes the global write lock and caches compu
 from __future__ import annotations
 
 import re
+import time
 import uuid
 from collections.abc import Iterable, Sequence
 from contextlib import contextmanager
@@ -17,6 +18,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import logs
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.db import global_write_lock
 from app.metric_models import MetricResult as MetricResultRow
@@ -31,6 +33,8 @@ from app.metrics.engine import (
 )
 from app.models import Activity, AppState
 from app.services.timezone import athlete_today, athlete_tz
+
+log = logs.get('metrics')
 
 
 def parse_scope(scope: str) -> tuple[str, str | tuple[date, ...] | uuid.UUID | None]:
@@ -219,6 +223,8 @@ def refresh_scopes(session: Session, scopes: Iterable[str]) -> list[MetricResult
     from app.services.matching import rematch_dates
     from app.services.prompts import generate_prompts
     from app.strong_models import StrongWorkoutRow
+    started = time.perf_counter()
+    scopes = list(scopes)
     today = local_today(session)
     dates = set(session.info.get('metrics_dates', ()))
     recovery_dates: set[date] = set()
@@ -278,7 +284,8 @@ def refresh_scopes(session: Session, scopes: Iterable[str]) -> list[MetricResult
         column = SessionCompletion.strong_workout_id if kind == 'strong' else SessionCompletion.manual_session_id
         strength_links.extend(session.scalars(select(SessionCompletion.session_uid).where(column == uuid.UUID(raw_id))))
     explicit_uids = [uid for uid in session.info.get('metrics_plan_uids', ()) if uid] + strength_links
-    results.extend(refresh_plans(session, [*touched_uids, *linked, *explicit_uids, *(_plan_uids(session) if broad else ())]))
+    plan_uids = [*touched_uids, *linked, *explicit_uids, *(_plan_uids(session) if broad else ())]
+    results.extend(refresh_plans(session, plan_uids))
     as_ofs = {today}
     current = session.execute(select(MetricResultRow.subject_key, MetricResultRow.metric_id).where(
         current_result_filter(), MetricResultRow.subject_type.in_(('window', 'night')))).all()
@@ -308,6 +315,9 @@ def refresh_scopes(session: Session, scopes: Iterable[str]) -> list[MetricResult
         ensure_windows(session, as_of)
     generate_prompts(session, clock(session))
     session.flush()
+    log.info('refresh scopes=%d dates=%d activities=%d plans=%d windows=%d nights=%d broad=%s ms=%d',
+             len(scopes), len(dates), len(activity_ids), len(set(plan_uids)), len(as_ofs), len(recovery_dates),
+             broad, round((time.perf_counter() - started) * 1000))
     return results
 
 

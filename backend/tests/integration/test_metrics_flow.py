@@ -1,6 +1,7 @@
 """Atomic training metric refresh against isolated, synthetic PostgreSQL schemas."""
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -9,7 +10,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, func, select, text
+from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
@@ -82,6 +83,33 @@ def seed(db, tmp_path):
 
 def counts(session):
     return tuple(session.scalar(select(func.count()).select_from(model)) for model in (MetricResult, Prompt))
+
+
+def _statements(session, action) -> int:
+    """SQL statements sent on this session's connection while `action` runs."""
+    seen: list[str] = []
+    connection = session.connection()
+
+    def record(_conn, _cursor, statement, *_rest):
+        seen.append(statement)
+
+    event.listen(connection, 'before_cursor_execute', record)
+    try:
+        action()
+    finally:
+        event.remove(connection, 'before_cursor_execute', record)
+    return len(seen)
+
+
+def _move_plan(session, uid, number, day):
+    """Commit calendar version `number` with one revision that puts session `uid` on `day`."""
+    from app.calendar_models import CalendarSessionRevision, CalendarVersion
+    session.add(CalendarVersion(number=number, kind='bootstrap' if number == 1 else 'manual_edit', actor='system'))
+    session.flush()
+    session.add(CalendarSessionRevision(session_uid=uid, revision=number, calendar_version_number=number,
+        local_date=day, kind='run', intent='Test run', planned_duration_s=3000, certainty='committed'))
+    session.get(AppState, 1).calendar_head_version = number
+    session.commit()
 
 
 def test_four_runs_idempotent_reads_and_explanation(db, tmp_path):
@@ -416,3 +444,23 @@ def test_cli_recompute_and_preview(db, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(sys, 'argv', ['cli', 'strong-import', str(tmp_path/'synthetic.csv')])
     assert cli.main() == 0
     assert calls == [False]
+
+
+@pytest.mark.xfail(strict=True, reason='ARCH-04i: the calendar scope still refreshes all history')
+def test_calendar_edit_cost_does_not_grow_with_history(db, tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger='going_bananas.metrics')
+    seed(db, tmp_path)
+    uid = uuid.uuid4()
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        _move_plan(session, uid, 1, TODAY + timedelta(days=1))
+        baseline = _statements(session, lambda: _move_plan(session, uid, 2, TODAY + timedelta(days=2)))
+        old_runs = [{'activityId': 5000 + n,
+                     'startTimeGMT': (datetime(2024, 6, 1, 12, tzinfo=UTC) + timedelta(days=3 * n)).isoformat(),
+                     'activityType': {'typeKey': 'running'}, 'duration': 1800, 'distance': 5000} for n in range(12)]
+        import_activity_page(session, tmp_path, old_runs, account_scope='synthetic-metrics', source_kind='demo_fixture')
+        session.commit()
+        grown = _statements(session, lambda: _move_plan(session, uid, 3, TODAY + timedelta(days=3)))
+    assert baseline > 0
+    assert grown <= baseline + 10
+    assert any(record.getMessage().startswith('refresh ') for record in caplog.records)
