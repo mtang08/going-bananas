@@ -21,6 +21,7 @@ from app.calendar_models import CalendarSessionRevision, CalendarVersion
 from app.config import settings
 from app.migrations_head import EXPECTED_HEAD
 from app.models import Activity, AppState, ProfileVersion
+from app.services import calendar
 from app.services.calendar import state_at
 
 
@@ -59,6 +60,7 @@ def demo_cli(monkeypatch, tmp_path):
 def test_calendar_preview_initializes_fresh_migrated_database(demo_cli, capsys, monkeypatch, weekday):
     today = date(2026, 11, 9) + timedelta(days=weekday)
     monkeypatch.setattr(cli, 'local_date', lambda instant, zone: today)
+    monkeypatch.setattr(calendar, '_today', lambda session, now=None: today)
     with demo_cli() as session:
         state = session.get(AppState, 1)
         assert (state.planning_authority, state.calendar_head_version, state.data_revision) == ('legacy', 0, 0)
