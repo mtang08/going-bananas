@@ -28,7 +28,7 @@ def calendar_fixture(monkeypatch, db_connection, metrics_disabled, session_facto
                      calendar_state):
     # This service-seam suite invokes matching/its injected assessor explicitly.
     # Real transactional refresh is covered by test_metrics_flow.
-    monkeypatch.setattr(calendar, '_today', lambda session, now=None: date(2026, 11, 16))
+    monkeypatch.setattr(calendar, 'calendar_today', lambda session, now=None: date(2026, 11, 16))
     with session_factory() as session:
         session.execute(delete(SessionCompletion))
         session.execute(delete(CalendarSessionRevision))
