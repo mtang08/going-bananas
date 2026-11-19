@@ -30,9 +30,11 @@ def _window(start: date, end: date, limit: int | None = None) -> None:
         fail('invalid_date_window', 'Invalid date window')
 
 
-def recovery_nights(session: Session, start: date, end: date) -> dict:
-    _window(start, end, 92)
+def recovery_nights(session: Session, start: date | None, end: date | None) -> dict:
     global_read_lock(session)
+    end = end or refresh.local_today(session)
+    start = start or end - timedelta(days=6)
+    _window(start, end, 92)
     keys = [f'night:{start + timedelta(days=offset)}' for offset in range((end - start).days + 1)]
     results = engine.read_results(session, 'recovery_multisignal_summary', keys)
     nights = []
@@ -123,9 +125,12 @@ def long_run_history(session: Session, start: date, end: date) -> list[dict]:
 RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
 
 
-def workout_progression_data(session: Session, start: date, end: date, group_by: str) -> dict:
-    _window(start, end, 366)
+def workout_progression_data(session: Session, start: date | None, end: date | None, group_by: str) -> dict:
     global_read_lock(session)
+    today = refresh.local_today(session)
+    end = min(end or today, today)
+    start = start or end - timedelta(days=179)
+    _window(start, end, 366)
     return {'start': start, 'end': end, 'group_by': group_by,
             'groups': workout_progression.progression_groups(session, start, end, group_by)}
 
@@ -165,8 +170,7 @@ def get_windows(as_of: date | None = None, session: Session = Depends(get_sessio
 
 @router.get('/metrics/recovery')
 def get_recovery(start: date | None = None, end: date | None = None, session: Session = Depends(get_session)) -> dict:
-    end = end or refresh.local_today(session)
-    data = recovery_nights(session, start or end - timedelta(days=6), end)
+    data = recovery_nights(session, start, end)
     return envelope(session, data)
 
 
@@ -186,9 +190,7 @@ def get_long_runs(start: date, end: date, session: Session = Depends(get_session
 def get_workout_progression(start: date | None = None, end: date | None = None,
                             group_by: Literal['signature', 'recipe'] = 'signature',
                             session: Session = Depends(get_session)) -> dict:
-    today = refresh.local_today(session)
-    end = min(end or today, today)
-    data = workout_progression_data(session, start or end - timedelta(days=179), end, group_by)
+    data = workout_progression_data(session, start, end, group_by)
     return envelope(session, data)
 
 

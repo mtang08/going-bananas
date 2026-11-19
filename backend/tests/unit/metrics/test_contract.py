@@ -101,3 +101,29 @@ def test_registry_rejects_duplicate_unknown_and_cycle(monkeypatch: pytest.Monkey
         return []
     with pytest.raises(ValueError, match='metric_dependency_cycle'):
         engine.ordered_registry()
+
+
+def test_default_metric_dates_are_read_under_shared_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.api import metrics
+
+    today = date(2025, 2, 2)
+    calls: list[str] = []
+
+    def lock(_session):
+        calls.append('lock')
+
+    def local_today(_session):
+        calls.append('today')
+        return today
+
+    monkeypatch.setattr(metrics, 'global_read_lock', lock)
+    monkeypatch.setattr(metrics.refresh, 'local_today', local_today)
+    monkeypatch.setattr(metrics, 'envelope', lambda _session, data: data)
+    monkeypatch.setattr(metrics.engine, 'read_results', lambda _session, _name, keys: {
+        key: {'value': {}, 'status': 'missing', 'quality_status': None, 'reason_codes': [], 'quality_flags': []}
+        for key in keys
+    })
+    monkeypatch.setattr(metrics.workout_progression, 'progression_groups', lambda *_args: [])
+    assert metrics.get_recovery(start=None, end=None, session=None)['end'] == today
+    assert metrics.get_workout_progression(start=None, end=None, session=None)['end'] == today
+    assert calls == ['lock', 'today', 'lock', 'today']

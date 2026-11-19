@@ -132,7 +132,13 @@ Operational commands:
   unavailable or failed items remain explicit and can be inspected.
 - `strong-import PATH` previews a CSV; add `--apply` to import it.
 
-Metric GET endpoints leave the database unchanged. Metric pages can compute missing or method-outdated results in memory. The weekly digest and workout progression show stored assessments. Each server start (`make start`, `make dev`) runs `metrics-refresh-today` before serving. It refreshes the last 84 days of run metrics, session assessments within 13 days of today (including derived completion status), the last seven nights, and today's windows, then updates prompts. Take a backup before the first real-mode server start after a metric method change. `app.log` records a `refresh ...` line per write-time refresh and a `startup refresh ...` line per startup pass.
+Metric GET endpoints leave the database unchanged. Metric pages compute missing results and results with
+outdated methods or configs in memory. Some calculations still read stored dependencies: intensity, long-run,
+and aerobic windows read stored activity results, and planned-versus-actual assessments read stored interval
+results. The weekly digest and workout progression also show stored assessments. After a method or config
+change, run `metrics-recompute` for affected older dates that the startup pass does not cover.
+
+Each server start (`make start`, `make dev`) runs `metrics-refresh-today` before serving. It refreshes the last 84 days of run metrics, session assessments within 13 days of today (including derived completion status), the last seven nights, and today's windows, then updates prompts. Take a backup before the first real-mode server start after a metric method change. `app.log` records a `refresh ...` line per write-time refresh and a `startup refresh ...` line per startup pass.
 
 Synthetic acceptance uses the isolated PostgreSQL cluster on port 55439 and API port 18000.
 It must never reset, seed, or migrate the real database on port 55432. Keep device

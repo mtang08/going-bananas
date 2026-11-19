@@ -158,14 +158,16 @@ def _refresh_strength(session: Session, start: date, end: date) -> list[MetricRe
     return compute_subjects(session, 'session_rpe_load', keys)
 
 
-def _plan_uids(session: Session, start: date | None = None, end: date | None = None) -> list[uuid.UUID]:
+def _plan_uids(session: Session, start: date | None = None, end: date | None = None,
+               *, days: set[date] | None = None) -> list[uuid.UUID]:
     from app.services.calendar import state_at
     head = session.scalar(select(AppState.calendar_head_version).where(AppState.id == 1)) or 0
     if not head:
         return []
     rows = state_at(session, head)
     return [uuid.UUID(str(row['session_uid'])) for row in rows
-            if (start is None or row['local_date'] >= start) and (end is None or row['local_date'] <= end)]
+            if (start is None or row['local_date'] >= start) and (end is None or row['local_date'] <= end)
+            and (days is None or row['local_date'] in days)]
 
 
 def refresh_plans(session: Session, uids: Iterable[uuid.UUID]) -> list[MetricResultData]:
@@ -327,8 +329,18 @@ def refresh_targets(session: Session, targets: Targets, matched_plan_uids: Itera
         kind, raw_id = key.split(':', 1)
         column = SessionCompletion.strong_workout_id if kind == 'strong' else SessionCompletion.manual_session_id
         strength_links.extend(session.scalars(select(SessionCompletion.session_uid).where(column == uuid.UUID(raw_id))))
-    plan_uids = [*matched_plan_uids, *linked, *targets.plan_uids, *strength_links,
-                 *(_plan_uids(session) if targets.broad else _plan_uids(session, targets.since) if targets.since else ())]
+    # Unlinked plans can gain or lose a move candidate without a completion change.
+    matching_days = {day + timedelta(days=offset) for day in targets.dates for offset in (-1, 0, 1)}
+    if targets.broad:
+        nearby_plans = _plan_uids(session)
+    else:
+        nearby_plans = []
+        if targets.since is not None:
+            nearby_plans = _plan_uids(session, targets.since)
+            matching_days = {day for day in matching_days if day < targets.since}
+        if matching_days:
+            nearby_plans.extend(_plan_uids(session, days=matching_days))
+    plan_uids = [*matched_plan_uids, *linked, *targets.plan_uids, *strength_links, *nearby_plans]
     refresh_plans(session, plan_uids)
     as_ofs = {today}
     current = session.execute(select(MetricResultRow.subject_key, MetricResultRow.metric_id).where(

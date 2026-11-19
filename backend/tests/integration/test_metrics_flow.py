@@ -699,3 +699,60 @@ def test_metrics_refresh_today_cli(db, tmp_path, monkeypatch, capsys):
         session.commit()
     assert cli.main() == 0
     assert json.loads(capsys.readouterr().out)['new_results'] > 0
+
+
+def test_historical_completion_relink_refreshes_adjacent_plan_candidates(db, tmp_path):
+    from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
+
+    seed(db, tmp_path)
+    first_day, second_day = TODAY - timedelta(days=35), TODAY - timedelta(days=24)
+    first_plan, second_plan, claimant = (uuid.uuid4() for _ in range(3))
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        session.add(CalendarVersion(number=1, kind='bootstrap', actor='system'))
+        session.flush()
+        session.get(AppState, 1).calendar_head_version = 1
+        for uid, day in ((first_plan, first_day + timedelta(days=1)), (second_plan, second_day + timedelta(days=1)),
+                         (claimant, first_day - timedelta(days=3))):
+            session.add(CalendarSessionRevision(session_uid=uid, revision=1, calendar_version_number=1,
+                local_date=day, kind='run', intent='Historical plan', planned_duration_s=1800, certainty='committed'))
+        session.commit()
+
+        records = []
+        for index, day in enumerate((first_day, second_day)):
+            stamp = datetime.combine(day, datetime.min.time(), tzinfo=UTC) + timedelta(hours=12)
+            records.append({'activityId': 7000 + index, 'startTimeGMT': stamp.isoformat(),
+                            'activityType': {'typeKey': 'running'}, 'duration': 1800, 'distance': 5000})
+        import_activity_page(session, tmp_path, records, account_scope='synthetic-metrics', source_kind='demo_fixture')
+        session.commit()
+        first_run, second_run = session.scalars(select(Activity.id).where(
+            Activity.start_at < NOW - timedelta(days=20)).order_by(Activity.start_at)).all()
+
+        def candidates(uid):
+            row = current(session, 'planned_actual_session', str(uid))
+            assert row is not None
+            return row.value['candidate_activity_ids']
+
+        for uid in (first_plan, second_plan):
+            refresh.assess_completion(session, uid)
+        session.commit()
+        assert candidates(first_plan) == [str(first_run)]
+        assert candidates(second_plan) == [str(second_run)]
+
+        completion = SessionCompletion(session_uid=claimant, activity_id=first_run, status='unknown',
+                                       match_method='confirmed_move', updated_at=NOW)
+        session.add(completion)
+        session.commit()
+        assert candidates(first_plan) == []
+        assert candidates(second_plan) == [str(second_run)]
+
+        completion.activity_id = second_run
+        completion.input_version += 1
+        session.commit()
+        assert candidates(first_plan) == [str(first_run)]
+        assert candidates(second_plan) == []
+
+        session.delete(completion)
+        session.commit()
+        assert candidates(first_plan) == [str(first_run)]
+        assert candidates(second_plan) == [str(second_run)]
