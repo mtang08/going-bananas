@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 
 from app.errors import fail
 from app.metrics.contract import sha256_json
-from app.models import AppState
 from app.planning_models import IntensityAnchor
 from app.services.timezone import athlete_tz
 
@@ -104,9 +103,6 @@ def _validate_value(kind: str, low: float, high: float | None) -> None:
 
 def create_anchor(session: Session, fields: dict[str, Any]) -> dict[str, Any]:
     session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
-    state = session.get(AppState, 1, with_for_update=True)
-    if state is None or state.planning_authority != 'calendar':
-        fail('planning_not_active', 'Calendar planning is not active', 409)
     allowed = {'kind', 'value_low', 'value_high', 'unit', 'protocol', 'confidence',
                'calibrated_at', 'valid_from', 'review_after', 'source_activity_id',
                'source_event_id', 'proposal_id', 'conditions', 'notes', 'supersedes_key'}

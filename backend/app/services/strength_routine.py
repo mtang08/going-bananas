@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 
 from app.domain.cycle import recurring_sessions
 from app.errors import fail
-from app.models import AppState
 from app.planning_models import StrengthRoutineSlot
 from app.services.profile import current_profile, profile_data
 from app.services.timezone import athlete_tz
@@ -134,9 +133,6 @@ def _validate_slot(item: dict) -> dict:
 
 def replace_routine(session: Session, expected_version: int, slots: list[dict]) -> dict:
     session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
-    state = session.get(AppState, 1, with_for_update=True)
-    if state is None or state.planning_authority != 'calendar':
-        fail('planning_not_active', 'Calendar planning is not active', 409)
     version = _version(session)
     if version != expected_version:
         fail('version_conflict', 'Routine changed; reload before editing', 409)

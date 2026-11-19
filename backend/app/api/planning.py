@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.core import envelope
 from app.db import bump_data_revision, get_session
 from app.errors import fail
-from app.models import Activity, AppState
+from app.models import Activity
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, Goal
 from app.services.block_benchmark import RUN_SPORTS, active_block_version, benchmark_spec, benchmark_status, status_data
 from app.services.strength_routine import LOCK_ID, replace_routine, routine_view
@@ -110,9 +110,6 @@ class EventPatch(BaseModel):
 
 def _writer_lock(session: Session) -> None:
     session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
-    state = session.get(AppState, 1, with_for_update=True)
-    if state is None or state.planning_authority != 'calendar':
-        fail('planning_not_active', 'Calendar planning is not active', 409)
 
 
 def _goal(row: Goal) -> dict:
