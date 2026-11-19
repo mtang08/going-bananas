@@ -57,6 +57,20 @@ export function WeeklyDigest({
     const { done, planned_to_date } = t.by_kind[kind]
     return `${label} ${done}/${planned_to_date}`
   })
+  const dueSessions = d.sessions.filter((row) => row.local_date <= d.today)
+  const actualDurationUnknown = t.time.actual_s === 0 && t.time.actual_unknown > 0
+  const plannedDurationUnknown =
+    t.time.planned_to_date_s === 0 &&
+    dueSessions.some(
+      (row) => row.kind !== 'mobility' && row.kind !== 'rest' && row.planned_duration_s === null,
+    )
+  const actualDistanceUnknown = t.run_distance.actual_m === 0 && t.run_distance.actual_unknown > 0
+  const plannedDistanceUnknown =
+    t.run_distance.planned_to_date_m === 0 &&
+    dueSessions.some((row) => row.kind === 'run' && row.planned_distance_m === null)
+  const plannedDistance = plannedDistanceUnknown
+    ? 'unknown'
+    : `${t.run_distance.planned_estimated > 0 ? '~' : ''}${fmtDistance(t.run_distance.planned_to_date_m, unit)}`
   const unplannedUnknown = d.unplanned.some((u) => u.duration_s === null)
   const unknowns = [
     t.time.planned_unknown > 0 && `${t.time.planned_unknown} planned without a duration`,
@@ -108,12 +122,12 @@ export function WeeklyDigest({
           {outcomeDetail.length > 0 && <p className="muted-text">{outcomeDetail.join(' · ')}</p>}
           {byKind.length > 0 && <p className="muted-text">{byKind.join(' · ')}</p>}
           <p>
-            Time: {fmtDuration(t.time.actual_s)} of {fmtDuration(t.time.planned_to_date_s)} planned
+            Time: {actualDurationUnknown ? 'unknown' : fmtDuration(t.time.actual_s)} of{' '}
+            {plannedDurationUnknown ? 'unknown' : fmtDuration(t.time.planned_to_date_s)} planned
           </p>
           <p>
-            Running: {fmtDistance(t.run_distance.actual_m, unit)} of{' '}
-            {t.run_distance.planned_estimated > 0 ? '~' : ''}
-            {fmtDistance(t.run_distance.planned_to_date_m, unit)} planned
+            Running: {actualDistanceUnknown ? 'unknown' : fmtDistance(t.run_distance.actual_m, unit)}{' '}
+            of {plannedDistance} planned
           </p>
           {keyRows.length > 0 && (
             <>

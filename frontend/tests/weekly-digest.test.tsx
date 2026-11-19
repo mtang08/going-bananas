@@ -185,6 +185,58 @@ describe('weekly digest', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows unknown time and distance when amounts due today and recorded amounts are missing', () => {
+    const row: DigestRow = {
+      ...a1,
+      local_date: '2026-11-11',
+      planned_duration_s: null,
+      planned_distance_m: null,
+      actual: { ...a1.actual, local_date: '2026-11-11', duration_s: null, distance_m: null },
+    }
+    mount(
+      digest({
+        sessions: [row],
+        totals: {
+          ...totals,
+          time: { ...totals.time, planned_unknown: 1, actual_unknown: 1 },
+          run_distance: { ...totals.run_distance, planned_unknown: 1, actual_unknown: 1 },
+        },
+      }),
+    )
+    expect(screen.getByText('Time: unknown of unknown planned')).toBeInTheDocument()
+    expect(screen.getByText('Running: unknown of unknown planned')).toBeInTheDocument()
+  })
+
+  it('keeps known totals when only future planned amounts are missing', () => {
+    const row: DigestRow = {
+      ...a1,
+      local_date: '2026-11-12',
+      planned_duration_s: null,
+      planned_distance_m: null,
+      outcome: 'planned',
+      actual: null,
+      execution: null,
+    }
+    mount(
+      digest({
+        sessions: [row],
+        totals: {
+          ...totals,
+          time: { ...totals.time, planned_unknown: 1, actual_s: 1500, actual_unknown: 1 },
+          run_distance: {
+            ...totals.run_distance,
+            planned_unknown: 1,
+            actual_m: 5000,
+            actual_unknown: 1,
+          },
+        },
+      }),
+    )
+    expect(screen.getByText('Time: 25m of 0m planned')).toBeInTheDocument()
+    expect(screen.getByText('Running: 3.1 mi of 0.0 mi planned')).toBeInTheDocument()
+    expect(screen.getByText(/^Some amounts are unknown:/)).toBeInTheDocument()
+  })
+
   it('prefixes planned distance with ~ when estimated', () => {
     mount(
       digest({
@@ -239,6 +291,12 @@ describe('weekly digest', () => {
     const row = within(screen.getByTestId('digest-key-session'))
     expect(row.getByText('Not assessed yet')).toBeInTheDocument()
     expect(row.queryByRole('list')).not.toBeInTheDocument()
+  })
+
+  it('labels an assessment with insufficient plan detail', () => {
+    const execution = { ...a1.execution, reason_codes: ['INSUFFICIENT_PLAN'] }
+    mount(digest({ sessions: [{ ...a1, execution }] }))
+    expect(screen.getByText('Not enough plan detail to compare')).toBeInTheDocument()
   })
 
   it('omits Open run for a manual or Strong subject', () => {
