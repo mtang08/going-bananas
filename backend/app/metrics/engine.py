@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -16,7 +16,7 @@ from sqlalchemy.sql import ColumnElement
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.db import global_write_lock
-from app.fit_models import ActivityStream, FitFile
+from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep, FitFile
 from app.metric_models import MetricConfig
 from app.metric_models import MetricResult as MetricResultRow
 from app.metrics.contract import (
@@ -90,51 +90,69 @@ def _profile_timezone(session: Session) -> str:
     return athlete_tz(session).key
 
 
-def _activity_sources(session: Session, activity_id: uuid.UUID) -> list[dict[str, Any]]:
-    rows = session.execute(select(ActivitySource, SourceRecord, RawObject)
-        .join(SourceRecord, ActivitySource.source_record_id == SourceRecord.id)
-        .outerjoin(RawObject, SourceRecord.raw_object_id == RawObject.id)
-        .where(ActivitySource.activity_id == activity_id)
-        .order_by(SourceRecord.id)).all()
-    return [{'source_record_id': str(source.id), 'payload_hash': source.payload_hash,
-             'source_modified_at': source.source_modified_at.isoformat() if source.source_modified_at else None,
-             'parser_version': source.parser_version, 'raw_sha256': raw.sha256 if raw else None,
-             'selected_fields': link.selected_fields}
-            for link, source, raw in rows]
+def _latest_annotations(session: Session, activity_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, ActivityAnnotation]:
+    """Highest annotation version per activity, in one query."""
+    if not activity_ids:
+        return {}
+    rows = session.scalars(select(ActivityAnnotation).where(ActivityAnnotation.activity_id.in_(activity_ids))
+                           .order_by(ActivityAnnotation.activity_id, ActivityAnnotation.version))
+    return {row.activity_id: row for row in rows}
 
 
-def _fit_refs(session: Session, activity_id: uuid.UUID) -> dict[str, Any] | None:
-    fit = session.scalar(select(FitFile).where(FitFile.activity_id == activity_id))
-    stream = session.get(ActivityStream, activity_id)
-    from app.fit_models import ActivityLap, ActivityWorkoutStep
-    def normalized(row):
-        return {column.key: getattr(row, column.key) for column in row.__table__.columns
-                if column.key not in {'id', 'activity_id'}}
-    decoded = {'stream': normalized(stream) if stream else None,
-        'laps': [normalized(row) for row in session.scalars(select(ActivityLap).where(
-            ActivityLap.activity_id == activity_id).order_by(ActivityLap.lap_index))],
-        'steps': [normalized(row) for row in session.scalars(select(ActivityWorkoutStep).where(
-            ActivityWorkoutStep.activity_id == activity_id).order_by(ActivityWorkoutStep.message_index))]}
-    if fit is None:
-        return {'normalized_hash': sha256_json(decoded), 'quality_flags': list(stream.quality_flags) if stream else []}
-    return {'normalized_hash': sha256_json(decoded), 'id': str(fit.id), 'fit_sha256': fit.fit_sha256, 'zip_sha256': fit.zip_sha256,
-            'raw_object_id': str(fit.raw_object_id), 'sdk_version': fit.sdk_version,
-            'profile_version': fit.profile_version,
-            'quality_flags': list(stream.quality_flags) if stream else []}
+def _decoded_row(row: Any) -> dict[str, Any]:
+    return {column.key: getattr(row, column.key) for column in row.__table__.columns
+            if column.key not in {'id', 'activity_id'}}
 
 
-def _activity_identity(session: Session, activity: Activity,
-                       annotation: ActivityAnnotation | None) -> tuple[str, dict[str, Any]]:
-    refs = {'id': str(activity.id), 'canonical_revision': activity.canonical_revision,
-            'fit_status': activity.fit_status,
-            'facts': {name: getattr(activity, name) for name in ('start_at', 'end_at', 'sport',
-                'timer_s', 'elapsed_s', 'distance_m', 'source_workout_label', 'resolution_state')},
-            'annotation': {'excluded': annotation.excluded, 'workout_label': annotation.workout_label} if annotation else None,
-            'annotation_version': annotation.version if annotation else None,
-            'source_records': _activity_sources(session, activity.id),
-            'field_provenance': activity.field_provenance or {},
-            'fit': _fit_refs(session, activity.id)}
-    return sha256_json(refs), refs
+def _activity_identities(session: Session, activities: Sequence[Activity],
+                         annotations: Mapping[uuid.UUID, ActivityAnnotation]) -> dict[uuid.UUID, tuple[str, dict[str, Any]]]:
+    """`(source_revision, source_refs)` per activity, with one query per provenance table."""
+    ids = [activity.id for activity in activities]
+    if not ids:
+        return {}
+    sources: dict[uuid.UUID, list[dict[str, Any]]] = {uid: [] for uid in ids}
+    for link, source, raw in session.execute(select(ActivitySource, SourceRecord, RawObject)
+            .join(SourceRecord, ActivitySource.source_record_id == SourceRecord.id)
+            .outerjoin(RawObject, SourceRecord.raw_object_id == RawObject.id)
+            .where(ActivitySource.activity_id.in_(ids))
+            .order_by(ActivitySource.activity_id, SourceRecord.id)):
+        sources[link.activity_id].append({
+            'source_record_id': str(source.id), 'payload_hash': source.payload_hash,
+            'source_modified_at': source.source_modified_at.isoformat() if source.source_modified_at else None,
+            'parser_version': source.parser_version, 'raw_sha256': raw.sha256 if raw else None,
+            'selected_fields': link.selected_fields})
+    fits = {row.activity_id: row for row in session.scalars(select(FitFile).where(FitFile.activity_id.in_(ids)))}
+    streams = {row.activity_id: row for row in session.scalars(
+        select(ActivityStream).where(ActivityStream.activity_id.in_(ids)))}
+    laps: dict[uuid.UUID, list[dict[str, Any]]] = {uid: [] for uid in ids}
+    for lap in session.scalars(select(ActivityLap).where(ActivityLap.activity_id.in_(ids))
+                               .order_by(ActivityLap.activity_id, ActivityLap.lap_index)):
+        laps[lap.activity_id].append(_decoded_row(lap))
+    steps: dict[uuid.UUID, list[dict[str, Any]]] = {uid: [] for uid in ids}
+    for step in session.scalars(select(ActivityWorkoutStep).where(ActivityWorkoutStep.activity_id.in_(ids))
+                                .order_by(ActivityWorkoutStep.activity_id, ActivityWorkoutStep.message_index)):
+        steps[step.activity_id].append(_decoded_row(step))
+    identities: dict[uuid.UUID, tuple[str, dict[str, Any]]] = {}
+    for activity in activities:
+        uid, stream, fit = activity.id, streams.get(activity.id), fits.get(activity.id)
+        decoded = {'stream': _decoded_row(stream) if stream else None, 'laps': laps[uid], 'steps': steps[uid]}
+        flags = list(stream.quality_flags) if stream else []
+        fit_refs: dict[str, Any] = ({'normalized_hash': sha256_json(decoded), 'quality_flags': flags} if fit is None else
+            {'normalized_hash': sha256_json(decoded), 'id': str(fit.id), 'fit_sha256': fit.fit_sha256,
+             'zip_sha256': fit.zip_sha256, 'raw_object_id': str(fit.raw_object_id), 'sdk_version': fit.sdk_version,
+             'profile_version': fit.profile_version, 'quality_flags': flags})
+        annotation = annotations.get(uid)
+        refs = {'id': str(uid), 'canonical_revision': activity.canonical_revision,
+                'fit_status': activity.fit_status,
+                'facts': {name: getattr(activity, name) for name in ('start_at', 'end_at', 'sport',
+                    'timer_s', 'elapsed_s', 'distance_m', 'source_workout_label', 'resolution_state')},
+                'annotation': {'excluded': annotation.excluded, 'workout_label': annotation.workout_label} if annotation else None,
+                'annotation_version': annotation.version if annotation else None,
+                'source_records': sources[uid],
+                'field_provenance': activity.field_provenance or {},
+                'fit': fit_refs}
+        identities[uid] = (sha256_json(refs), refs)
+    return identities
 
 
 def load_runs(session: Session, start_date: date, end_date_excl: date) -> list[RunFact]:
@@ -145,16 +163,16 @@ def load_runs(session: Session, start_date: date, end_date_excl: date) -> list[R
         Activity.sport.in_(('running', 'trail_running', 'treadmill_running')),
         Activity.resolution_state == 'resolved', Activity.start_at >= start_utc,
         Activity.start_at < end_utc).order_by(Activity.start_at, Activity.id)).all()
+    candidates = [(activity, activity.start_at.astimezone(zone).date()) for activity in activities]
+    candidates = [(activity, local) for activity, local in candidates if start_date <= local < end_date_excl]
+    annotations = _latest_annotations(session, [activity.id for activity, _ in candidates])
+    kept = [(activity, local) for activity, local in candidates
+            if not (annotations.get(activity.id) and annotations[activity.id].excluded)]
+    identities = _activity_identities(session, [activity for activity, _ in kept], annotations)
     result: list[RunFact] = []
-    for activity in activities:
-        local_date = activity.start_at.astimezone(zone).date()
-        if not start_date <= local_date < end_date_excl:
-            continue
-        annotation = session.scalar(select(ActivityAnnotation).where(ActivityAnnotation.activity_id == activity.id)
-                                    .order_by(ActivityAnnotation.version.desc()).limit(1))
-        if annotation and annotation.excluded:
-            continue
-        source_revision, refs = _activity_identity(session, activity, annotation)
+    for activity, local_date in kept:
+        annotation = annotations.get(activity.id)
+        source_revision, refs = identities[activity.id]
         result.append(RunFact(activity.id, activity.start_at, activity.end_at, local_date,
                               activity.sport, activity.timer_s, activity.distance_m,
                               annotation.workout_label if annotation and annotation.workout_label else activity.source_workout_label,
@@ -295,9 +313,8 @@ def metric_source_refs(session: Session, activity_id: uuid.UUID, session_uid: uu
     activity = session.get(Activity, activity_id)
     if activity is None:
         raise ValueError('activity_not_found')
-    annotation = session.scalar(select(ActivityAnnotation).where(ActivityAnnotation.activity_id == activity_id)
-                                .order_by(ActivityAnnotation.version.desc()).limit(1))
-    source_revision, activity_refs = _activity_identity(session, activity, annotation)
+    annotation = _latest_annotations(session, [activity_id]).get(activity_id)
+    source_revision, activity_refs = _activity_identities(session, [activity], {activity_id: annotation} if annotation else {})[activity_id]
     selected_version = calendar_version
     if selected_version is None:
         state = session.get(AppState, 1)
@@ -313,7 +330,7 @@ def metric_source_refs(session: Session, activity_id: uuid.UUID, session_uid: uu
                     'calendar_version': selected_version, 'structure_hash': sha256_json(revision.structure)}
     completion = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == session_uid)) if session_uid else None
     return {'activity': {'id': str(activity_id), 'source_revision': source_revision,
-                         'source_refs': activity_refs}, 'fit': _fit_refs(session, activity_id),
+                         'source_refs': activity_refs}, 'fit': activity_refs['fit'],
             'plan': plan, 'completion_association_hash': completion_association_hash(completion) if completion else None}
 
 

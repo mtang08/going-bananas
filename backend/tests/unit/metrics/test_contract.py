@@ -73,7 +73,13 @@ def test_scope_and_empty_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     assert parse_scope('activity:00000000-0000-0000-0000-000000000001')[0] == 'activity'
     assert parse_scope('strength:strong:00000000-0000-0000-0000-000000000001')[0] == 'strength:strong'
     assert parse_scope('recovery_dates:2026-11-11,2026-11-12')[1] == (date(2026, 11, 11), date(2026, 11, 12))
-    for scope in ('activity:nope', 'anchors:2026-99-99', 'recovery_dates:', 'bogus'):
+    assert parse_scope('plan:00000000-0000-0000-0000-000000000001')[0] == 'plan'
+    assert parse_scope('date:2026-11-11') == ('date', date(2026, 11, 11))
+    assert parse_scope('since:2026-11-11') == ('since', date(2026, 11, 11))
+    assert parse_scope('revision') == ('revision', None)
+    assert parse_scope('timezone') == ('timezone', None)
+    for scope in ('activity:nope', 'since:2026-99-99', 'date:20261111', 'recovery_dates:',
+                  'calendar', 'all:2026-11-11', 'anchors:2026-11-11', 'plan:', 'bogus'):
         with pytest.raises(ValueError, match='invalid_scope'):
             parse_scope(scope)
     assert not engine.REGISTRY

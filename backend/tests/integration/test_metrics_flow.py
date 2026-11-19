@@ -1,6 +1,7 @@
 """Atomic training metric refresh against isolated, synthetic PostgreSQL schemas."""
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -9,7 +10,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, func, select, text
+from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
@@ -18,7 +19,7 @@ from app.checkin_models import SessionRpe
 from app.config import settings
 from app.db import bump_data_revision, get_revision
 from app.metric_models import MetricResult, Prompt
-from app.metrics import refresh
+from app.metrics import engine, refresh
 from app.models import Activity, AppState, CoverageInterval, ProfileVersion
 from app.services import derived
 from app.services.sync import import_activity_page
@@ -82,6 +83,33 @@ def seed(db, tmp_path):
 
 def counts(session):
     return tuple(session.scalar(select(func.count()).select_from(model)) for model in (MetricResult, Prompt))
+
+
+def _statements(session, action) -> int:
+    """SQL statements sent on this session's connection while `action` runs."""
+    seen: list[str] = []
+    connection = session.connection()
+
+    def record(_conn, _cursor, statement, *_rest):
+        seen.append(statement)
+
+    event.listen(connection, 'before_cursor_execute', record)
+    try:
+        action()
+    finally:
+        event.remove(connection, 'before_cursor_execute', record)
+    return len(seen)
+
+
+def _move_plan(session, uid, number, day):
+    """Commit calendar version `number` with one revision that puts session `uid` on `day`."""
+    from app.calendar_models import CalendarSessionRevision, CalendarVersion
+    session.add(CalendarVersion(number=number, kind='bootstrap' if number == 1 else 'manual_edit', actor='system'))
+    session.flush()
+    session.add(CalendarSessionRevision(session_uid=uid, revision=number, calendar_version_number=number,
+        local_date=day, kind='run', intent='Test run', planned_duration_s=3000, certainty='committed'))
+    session.get(AppState, 1).calendar_head_version = number
+    session.commit()
 
 
 def test_four_runs_idempotent_reads_and_explanation(db, tmp_path):
@@ -218,7 +246,7 @@ def test_derived_failure_rolls_back_source_and_revision(db, tmp_path, monkeypatc
         session.get(Activity, ids[0]).timer_s = 9999
         def fail_refresh(*args):
             raise RuntimeError('synthetic calculation failure')
-        monkeypatch.setattr(refresh, 'refresh_scopes', fail_refresh)
+        monkeypatch.setattr(derived, 'refresh_scopes', fail_refresh)
         with pytest.raises(RuntimeError, match='synthetic calculation'):
             session.commit()
         session.rollback()
@@ -416,3 +444,121 @@ def test_cli_recompute_and_preview(db, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(sys, 'argv', ['cli', 'strong-import', str(tmp_path/'synthetic.csv')])
     assert cli.main() == 0
     assert calls == [False]
+
+
+def test_calendar_edit_cost_does_not_grow_with_history(db, tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger='going_bananas.metrics')
+    seed(db, tmp_path)
+    uid = uuid.uuid4()
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        _move_plan(session, uid, 1, TODAY + timedelta(days=1))
+        baseline = _statements(session, lambda: _move_plan(session, uid, 2, TODAY + timedelta(days=2)))
+        old_runs = [{'activityId': 5000 + n,
+                     'startTimeGMT': (datetime(2024, 6, 1, 12, tzinfo=UTC) + timedelta(days=3 * n)).isoformat(),
+                     'activityType': {'typeKey': 'running'}, 'duration': 1800, 'distance': 5000} for n in range(12)]
+        import_activity_page(session, tmp_path, old_runs, account_scope='synthetic-metrics', source_kind='demo_fixture')
+        session.commit()
+        grown = _statements(session, lambda: _move_plan(session, uid, 3, TODAY + timedelta(days=3)))
+    assert baseline > 0
+    assert grown <= baseline + 10
+    assert any(record.getMessage().startswith('refresh ') for record in caplog.records)
+
+
+def test_load_runs_statement_count_does_not_grow_with_runs(db, tmp_path):
+    seed(db, tmp_path)
+    window = (date(2024, 1, 1), TODAY + timedelta(days=1))
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        before = _statements(session, lambda: engine.load_runs(session, *window))
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        more = [{'activityId': 6000 + n,
+                 'startTimeGMT': (datetime(2024, 9, 1, 12, tzinfo=UTC) + timedelta(days=5 * n)).isoformat(),
+                 'activityType': {'typeKey': 'running'}, 'duration': 1800, 'distance': 5000} for n in range(8)]
+        import_activity_page(session, tmp_path, more, account_scope='synthetic-metrics', source_kind='demo_fixture')
+        session.commit()
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        facts = engine.load_runs(session, *window)
+        after = _statements(session, lambda: engine.load_runs(session, *window))
+    assert len(facts) == 12
+    assert after == before
+
+
+def test_planning_only_writes_bump_revision_without_refresh(db, tmp_path, monkeypatch):
+    from app.planning_models import Goal
+    seed(db, tmp_path)
+    calls: list[set[str]] = []
+    real = derived.refresh_scopes
+
+    def spy(session, scopes):
+        calls.append(set(scopes))
+        return real(session, scopes)
+
+    monkeypatch.setattr(derived, 'refresh_scopes', spy)
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        revision = get_revision(session)
+        session.add(Goal(text='Synthetic goal', horizon='season', priority=1, status='active'))
+        session.commit()
+        session.add(ProfileVersion(version=2, effective_at=NOW, timezone='America/New_York',
+                                   facts={}, preferences={}, unknowns=[]))
+        session.commit()
+        assert calls == []
+        assert get_revision(session) == revision + 2
+        session.add(ProfileVersion(version=3, effective_at=NOW, timezone='Europe/London',
+                                   facts={}, preferences={}, unknowns=[]))
+        session.commit()
+        assert len(calls) == 1 and 'timezone' in calls[0]
+
+
+def test_spacing_windows_refresh_only_near_changed_dates(db, tmp_path, monkeypatch):
+    from dataclasses import replace
+    seed(db, tmp_path)
+    uid = uuid.uuid4()
+    near, far = TODAY - timedelta(days=20), TODAY - timedelta(days=80)
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        _move_plan(session, uid, 1, near)
+        refresh.ensure_windows(session, near)
+        refresh.ensure_windows(session, far)
+        session.commit()
+        assert set(engine.current_results(session, 'hard_session_spacing', [f'w14:{near}', f'w14:{far}'])) == {
+            f'w14:{near}', f'w14:{far}'}
+        engine.metric_modules()
+        original = engine.REGISTRY['hard_session_spacing']
+        computed: list[str] = []
+
+        def spy(spy_session, key):
+            computed.append(key)
+            return original.compute(spy_session, key)
+
+        monkeypatch.setitem(engine.REGISTRY, 'hard_session_spacing', replace(original, compute=spy))
+        _move_plan(session, uid, 2, TODAY - timedelta(days=17))
+    assert f'w14:{near}' in computed
+    assert f'w14:{far}' not in computed
+
+
+def test_deleting_completion_refreshes_its_plan(db, tmp_path):
+    from app.calendar_models import SessionCompletion
+
+    seed(db, tmp_path)
+    uid = uuid.uuid4()
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        _move_plan(session, uid, 1, TODAY + timedelta(days=1))
+        completion = SessionCompletion(session_uid=uid, status='skipped', match_method='user_marked', updated_at=NOW)
+        session.add(completion)
+        session.commit()
+        revision = get_revision(session)
+        skipped = current(session, 'planned_actual_session', str(uid))
+        assert skipped.value['overall_status'] == 'skipped'
+
+        session.delete(completion)
+        session.commit()
+
+        assert get_revision(session) == revision + 1
+        recomputed = current(session, 'planned_actual_session', str(uid))
+        assert recomputed.value['overall_status'] == 'unknown'
+        assert recomputed.id != skipped.id
