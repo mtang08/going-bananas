@@ -59,7 +59,9 @@ describe('weekly digest', () => {
         },
       }),
     )
-    expect(screen.getByText('2 of 3 sessions done so far · 5 planned this week')).toBeInTheDocument()
+    expect(
+      screen.getByText('2 of 3 sessions done so far · 5 planned this week'),
+    ).toBeInTheDocument()
     expect(screen.getByText('Runs 2/2')).toBeInTheDocument()
     expect(screen.queryByText(/Mobility/)).not.toBeInTheDocument()
   })
@@ -100,7 +102,9 @@ describe('weekly digest', () => {
       },
     })
     const view = mount(data)
-    expect(screen.getByTestId('digest-unplanned')).toHaveTextContent('Unplanned: 2 sessions · 1h 30m')
+    expect(screen.getByTestId('digest-unplanned')).toHaveTextContent(
+      'Unplanned: 2 sessions · 1h 30m',
+    )
     expect(screen.getByText('1 removed from the plan by an accepted change')).toBeInTheDocument()
     const unplanned = [
       {
@@ -206,7 +210,10 @@ describe('weekly digest', () => {
     const onWeekChange = vi.fn()
     mount(digest(), onWeekChange)
     const toggle = within(screen.getByRole('group', { name: 'Week' }))
-    expect(toggle.getByRole('button', { name: 'This week' })).toHaveAttribute('aria-pressed', 'true')
+    expect(toggle.getByRole('button', { name: 'This week' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
     const last = toggle.getByRole('button', { name: 'Last week' })
     expect(last).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(last)
