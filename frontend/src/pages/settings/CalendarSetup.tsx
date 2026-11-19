@@ -12,7 +12,6 @@ import {
   type StrengthRoutine,
 } from '../../api'
 import { ErrorText, profileBody } from './shared'
-import { Goals } from './Goals'
 import {
   StrengthRoutineEditor,
   ScheduleLink,
