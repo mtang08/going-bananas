@@ -1,4 +1,5 @@
 """Pure FIT decoding into the frozen canonical activity contract."""
+
 from __future__ import annotations
 
 import hashlib
@@ -16,10 +17,10 @@ from app.domain.sports import RUN_SPORTS
 
 FIT_EPOCH_OFFSET = 631065600
 MAX_FIT_BYTES = 50 * 1024 * 1024
-SDK_VERSION = '21.221.0'
+SDK_VERSION = "21.221.0"
 DECODER_VERSION = 2
-LAP_INTENSITIES = frozenset({'active', 'rest', 'warmup', 'cooldown', 'recovery', 'interval', 'other'})
-_PRIVATE_FIELD = re.compile(r'(?:position|latitude|longitude|serial|token|secret|password|credential)', re.I)
+LAP_INTENSITIES = frozenset({"active", "rest", "warmup", "cooldown", "recovery", "interval", "other"})
+_PRIVATE_FIELD = re.compile(r"(?:position|latitude|longitude|serial|token|secret|password|credential)", re.I)
 
 
 class FitDecodeError(ValueError):
@@ -100,25 +101,27 @@ class DecodedFit:
 def extract_fit(zip_bytes: bytes) -> bytes:
     try:
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
-            members = [item for item in archive.infolist() if not item.is_dir() and item.filename.lower().endswith('.fit')]
+            members = [
+                item for item in archive.infolist() if not item.is_dir() and item.filename.lower().endswith(".fit")
+            ]
             if len(members) != 1:
-                raise FitDecodeError('zip_member_count')
+                raise FitDecodeError("zip_member_count")
             member = members[0]
             if member.file_size > MAX_FIT_BYTES:
-                raise FitDecodeError('zip_member_too_large')
+                raise FitDecodeError("zip_member_too_large")
             chunks = []
             size = 0
             with archive.open(member) as source:
                 while chunk := source.read(min(1024 * 1024, MAX_FIT_BYTES + 1 - size)):
                     size += len(chunk)
                     if size > MAX_FIT_BYTES:
-                        raise FitDecodeError('zip_member_too_large')
+                        raise FitDecodeError("zip_member_too_large")
                     chunks.append(chunk)
-            return b''.join(chunks)
+            return b"".join(chunks)
     except FitDecodeError:
         raise
     except (zipfile.BadZipFile, EOFError, OSError, ValueError, RuntimeError) as exc:
-        raise FitDecodeError('bad_zip') from exc
+        raise FitDecodeError("bad_zip") from exc
 
 
 def _instant(value: object) -> datetime | None:
@@ -146,10 +149,10 @@ def _integer(value: object) -> int | None:
 def _offset(value: object, start: datetime) -> int:
     instant = _instant(value)
     if instant is None:
-        raise FitDecodeError('invalid_stream_time')
+        raise FitDecodeError("invalid_stream_time")
     seconds = (instant - start).total_seconds()
     if seconds < 0 or not seconds.is_integer():
-        raise FitDecodeError('invalid_stream_time')
+        raise FitDecodeError("invalid_stream_time")
     return int(seconds)
 
 
@@ -159,44 +162,53 @@ def _channel(row: dict, enhanced: str, fallback: str) -> float | None:
 
 def _timer(events: list[dict], session: DecodedSession) -> tuple[tuple[tuple[int, int], ...], set[str]]:
     flags: set[str] = set()
-    timer_events = [item for item in events if item.get('event') == 'timer' and item.get('event_type') != 'marker']
+    timer_events = [item for item in events if item.get("event") == "timer" and item.get("event_type") != "marker"]
     if not timer_events:
-        return (), {'TIMER_EVENTS_MISSING'}
-    stop_types: dict[object, str] = {'stop_disable': 'stop', 'stop_disable_all': 'stop_all'}
+        return (), {"TIMER_EVENTS_MISSING"}
+    stop_types: dict[object, str] = {"stop_disable": "stop", "stop_disable_all": "stop_all"}
     try:
-        ordered = sorted(((_offset(item.get('timestamp'), session.start_at),
-            stop_types.get(item.get('event_type'), item.get('event_type')))
-            for item in timer_events), key=lambda row: (row[0], 0 if row[1] in {'stop', 'stop_all'} else 1))
+        ordered = sorted(
+            (
+                (
+                    _offset(item.get("timestamp"), session.start_at),
+                    stop_types.get(item.get("event_type"), item.get("event_type")),
+                )
+                for item in timer_events
+            ),
+            key=lambda row: (row[0], 0 if row[1] in {"stop", "stop_all"} else 1),
+        )
     except (FitDecodeError, TypeError):
-        return (), {'TIMER_EVENTS_AMBIGUOUS'}
+        return (), {"TIMER_EVENTS_AMBIGUOUS"}
     start = None
     segments: list[tuple[int, int]] = []
     for second, kind in ordered:
-        if kind == 'start':
+        if kind == "start":
             if start is not None:
-                return (), {'TIMER_EVENTS_AMBIGUOUS'}
+                return (), {"TIMER_EVENTS_AMBIGUOUS"}
             start = second
-        elif kind in {'stop', 'stop_all'}:
+        elif kind in {"stop", "stop_all"}:
             if start is None or second < start:
-                return (), {'TIMER_EVENTS_AMBIGUOUS'}
+                return (), {"TIMER_EVENTS_AMBIGUOUS"}
             if second > start:
                 segments.append((start, second))
             start = None
         else:
-            return (), {'TIMER_EVENTS_AMBIGUOUS'}
+            return (), {"TIMER_EVENTS_AMBIGUOUS"}
     if start is not None:
         if session.elapsed_s is None or not session.elapsed_s.is_integer() or session.elapsed_s < start:
-            return (), {'TIMER_EVENTS_AMBIGUOUS'}
+            return (), {"TIMER_EVENTS_AMBIGUOUS"}
         segments.append((start, int(session.elapsed_s)))
-        flags.add('TIMER_END_INFERRED')
+        flags.add("TIMER_END_INFERRED")
     merged: list[tuple[int, int]] = []
     for first, last in segments:
         if merged and first <= merged[-1][1]:
             merged[-1] = (merged[-1][0], max(last, merged[-1][1]))
         else:
             merged.append((first, last))
-    if session.timer_s is not None and abs(sum(b-a for a, b in merged) - session.timer_s) > max(1, session.timer_s * .01):
-        flags.add('TIMER_MISMATCH')
+    if session.timer_s is not None and abs(sum(b - a for a, b in merged) - session.timer_s) > max(
+        1, session.timer_s * 0.01
+    ):
+        flags.add("TIMER_MISMATCH")
     return tuple(merged), flags
 
 
@@ -205,13 +217,13 @@ def _stream(records: list[dict], events: list[dict], session: DecodedSession) ->
     conflicted: dict[int, set[str]] = {}
     flags: set[str] = set()
     for record in records:
-        second = _offset(record.get('timestamp'), session.start_at)
+        second = _offset(record.get("timestamp"), session.start_at)
         values = {
-            'hr': _integer(record.get('heart_rate')),
-            'speed': _channel(record, 'enhanced_speed', 'speed'),
-            'distance': _number(record.get('distance')),
-            'altitude': _channel(record, 'enhanced_altitude', 'altitude'),
-            'cadence': _number(record.get('cadence')),
+            "hr": _integer(record.get("heart_rate")),
+            "speed": _channel(record, "enhanced_speed", "speed"),
+            "distance": _number(record.get("distance")),
+            "altitude": _channel(record, "enhanced_altitude", "altitude"),
+            "cadence": _number(record.get("cadence")),
         }
         if second not in by_time:
             by_time[second] = values
@@ -222,114 +234,148 @@ def _stream(records: list[dict], events: list[dict], session: DecodedSession) ->
                 if key not in conflicted[second] and previous[key] != value:
                     previous[key] = None
                     conflicted[second].add(key)
-                    flags.add('DUPLICATE_RECORD_CONFLICT')
+                    flags.add("DUPLICATE_RECORD_CONFLICT")
     times = tuple(sorted(by_time))
     timer_on, timer_flags = _timer(events, session)
     flags.update(timer_flags)
-    return DecodedStream(times,
-        tuple(cast(int | None, by_time[t]['hr']) for t in times),
-        tuple(cast(float | None, by_time[t]['speed']) for t in times),
-        tuple(cast(float | None, by_time[t]['distance']) for t in times),
-        tuple(cast(float | None, by_time[t]['altitude']) for t in times),
-        tuple(cast(float | None, by_time[t]['cadence']) for t in times),
-        timer_on, len(times), max((b-a for a, b in zip(times, times[1:])), default=0),
-        tuple(sorted(flags)))
+    return DecodedStream(
+        times,
+        tuple(cast(int | None, by_time[t]["hr"]) for t in times),
+        tuple(cast(float | None, by_time[t]["speed"]) for t in times),
+        tuple(cast(float | None, by_time[t]["distance"]) for t in times),
+        tuple(cast(float | None, by_time[t]["altitude"]) for t in times),
+        tuple(cast(float | None, by_time[t]["cadence"]) for t in times),
+        timer_on,
+        len(times),
+        max((b - a for a, b in zip(times, times[1:])), default=0),
+        tuple(sorted(flags)),
+    )
 
 
 def _step(message: dict) -> DecodedStep:
-    message_index = _integer(message.get('message_index'))
+    message_index = _integer(message.get("message_index"))
     if message_index is None:
-        raise FitDecodeError('decode_failed')
-    duration_type = str(message.get('duration_type', ''))
-    target_type = message.get('target_type')
-    raw_duration = _number(message.get('duration_value'))
-    repeat = duration_type.startswith('repeat_')
+        raise FitDecodeError("decode_failed")
+    duration_type = str(message.get("duration_type", ""))
+    target_type = message.get("target_type")
+    raw_duration = _number(message.get("duration_value"))
+    repeat = duration_type.startswith("repeat_")
     if repeat:
         duration = raw_duration
-    elif duration_type == 'time':
+    elif duration_type == "time":
         duration = raw_duration / 1000 if raw_duration is not None else None
-    elif duration_type == 'distance':
+    elif duration_type == "distance":
         duration = raw_duration / 100 if raw_duration is not None else None
     else:
         duration = raw_duration
-    low = _number(message.get('custom_target_value_low'))
-    high = _number(message.get('custom_target_value_high'))
-    if target_type == 'speed':
+    low = _number(message.get("custom_target_value_low"))
+    high = _number(message.get("custom_target_value_high"))
+    if target_type == "speed":
         low = low / 1000 if low is not None else None
         high = high / 1000 if high is not None else None
-    elif target_type == 'heart_rate':
+    elif target_type == "heart_rate":
         low = low - 100 if low is not None and low > 100 else None
         high = high - 100 if high is not None and high > 100 else None
-    elif target_type == 'open':
+    elif target_type == "open":
         low = high = None
-    return DecodedStep(message_index, duration_type,
-        message.get('wkt_step_name'), message.get('intensity'), duration,
-        target_type, low, high,
-        _integer(message.get('duration_value')) if repeat else None,
-        _integer(message.get('target_value')) if repeat else None)
+    return DecodedStep(
+        message_index,
+        duration_type,
+        message.get("wkt_step_name"),
+        message.get("intensity"),
+        duration,
+        target_type,
+        low,
+        high,
+        _integer(message.get("duration_value")) if repeat else None,
+        _integer(message.get("target_value")) if repeat else None,
+    )
 
 
 def decode_fit(fit_bytes: bytes) -> DecodedFit:
     def decoder() -> Decoder:
         return Decoder(Stream.from_byte_array(bytearray(fit_bytes)))
+
     if not decoder().is_fit():
-        raise FitDecodeError('invalid_fit')
+        raise FitDecodeError("invalid_fit")
     if not decoder().check_integrity():
-        raise FitDecodeError('invalid_crc')
+        raise FitDecodeError("invalid_crc")
     try:
-        raw_messages, errors = decoder().read(apply_scale_and_offset=True,
-            convert_datetimes_to_dates=False, convert_types_to_strings=True,
-            expand_sub_fields=False, expand_components=True)
+        raw_messages, errors = decoder().read(
+            apply_scale_and_offset=True,
+            convert_datetimes_to_dates=False,
+            convert_types_to_strings=True,
+            expand_sub_fields=False,
+            expand_components=True,
+        )
     except Exception as exc:
-        raise FitDecodeError('decode_failed') from exc
+        raise FitDecodeError("decode_failed") from exc
     if errors:
-        raise FitDecodeError('decode_failed')
+        raise FitDecodeError("decode_failed")
     messages = cast(dict[Any, list[dict[Any, Any]]], raw_messages)
-    sessions = messages.get('session_mesgs', [])
+    sessions = messages.get("session_mesgs", [])
     if len(sessions) != 1:
-        raise FitDecodeError('missing_session' if not sessions else 'ambiguous_session')
+        raise FitDecodeError("missing_session" if not sessions else "ambiguous_session")
     session_row = sessions[0]
-    start = _instant(session_row.get('start_time'))
+    start = _instant(session_row.get("start_time"))
     if start is None:
-        raise FitDecodeError('missing_start')
-    sub_sport = session_row.get('sub_sport')
-    if session_row.get('sport') == 'running' and sub_sport in {'trail', 'treadmill', 'indoor_running'}:
-        sport = 'trail_running' if sub_sport == 'trail' else 'treadmill_running'
+        raise FitDecodeError("missing_start")
+    sub_sport = session_row.get("sub_sport")
+    if session_row.get("sport") == "running" and sub_sport in {"trail", "treadmill", "indoor_running"}:
+        sport = "trail_running" if sub_sport == "trail" else "treadmill_running"
     else:
-        sport = str(sub_sport) if sub_sport in RUN_SPORTS else str(session_row.get('sport', 'unknown'))
-    rpe = _number(session_row.get('workout_rpe'))
+        sport = str(sub_sport) if sub_sport in RUN_SPORTS else str(session_row.get("sport", "unknown"))
+    rpe = _number(session_row.get("workout_rpe"))
     rpe = rpe / 10 if rpe is not None and 0 <= rpe <= 100 else None
-    feel = _integer(session_row.get('workout_feel'))
+    feel = _integer(session_row.get("workout_feel"))
     feel = feel if feel is not None and 0 <= feel <= 100 else None
-    session = DecodedSession(start, sport, _number(session_row.get('total_elapsed_time')),
-        _number(session_row.get('total_timer_time')), _number(session_row.get('total_distance')),
-        rpe, feel)
+    session = DecodedSession(
+        start,
+        sport,
+        _number(session_row.get("total_elapsed_time")),
+        _number(session_row.get("total_timer_time")),
+        _number(session_row.get("total_distance")),
+        rpe,
+        feel,
+    )
     kept = []
     dropped = False
-    for item in messages.get('lap_mesgs', []):
-        lap_start = _instant(item.get('start_time'))
-        lap_end = _instant(item.get('timestamp'))
+    for item in messages.get("lap_mesgs", []):
+        lap_start = _instant(item.get("start_time"))
+        lap_end = _instant(item.get("timestamp"))
         if lap_start is None:
-            elapsed = _number(item.get('total_elapsed_time'))
+            elapsed = _number(item.get("total_elapsed_time"))
             lap_start = lap_end - timedelta(seconds=elapsed) if lap_end is not None and elapsed is not None else None
         if lap_start is None:
             dropped = True
             continue
         kept.append((item, lap_start, lap_end))
-    laps = tuple(DecodedLap(index, lap_start,
-        _number(item.get('total_timer_time')), _number(item.get('total_elapsed_time')),
-        _number(item.get('total_distance')),
-        _channel(item, 'enhanced_avg_speed', 'avg_speed'),
-        _number(item.get('avg_heart_rate')), _number(item.get('max_heart_rate')),
-        item.get('lap_trigger'), _integer(item.get('wkt_step_index')),
-        intensity=item.get('intensity') if item.get('intensity') in LAP_INTENSITIES else None,
-        end_at=lap_end)
-        for index, (item, lap_start, lap_end) in enumerate(kept))
-    steps = tuple(_step(item) for item in sorted(messages.get('workout_step_mesgs', []),
-        key=lambda item: _integer(item.get('message_index')) or 0))
-    stream = _stream(messages.get('record_mesgs', []), messages.get('event_mesgs', []), session)
+    laps = tuple(
+        DecodedLap(
+            index,
+            lap_start,
+            _number(item.get("total_timer_time")),
+            _number(item.get("total_elapsed_time")),
+            _number(item.get("total_distance")),
+            _channel(item, "enhanced_avg_speed", "avg_speed"),
+            _number(item.get("avg_heart_rate")),
+            _number(item.get("max_heart_rate")),
+            item.get("lap_trigger"),
+            _integer(item.get("wkt_step_index")),
+            intensity=item.get("intensity") if item.get("intensity") in LAP_INTENSITIES else None,
+            end_at=lap_end,
+        )
+        for index, (item, lap_start, lap_end) in enumerate(kept)
+    )
+    steps = tuple(
+        _step(item)
+        for item in sorted(
+            messages.get("workout_step_mesgs", []), key=lambda item: _integer(item.get("message_index")) or 0
+        )
+    )
+    stream = _stream(messages.get("record_mesgs", []), messages.get("event_mesgs", []), session)
     if dropped:
-        stream = replace(stream, quality_flags=tuple(sorted({*stream.quality_flags, 'LAP_START_MISSING'})))
+        stream = replace(stream, quality_flags=tuple(sorted({*stream.quality_flags, "LAP_START_MISSING"})))
     inventory: dict[str, int] = {}
     fields_by_message: dict[str, set[str]] = {}
     for raw_name, rows in messages.items():
@@ -344,12 +390,22 @@ def decode_fit(fit_bytes: bytes) -> DecodedFit:
     inventory = dict(sorted(inventory.items()))
     field_names = {name: tuple(sorted(fields)) for name, fields in sorted(fields_by_message.items())}
     device = {}
-    for source in [*messages.get('file_id_mesgs', []), *messages.get('device_info_mesgs', [])]:
-        for key in ('manufacturer', 'product', 'software_version'):
+    for source in [*messages.get("file_id_mesgs", []), *messages.get("device_info_mesgs", [])]:
+        for key in ("manufacturer", "product", "software_version"):
             if source.get(key) is not None:
                 device[key] = source[key]
-    return DecodedFit(hashlib.sha256(fit_bytes).hexdigest(), str(int.from_bytes(fit_bytes[2:4], 'little')),
-        SDK_VERSION, session, laps, steps, stream, inventory, device, field_names)
+    return DecodedFit(
+        hashlib.sha256(fit_bytes).hexdigest(),
+        str(int.from_bytes(fit_bytes[2:4], "little")),
+        SDK_VERSION,
+        session,
+        laps,
+        steps,
+        stream,
+        inventory,
+        device,
+        field_names,
+    )
 
 
 def decode_fit_zip(zip_bytes: bytes) -> DecodedFit:

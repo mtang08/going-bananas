@@ -8,14 +8,18 @@ from app.domain.local_time import date_in_zone
 
 
 def opportunity(day: date, anchor: date | None) -> dict | None:
-    if anchor is None or (day-anchor).days % 2:
+    if anchor is None or (day - anchor).days % 2:
         return None
-    offset = (day-anchor).days
-    return {'date': day.isoformat(), 'fortnight_index': offset // 14, 'slot': (offset % 14)//2}
+    offset = (day - anchor).days
+    return {"date": day.isoformat(), "fortnight_index": offset // 14, "slot": (offset % 14) // 2}
 
 
 def opportunities(start: date, end: date, anchor: date | None) -> list[dict]:
-    return [item for i in range((end-start).days+1) if (item := opportunity(start+timedelta(days=i), anchor)) is not None]
+    return [
+        item
+        for i in range((end - start).days + 1)
+        if (item := opportunity(start + timedelta(days=i), anchor)) is not None
+    ]
 
 
 def recurring_sessions(
@@ -43,8 +47,7 @@ def recurring_sessions(
     excluded = accepted_ranges or []
     effective_at = getattr(profile, "effective_at", None)
     effective_day = (
-        date_in_zone(effective_at, ZoneInfo(profile.timezone))
-        if isinstance(effective_at, datetime) else None
+        date_in_zone(effective_at, ZoneInfo(profile.timezone)) if isinstance(effective_at, datetime) else None
     )
     result: list[dict] = []
     for offset in range((end - start).days + 1):
@@ -57,16 +60,24 @@ def recurring_sessions(
             week = day - timedelta(days=day.weekday())
             week_number = (week - anchor).days // 7
             weekdays = week_a if week_number % 2 == 0 else week_b
-            mobility_days = (profile.mobility_week_a_days or []) if week_number % 2 == 0 else (profile.mobility_week_b_days or [])
+            mobility_days = (
+                (profile.mobility_week_a_days or []) if week_number % 2 == 0 else (profile.mobility_week_b_days or [])
+            )
             optional_mobility_days = profile.mobility_optional_days or []
         else:
             weekdays = week_a
             mobility_days = []
             optional_mobility_days = []
         if day.weekday() in weekdays:
-            result.append({"date": day.isoformat(), "kind": "strength", "source": "recurring_schedule", "optional": False})
+            result.append(
+                {"date": day.isoformat(), "kind": "strength", "source": "recurring_schedule", "optional": False}
+            )
         if day.weekday() in mobility_days:
-            result.append({"date": day.isoformat(), "kind": "mobility", "source": "recurring_schedule", "optional": False})
+            result.append(
+                {"date": day.isoformat(), "kind": "mobility", "source": "recurring_schedule", "optional": False}
+            )
         elif day.weekday() in optional_mobility_days:
-            result.append({"date": day.isoformat(), "kind": "mobility", "source": "recurring_schedule", "optional": True})
+            result.append(
+                {"date": day.isoformat(), "kind": "mobility", "source": "recurring_schedule", "optional": True}
+            )
     return result

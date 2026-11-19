@@ -80,15 +80,32 @@ def _sport(record: dict[str, Any]) -> tuple[str, str | None]:
         raise InvalidRecord("missing_sport")
     key = key.strip().lower()
     mapping = {
-        "running": "running", "trail_running": "trail_running", "treadmill_running": "treadmill_running",
-        "indoor_running": "treadmill_running", "street_running": "running", "virtual_run": "running",
-        "ultra_run": "running", "obstacle_run": "running",
-        "track_running": "running", "indoor_rowing": "rowing", "rowing": "rowing",
-        "run": "running", "strength_training": "strength", "strength": "strength",
-        "walking": "walking", "walk": "walking", "hiking": "hiking", "hike": "hiking",
-        "cycling": "cycling", "indoor_cycling": "cycling", "elliptical": "elliptical",
-        "swimming": "swimming", "pool_swimming": "swimming", "open_water_swimming": "swimming",
-        "multi_sport": "multisport", "multisport": "multisport",
+        "running": "running",
+        "trail_running": "trail_running",
+        "treadmill_running": "treadmill_running",
+        "indoor_running": "treadmill_running",
+        "street_running": "running",
+        "virtual_run": "running",
+        "ultra_run": "running",
+        "obstacle_run": "running",
+        "track_running": "running",
+        "indoor_rowing": "rowing",
+        "rowing": "rowing",
+        "run": "running",
+        "strength_training": "strength",
+        "strength": "strength",
+        "walking": "walking",
+        "walk": "walking",
+        "hiking": "hiking",
+        "hike": "hiking",
+        "cycling": "cycling",
+        "indoor_cycling": "cycling",
+        "elliptical": "elliptical",
+        "swimming": "swimming",
+        "pool_swimming": "swimming",
+        "open_water_swimming": "swimming",
+        "multi_sport": "multisport",
+        "multisport": "multisport",
     }
     return mapping.get(key, "other"), key
 
@@ -111,8 +128,10 @@ def parse_activity(record: dict[str, Any], timezone: str = "America/New_York") -
     if provider_id == "":
         raise InvalidRecord("invalid_activity_id")
     fields = {
-        "distance_m": "distance", "elapsed_s": "elapsedDuration",
-        "moving_s": "movingDuration", "average_hr": "averageHR",
+        "distance_m": "distance",
+        "elapsed_s": "elapsedDuration",
+        "moving_s": "movingDuration",
+        "average_hr": "averageHR",
         "average_cadence": "averageRunningCadenceInStepsPerMinute",
     }
     distance = _number(data.get("distance"), "distance")
@@ -126,8 +145,22 @@ def parse_activity(record: dict[str, Any], timezone: str = "America/New_York") -
         # A parent summary cannot safely be added to child run volume.
         sport = "other"
     return CanonicalActivity(
-        provider_id, instant, source_time, instant.astimezone(zone).date().isoformat(),
-        assumption, sport, subtype, distance, elapsed, moving, hr, cadence, label,
-        {name: ("summaryDTO." if data is summary else "") + key
-         for name, key in fields.items() if data.get(key) is not None},
+        provider_id,
+        instant,
+        source_time,
+        instant.astimezone(zone).date().isoformat(),
+        assumption,
+        sport,
+        subtype,
+        distance,
+        elapsed,
+        moving,
+        hr,
+        cadence,
+        label,
+        {
+            name: ("summaryDTO." if data is summary else "") + key
+            for name, key in fields.items()
+            if data.get(key) is not None
+        },
     )

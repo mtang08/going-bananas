@@ -10,7 +10,18 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-COLUMNS = ("Date", "Workout Name", "Duration", "Exercise Name", "Set Order", "Weight", "Reps", "Distance", "Seconds", "RPE")
+COLUMNS = (
+    "Date",
+    "Workout Name",
+    "Duration",
+    "Exercise Name",
+    "Set Order",
+    "Weight",
+    "Reps",
+    "Distance",
+    "Seconds",
+    "RPE",
+)
 ADAPTER_VERSION = "strong-csv-v1"
 _DURATION = re.compile(r"(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:(\d+)s)?\s*$")
 
@@ -45,7 +56,9 @@ def _duration_seconds(value: str) -> int | None:
     return seconds
 
 
-def scan_strong_csv(path: Path, *, max_bytes: int = 100_000_000, max_rows: int = 250_000) -> tuple[list[StrongWorkout], str, int]:
+def scan_strong_csv(
+    path: Path, *, max_bytes: int = 100_000_000, max_rows: int = 250_000
+) -> tuple[list[StrongWorkout], str, int]:
     """Read the entire CSV before any write; group sets by exact workout timestamp.
 
     Strong supplies no timezone, weight unit, or stable workout ID. These remain
@@ -97,6 +110,16 @@ def scan_strong_csv(path: Path, *, max_bytes: int = 100_000_000, max_rows: int =
         # Preserve row order and exact text, including the source's weight convention.
         encoded = json.dumps(sets, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         identity = hashlib.sha256(json.dumps([stamp, name], ensure_ascii=False).encode("utf-8")).hexdigest()
-        workouts.append(StrongWorkout(identity, hashlib.sha256(encoded).hexdigest(), stamp, stamp[:10],
-                                      name, durations[(stamp, name)], sets, len(sets)))
+        workouts.append(
+            StrongWorkout(
+                identity,
+                hashlib.sha256(encoded).hexdigest(),
+                stamp,
+                stamp[:10],
+                name,
+                durations[(stamp, name)],
+                sets,
+                len(sets),
+            )
+        )
     return workouts, digest, size

@@ -52,14 +52,11 @@ class GarminPersonalSource:
             raise GarminConfigurationError("garmin_key_file_empty")
         self.token_cache_file.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.token_cache_file.parent.chmod(0o700)
-        self._auth = PersonalApiAuthenticator(
-            bearer_token_cache_file=self.token_cache_file, timeout=self.timeout
-        )
+        self._auth = PersonalApiAuthenticator(bearer_token_cache_file=self.token_cache_file, timeout=self.timeout)
         token = self._auth.obtain_token(self._key)
         self._http_session = requests.Session()
         self._http_session.hooks["response"].append(self._capture_response)
-        self._client = GarminPersonalApiClient(token.access_token, timeout=self.timeout,
-                                               session=self._http_session)
+        self._client = GarminPersonalApiClient(token.access_token, timeout=self.timeout, session=self._http_session)
         return self
 
     def _capture_response(self, response: requests.Response, **_: object) -> requests.Response:
@@ -73,8 +70,9 @@ class GarminPersonalSource:
             self._auth.close()
 
     def search_page(self, start: int, limit: int, first: date, last: date) -> list[dict[str, Any]]:
-        data = self._call(lambda: self._client.search_activities(
-            start=start, limit=limit, start_date=first, end_date=last))
+        data = self._call(
+            lambda: self._client.search_activities(start=start, limit=limit, start_date=first, end_date=last)
+        )
         if not isinstance(data, list) or not all(isinstance(item, dict) for item in data):
             raise GarminConfigurationError("invalid_activity_page_shape")
         return data
@@ -111,15 +109,18 @@ class GarminPersonalSource:
             owner = data.get("userProfilePk")
             return [{**item, "userProfilePk": owner} for item in data["hrvSummaries"]]
         if dataset == "resting_hr":
-            data = [self._call(lambda day=first + timedelta(days=n): self._client.get_daily_heart_rate(day))
-                    for n in range((last - first).days + 1)]
+            data = [
+                self._call(lambda day=first + timedelta(days=n): self._client.get_daily_heart_rate(day))
+                for n in range((last - first).days + 1)
+            ]
             if not all(isinstance(item, dict) for item in data):
                 raise GarminConfigurationError("invalid_resting_hr_shape")
             return data
         raise GarminConfigurationError("unsupported_dataset")
 
-    def pages(self, first: date, last: date, page_size: int = 50,
-              max_pages: int = 200) -> Iterator[tuple[int, list[dict[str, Any]]]]:
+    def pages(
+        self, first: date, last: date, page_size: int = 50, max_pages: int = 200
+    ) -> Iterator[tuple[int, list[dict[str, Any]]]]:
         if first > last:
             raise ValueError("inverted_date_range")
         if page_size < 1 or page_size > 200 or max_pages < 1:
@@ -140,7 +141,7 @@ class GarminPersonalSource:
     def download_activity(self, id: str) -> bytes:
         data = self._call(lambda: self._client.download_activity(id))
         if not isinstance(data, bytes):
-            raise GarminConfigurationError('invalid_fit_download_shape')
+            raise GarminConfigurationError("invalid_fit_download_shape")
         return data
 
     def activity_workouts(self, id: str) -> object:

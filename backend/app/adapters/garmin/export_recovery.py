@@ -105,12 +105,21 @@ def scan_recovery(archive: ZipFile) -> RecoveryExportScan:
                     skipped["sleep_incomplete_or_invalid"] += 1
                     continue
                 statistic = "main_sleep_duration"
-                observations.append(ExportRecoveryObservation(
-                    name, f"sleep:{day.isoformat()}:{statistic}", owner,
-                    "sleep", day, duration, "s", statistic,
-                    "garmin_sleep_calendar_date",
-                    "sleepEndTimestampGMT-sleepStartTimestampGMT-awakeSleepSeconds", row,
-                ))
+                observations.append(
+                    ExportRecoveryObservation(
+                        name,
+                        f"sleep:{day.isoformat()}:{statistic}",
+                        owner,
+                        "sleep",
+                        day,
+                        duration,
+                        "s",
+                        statistic,
+                        "garmin_sleep_calendar_date",
+                        "sleepEndTimestampGMT-sleepStartTimestampGMT-awakeSleepSeconds",
+                        row,
+                    )
+                )
             continue
         if _UDS.search(name):
             for row in _rows(archive, name):
@@ -127,11 +136,21 @@ def scan_recovery(archive: ZipFile) -> RecoveryExportScan:
                     skipped["uds_missing_or_invalid_resting_hr"] += 1
                     continue
                 statistic = "daily_resting"
-                observations.append(ExportRecoveryObservation(
-                    name, f"resting_hr:{day.isoformat()}:{statistic}", str(owner),
-                    "resting_hr", day, value, "bpm", statistic,
-                    "garmin_heart_rate_calendar_date", "restingHeartRate", row,
-                ))
+                observations.append(
+                    ExportRecoveryObservation(
+                        name,
+                        f"resting_hr:{day.isoformat()}:{statistic}",
+                        str(owner),
+                        "resting_hr",
+                        day,
+                        value,
+                        "bpm",
+                        statistic,
+                        "garmin_heart_rate_calendar_date",
+                        "restingHeartRate",
+                        row,
+                    )
+                )
             continue
         health_match = _HEALTH.search(name)
         if health_match:
@@ -145,17 +164,32 @@ def scan_recovery(archive: ZipFile) -> RecoveryExportScan:
                     continue
                 day = _source_date(row)
                 metrics = row.get("metrics")
-                matches = [metric for metric in metrics if isinstance(metric, dict)
-                           and metric.get("type") == "HRV"] if isinstance(metrics, list) else []
+                matches = (
+                    [metric for metric in metrics if isinstance(metric, dict) and metric.get("type") == "HRV"]
+                    if isinstance(metrics, list)
+                    else []
+                )
                 value = _number(matches[0].get("value")) if len(matches) == 1 else None
                 if day is None or value is None or value == 0:
                     skipped["health_status_missing_or_invalid_hrv"] += 1
                     continue
                 statistic = "last_night_average"
-                observations.append(ExportRecoveryObservation(
-                    name, f"hrv:{day.isoformat()}:{statistic}", owner,
-                    "hrv", day, value, "ms", statistic,
-                    "garmin_hrv_calendar_date", "metrics[type=HRV].value", row,
-                ))
-                skipped["health_status_other_metrics_unsupported"] += len(metrics) - 1 if isinstance(metrics, list) else 0
+                observations.append(
+                    ExportRecoveryObservation(
+                        name,
+                        f"hrv:{day.isoformat()}:{statistic}",
+                        owner,
+                        "hrv",
+                        day,
+                        value,
+                        "ms",
+                        statistic,
+                        "garmin_hrv_calendar_date",
+                        "metrics[type=HRV].value",
+                        row,
+                    )
+                )
+                skipped["health_status_other_metrics_unsupported"] += (
+                    len(metrics) - 1 if isinstance(metrics, list) else 0
+                )
     return RecoveryExportScan(tuple(observations), dict(skipped))

@@ -53,10 +53,14 @@ def safe_inventory(archive: ZipFile) -> tuple[ZipInfo, ...]:
         name = info.filename
         parts = PurePosixPath(name).parts
         path_parts = name.rstrip("/").split("/")
-        if (not name or name.startswith(("/", "\\")) or "\\" in name
-                or any(part in ("", ".", "..") for part in path_parts)
-                or any(":" in part for part in parts)
-                or name in names):
+        if (
+            not name
+            or name.startswith(("/", "\\"))
+            or "\\" in name
+            or any(part in ("", ".", "..") for part in path_parts)
+            or any(":" in part for part in parts)
+            or name in names
+        ):
             raise ExportError("unsafe_archive_path")
         names.add(name)
         mode = info.external_attr >> 16
@@ -138,8 +142,12 @@ def scan_activities(archive: ZipFile) -> ActivityScan:
         root = json.loads(raw)
     except (UnicodeError, ValueError) as exc:
         raise ExportError("invalid_activity_json") from exc
-    if not (isinstance(root, list) and len(root) == 1 and isinstance(root[0], dict)
-            and isinstance(root[0].get("summarizedActivitiesExport"), list)):
+    if not (
+        isinstance(root, list)
+        and len(root) == 1
+        and isinstance(root[0], dict)
+        and isinstance(root[0].get("summarizedActivitiesExport"), list)
+    ):
         raise ExportError("invalid_activity_schema")
     records = root[0]["summarizedActivitiesExport"]
     digest = hashlib.sha256(raw).hexdigest()
