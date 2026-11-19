@@ -23,7 +23,6 @@ from app.models import (
     Activity,
     ActivityAnnotation,
     ActivitySource,
-    AppState,
     ProfileVersion,
 )
 from app.services.coverage import coverage
@@ -36,11 +35,6 @@ router = APIRouter()
 
 def envelope(session: Session, data: Any) -> dict:
     return {'schema_version': 'v1', 'data_revision': get_revision(session), 'mode': settings.app_mode, 'data': data}
-
-
-def _profile_authority(session: Session) -> str:
-    state = session.get(AppState, 1)
-    return state.planning_authority if state else 'legacy'
 
 
 def date_window(session: Session, start_date: date | None, end_date: date | None) -> tuple[date, date]:
@@ -171,7 +165,7 @@ class ProfileInput(BaseModel):
 
 @router.get('/profile')
 def get_profile(session: Session = Depends(get_session)) -> dict:
-    return envelope(session, profile_data(current_profile(session), _profile_authority(session)))
+    return envelope(session, profile_data(current_profile(session)))
 
 
 @router.put('/profile')
@@ -185,7 +179,7 @@ def put_profile(body: ProfileInput, session: Session = Depends(get_session)) -> 
     session.add(profile)
     bump_data_revision(session)
     session.commit()
-    return envelope(session, profile_data(profile, _profile_authority(session)))
+    return envelope(session, profile_data(profile))
 
 
 @router.get('/activities')
