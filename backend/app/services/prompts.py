@@ -20,8 +20,6 @@ from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
 RUN_SPORTS = frozenset(('running', 'trail_running', 'treadmill_running'))
-MATCH_KINDS = frozenset(('missing_activity', 'unmatched_session'))
-TIMED_KINDS = frozenset(('rpe', 'delayed_symptom'))
 
 
 def _aware(value: datetime) -> datetime:

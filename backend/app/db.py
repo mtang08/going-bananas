@@ -69,6 +69,3 @@ def _restore_nested_revision_marker(session, transaction):
 def _clear_outer_revision_marker(session, transaction):
     if transaction.parent is None:
         session.info.pop('source_revision_bump', None)
-
-
-bump_revision = bump_data_revision

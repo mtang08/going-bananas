@@ -289,28 +289,6 @@ class HeadSession:
     notes: str | None
 
 
-def session_fields(row: HeadSession) -> dict[str, Any]:
-    """Return only the calendar fields a reviewed proposal may edit."""
-    return {
-        key: getattr(row, key)
-        for key in (
-            "local_date",
-            "slot",
-            "kind",
-            "recipe_id",
-            "custom",
-            "placeholder",
-            "locked",
-            "intent",
-            "planned_duration_s",
-            "planned_distance_m",
-            "structure",
-            "strength_slot_id",
-            "notes",
-        )
-    }
-
-
 @dataclass(frozen=True)
 class ActiveBlock:
     block_uid: uuid.UUID

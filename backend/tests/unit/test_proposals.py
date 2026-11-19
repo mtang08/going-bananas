@@ -24,7 +24,6 @@ from app.services.proposals import (
     anchor_key,
     derive_certainty,
     scope,
-    session_fields,
     validate_document,
     validate_subset,
 )
@@ -450,13 +449,6 @@ def test_fingerprint_fixture() -> None:
     changed_kb = replace(kb, selected_records=tuple(changed))
     assert fingerprint(vector["source_versions"], changed_kb) == fixture["changed_selected_content_sha256"]
     assert canonical_json(vector) == canonical_json(json.loads(canonical_json(vector)))
-
-
-def test_session_fields_excludes_identity_and_preserves_editable_values() -> None:
-    fields = session_fields(head(3, 20, "run", "REC001"))
-    assert fields["recipe_id"] == "REC001"
-    assert set(fields).isdisjoint({"session_uid", "revision", "certainty", "legacy_unstructured"})
-    assert {"notes", "structure", "planned_duration_s"} <= set(fields)
 
 
 def test_subset_numeric_target_requires_matching_anchor_modality() -> None:
