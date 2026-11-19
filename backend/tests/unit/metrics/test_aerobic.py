@@ -281,7 +281,7 @@ def test_window_outcome():
         entry(15, 1.20, 2.5), entry(18, 1.19), entry(22, 1.21),
         entry(10, status='not_applicable', reasons=('STRUCTURED_SESSION',)),
         entry(12, 1.3, flags=('TREADMILL',)),
-        entry(25, status=None),
+        entry(25, status=None), entry(26, status='missing'),
     ]
 
     result = window_outcome(entries, start, 28, coverage_complete=True)
@@ -290,8 +290,8 @@ def test_window_outcome():
     assert result['reason_codes'] == ['ACTIVITY_RESULT_MISSING']
     assert result['quality_flags'] == []
     value = result['value']
-    assert (value['runs_total'], value['runs_counted'], value['runs_without_result']) == (9, 6, 1)
-    assert value['not_counted'] == {'NO_RESULT': 1, 'STRUCTURED_SESSION': 1, 'TREADMILL': 1}
+    assert (value['runs_total'], value['runs_counted'], value['runs_without_result']) == (10, 6, 2)
+    assert value['not_counted'] == {'NO_RESULT': 2, 'STRUCTURED_SESSION': 1, 'TREADMILL': 1}
     assert value['ef_median_m_per_beat'] == 1.18
     assert value['ef_early_median_m_per_beat'] == 1.16
     assert value['ef_late_median_m_per_beat'] == 1.2

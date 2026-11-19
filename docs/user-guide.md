@@ -114,6 +114,9 @@ Reps are matched to your watch workout in order. Split laps within a step are co
 - [Training block](#block): the current objective, timeline, review indicators, and block benchmark.
 - [Settings](#settings): sync, setup or strength routine, display timezone and units, weekly review day, goals, events, and intensity anchors.
 
+Heart-rate drift needs at least 40 minutes of timer-on analysis after the 10-minute warm-up.
+That is about 50 minutes of running before allowing for extra time after pauses.
+
 The **Guide** link in the header opens this guide. Lifting stays in Strong; the app reads its export for running context.
 
 If you need to undo an accepted calendar change, inspect Calendar's revision history or explicitly ask the coach for an undo. Protected sessions remain protected.

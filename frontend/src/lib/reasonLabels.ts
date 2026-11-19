@@ -1,7 +1,11 @@
 export const REASON_LABELS: Record<string, string> = {
+  ACTIVITY_EXCLUDED: 'Activity excluded or unresolved',
   STRUCTURED_SESSION: 'Structured workout',
   NOT_EASY_OR_LONG: 'Not an easy or long run',
   NO_STREAM: 'No second-by-second data',
+  TIMER_EVENTS_MISSING: 'No timer events recorded',
+  TIMER_EVENTS_AMBIGUOUS: 'Timer events are ambiguous',
+  TIMER_MISMATCH: 'Timer events disagree with the recorded duration',
   HR_NOT_RECORDED: 'No heart-rate data',
   SPEED_NOT_RECORDED: 'No pace data',
   TOO_SHORT: 'Too short after the 10-minute warm-up',
