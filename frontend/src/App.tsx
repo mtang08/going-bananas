@@ -1,3 +1,4 @@
+import { qk } from './api/queryKeys'
 import { useEffect, useState } from 'react'
 import {
   BookOpen,
@@ -71,8 +72,8 @@ export function App() {
     localStorage.setItem('gb-unit', u)
     setUnitState(u)
   }
-  const ready = useServer<{ status: string; database?: boolean }>(['ready'], '/health/ready')
-  const profile = useServer<Profile>(['profile'], '/profile')
+  const ready = useServer<{ status: string; database?: boolean }>(qk.ready, '/health/ready')
+  const profile = useServer<Profile>(qk.profile, '/profile')
   const mode = profile.data?.mode || ready.data?.mode
   useEffect(() => {
     const update = () => {

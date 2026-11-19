@@ -32,7 +32,7 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
   })
   const block = active.data?.data
   const history = useQuery({
-    queryKey: ['v2', 'blocks', 'history', block?.block_uid],
+    queryKey: qk.blockHistory(block?.block_uid),
     enabled: !!block,
     queryFn: () =>
       api<{
@@ -45,7 +45,7 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
   const runStart = bm ? addDays(bm.planned_date, -7) : ''
   const runEnd = block ? addDays(block.review_date, 7) : ''
   const runs = useQuery({
-    queryKey: ['v2', 'activities', runStart, runEnd, 'runs'],
+    queryKey: qk.activityRuns(runStart, runEnd),
     enabled: Boolean(bm && block),
     queryFn: () =>
       api<{ items: Activity[] }>(
@@ -58,7 +58,7 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
       put<unknown>(`/blocks/${encodeURIComponent(block!.block_uid)}/benchmark-activity`, {
         activity_id: activityId,
       }),
-    onSuccess: () => invalidateKeys(qc, [['v2', 'blocks'], qk.exceptions]),
+    onSuccess: () => invalidateKeys(qc, [qk.blocks, qk.exceptions]),
   })
   const days = (a: string, b: string) =>
     Math.floor((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / 86400000)

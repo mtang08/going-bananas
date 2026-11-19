@@ -47,7 +47,7 @@ export function Home({
 }) {
   const qc = useQueryClient()
   const pending = useQuery({
-    queryKey: ['v2', 'proposals', 'open'],
+    queryKey: qk.proposalsOpen,
     queryFn: () => api<{ items: ProposalSummary[] }>('/coach/proposals?status=open'),
   })
   const calendar = useQuery({
@@ -55,7 +55,7 @@ export function Home({
     queryFn: () => api<CalendarView>('/calendar'),
   })
   const projection = useQuery({
-    queryKey: ['v2', 'calendar', 'weekly-projection'],
+    queryKey: qk.weeklyProjection,
     queryFn: () => api<WeeklyProjection>('/calendar/weekly-projection'),
   })
   const [digestWeek, setDigestWeek] = useState<DigestWeek>('this')
