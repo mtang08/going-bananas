@@ -1,3 +1,4 @@
+import { qk } from '../src/api/queryKeys'
 import type { ProposalException } from '../src/api/types/exceptions'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -75,6 +76,17 @@ it('requires individual review and submits complete partial selection',async()=>
   await screen.findByText('Accepted — calendar version 8')
   expect(writes[0]).toEqual({idempotency_key:expect.any(String),expected_head:7,expected_revision:1,accept_change_ids:['c1','c3'],reject_change_ids:['c2'],accept_block_change:false,accept_anchor_changes:[]})
   expect(screen.queryByRole('button',{name:'Accept selected'})).not.toBeInTheDocument()
+})
+it('refreshes plan data after a decision but not settings', async () => {
+  mount()
+  const client = clients[clients.length - 1]
+  client.setQueryData(qk.calendar, 1)
+  client.setQueryData(qk.goals, 1)
+  await select('c1')
+  fireEvent.click(screen.getByRole('button', { name: 'Accept selected' }))
+  await screen.findByText('Accepted — calendar version 8')
+  expect(client.getQueryState(qk.calendar)?.isInvalidated).toBe(true)
+  expect(client.getQueryState(qk.goals)?.isInvalidated).toBe(false)
 })
 it('retains selections and shows structured subset errors',async()=>{
   failure='subset';mount();await select('c1');fireEvent.click(screen.getByRole('button',{name:'Accept selected'}))
@@ -249,12 +261,17 @@ it('shows moved dates and preserves explicit cleared values in the proposal',asy
 
 it('confirms discard at the reviewed revision without making a decision',async()=>{
   proposal.revision=3;mount()
+  const client = clients[clients.length - 1]
+  client.setQueryData(qk.calendar, 1)
+  client.setQueryData(qk.proposals, 1)
   fireEvent.click(await screen.findByRole('button',{name:'Discard proposal'}))
   expect(screen.getByText(/removed from the open list/)).toBeInTheDocument()
   expect(deletes).toEqual([])
   fireEvent.click(screen.getByRole('button',{name:'Confirm discard'}))
   await screen.findByText(/Proposal discarded/)
   expect(deletes).toEqual([3]);expect(writes).toEqual([])
+  expect(client.getQueryState(qk.calendar)?.isInvalidated).toBe(false)
+  expect(client.getQueryState(qk.proposals)?.isInvalidated).toBe(true)
   expect(screen.queryByRole('button',{name:'Reject all'})).not.toBeInTheDocument()
   expect(screen.queryByText('Decision: rejected')).not.toBeInTheDocument()
   expect(screen.getByRole('link',{name:'Return home'})).toHaveAttribute('href','#home')

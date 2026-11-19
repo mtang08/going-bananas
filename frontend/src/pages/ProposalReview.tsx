@@ -1,7 +1,8 @@
 import { Button, Card } from '../components/ui'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk, type CalendarView, ApiError, api, post } from '../api'
+import { type CalendarView, ApiError, api, post } from '../api'
+import { invalidateKeys, qk } from '../api/queryKeys'
 import type {
   ProposalDecision,
   ProposalDecisionResult,
@@ -23,7 +24,7 @@ export function ProposalReview({ proposalId }: { proposalId: string }) {
 function ReviewForm({ proposalId }: { proposalId: string }) {
   const qc = useQueryClient()
   const detail = useQuery({
-    queryKey: ['v2', 'proposals', proposalId],
+    queryKey: qk.proposal(proposalId),
     queryFn: () => api<ProposalDetail>(`/coach/proposals/${encodeURIComponent(proposalId)}`),
   })
   const [selected, setSelected] = useState<string[]>([])
@@ -64,9 +65,17 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
         `/coach/proposals/${encodeURIComponent(proposalId)}/decision`,
         body,
       ),
-    onSuccess: async (response) => {
+    onSuccess: (response) => {
       setResult(response.data)
-      await qc.invalidateQueries({ queryKey: ['v2'] })
+      invalidateKeys(qc, [
+        qk.proposals,
+        qk.calendar,
+        qk.metrics,
+        qk.prompts,
+        qk.exceptions,
+        qk.blocks,
+        qk.anchors,
+      ])
     },
     onError: (error) => {
       if (error instanceof ApiError && error.code === 'proposal_revision_conflict') {
@@ -86,10 +95,10 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
         `/coach/proposals/${encodeURIComponent(proposalId)}?expected_revision=${revision}`,
         { method: 'DELETE' },
       ),
-    onSuccess: async () => {
+    onSuccess: () => {
       setDiscarded(true)
       setConfirmDiscard(false)
-      await qc.invalidateQueries({ queryKey: ['v2'] })
+      invalidateKeys(qc, [qk.proposals])
     },
     onError: (error) => {
       if (error instanceof ApiError && error.code === 'proposal_revision_conflict')
