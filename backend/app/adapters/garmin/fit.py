@@ -6,8 +6,8 @@ import io
 import math
 import re
 import zipfile
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from garmin_fit_sdk import Decoder, Stream
@@ -298,17 +298,30 @@ def decode_fit(fit_bytes: bytes) -> DecodedFit:
     session = DecodedSession(start, sport, _number(session_row.get('total_elapsed_time')),
         _number(session_row.get('total_timer_time')), _number(session_row.get('total_distance')),
         rpe, feel)
+    kept = []
+    dropped = False
+    for item in messages.get('lap_mesgs', []):
+        lap_start = _instant(item.get('start_time'))
+        if lap_start is None:
+            end = _instant(item.get('timestamp'))
+            elapsed = _number(item.get('total_elapsed_time'))
+            lap_start = end - timedelta(seconds=elapsed) if end is not None and elapsed is not None else None
+        if lap_start is None:
+            dropped = True
+            continue
+        kept.append((item, lap_start))
     laps = tuple(DecodedLap(index, lap_start,
         _number(item.get('total_timer_time')), _number(item.get('total_elapsed_time')),
         _number(item.get('total_distance')),
         _channel(item, 'enhanced_avg_speed', 'avg_speed'),
         _number(item.get('avg_heart_rate')), _number(item.get('max_heart_rate')),
         item.get('lap_trigger'), _integer(item.get('wkt_step_index')))
-        for index, item in enumerate(messages.get('lap_mesgs', []))
-        if (lap_start := _instant(item.get('start_time'))) is not None)
+        for index, (item, lap_start) in enumerate(kept))
     steps = tuple(_step(item) for item in sorted(messages.get('workout_step_mesgs', []),
         key=lambda item: _integer(item.get('message_index')) or 0))
     stream = _stream(messages.get('record_mesgs', []), messages.get('event_mesgs', []), session)
+    if dropped:
+        stream = replace(stream, quality_flags=tuple(sorted({*stream.quality_flags, 'LAP_START_MISSING'})))
     inventory: dict[str, int] = {}
     fields_by_message: dict[str, set[str]] = {}
     for raw_name, rows in messages.items():

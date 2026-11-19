@@ -244,6 +244,22 @@ def test_missing_ambiguous_session_and_stream_variants(monkeypatch):
     def indoor_running(m):
         m['session_mesgs'][0]['sub_sport'] = 'indoor_running'
     assert inject(indoor_running).session.sport == 'treadmill_running'
+    def recovered_lap(m):
+        lap = dict(m['lap_mesgs'][0], timestamp=START_FIT_TS + 450, total_elapsed_time=150)
+        lap.pop('start_time')
+        m['lap_mesgs'].insert(1, lap)
+    decoded = inject(recovered_lap)
+    assert [lap.lap_index for lap in decoded.laps] == [0, 1, 2]
+    assert decoded.laps[1].start_at == datetime.fromtimestamp(START_FIT_TS + FIT_EPOCH_OFFSET + 300, UTC)
+    assert 'LAP_START_MISSING' not in decoded.stream.quality_flags
+    def dropped_lap(m):
+        lap = dict(m['lap_mesgs'][0])
+        for key in ('start_time', 'timestamp', 'total_elapsed_time'):
+            lap.pop(key, None)
+        m['lap_mesgs'].insert(1, lap)
+    decoded = inject(dropped_lap)
+    assert [lap.lap_index for lap in decoded.laps] == [0, 1]
+    assert 'LAP_START_MISSING' in decoded.stream.quality_flags
     monkeypatch.setattr(fit.Decoder, 'read', original)
 
 
