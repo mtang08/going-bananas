@@ -39,6 +39,7 @@ CONFIG: dict = {
     "step_met": 1,
     "target_met": 0.75,
     "target_partial": 0.4,
+    "continuous_run_rule": "whole_activity_dose.v1",
     "partial_rule": "any_not_met.v1",
     "moved_rule": "assessed.v1",
     "precedence": ["skipped", "moved", "extra", "partial", "modified", "as_planned", "unknown"],
@@ -75,13 +76,19 @@ def component(name: str, actual: float | None, planned: float | None) -> dict:
     return {"name": name, "value": round(ratio, 3), "status": status}
 
 
-def _required_structure(plan: dict) -> tuple[bool, bool]:
+def _comparison_plan(plan: dict) -> tuple[dict, bool, bool]:
     structure = plan.get("structure")
     if not structure:
-        return False, False
+        return plan, False, False
     steps = expand_structure(structure)
     work = [step for step in steps if step["type"] == "work"]
-    return bool(work), any((step.get("target") or {}).get("modality") == "speed" for step in work)
+    if plan.get("kind") == "run" and len(steps) == len(work) == 1:
+        step = work[0]
+        field = "planned_duration_s" if step["duration_type"] == "time" else "planned_distance_m"
+        modality = (step.get("target") or {}).get("modality")
+        if modality in (None, "effort") and plan.get(field) in (None, step["duration_value"]):
+            return {**plan, field: step["duration_value"]}, False, False
+    return plan, bool(work), any((step.get("target") or {}).get("modality") == "speed" for step in work)
 
 
 def _derives_status(linked: bool, overall: object) -> bool:
@@ -136,7 +143,9 @@ def planned_actual_outcome(
         components = []
         if activity is None:
             reasons.append("ACTIVITY_EXCLUDED")
+        need_steps = False
         if plan:
+            plan, need_steps, need_target = _comparison_plan(plan)
             for name, planned_field, actual_field in (
                 ("duration_ratio", "planned_duration_s", "timer_s"),
                 ("distance_ratio", "planned_distance_m", "distance_m"),
@@ -144,7 +153,6 @@ def planned_actual_outcome(
                 item = component(name, activity.get(actual_field) if activity else None, plan.get(planned_field))
                 if item["status"] != "omitted":
                     components.append(item)
-            need_steps, need_target = _required_structure(plan)
             if need_steps:
                 components.append(
                     component("step_completion_ratio", intervals.get("step_completion_ratio") if intervals else None, 1)
@@ -171,7 +179,7 @@ def planned_actual_outcome(
                 and plan["planned_duration_s"] > 0
                 else None
             )
-            step_raw = intervals.get("step_completion_ratio") if intervals else None
+            step_raw = intervals.get("step_completion_ratio") if need_steps and intervals else None
             if (
                 step_raw is not None
                 and step_raw < 1

@@ -262,3 +262,24 @@ def test_write_completion_status_leaves_unlinked_and_missing_alone() -> None:
     assert not write_completion_status(_OneRowSession(row), _result("unknown"), NOW)
     assert (row.status, row.version) == ("unknown", 1)
     assert not write_completion_status(_OneRowSession(None), _result("completed_as_planned"), NOW)
+
+
+def test_continuous_easy_run_uses_whole_activity_dose_without_watch_steps() -> None:
+    for kind, dose, field, actual in (
+        ("time", 1800, "planned_duration_s", "timer_s"),
+        ("time", 2700, "planned_duration_s", "timer_s"),
+        ("distance", 5000, "planned_distance_m", "distance_m"),
+    ):
+        step = {
+            "type": "work",
+            "duration_type": kind,
+            "duration_value": dose,
+            "target": {"modality": "effort", "effort_cue": "easy"},
+        }
+        for total in (None, dose):
+            prescription = plan(planned_duration_s=None, structure=[step])
+            prescription[field] = total
+            result = assess(prescription, linked(), {actual: dose})
+            assert result["derived_completion_status"] == "completed_as_planned"
+            assert len(result["value"]["components"]) == 1
+            assert assess(prescription, linked(), {})["derived_completion_status"] == "unknown"
