@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.adapters.garmin.normalize import InvalidRecord, parse_activity
 from app.adapters.garmin.personal import GarminPersonalSource
 from app.db import SessionLocal, bump_data_revision, engine, global_write_lock
+from app.domain.sports import RUN_SPORTS
 from app.logs import exception_summary, get
 from app.models import (
     Activity,
@@ -593,7 +594,7 @@ def _ingest_fit_page(source: GarminPersonalSource, private_dir: Path,
                 Activity.source_account_id == account.id,
                 Activity.garmin_id == str(remote_id),
                 Activity.resolution_state == "resolved",
-                Activity.sport.in_(("running", "trail_running", "treadmill_running"))))
+                Activity.sport.in_(RUN_SPORTS)))
             if activity is None:
                 continue
             try:

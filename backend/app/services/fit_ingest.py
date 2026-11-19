@@ -12,9 +12,10 @@ from typing import Protocol, TypedDict
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
-from app.adapters.garmin.fit import DECODER_VERSION, RUN_SPORTS, FitDecodeError, decode_fit, extract_fit
+from app.adapters.garmin.fit import DECODER_VERSION, FitDecodeError, decode_fit, extract_fit
 from app.checkin_models import SessionRpe
 from app.db import bump_data_revision, global_write_lock
+from app.domain.sports import RUN_SPORTS
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep, FitFile
 from app.logs import exception_summary, get
 from app.models import Activity, ActivitySource, RawObject, SourceRecord
