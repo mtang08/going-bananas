@@ -1,5 +1,7 @@
 # Research and strength integration
 
+> **Archived 2026-11-15.** Historical record, not a current contract. For current behavior read `docs/architecture.md`, `docs/handoff.md`, and the code. Links inside this file are not maintained.
+
 Requested November 10, 2026. Extend the existing local app into a usable daily
 recommendation and weekly review loop, with no automatic plan rewrites.
 

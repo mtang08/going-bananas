@@ -1,5 +1,7 @@
 # Garmin dashboard foundation
 
+> **Archived 2026-11-15.** Historical record, not a current contract. For current behavior read `docs/architecture.md`, `docs/handoff.md`, and the code. Links inside this file are not maintained.
+
 Historical initial proposal. Superseded by `implementation-plan.md`,
 `contracts.md`, `verification.md`, and `handoff.md` following the user's scope
 clarification. In particular, research and adaptive coaching are a later phase,
