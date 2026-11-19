@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.checkin_models import Checkin, CheckinRevision, SessionRpe, SymptomReport
+from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.metric_models import Prompt
 from app.models import Activity, ManualSession
@@ -22,7 +23,6 @@ from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
 CONTEXT_TAGS = {'heat', 'travel', 'poor_sleep', 'unusual_surface', 'equipment'}
-RUN_SPORTS = {'running', 'trail_running', 'treadmill_running'}
 
 
 def _measurement(value: object) -> float:

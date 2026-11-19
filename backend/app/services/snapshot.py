@@ -49,7 +49,6 @@ from app.services.weekly_digest import DIGEST_SCHEMA, HEADLINE_KINDS, NOT_DONE_O
 from app.services.workout_progression import assemble_groups, session_point
 from app.strong_models import StrongWorkoutRow
 
-RUN_SPORTS = {"running", "trail_running", "treadmill_running"}
 DRILL_DOWN_QUERIES = ["activity_execution", "long_run_history", "recovery_nights", "calendar_diff", "explain_metric"]
 DATASETS = ("activities", "sleep", "hrv", "resting_hr")
 SNAPSHOT_SCHEMA = "coach_snapshot.v1"

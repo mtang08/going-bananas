@@ -12,10 +12,11 @@ from sqlalchemy.orm import Session
 
 from app.api.core import envelope
 from app.db import bump_data_revision, get_session, global_write_lock
+from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.models import Activity
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, Goal
-from app.services.block_benchmark import RUN_SPORTS, active_block_version, benchmark_spec, benchmark_status, status_data
+from app.services.block_benchmark import active_block_version, benchmark_spec, benchmark_status, status_data
 from app.services.strength_routine import replace_routine, routine_view
 from app.services.timezone import athlete_today, athlete_tz
 

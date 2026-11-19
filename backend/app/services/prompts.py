@@ -13,13 +13,12 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.checkin_models import Checkin, SessionRpe, SymptomReport
+from app.domain.sports import RUN_SPORTS
 from app.metric_models import Prompt
 from app.metrics.engine import current_results, load_runs
 from app.models import Activity, AppState, ManualSession
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
-
-RUN_SPORTS = frozenset(('running', 'trail_running', 'treadmill_running'))
 
 
 def _aware(value: datetime) -> datetime:

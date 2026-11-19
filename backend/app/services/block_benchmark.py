@@ -26,7 +26,6 @@ AUTO_BEFORE_DAYS = 3
 AUTO_AFTER_DAYS = 7
 PENDING_GRACE_DAYS = 2
 ACTIVE_STATUSES = ('active', 'consolidating')
-RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
 BENCHMARK_RECIPES = frozenset(r for r, c in RECIPE_CLASS.items() if c == 'benchmark')
 
 
