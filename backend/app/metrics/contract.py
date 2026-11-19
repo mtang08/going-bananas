@@ -12,18 +12,18 @@ from typing import Any
 
 
 class Status(StrEnum):
-    available = 'available'
-    partial = 'partial'
-    missing = 'missing'
-    invalid = 'invalid'
-    not_applicable = 'not_applicable'
-    not_assessable = 'not_assessable'
+    available = "available"
+    partial = "partial"
+    missing = "missing"
+    invalid = "invalid"
+    not_applicable = "not_applicable"
+    not_assessable = "not_assessable"
 
 
 class QualityStatus(StrEnum):
-    good = 'good'
-    limited = 'limited'
-    insufficient = 'insufficient'
+    good = "good"
+    limited = "limited"
+    insufficient = "insufficient"
 
 
 @dataclass(frozen=True)
@@ -46,8 +46,8 @@ class MetricResultData:
     unit: str | None = None
     anchor_set_hash: str | None = None
     calculated_at: datetime | None = None
-    dependency_hash: str = ''
-    timezone: str = ''
+    dependency_hash: str = ""
+    timezone: str = ""
 
 
 MetricResult = MetricResultData
@@ -64,35 +64,37 @@ class RunFact:
     distance_m: float | None
     workout_label: str | None
     source_refs: dict[str, Any] = field(default_factory=dict)
-    source_revision: str = ''
+    source_revision: str = ""
 
 
-def metric_source_refs(session: Any, activity_id: uuid.UUID,
-                       session_uid: uuid.UUID | None = None,
-                       calendar_version: int | None = None) -> dict[str, Any]:
+def metric_source_refs(
+    session: Any, activity_id: uuid.UUID, session_uid: uuid.UUID | None = None, calendar_version: int | None = None
+) -> dict[str, Any]:
     from app.metrics.engine import metric_source_refs as _metric_source_refs
+
     return _metric_source_refs(session, activity_id, session_uid, calendar_version)
 
 
 def canonical_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False,
-                      allow_nan=False, default=_json_default)
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False, default=_json_default
+    )
 
 
 def _json_default(value: Any) -> str:
     if isinstance(value, datetime):
         if value.tzinfo is None or value.utcoffset() is None:
-            raise ValueError('naive_datetime')
-        return value.astimezone(UTC).isoformat(timespec='microseconds').replace('+00:00', 'Z')
+            raise ValueError("naive_datetime")
+        return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
     if isinstance(value, date):
         return value.isoformat()
-    if hasattr(value, 'hex'):
+    if hasattr(value, "hex"):
         return str(value)
-    raise TypeError(f'not JSON serializable: {type(value).__name__}')
+    raise TypeError(f"not JSON serializable: {type(value).__name__}")
 
 
 def sha256_json(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value).encode('utf-8')).hexdigest()
+    return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
 def config_hash(config: Mapping[str, Any]) -> str:
@@ -118,17 +120,30 @@ def result_from_outcome(
 ) -> MetricResultData:
     quality = outcome["quality_status"]
     return MetricResultData(
-        metric_id, method_version, subject_type, key, Status(outcome["status"]),
-        tuple(outcome["reason_codes"]), tuple(outcome["quality_flags"]), refs, tuple(anchor_keys),
-        config_hash(config), window_start=window_start, window_end=window_end, window_label=window_label,
-        quality_status=QualityStatus(quality) if quality else None, value=outcome["value"], unit=unit,
-        anchor_set_hash=anchor_set_hash, timezone=timezone,
+        metric_id,
+        method_version,
+        subject_type,
+        key,
+        Status(outcome["status"]),
+        tuple(outcome["reason_codes"]),
+        tuple(outcome["quality_flags"]),
+        refs,
+        tuple(anchor_keys),
+        config_hash(config),
+        window_start=window_start,
+        window_end=window_end,
+        window_label=window_label,
+        quality_status=QualityStatus(quality) if quality else None,
+        value=outcome["value"],
+        unit=unit,
+        anchor_set_hash=anchor_set_hash,
+        timezone=timezone,
     )
 
 
 def coverage_label(valid_s: float, eligible_s: float) -> QualityStatus | None:
     if not all(math.isfinite(v) and v >= 0 for v in (valid_s, eligible_s)):
-        raise ValueError('invalid_coverage')
+        raise ValueError("invalid_coverage")
     if eligible_s <= 0:
         return None
     ratio = valid_s / eligible_s
@@ -147,24 +162,31 @@ def plausible_speed(v: float | None) -> bool:
     return v is not None and math.isfinite(v) and 0 <= v <= 10
 
 
-def integrate_timer_on(t_s: list[int], timer_on: list[tuple[float, float]],
-                       max_gap_s: int) -> list[tuple[int | None, float, bool]]:
+def integrate_timer_on(
+    t_s: list[int], timer_on: list[tuple[float, float]], max_gap_s: int
+) -> list[tuple[int | None, float, bool]]:
     if not isinstance(max_gap_s, int) or isinstance(max_gap_s, bool) or max_gap_s <= 0:
-        raise ValueError('invalid_timer')
+        raise ValueError("invalid_timer")
     if any(not isinstance(t, int) or isinstance(t, bool) or t < 0 for t in t_s):
-        raise ValueError('invalid_stream_order')
+        raise ValueError("invalid_stream_order")
     if any(b <= a for a, b in zip(t_s, t_s[1:])):
-        raise ValueError('invalid_stream_order')
+        raise ValueError("invalid_stream_order")
     intervals: list[tuple[float, float]] = []
     for interval in timer_on:
         if not isinstance(interval, (tuple, list)) or len(interval) != 2:
-            raise ValueError('invalid_timer')
+            raise ValueError("invalid_timer")
         start, end = interval
-        if (isinstance(start, bool) or isinstance(end, bool)
-                or not isinstance(start, (int, float)) or not isinstance(end, (int, float))
-                or not math.isfinite(start) or not math.isfinite(end)
-                or start < 0 or end < start):
-            raise ValueError('invalid_timer')
+        if (
+            isinstance(start, bool)
+            or isinstance(end, bool)
+            or not isinstance(start, (int, float))
+            or not isinstance(end, (int, float))
+            or not math.isfinite(start)
+            or not math.isfinite(end)
+            or start < 0
+            or end < start
+        ):
+            raise ValueError("invalid_timer")
         if end == start:
             continue
         intervals.append((float(start), float(end)))
@@ -199,6 +221,19 @@ def integrate_timer_on(t_s: list[int], timer_on: list[tuple[float, float]],
 def completion_association_hash(completion: Any) -> str:
     def get(name: str) -> Any:
         return completion.get(name) if isinstance(completion, Mapping) else getattr(completion, name, None)
-    return sha256_json({key: str(get(key)) if get(key) is not None and key.endswith('_id') else get(key)
-                        for key in ('session_uid', 'activity_id', 'strong_workout_id', 'manual_session_id',
-                                    'match_method', 'modification_reason', 'reason_note', 'input_version')})
+
+    return sha256_json(
+        {
+            key: str(get(key)) if get(key) is not None and key.endswith("_id") else get(key)
+            for key in (
+                "session_uid",
+                "activity_id",
+                "strong_workout_id",
+                "manual_session_id",
+                "match_method",
+                "modification_reason",
+                "reason_note",
+                "input_version",
+            )
+        }
+    )

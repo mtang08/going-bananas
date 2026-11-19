@@ -1,4 +1,5 @@
 """Time ranges between observed or planned hard exposures."""
+
 from __future__ import annotations
 
 import re
@@ -24,19 +25,20 @@ METRIC_ID = "hard_session_spacing"
 METHOD_VERSION = "v1"
 WINDOW_DAYS = (14,)
 DEPENDS_ON = ("long_run_exposure",)
-CONFIG = {"quality_recipes": sorted(QUALITY_RECIPES),
-          "long_recipe": LONG_RECIPE, "lower_body_cost": ["moderate", "high"],
-          "range_rule": "interval_subtraction.v1"}
+CONFIG = {
+    "quality_recipes": sorted(QUALITY_RECIPES),
+    "long_recipe": LONG_RECIPE,
+    "lower_body_cost": ["moderate", "high"],
+    "range_rule": "interval_subtraction.v1",
+}
 HARD_CLASSES = ("quality", "long", "lower_body_strength")
 
 
 def _gap(previous: dict, following: dict) -> dict:
     low = (following["start_low"] - previous["end_high"]).total_seconds() / 3600
     high = (following["start_high"] - previous["end_low"]).total_seconds() / 3600
-    exact = (previous["end_low"] == previous["end_high"]
-             and following["start_low"] == following["start_high"])
-    return {"low": round(low, 1), "high": round(high, 1),
-            "confidence": "high" if exact else "low"}
+    exact = previous["end_low"] == previous["end_high"] and following["start_low"] == following["start_high"]
+    return {"low": round(low, 1), "high": round(high, 1), "confidence": "high" if exact else "low"}
 
 
 def spacing_outcome(exposures: list[dict], as_of: date, tz: ZoneInfo) -> dict:
@@ -47,7 +49,10 @@ def spacing_outcome(exposures: list[dict], as_of: date, tz: ZoneInfo) -> dict:
             continue
         key = item["subject_key"]
         if key in by_subject:
-            by_subject[key] = {**by_subject[key], "classes": sorted(set(by_subject[key]["classes"]) | set(item["classes"]))}
+            by_subject[key] = {
+                **by_subject[key],
+                "classes": sorted(set(by_subject[key]["classes"]) | set(item["classes"])),
+            }
         else:
             by_subject[key] = {**item, "classes": sorted(set(item["classes"]))}
     ordered = sorted(by_subject.values(), key=lambda e: (e["start_low"], e["subject_key"]))
@@ -59,20 +64,35 @@ def spacing_outcome(exposures: list[dict], as_of: date, tz: ZoneInfo) -> dict:
         until: dict[str, dict] = {}
         for cls in HARD_CLASSES:
             prior = next((e for e in reversed(ordered[:index]) if cls in e["classes"] and e is not exposure), None)
-            after = next((e for e in ordered[index + 1:] if cls in e["classes"] and e is not exposure), None)
+            after = next((e for e in ordered[index + 1 :] if cls in e["classes"] and e is not exposure), None)
             if prior:
                 since[cls] = _gap(prior, exposure)
             if after:
                 until[cls] = _gap(exposure, after)
-        sessions.append({"session_uid": exposure.get("session_uid"), "subject_key": exposure["subject_key"],
-                         "local_date": exposure["local_date"].isoformat(), "hours_since": since,
-                         "hours_until": until})
-    sequence = [{"subject_key": e["subject_key"], "classes": e["classes"],
-                 "local_date": e["local_date"].isoformat(), "session_uid": e.get("session_uid"),
-                 "activity_id": e.get("activity_id"), "source": e.get("source"),
-                 "start_low": e["start_low"].isoformat(), "start_high": e["start_high"].isoformat(),
-                 "end_low": e["end_low"].isoformat(), "end_high": e["end_high"].isoformat()}
-                for e in current]
+        sessions.append(
+            {
+                "session_uid": exposure.get("session_uid"),
+                "subject_key": exposure["subject_key"],
+                "local_date": exposure["local_date"].isoformat(),
+                "hours_since": since,
+                "hours_until": until,
+            }
+        )
+    sequence = [
+        {
+            "subject_key": e["subject_key"],
+            "classes": e["classes"],
+            "local_date": e["local_date"].isoformat(),
+            "session_uid": e.get("session_uid"),
+            "activity_id": e.get("activity_id"),
+            "source": e.get("source"),
+            "start_low": e["start_low"].isoformat(),
+            "start_high": e["start_high"].isoformat(),
+            "end_low": e["end_low"].isoformat(),
+            "end_high": e["end_high"].isoformat(),
+        }
+        for e in current
+    ]
     gaps = []
     for left, right in zip(ordered, ordered[1:]):
         if left not in current and right not in current:
@@ -83,14 +103,24 @@ def spacing_outcome(exposures: list[dict], as_of: date, tz: ZoneInfo) -> dict:
                 continue
             for to_class in HARD_CLASSES:
                 if to_class in right["classes"]:
-                    gaps.append({"from_class": from_class, "to_class": to_class,
-                                 "from_date": left["local_date"].isoformat(),
-                                 "to_date": right["local_date"].isoformat(),
-                                 "hours_min": gap["low"], "hours_max": gap["high"],
-                                 "confidence": gap["confidence"]})
-    return {"status": "available", "quality_status": None,
-            "value": {"sessions": sessions, "sequence": sequence, "gaps": gaps},
-            "reason_codes": [], "quality_flags": []}
+                    gaps.append(
+                        {
+                            "from_class": from_class,
+                            "to_class": to_class,
+                            "from_date": left["local_date"].isoformat(),
+                            "to_date": right["local_date"].isoformat(),
+                            "hours_min": gap["low"],
+                            "hours_max": gap["high"],
+                            "confidence": gap["confidence"],
+                        }
+                    )
+    return {
+        "status": "available",
+        "quality_status": None,
+        "value": {"sessions": sessions, "sequence": sequence, "gaps": gaps},
+        "reason_codes": [],
+        "quality_flags": [],
+    }
 
 
 def _day_range(day: date, tz: ZoneInfo) -> tuple[datetime, datetime]:
@@ -99,23 +129,48 @@ def _day_range(day: date, tz: ZoneInfo) -> tuple[datetime, datetime]:
 
 def _planned_exposure(row: CalendarSessionRevision, classes: list[str], tz: ZoneInfo) -> dict:
     start, end = _day_range(row.local_date, tz)
-    return {"subject_key": str(row.session_uid), "classes": classes, "local_date": row.local_date,
-            "session_uid": str(row.session_uid), "activity_id": None, "source": "plan",
-            "start_low": start, "start_high": end, "end_low": start, "end_high": end}
+    return {
+        "subject_key": str(row.session_uid),
+        "classes": classes,
+        "local_date": row.local_date,
+        "session_uid": str(row.session_uid),
+        "activity_id": None,
+        "source": "plan",
+        "start_low": start,
+        "start_high": end,
+        "end_low": start,
+        "end_high": end,
+    }
 
 
-def _actual_exposure(subject_key: str, day: date, start: datetime | None, end: datetime | None,
-                     classes: list[str], tz: ZoneInfo, session_uid: UUID | None,
-                     activity_id: UUID | None, source: str) -> dict:
+def _actual_exposure(
+    subject_key: str,
+    day: date,
+    start: datetime | None,
+    end: datetime | None,
+    classes: list[str],
+    tz: ZoneInfo,
+    session_uid: UUID | None,
+    activity_id: UUID | None,
+    source: str,
+) -> dict:
     day_start, next_start = _day_range(day, tz)
     start_low = start.astimezone(UTC) if start else day_start
     start_high = start_low if start else next_start
     end_low = end.astimezone(UTC) if end else start_low
     end_high = end.astimezone(UTC) if end else next_start
-    return {"subject_key": subject_key, "classes": classes, "local_date": day,
-            "session_uid": str(session_uid) if session_uid else None,
-            "activity_id": str(activity_id) if activity_id else None, "source": source,
-            "start_low": start_low, "start_high": start_high, "end_low": end_low, "end_high": end_high}
+    return {
+        "subject_key": subject_key,
+        "classes": classes,
+        "local_date": day,
+        "session_uid": str(session_uid) if session_uid else None,
+        "activity_id": str(activity_id) if activity_id else None,
+        "source": source,
+        "start_low": start_low,
+        "start_high": start_high,
+        "end_low": end_low,
+        "end_high": end_high,
+    }
 
 
 def _plan_classes(session: Session, row: CalendarSessionRevision) -> list[str]:
@@ -131,17 +186,25 @@ def _plan_classes(session: Session, row: CalendarSessionRevision) -> list[str]:
     return []
 
 
-def _plan_ref(session: Session, row: CalendarSessionRevision,
-              completion: SessionCompletion | None = None) -> dict:
+def _plan_ref(session: Session, row: CalendarSessionRevision, completion: SessionCompletion | None = None) -> dict:
     slot = session.get(StrengthRoutineSlot, row.strength_slot_id) if row.strength_slot_id else None
-    return {"plan_revision_id": str(row.id), "revision": row.revision,
-            "calendar_version": row.calendar_version_number,
-            "structure_hash": sha256_json(row.structure), "recipe_id": row.recipe_id,
-            "session_uid": str(row.session_uid),
-            "completion_association_hash": completion_association_hash(completion) if completion else None,
-            "strength_slot": {"id": str(slot.id), "version": slot.version,
-                              "lower_body_cost": slot.lower_body_cost, "active": slot.active}
-            if slot else None}
+    return {
+        "plan_revision_id": str(row.id),
+        "revision": row.revision,
+        "calendar_version": row.calendar_version_number,
+        "structure_hash": sha256_json(row.structure),
+        "recipe_id": row.recipe_id,
+        "session_uid": str(row.session_uid),
+        "completion_association_hash": completion_association_hash(completion) if completion else None,
+        "strength_slot": {
+            "id": str(slot.id),
+            "version": slot.version,
+            "lower_body_cost": slot.lower_body_cost,
+            "active": slot.active,
+        }
+        if slot
+        else None,
+    }
 
 
 @register(METRIC_ID, METHOD_VERSION, DEPENDS_ON)
@@ -181,21 +244,38 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
         classes = _plan_classes(session, linked_plan) if linked_plan else []
         long_result = long_by_id.get(str(run.activity_id))
         long_value = long_result.value if long_result else None
-        is_long = (long_value.get("classification") == "long" if isinstance(long_value, dict)
-                   else linked_plan is None and run.workout_label == "long")
+        is_long = (
+            long_value.get("classification") == "long"
+            if isinstance(long_value, dict)
+            else linked_plan is None and run.workout_label == "long"
+        )
         if is_long:
             if "long" not in classes:
                 classes.append("long")
         if not classes:
             continue
-        exposure = _actual_exposure(str(run.activity_id), run.local_date, run.start_at, run.end_at, classes,
-                                    tz, completion.session_uid if completion else None, run.activity_id, "activity")
+        exposure = _actual_exposure(
+            str(run.activity_id),
+            run.local_date,
+            run.start_at,
+            run.end_at,
+            classes,
+            tz,
+            completion.session_uid if completion else None,
+            run.activity_id,
+            "activity",
+        )
         exposures.append(exposure)
-        source_refs.append({"activity_id": str(run.activity_id), "source_revision": run.source_revision,
-                            "source_refs": run.source_refs,
-                            "plan": _plan_ref(session, linked_plan, completion) if linked_plan else None,
-                            "long_metric_id": str(long_result.id) if long_result else None,
-                            "long_dependency_hash": long_result.dependency_hash if long_result else None})
+        source_refs.append(
+            {
+                "activity_id": str(run.activity_id),
+                "source_revision": run.source_revision,
+                "source_refs": run.source_refs,
+                "plan": _plan_ref(session, linked_plan, completion) if linked_plan else None,
+                "long_metric_id": str(long_result.id) if long_result else None,
+                "long_dependency_hash": long_result.dependency_hash if long_result else None,
+            }
+        )
     for completion in completions:
         if completion.status == "skipped":
             continue
@@ -214,35 +294,78 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
             except ValueError:
                 start = None
             end = start + timedelta(seconds=strong.duration_s) if start and strong.duration_s is not None else None
-            exposures.append(_actual_exposure(f"strong:{strong.id}", strong.local_date, start, end, classes,
-                             tz, completion.session_uid, None, "strong"))
+            exposures.append(
+                _actual_exposure(
+                    f"strong:{strong.id}",
+                    strong.local_date,
+                    start,
+                    end,
+                    classes,
+                    tz,
+                    completion.session_uid,
+                    None,
+                    "strong",
+                )
+            )
             source_record = session.get(SourceRecord, strong.source_record_id)
             raw_object = session.get(RawObject, strong.raw_object_id)
-            source_refs.append({"strong_workout_id": str(strong.id), "payload_hash": strong.payload_hash,
-                                "source_record_id": str(strong.source_record_id),
-                                "source_payload_hash": source_record.payload_hash if source_record else None,
-                                "source_parser_version": source_record.parser_version if source_record else None,
-                                "raw_object_id": str(strong.raw_object_id),
-                                "raw_sha256": raw_object.sha256 if raw_object else None,
-                                "plan": _plan_ref(session, strength_plan, completion)})
+            source_refs.append(
+                {
+                    "strong_workout_id": str(strong.id),
+                    "payload_hash": strong.payload_hash,
+                    "source_record_id": str(strong.source_record_id),
+                    "source_payload_hash": source_record.payload_hash if source_record else None,
+                    "source_parser_version": source_record.parser_version if source_record else None,
+                    "raw_object_id": str(strong.raw_object_id),
+                    "raw_sha256": raw_object.sha256 if raw_object else None,
+                    "plan": _plan_ref(session, strength_plan, completion),
+                }
+            )
         elif completion.manual_session_id:
             manual = session.get(ManualSession, completion.manual_session_id)
             if manual is None or manual.kind != "strength":
                 continue
             start = datetime.combine(manual.date, manual.time, tz).astimezone(UTC) if manual.time else None
             end = start + timedelta(seconds=manual.duration_s) if start and manual.duration_s is not None else None
-            exposures.append(_actual_exposure(f"manual:{manual.id}", manual.date, start, end, classes,
-                             tz, completion.session_uid, None, "manual"))
-            source_refs.append({"manual_session_id": str(manual.id), "version": manual.version,
-                                "duration_s": manual.duration_s,
-                                "plan": _plan_ref(session, strength_plan, completion)})
+            exposures.append(
+                _actual_exposure(
+                    f"manual:{manual.id}", manual.date, start, end, classes, tz, completion.session_uid, None, "manual"
+                )
+            )
+            source_refs.append(
+                {
+                    "manual_session_id": str(manual.id),
+                    "version": manual.version,
+                    "duration_s": manual.duration_s,
+                    "plan": _plan_ref(session, strength_plan, completion),
+                }
+            )
     outcome = spacing_outcome(exposures, as_of, tz)
     first, last = as_of - timedelta(days=7), as_of + timedelta(days=6)
     start, end = utc_date_bounds(first, last, tz.key)
     source_refs.sort(key=sha256_json)
-    refs = {"sources": source_refs, "calendar_head": head,
-            "input_hash": sha256_json({"sources": source_refs, "calendar_head": head})}
-    return [MetricResultData(METRIC_ID, METHOD_VERSION, "window", subject_key, Status(outcome["status"]),
-                             tuple(outcome["reason_codes"]), tuple(outcome["quality_flags"]), refs, (),
-                             config_hash(CONFIG), window_start=start, window_end=end, window_label=subject_key,
-                             value=outcome["value"], unit=None, timezone=tz.key)]
+    refs = {
+        "sources": source_refs,
+        "calendar_head": head,
+        "input_hash": sha256_json({"sources": source_refs, "calendar_head": head}),
+    }
+    return [
+        MetricResultData(
+            METRIC_ID,
+            METHOD_VERSION,
+            "window",
+            subject_key,
+            Status(outcome["status"]),
+            tuple(outcome["reason_codes"]),
+            tuple(outcome["quality_flags"]),
+            refs,
+            (),
+            config_hash(CONFIG),
+            window_start=start,
+            window_end=end,
+            window_label=subject_key,
+            value=outcome["value"],
+            unit=None,
+            timezone=tz.key,
+        )
+    ]

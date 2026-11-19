@@ -4,6 +4,7 @@ The commit-time pipeline that also re-matches and updates prompts is
 `ensure_windows`, `ensure_nights`, and `assess_completion` directly. Work outside a commit runs
 inside `refreshing(session)`, which takes the global write lock and caches computed subjects.
 """
+
 from __future__ import annotations
 
 import re
@@ -41,28 +42,28 @@ def parse_scope(scope: str) -> tuple[str, Any]:
     `activity:`, `checkin:`, `plan:` carry a UUID; `strength:strong:` and `strength:manual:` a UUID; `date:` and
     `since:` an ISO date; `recovery_dates:` comma-separated ISO dates. `timezone` and `revision` carry nothing.
     """
-    kind, _, raw = scope.partition(':')
+    kind, _, raw = scope.partition(":")
     try:
-        if scope in ('timezone', 'revision'):
+        if scope in ("timezone", "revision"):
             return scope, None
-        if kind in ('activity', 'checkin', 'plan'):
+        if kind in ("activity", "checkin", "plan"):
             return kind, uuid.UUID(raw)
-        if kind == 'strength':
-            prefix, _, raw_id = raw.partition(':')
-            if prefix in ('strong', 'manual'):
-                return f'strength:{prefix}', uuid.UUID(raw_id)
-        if kind in ('date', 'since'):
+        if kind == "strength":
+            prefix, _, raw_id = raw.partition(":")
+            if prefix in ("strong", "manual"):
+                return f"strength:{prefix}", uuid.UUID(raw_id)
+        if kind in ("date", "since"):
             value = date.fromisoformat(raw)
             if value.isoformat() == raw:
                 return kind, value
-        if kind == 'recovery_dates':
-            parts = raw.split(',')
+        if kind == "recovery_dates":
+            parts = raw.split(",")
             values = tuple(date.fromisoformat(part) for part in parts)
             if all(value.isoformat() == part for value, part in zip(values, parts, strict=True)):
                 return kind, values
     except ValueError:
         pass
-    raise ValueError('invalid_scope')
+    raise ValueError("invalid_scope")
 
 
 # A stored hard_session_spacing window refreshes only when a changed date is within this distance of its as-of date.
@@ -70,7 +71,7 @@ SPACING_REACH_DAYS = 14
 
 
 def clock(session: Session) -> datetime:
-    return session.info.get('metrics_now') or datetime.now(UTC)
+    return session.info.get("metrics_now") or datetime.now(UTC)
 
 
 def local_today(session: Session) -> date:
@@ -79,43 +80,45 @@ def local_today(session: Session) -> date:
 
 @contextmanager
 def refreshing(session: Session):
-    depth = session.info.get('metrics_depth', 0)
-    old_running = session.info.get('metrics_running', False)
-    session.info['metrics_running'] = True
-    session.info['metrics_depth'] = depth + 1
+    depth = session.info.get("metrics_depth", 0)
+    old_running = session.info.get("metrics_running", False)
+    session.info["metrics_running"] = True
+    session.info["metrics_depth"] = depth + 1
     try:
         if depth == 0:
             global_write_lock(session)
-            session.info['metrics_computed'] = set()
+            session.info["metrics_computed"] = set()
             ensure_configs(session)
         yield
     finally:
-        session.info['metrics_depth'] = depth
-        session.info['metrics_running'] = old_running
+        session.info["metrics_depth"] = depth
+        session.info["metrics_running"] = old_running
         if depth == 0:
-            session.info.pop('metrics_computed', None)
-            session.info.pop('metrics_depth', None)
+            session.info.pop("metrics_computed", None)
+            session.info.pop("metrics_depth", None)
 
 
 def compute_subjects(session: Session, metric_id: str, subject_keys: Sequence[str]) -> list[MetricResultData]:
     metric_modules()
     if metric_id not in REGISTRY:
-        raise ValueError('unknown_metric')
-    allowed = session.info.get('metrics_filter')
+        raise ValueError("unknown_metric")
+    allowed = session.info.get("metrics_filter")
     if allowed is not None and metric_id not in allowed:
         return []
     registration = REGISTRY[metric_id]
-    cache = session.info.get('metrics_computed', set())
+    cache = session.info.get("metrics_computed", set())
     results = []
     for key in dict.fromkeys(subject_keys):
         if (metric_id, key) in cache:
             continue
         calculated = [replace(row, calculated_at=clock(session)) for row in registration.compute(session, key)]
         if not calculated:
-            session.query(MetricResultRow).filter(MetricResultRow.metric_id == metric_id,
+            session.query(MetricResultRow).filter(
+                MetricResultRow.metric_id == metric_id,
                 MetricResultRow.method_version == registration.method_version,
-                MetricResultRow.subject_key == key, MetricResultRow.is_current.is_(True)).update(
-                    {'is_current': False}, synchronize_session='fetch')
+                MetricResultRow.subject_key == key,
+                MetricResultRow.is_current.is_(True),
+            ).update({"is_current": False}, synchronize_session="fetch")
         upsert_results(session, calculated)
         cache.add((metric_id, key))
         results.extend(calculated)
@@ -124,17 +127,27 @@ def compute_subjects(session: Session, metric_id: str, subject_keys: Sequence[st
 
 def activities_between(session: Session, start: date, end: date) -> list[uuid.UUID]:
     zone = athlete_tz(session)
-    rows = session.execute(select(Activity.id, Activity.start_at).where(
-        Activity.start_at >= datetime.combine(start - timedelta(days=1), datetime.min.time(), tzinfo=zone),
-        Activity.start_at < datetime.combine(end + timedelta(days=2), datetime.min.time(), tzinfo=zone))
-        .order_by(Activity.start_at, Activity.id)).all()
+    rows = session.execute(
+        select(Activity.id, Activity.start_at)
+        .where(
+            Activity.start_at >= datetime.combine(start - timedelta(days=1), datetime.min.time(), tzinfo=zone),
+            Activity.start_at < datetime.combine(end + timedelta(days=2), datetime.min.time(), tzinfo=zone),
+        )
+        .order_by(Activity.start_at, Activity.id)
+    ).all()
     return [uid for uid, stamp in rows if start <= date_in_zone(stamp, zone) <= end]
 
 
 def refresh_runs(session: Session, activity_ids: Iterable[uuid.UUID]) -> list[MetricResultData]:
     keys = [str(uid) for uid in dict.fromkeys(activity_ids)]
-    run_metrics = {'symptom_response_timeline', 'session_rpe_load', 'long_run_exposure',
-                   'intensity_time_distribution', 'work_interval_execution', 'aerobic_efficiency'}
+    run_metrics = {
+        "symptom_response_timeline",
+        "session_rpe_load",
+        "long_run_exposure",
+        "intensity_time_distribution",
+        "work_interval_execution",
+        "aerobic_efficiency",
+    }
     results = []
     for item in ordered_registry():
         if item.metric_id in run_metrics:
@@ -145,31 +158,57 @@ def refresh_runs(session: Session, activity_ids: Iterable[uuid.UUID]) -> list[Me
 def _refresh_strength(session: Session, start: date, end: date) -> list[MetricResultData]:
     from app.models import ManualSession
     from app.strong_models import StrongWorkoutRow
-    keys = [f'strong:{uid}' for uid in session.scalars(select(StrongWorkoutRow.id).where(
-        StrongWorkoutRow.local_date >= start, StrongWorkoutRow.local_date <= end).order_by(StrongWorkoutRow.id))]
-    keys += [f'manual:{uid}' for uid in session.scalars(select(ManualSession.id).where(
-        ManualSession.date >= start, ManualSession.date <= end).order_by(ManualSession.id))]
-    return compute_subjects(session, 'session_rpe_load', keys)
+
+    keys = [
+        f"strong:{uid}"
+        for uid in session.scalars(
+            select(StrongWorkoutRow.id)
+            .where(StrongWorkoutRow.local_date >= start, StrongWorkoutRow.local_date <= end)
+            .order_by(StrongWorkoutRow.id)
+        )
+    ]
+    keys += [
+        f"manual:{uid}"
+        for uid in session.scalars(
+            select(ManualSession.id)
+            .where(ManualSession.date >= start, ManualSession.date <= end)
+            .order_by(ManualSession.id)
+        )
+    ]
+    return compute_subjects(session, "session_rpe_load", keys)
 
 
-def _plan_uids(session: Session, start: date | None = None, end: date | None = None,
-               *, days: set[date] | None = None) -> list[uuid.UUID]:
+def _plan_uids(
+    session: Session, start: date | None = None, end: date | None = None, *, days: set[date] | None = None
+) -> list[uuid.UUID]:
     head = head_version(session, populate_existing=True)
-    rows = sorted((row for row in latest_revisions(session, head).values() if not row.deleted),
-                  key=lambda row: (row.local_date, row.slot, str(row.session_uid)))
-    return [row.session_uid for row in rows
-            if (start is None or row.local_date >= start) and (end is None or row.local_date <= end)
-            and (days is None or row.local_date in days)]
+    rows = sorted(
+        (row for row in latest_revisions(session, head).values() if not row.deleted),
+        key=lambda row: (row.local_date, row.slot, str(row.session_uid)),
+    )
+    return [
+        row.session_uid
+        for row in rows
+        if (start is None or row.local_date >= start)
+        and (end is None or row.local_date <= end)
+        and (days is None or row.local_date in days)
+    ]
 
 
 def refresh_plans(session: Session, uids: Iterable[uuid.UUID]) -> list[MetricResultData]:
     keys = list(dict.fromkeys(str(uid) for uid in uids))
-    linked = list(session.scalars(select(SessionCompletion.activity_id).where(
-        SessionCompletion.session_uid.in_([uuid.UUID(key) for key in keys]), SessionCompletion.activity_id.is_not(None))))
+    linked = list(
+        session.scalars(
+            select(SessionCompletion.activity_id).where(
+                SessionCompletion.session_uid.in_([uuid.UUID(key) for key in keys]),
+                SessionCompletion.activity_id.is_not(None),
+            )
+        )
+    )
     refresh_runs(session, [uid for uid in linked if uid is not None])
     from app.metrics.planned_actual import write_completion_status
 
-    results = compute_subjects(session, 'planned_actual_session', keys)
+    results = compute_subjects(session, "planned_actual_session", keys)
     now = clock(session)
     changed = False
     for result in results:
@@ -188,10 +227,13 @@ def assess_completion(session: Session, session_uid: uuid.UUID) -> None:
 
 def ensure_nights(session: Session, start: date, end: date) -> None:
     if start > end:
-        raise ValueError('invalid_date_window')
+        raise ValueError("invalid_date_window")
     with refreshing(session):
-        compute_subjects(session, 'recovery_multisignal_summary',
-                         [f'night:{start + timedelta(days=n)}' for n in range((end - start).days + 1)])
+        compute_subjects(
+            session,
+            "recovery_multisignal_summary",
+            [f"night:{start + timedelta(days=n)}" for n in range((end - start).days + 1)],
+        )
 
 
 def ensure_windows(session: Session, as_of: date) -> None:
@@ -200,21 +242,29 @@ def ensure_windows(session: Session, as_of: date) -> None:
         activity_ids = activities_between(session, start, as_of)
         refresh_runs(session, activity_ids)
         _refresh_strength(session, start, as_of)
-        linked = session.scalars(select(SessionCompletion.session_uid).where(SessionCompletion.activity_id.in_(activity_ids)))
+        linked = session.scalars(
+            select(SessionCompletion.session_uid).where(SessionCompletion.activity_id.in_(activity_ids))
+        )
         refresh_plans(session, [*_plan_uids(session, as_of - timedelta(days=13), as_of + timedelta(days=13)), *linked])
         ensure_nights(session, as_of - timedelta(days=6), as_of)
-        for metric_id in ('run_volume_frequency', 'long_run_exposure', 'session_rpe_load', 'intensity_time_distribution'):
-            compute_subjects(session, metric_id, [f'w{n}:{as_of}' for n in (7, 14, 28, 56, 84)])
-        compute_subjects(session, 'symptom_response_timeline', [f'w28:{as_of}'])
-        compute_subjects(session, 'recovery_multisignal_summary', [f'w7:{as_of}'])
-        compute_subjects(session, 'hard_session_spacing', [f'w14:{as_of}'])
-        compute_subjects(session, 'aerobic_efficiency', [f'w{n}:{as_of}' for n in (28, 84)])
+        for metric_id in (
+            "run_volume_frequency",
+            "long_run_exposure",
+            "session_rpe_load",
+            "intensity_time_distribution",
+        ):
+            compute_subjects(session, metric_id, [f"w{n}:{as_of}" for n in (7, 14, 28, 56, 84)])
+        compute_subjects(session, "symptom_response_timeline", [f"w28:{as_of}"])
+        compute_subjects(session, "recovery_multisignal_summary", [f"w7:{as_of}"])
+        compute_subjects(session, "hard_session_spacing", [f"w14:{as_of}"])
+        compute_subjects(session, "aerobic_efficiency", [f"w{n}:{as_of}" for n in (28, 84)])
         session.flush()
 
 
 def _all_dates(session: Session) -> set[date]:
     from app.models import ManualSession, RecoveryObservation
     from app.strong_models import StrongWorkoutRow
+
     zone = athlete_tz(session)
     dates = {date_in_zone(stamp, zone) for stamp in session.scalars(select(Activity.start_at))}
     dates.update(session.scalars(select(ManualSession.date)))
@@ -227,6 +277,7 @@ def _all_dates(session: Session) -> set[date]:
 @dataclass
 class Targets:
     """What a set of refresh scopes reaches, before re-matching and expansion to subjects."""
+
     dates: set[date] = field(default_factory=set)
     recovery_dates: set[date] = field(default_factory=set)
     activity_ids: set[uuid.UUID] = field(default_factory=set)
@@ -240,31 +291,32 @@ def scope_targets(session: Session, scopes: Iterable[str]) -> Targets:
     from app.checkin_models import Checkin
     from app.models import ManualSession
     from app.strong_models import StrongWorkoutRow
+
     zone = athlete_tz(session)
     targets = Targets()
     for scope in scopes:
         kind, value = parse_scope(scope)
-        if kind == 'revision':
+        if kind == "revision":
             continue
-        if kind == 'timezone':
+        if kind == "timezone":
             targets.broad = True
-        elif kind == 'since':
+        elif kind == "since":
             assert isinstance(value, date)
             targets.since = min(targets.since, value) if targets.since else value
-        elif kind == 'date':
+        elif kind == "date":
             assert isinstance(value, date)
             targets.dates.add(value)
-        elif kind == 'plan':
+        elif kind == "plan":
             assert isinstance(value, uuid.UUID)
             targets.plan_uids.add(value)
             targets.dates.update(recent_revision_dates(session, value))
-        elif kind == 'activity':
+        elif kind == "activity":
             assert isinstance(value, uuid.UUID)
             targets.activity_ids.add(value)
             row = session.get(Activity, value)
             if row:
                 targets.dates.add(date_in_zone(row.start_at, zone))
-        elif kind == 'checkin':
+        elif kind == "checkin":
             checkin = session.get(Checkin, value)
             if checkin:
                 day = date_in_zone(checkin.observed_at, zone)
@@ -272,13 +324,13 @@ def scope_targets(session: Session, scopes: Iterable[str]) -> Targets:
                 targets.recovery_dates.add(day)
                 if checkin.activity_id:
                     targets.activity_ids.add(checkin.activity_id)
-        elif kind.startswith('strength:'):
-            prefix = kind.split(':')[1]
-            targets.strength_keys.add(f'{prefix}:{value}')
-            subject: Any = session.get(StrongWorkoutRow if prefix == 'strong' else ManualSession, value)
+        elif kind.startswith("strength:"):
+            prefix = kind.split(":")[1]
+            targets.strength_keys.add(f"{prefix}:{value}")
+            subject: Any = session.get(StrongWorkoutRow if prefix == "strong" else ManualSession, value)
             if subject:
-                targets.dates.add(subject.local_date if prefix == 'strong' else subject.date)
-        elif kind == 'recovery_dates':
+                targets.dates.add(subject.local_date if prefix == "strong" else subject.date)
+        elif kind == "recovery_dates":
             assert isinstance(value, tuple)
             targets.recovery_dates.update(value)
             targets.dates.update(value)
@@ -314,12 +366,14 @@ def refresh_targets(session: Session, targets: Targets, matched_plan_uids: Itera
     if targets.broad:
         activity_ids.update(session.scalars(select(Activity.id)))
     refresh_runs(session, sorted(activity_ids, key=str))
-    compute_subjects(session, 'session_rpe_load', sorted(targets.strength_keys))
-    linked = session.scalars(select(SessionCompletion.session_uid).where(SessionCompletion.activity_id.in_(activity_ids)))
+    compute_subjects(session, "session_rpe_load", sorted(targets.strength_keys))
+    linked = session.scalars(
+        select(SessionCompletion.session_uid).where(SessionCompletion.activity_id.in_(activity_ids))
+    )
     strength_links: list[uuid.UUID] = []
     for key in targets.strength_keys:
-        kind, raw_id = key.split(':', 1)
-        column = SessionCompletion.strong_workout_id if kind == 'strong' else SessionCompletion.manual_session_id
+        kind, raw_id = key.split(":", 1)
+        column = SessionCompletion.strong_workout_id if kind == "strong" else SessionCompletion.manual_session_id
         strength_links.extend(session.scalars(select(SessionCompletion.session_uid).where(column == uuid.UUID(raw_id))))
     # Unlinked plans can gain or lose a move candidate without a completion change.
     matching_days = {day + timedelta(days=offset) for day in targets.dates for offset in (-1, 0, 1)}
@@ -335,20 +389,28 @@ def refresh_targets(session: Session, targets: Targets, matched_plan_uids: Itera
     plan_uids = [*matched_plan_uids, *linked, *targets.plan_uids, *strength_links, *nearby_plans]
     refresh_plans(session, plan_uids)
     as_ofs = {today}
-    current = session.execute(select(MetricResultRow.subject_key, MetricResultRow.metric_id).where(
-        current_result_filter(), MetricResultRow.subject_type.in_(('window', 'night')))).all()
+    current = session.execute(
+        select(MetricResultRow.subject_key, MetricResultRow.metric_id).where(
+            current_result_filter(), MetricResultRow.subject_type.in_(("window", "night"))
+        )
+    ).all()
     stored_nights = set()
     for key, metric_id in current:
-        match = re.fullmatch(r'w(\d+):(\d{4}-\d{2}-\d{2})(?::(?:run|strength))?', key)
+        match = re.fullmatch(r"w(\d+):(\d{4}-\d{2}-\d{2})(?::(?:run|strength))?", key)
         if match:
             end = date.fromisoformat(match[2])
-            width = int(match[1]) * (2 if metric_id == 'run_volume_frequency' else 1)
-            if (targets.broad or (targets.since is not None and end >= targets.since)
-                    or any(end - timedelta(days=width - 1) <= day <= end for day in targets.dates)
-                    or (metric_id == 'hard_session_spacing'
-                        and any(abs((end - day).days) <= SPACING_REACH_DAYS for day in targets.dates))):
+            width = int(match[1]) * (2 if metric_id == "run_volume_frequency" else 1)
+            if (
+                targets.broad
+                or (targets.since is not None and end >= targets.since)
+                or any(end - timedelta(days=width - 1) <= day <= end for day in targets.dates)
+                or (
+                    metric_id == "hard_session_spacing"
+                    and any(abs((end - day).days) <= SPACING_REACH_DAYS for day in targets.dates)
+                )
+            ):
                 as_ofs.add(end)
-        elif key.startswith('night:'):
+        elif key.startswith("night:"):
             stored_nights.add(date.fromisoformat(key[6:]))
     for day in targets.recovery_dates:
         end = min(day + timedelta(days=60), today)
@@ -358,11 +420,16 @@ def refresh_targets(session: Session, targets: Targets, matched_plan_uids: Itera
             if day <= stored <= day + timedelta(days=60):
                 ensure_nights(session, stored, stored)
         for key, metric_id in current:
-            if metric_id == 'recovery_multisignal_summary' and key.startswith('w7:'):
+            if metric_id == "recovery_multisignal_summary" and key.startswith("w7:"):
                 end = date.fromisoformat(key[3:])
                 if day <= end <= day + timedelta(days=66):
                     as_ofs.add(end)
     for as_of in sorted(as_ofs):
         ensure_windows(session, as_of)
-    return {'dates': len(targets.dates), 'activities': len(activity_ids), 'plans': len(set(plan_uids)),
-            'windows': len(as_ofs), 'nights': len(targets.recovery_dates)}
+    return {
+        "dates": len(targets.dates),
+        "activities": len(activity_ids),
+        "plans": len(set(plan_uids)),
+        "windows": len(as_ofs),
+        "nights": len(targets.recovery_dates),
+    }

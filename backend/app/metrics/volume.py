@@ -1,4 +1,5 @@
 """Running frequency, timer duration, and distance by athlete-local window."""
+
 from __future__ import annotations
 
 import math
@@ -21,9 +22,12 @@ METRIC_ID = "run_volume_frequency"
 METHOD_VERSION = "v1"
 WINDOW_DAYS = (7, 14, 28, 56, 84)
 DEPENDS_ON: tuple[str, ...] = ()
-CONFIG = {"window_days": [7, 14, 28, 56, 84],
-          "sports": ["running", "trail_running", "treadmill_running"],
-          "duration_field": "timer_s", "local_day_rule": "start_at_in_profile_tz"}
+CONFIG = {
+    "window_days": [7, 14, 28, 56, 84],
+    "sports": ["running", "trail_running", "treadmill_running"],
+    "duration_field": "timer_s",
+    "local_day_rule": "start_at_in_profile_tz",
+}
 
 
 def parse_window_key(key: str) -> tuple[int, date]:
@@ -42,18 +46,23 @@ def parse_window_key(key: str) -> tuple[int, date]:
 def totals(runs: list[RunFact], start: date, end_excl: date) -> dict:
     selected = [r for r in runs if start <= r.local_date < end_excl]
     timer = [r.timer_s for r in selected if r.timer_s is not None and math.isfinite(r.timer_s) and r.timer_s >= 0]
-    distance = [r.distance_m for r in selected if r.distance_m is not None
-                and math.isfinite(r.distance_m) and r.distance_m >= 0]
-    return {"start_date": start.isoformat(), "end_date": (end_excl - timedelta(days=1)).isoformat(),
-            "run_count": len(selected),
-            "timer_duration_s": round(sum(timer), 1) if timer else (0.0 if not selected else None),
-            "distance_m": round(sum(distance), 1) if distance else (0.0 if not selected else None),
-            "runs_missing_timer": len(selected) - len(timer),
-            "runs_missing_distance": len(selected) - len(distance)}
+    distance = [
+        r.distance_m for r in selected if r.distance_m is not None and math.isfinite(r.distance_m) and r.distance_m >= 0
+    ]
+    return {
+        "start_date": start.isoformat(),
+        "end_date": (end_excl - timedelta(days=1)).isoformat(),
+        "run_count": len(selected),
+        "timer_duration_s": round(sum(timer), 1) if timer else (0.0 if not selected else None),
+        "distance_m": round(sum(distance), 1) if distance else (0.0 if not selected else None),
+        "runs_missing_timer": len(selected) - len(timer),
+        "runs_missing_distance": len(selected) - len(distance),
+    }
 
 
-def volume_outcome(runs: list[RunFact], as_of: date, days: int, coverage_complete: bool,
-                   previous_coverage_complete: bool) -> dict:
+def volume_outcome(
+    runs: list[RunFact], as_of: date, days: int, coverage_complete: bool, previous_coverage_complete: bool
+) -> dict:
     if days not in WINDOW_DAYS:
         raise ValueError("invalid_subject_key")
     start = as_of - timedelta(days=days - 1)
@@ -75,18 +84,32 @@ def volume_outcome(runs: list[RunFact], as_of: date, days: int, coverage_complet
         status = "missing"
     else:
         status = "partial" if reasons or flags else "available"
-    return {"status": status, "quality_status": "good" if status == "available" else
-            "limited" if status == "partial" else None,
-            "value": {**cur, "previous": {**prev, "coverage_complete": previous_coverage_complete}},
-            "reason_codes": reasons, "quality_flags": flags,
-            "activity_ids": [str(r.activity_id) for r in selected]}
+    return {
+        "status": status,
+        "quality_status": "good" if status == "available" else "limited" if status == "partial" else None,
+        "value": {**cur, "previous": {**prev, "coverage_complete": previous_coverage_complete}},
+        "reason_codes": reasons,
+        "quality_flags": flags,
+        "activity_ids": [str(r.activity_id) for r in selected],
+    }
 
 
-def _result(key: str, outcome: dict, source_refs: dict, timezone: str,
-            start: datetime, end: datetime) -> MetricResultData:
-    return result_from_outcome(METRIC_ID, METHOD_VERSION, CONFIG, key=key, outcome=outcome, refs=source_refs,
-                               timezone=timezone, subject_type="window", window_start=start, window_end=end,
-                               window_label=key)
+def _result(
+    key: str, outcome: dict, source_refs: dict, timezone: str, start: datetime, end: datetime
+) -> MetricResultData:
+    return result_from_outcome(
+        METRIC_ID,
+        METHOD_VERSION,
+        CONFIG,
+        key=key,
+        outcome=outcome,
+        refs=source_refs,
+        timezone=timezone,
+        subject_type="window",
+        window_start=start,
+        window_end=end,
+        window_label=key,
+    )
 
 
 @register(METRIC_ID, METHOD_VERSION, DEPENDS_ON)
@@ -100,11 +123,18 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     previous_coverage = activities_coverage_complete(session, previous_day, start_day)
     outcome = volume_outcome(runs, as_of, days, current_coverage, previous_coverage)
     relevant = sorted(runs, key=lambda r: (r.start_at, str(r.activity_id)))
-    sources = [{"activity_id": str(r.activity_id), "source_revision": r.source_revision,
-                "source_refs": r.source_refs} for r in relevant]
-    refs = {"activity_ids": outcome["activity_ids"], "sources": sources,
-            "coverage_complete": current_coverage, "previous_coverage_complete": previous_coverage,
-            "input_hash": sha256_json({"sources": sources, "coverage_complete": current_coverage,
-                                       "previous_coverage_complete": previous_coverage})}
+    sources = [
+        {"activity_id": str(r.activity_id), "source_revision": r.source_revision, "source_refs": r.source_refs}
+        for r in relevant
+    ]
+    refs = {
+        "activity_ids": outcome["activity_ids"],
+        "sources": sources,
+        "coverage_complete": current_coverage,
+        "previous_coverage_complete": previous_coverage,
+        "input_hash": sha256_json(
+            {"sources": sources, "coverage_complete": current_coverage, "previous_coverage_complete": previous_coverage}
+        ),
+    }
     start, end = utc_date_bounds(start_day, as_of, tz.key)
     return [_result(subject_key, outcome, refs, tz.key, start, end)]

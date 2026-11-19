@@ -1,4 +1,5 @@
 """Structured workout execution from a plan, watch steps, laps, and timer trace."""
+
 from __future__ import annotations
 
 import math
@@ -32,46 +33,49 @@ from app.metrics.lap_alignment import AlignLap, align_laps
 from app.models import Activity, ActivityAnnotation, ActivitySource, RawObject, SourceRecord
 from app.read.calendar import head_version, latest_revision
 
-METRIC_ID = 'work_interval_execution'
-METHOD_VERSION = 'v1'
+METRIC_ID = "work_interval_execution"
+METHOD_VERSION = "v1"
 WINDOW_DAYS: tuple[int, ...] = ()
 DEPENDS_ON: tuple[str, ...] = ()
 CONFIG = {
-    'segment_source': 'plan_plus_wkt_step_index',
-    'completion_tolerance': {'time_s_max': 1.0, 'time_fraction': 0.005, 'distance_ratio': 0.99},
-    'watch_plan_value_rule': {'equal_within': 0.01, 'mismatch_above': 0.5},
-    'lap_intensity_rule': 'flag_only.v1',
-    'alignment_rule': 'monotone_min_cost_split_omit.v1',
-    'alignment_costs': {'split': 1, 'omit_nonwork': 2, 'omit_work': 10},
-    'missing_rep_reason_rule': 'top_level.v1',
-    'work_intensities': ['active', 'interval'],
-    'repeat_type': 'repeat_until_steps_cmplt',
-    'max_record_gap_s': 10,
-    'speed_valid_mps': [0, 10],
-    'hr_valid_bpm': [30, 230],
-    'hr_exclude_first_s': 60,
-    'hr_min_step_timer_s': 180,
-    'target_scored_modalities': ['speed'],
-    'required_speed_rule': 'numeric_speed_target',
-    'cv_rule': 'sample_sd_of_fully_completed_valid_reps',
-    'last_first_rule': 'original_endpoints',
-    'subtotal_rule': 'known_or_null.v1',
-    'synthetic_provenance_rule': 'demo_fixture_raw_json_plus_normalized_trace.v1',
+    "segment_source": "plan_plus_wkt_step_index",
+    "completion_tolerance": {"time_s_max": 1.0, "time_fraction": 0.005, "distance_ratio": 0.99},
+    "watch_plan_value_rule": {"equal_within": 0.01, "mismatch_above": 0.5},
+    "lap_intensity_rule": "flag_only.v1",
+    "alignment_rule": "monotone_min_cost_split_omit.v1",
+    "alignment_costs": {"split": 1, "omit_nonwork": 2, "omit_work": 10},
+    "missing_rep_reason_rule": "top_level.v1",
+    "work_intensities": ["active", "interval"],
+    "repeat_type": "repeat_until_steps_cmplt",
+    "max_record_gap_s": 10,
+    "speed_valid_mps": [0, 10],
+    "hr_valid_bpm": [30, 230],
+    "hr_exclude_first_s": 60,
+    "hr_min_step_timer_s": 180,
+    "target_scored_modalities": ["speed"],
+    "required_speed_rule": "numeric_speed_target",
+    "cv_rule": "sample_sd_of_fully_completed_valid_reps",
+    "last_first_rule": "original_endpoints",
+    "subtotal_rule": "known_or_null.v1",
+    "synthetic_provenance_rule": "demo_fixture_raw_json_plus_normalized_trace.v1",
 }
 
 
-def _synthetic_provenance(rows: Sequence[Sequence[str | None]],
-                          normalized_hash: object) -> bool:
+def _synthetic_provenance(rows: Sequence[Sequence[str | None]], normalized_hash: object) -> bool:
     """A demo trace is usable only when every linked source has preserved raw JSON."""
-    if not isinstance(normalized_hash, str) or re.fullmatch(r'[0-9a-f]{64}', normalized_hash) is None or not rows:
+    if not isinstance(normalized_hash, str) or re.fullmatch(r"[0-9a-f]{64}", normalized_hash) is None or not rows:
         return False
     for row in rows:
         if len(row) != 4:
             return False
         kind, payload, raw, media_type = row
-        if (kind != 'demo_fixture' or media_type != 'application/json' or
-                not isinstance(payload, str) or payload != raw or
-                re.fullmatch(r'[0-9a-f]{64}', payload) is None):
+        if (
+            kind != "demo_fixture"
+            or media_type != "application/json"
+            or not isinstance(payload, str)
+            or payload != raw
+            or re.fullmatch(r"[0-9a-f]{64}", payload) is None
+        ):
             return False
     return True
 
@@ -84,7 +88,7 @@ class PlanStep:
     duration_value: float
     step_path: str
     repeat_index: int | None = None
-    target_modality: str = 'effort'
+    target_modality: str = "effort"
     target_low: float | None = None
     target_high: float | None = None
 
@@ -126,52 +130,58 @@ class ExecStream:
 def expand_plan(structure: list[dict]) -> list[PlanStep]:
     result = []
     for item in expand_structure(structure):
-        target = item.get('target') or {}
-        result.append(PlanStep(
-            step=item['expanded_step'], type=item['type'], duration_type=item['duration_type'],
-            duration_value=item['duration_value'], step_path=item['step_path'],
-            repeat_index=item['repeat_index'], target_modality=target.get('modality', 'effort'),
-            target_low=target.get('low'), target_high=target.get('high')))
+        target = item.get("target") or {}
+        result.append(
+            PlanStep(
+                step=item["expanded_step"],
+                type=item["type"],
+                duration_type=item["duration_type"],
+                duration_value=item["duration_value"],
+                step_path=item["step_path"],
+                repeat_index=item["repeat_index"],
+                target_modality=target.get("modality", "effort"),
+                target_low=target.get("low"),
+                target_high=target.get("high"),
+            )
+        )
     return result
 
 
 def expand_fit(steps: list[FitStep]) -> list[FitStep]:
     ordered = sorted(steps, key=lambda x: x.message_index)
     if len({step.message_index for step in ordered}) != len(ordered):
-        raise ValueError('MALFORMED_REPEAT')
+        raise ValueError("MALFORMED_REPEAT")
     expanded: list[FitStep] = []
     starts: dict[int, int] = {}
     for step in ordered:
-        if step.duration_type.startswith('repeat'):
-            if step.duration_type != 'repeat_until_steps_cmplt':
-                raise ValueError('UNSUPPORTED_REPEAT')
-            if (step.repeat_from not in starts or type(step.repeat_count) is not int
-                    or step.repeat_count < 2):
-                raise ValueError('MALFORMED_REPEAT')
+        if step.duration_type.startswith("repeat"):
+            if step.duration_type != "repeat_until_steps_cmplt":
+                raise ValueError("UNSUPPORTED_REPEAT")
+            if step.repeat_from not in starts or type(step.repeat_count) is not int or step.repeat_count < 2:
+                raise ValueError("MALFORMED_REPEAT")
             start = starts[step.repeat_from]
             segment = expanded[start:].copy()
             for _ in range(step.repeat_count - 1):
                 expanded.extend(segment)
                 if len(expanded) > 100:
-                    raise ValueError('UNSUPPORTED_REPEAT')
+                    raise ValueError("UNSUPPORTED_REPEAT")
         else:
             starts[step.message_index] = len(expanded)
             expanded.append(step)
             if len(expanded) > 100:
-                raise ValueError('UNSUPPORTED_REPEAT')
+                raise ValueError("UNSUPPORTED_REPEAT")
     return expanded
 
 
 def clip(timer_on: list[tuple[float, float]], a: float, b: float) -> list[tuple[float, float]]:
-    return [(max(start, a), min(end, b)) for start, end in timer_on
-            if min(end, b) > max(start, a)]
+    return [(max(start, a), min(end, b)) for start, end in timer_on if min(end, b) > max(start, a)]
 
 
 def _union(timer_on: list[tuple[float, float]]) -> list[tuple[float, float]]:
     result: list[tuple[float, float]] = []
     for a, b in sorted(timer_on):
         if b < a:
-            raise ValueError('invalid_timer')
+            raise ValueError("invalid_timer")
         if b == a:
             continue
         if result and a <= result[-1][1]:
@@ -208,7 +218,9 @@ def weighted_median(samples: list[tuple[float, float]]) -> float | None:
 
 
 def _number(value: float | None) -> TypeGuard[float]:
-    return value is not None and isinstance(value, (float, int)) and not isinstance(value, bool) and math.isfinite(value)
+    return (
+        value is not None and isinstance(value, (float, int)) and not isinstance(value, bool) and math.isfinite(value)
+    )
 
 
 def _rounded(value: float | None, places: int) -> float | None:
@@ -216,58 +228,74 @@ def _rounded(value: float | None, places: int) -> float | None:
 
 
 def _early(status: Status, reason: str) -> dict[str, Any]:
-    return {'status': status.value, 'quality_status': None, 'value': None,
-            'reason_codes': [reason], 'quality_flags': []}
+    return {
+        "status": status.value,
+        "quality_status": None,
+        "value": None,
+        "reason_codes": [reason],
+        "quality_flags": [],
+    }
 
 
 def _complete(duration_type: str, actual: float, planned: float) -> bool:
-    tolerance = cast(dict[str, float], CONFIG['completion_tolerance'])
-    if duration_type == 'time':
-        return actual >= planned - min(tolerance['time_s_max'], tolerance['time_fraction'] * planned)
-    return actual / planned >= tolerance['distance_ratio']
+    tolerance = cast(dict[str, float], CONFIG["completion_tolerance"])
+    if duration_type == "time":
+        return actual >= planned - min(tolerance["time_s_max"], tolerance["time_fraction"] * planned)
+    return actual / planned >= tolerance["distance_ratio"]
 
 
-def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
-                      laps: list[LapIn], stream: ExecStream | None) -> dict[str, Any]:
-    work = [step for step in plan_steps if step.type == 'work']
+def execution_outcome(
+    plan_steps: list[PlanStep], fit_steps: list[FitStep], laps: list[LapIn], stream: ExecStream | None
+) -> dict[str, Any]:
+    work = [step for step in plan_steps if step.type == "work"]
     if not work:
-        return _early(Status.not_applicable, 'NO_WORK_STEPS')
+        return _early(Status.not_applicable, "NO_WORK_STEPS")
     if any(not _number(step.duration_value) or step.duration_value <= 0 for step in work):
-        raise ValueError('invalid_structure')
+        raise ValueError("invalid_structure")
     try:
         watch = expand_fit(fit_steps)
     except ValueError as exc:
         return _early(Status.not_assessable, str(exc))
-    watch_work = [(i, step) for i, step in enumerate(watch) if step.intensity in ('active', 'interval')]
-    if (len(watch_work) != len(work) or any(
-        plan.duration_type != fit.duration_type for plan, (_, fit) in zip(work, watch_work))):
-        return _early(Status.not_assessable, 'WATCH_WORKOUT_MISMATCH')
-    rule = cast(dict[str, float], CONFIG['watch_plan_value_rule'])
+    watch_work = [(i, step) for i, step in enumerate(watch) if step.intensity in ("active", "interval")]
+    if len(watch_work) != len(work) or any(
+        plan.duration_type != fit.duration_type for plan, (_, fit) in zip(work, watch_work)
+    ):
+        return _early(Status.not_assessable, "WATCH_WORKOUT_MISMATCH")
+    rule = cast(dict[str, float], CONFIG["watch_plan_value_rule"])
     effective: dict[int, float] = {}
     differs = False
     for plan, (position, fit) in zip(work, watch_work):
         value = plan.duration_value
         if _number(fit.duration_value) and fit.duration_value > 0:
             diff = abs(fit.duration_value - value) / value
-            if diff > rule['mismatch_above']:
-                return _early(Status.not_assessable, 'WATCH_WORKOUT_MISMATCH')
-            if diff <= rule['equal_within']:
+            if diff > rule["mismatch_above"]:
+                return _early(Status.not_assessable, "WATCH_WORKOUT_MISMATCH")
+            if diff <= rule["equal_within"]:
                 value = min(value, fit.duration_value)
             else:
                 differs = True
         effective[position] = value
     ordered_laps = sorted(laps, key=lambda lap: lap.lap_index)
     if len({lap.lap_index for lap in ordered_laps}) != len(ordered_laps):
-        return _early(Status.not_assessable, 'LAP_STEP_ORDER_MISMATCH')
+        return _early(Status.not_assessable, "LAP_STEP_ORDER_MISMATCH")
     paired = dict(zip((i for i, _ in watch_work), work))
+
     def completes(position: int, positions: tuple[int, ...]) -> bool:
         step = paired[position]
-        values = [ordered_laps[p].timer_s if step.duration_type == 'time'
-                  else ordered_laps[p].distance_m for p in positions]
-        return all(_number(value) for value in values) and _complete(step.duration_type, sum(cast(float, value) for value in values), effective[position])
-    align = align_laps([step.message_index for step in watch], frozenset(paired),
-                       [AlignLap(p, lap.wkt_step_index) for p, lap in enumerate(ordered_laps)],
-                       completes, cast(dict[str, int], CONFIG['alignment_costs']))
+        values = [
+            ordered_laps[p].timer_s if step.duration_type == "time" else ordered_laps[p].distance_m for p in positions
+        ]
+        return all(_number(value) for value in values) and _complete(
+            step.duration_type, sum(cast(float, value) for value in values), effective[position]
+        )
+
+    align = align_laps(
+        [step.message_index for step in watch],
+        frozenset(paired),
+        [AlignLap(p, lap.wkt_step_index) for p, lap in enumerate(ordered_laps)],
+        completes,
+        cast(dict[str, int], CONFIG["alignment_costs"]),
+    )
     if align.error:
         return _early(Status.not_assessable, align.error)
     reasons: set[str] = set()
@@ -276,42 +304,48 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
         work_step = step_position in paired
         for position in positions:
             intensity = ordered_laps[position].intensity
-            if intensity is not None and (intensity in ('active', 'interval')) != work_step:
-                flags.add('LAP_INTENSITY_DISAGREES')
+            if intensity is not None and (intensity in ("active", "interval")) != work_step:
+                flags.add("LAP_INTENSITY_DISAGREES")
     if differs:
-        reasons.add('WATCH_PLAN_DURATION_DIFFERS')
+        reasons.add("WATCH_PLAN_DURATION_DIFFERS")
     if any(position in paired for position in align.omitted):
-        reasons.add('WORK_STEP_SKIPPED')
+        reasons.add("WORK_STEP_SKIPPED")
     if any(position in paired for position in align.tail):
-        reasons.add('WORKOUT_ENDED_EARLY')
+        reasons.add("WORKOUT_ENDED_EARLY")
     reps: list[dict[str, Any]] = []
     required_eligible = required_valid = target_valid_total = target_in_total = 0.0
     required_unassessable = False
     valid_means: list[float] = []
     for rep_number, (step, (watch_position, _)) in enumerate(zip(work, watch_work), 1):
         rep_laps = [ordered_laps[p] for p in align.assigned[watch_position]]
+
         def lap_sum(field: str) -> float | None:
             values = [getattr(lap, field) for lap in rep_laps]
             return sum(values) if values and all(_number(value) for value in values) else None
-        lap_timer = lap_sum('timer_s')
-        lap_distance = lap_sum('distance_m')
+
+        lap_timer = lap_sum("timer_s")
+        lap_distance = lap_sum("distance_m")
         target_low, target_high = step.target_low, step.target_high
-        required = (step.target_modality == 'speed' and _number(target_low)
-                    and _number(target_high) and target_low <= target_high)
+        required = (
+            step.target_modality == "speed"
+            and _number(target_low)
+            and _number(target_high)
+            and target_low <= target_high
+        )
         rep_reasons: list[str] = []
         speed_reasons: list[str] = []
         rep_flags: list[str] = []
-        actual = lap_timer if step.duration_type == 'time' else lap_distance
+        actual = lap_timer if step.duration_type == "time" else lap_distance
         ratio = actual / effective[watch_position] if _number(actual) else None
         completed = _complete(step.duration_type, actual, effective[watch_position]) if _number(actual) else False
         if completed and ratio is not None and ratio < 1:
-            rep_flags.append('COMPLETED_WITHIN_TOLERANCE')
+            rep_flags.append("COMPLETED_WITHIN_TOLERANCE")
         if not rep_laps:
-            rep_reasons.append('WORK_STEP_NOT_RECORDED')
+            rep_reasons.append("WORK_STEP_NOT_RECORDED")
         elif ratio is None:
-            rep_reasons.append('COMPLETION_VALUE_MISSING')
+            rep_reasons.append("COMPLETION_VALUE_MISSING")
         elif not completed:
-            rep_reasons.append('INCOMPLETE_WORK_STEP')
+            rep_reasons.append("INCOMPLETE_WORK_STEP")
         speed_status = Status.missing if not rep_laps else Status.not_assessable
         mean = coverage = target_valid = target_in = in_target = hr_median = None
         eligible = valid = 0.0
@@ -319,16 +353,24 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
             spans = []
             issue = None
             if stream is None:
-                issue = 'NO_STREAM'
-            elif any(flag in stream.quality_flags for flag in
-                     ('TIMER_EVENTS_MISSING', 'TIMER_EVENTS_AMBIGUOUS', 'TIMER_MISMATCH')):
-                issue = next(flag for flag in ('TIMER_EVENTS_MISSING', 'TIMER_EVENTS_AMBIGUOUS',
-                                              'TIMER_MISMATCH') if flag in stream.quality_flags)
+                issue = "NO_STREAM"
+            elif any(
+                flag in stream.quality_flags
+                for flag in ("TIMER_EVENTS_MISSING", "TIMER_EVENTS_AMBIGUOUS", "TIMER_MISMATCH")
+            ):
+                issue = next(
+                    flag
+                    for flag in ("TIMER_EVENTS_MISSING", "TIMER_EVENTS_AMBIGUOUS", "TIMER_MISMATCH")
+                    if flag in stream.quality_flags
+                )
             else:
                 for lap in rep_laps:
                     a = lap.start_offset_s
-                    next_lap = min((other for other in ordered_laps if other.start_offset_s > a),
-                                   key=lambda other: other.start_offset_s, default=None)
+                    next_lap = min(
+                        (other for other in ordered_laps if other.start_offset_s > a),
+                        key=lambda other: other.start_offset_s,
+                        default=None,
+                    )
                     b: float | None
                     if _number(lap.elapsed_s):
                         b = a + lap.elapsed_s
@@ -337,10 +379,10 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
                     else:
                         b = next_lap.start_offset_s if next_lap else None
                     if b is None:
-                        issue = 'LAP_END_UNKNOWN'
+                        issue = "LAP_END_UNKNOWN"
                         break
                     if not _number(a) or b <= a:
-                        issue = 'LAP_BOUNDS_INVALID'
+                        issue = "LAP_BOUNDS_INVALID"
                         break
                     spans.append((a, b))
             if issue:
@@ -352,7 +394,7 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
                 pieces = integrate_timer_on(stream.t_s, timer, 10)
                 eligible = sum(weight for _, weight, _ in pieces)
                 if eligible == 0:
-                    speed_reasons.append('NO_TIMER_ON_DATA')
+                    speed_reasons.append("NO_TIMER_ON_DATA")
                 else:
                     speed_samples: list[tuple[float, float]] = []
                     for i, weight, known in pieces:
@@ -363,20 +405,23 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
                     valid = sum(weight for _, weight in speed_samples)
                     coverage = valid / eligible
                     if valid == 0:
-                        speed_reasons.append('NO_SPEED_SAMPLES')
+                        speed_reasons.append("NO_SPEED_SAMPLES")
                     else:
                         mean = sum(speed * weight for speed, weight in speed_samples) / valid
-                        speed_status = Status.available if coverage >= .9 else Status.partial
+                        speed_status = Status.available if coverage >= 0.9 else Status.partial
                         if speed_status == Status.partial:
-                            speed_reasons.append('LOW_COVERAGE')
+                            speed_reasons.append("LOW_COVERAGE")
                         if required:
                             assert target_low is not None and target_high is not None
                             target_valid = valid
-                            target_in = sum(weight for speed, weight in speed_samples
-                                            if target_low <= speed <= target_high)
+                            target_in = sum(
+                                weight for speed, weight in speed_samples if target_low <= speed <= target_high
+                            )
                             in_target = target_low <= mean <= target_high
-                if _number(lap_timer) and lap_timer >= cast(int, CONFIG['hr_min_step_timer_s']):
-                    hr_pieces = integrate_timer_on(stream.t_s, after_timer_seconds(timer, cast(int, CONFIG['hr_exclude_first_s'])), 10)
+                if _number(lap_timer) and lap_timer >= cast(int, CONFIG["hr_min_step_timer_s"]):
+                    hr_pieces = integrate_timer_on(
+                        stream.t_s, after_timer_seconds(timer, cast(int, CONFIG["hr_exclude_first_s"])), 10
+                    )
                     hr_samples: list[tuple[float, float]] = []
                     for i, weight, known in hr_pieces:
                         if known and i is not None and i < len(stream.hr_bpm):
@@ -385,17 +430,17 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
                                 hr_samples.append((cast(float, hr), weight))
                     hr_median = weighted_median(hr_samples)
             if lap_timer is None:
-                rep_flags.append('HR_TIMER_UNKNOWN')
-            elif lap_timer < cast(int, CONFIG['hr_min_step_timer_s']):
-                rep_flags.append('HR_NOT_REPORTED_SHORT_STEP')
-        if step.target_modality == 'hr':
-            rep_flags.append('HR_TARGET_NOT_SCORED')
+                rep_flags.append("HR_TIMER_UNKNOWN")
+            elif lap_timer < cast(int, CONFIG["hr_min_step_timer_s"]):
+                rep_flags.append("HR_NOT_REPORTED_SHORT_STEP")
+        if step.target_modality == "hr":
+            rep_flags.append("HR_TARGET_NOT_SCORED")
         if required and rep_laps:
             if speed_status == Status.not_assessable:
-                rep_reasons.append('COMPONENT_NOT_ASSESSABLE')
+                rep_reasons.append("COMPONENT_NOT_ASSESSABLE")
                 required_unassessable = True
             elif speed_status == Status.partial:
-                rep_reasons.append('LOW_COVERAGE')
+                rep_reasons.append("LOW_COVERAGE")
             if eligible > 0:
                 required_eligible += eligible
                 required_valid += valid
@@ -407,78 +452,110 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
         flags.update(rep_flags)
         if completed and speed_status == Status.available and mean is not None:
             valid_means.append(mean)
-        reps.append({
-            'rep': rep_number, 'planned_step': step.step, 'step_path': step.step_path,
-            'repeat_index': step.repeat_index, 'lap_indexes': [lap.lap_index for lap in rep_laps],
-            'observed': bool(rep_laps), 'fully_completed': completed,
-            'status': (Status.missing if not rep_laps else Status.partial if rep_reasons else Status.available).value,
-            'reason_codes': sorted(rep_reasons), 'planned_duration_type': step.duration_type,
-            'planned_value': step.duration_value, 'actual_timer_s': _rounded(lap_timer, 1),
-            'actual_distance_m': _rounded(lap_distance, 1),
-            'completion_ratio': _rounded(ratio, 3), 'mean_speed_mps': _rounded(mean, 3),
-            'speed_status': speed_status.value, 'speed_reason_codes': sorted(speed_reasons),
-            'speed_coverage': _rounded(coverage, 3), 'target_modality': step.target_modality,
-            'target_low': step.target_low, 'target_high': step.target_high,
-            'target_valid_s': _rounded(target_valid, 1), 'target_in_range_s': _rounded(target_in, 1),
-            'in_target': in_target, 'hr_median_bpm': _rounded(hr_median, 1), 'flags': sorted(rep_flags),
-            '_mean': mean, '_raw_timer': lap_timer,
-            '_raw_distance': lap_distance,
-        })
-    observed = [rep for rep in reps if rep['observed']]
-    n_completed = sum(rep['fully_completed'] for rep in reps)
+        reps.append(
+            {
+                "rep": rep_number,
+                "planned_step": step.step,
+                "step_path": step.step_path,
+                "repeat_index": step.repeat_index,
+                "lap_indexes": [lap.lap_index for lap in rep_laps],
+                "observed": bool(rep_laps),
+                "fully_completed": completed,
+                "status": (
+                    Status.missing if not rep_laps else Status.partial if rep_reasons else Status.available
+                ).value,
+                "reason_codes": sorted(rep_reasons),
+                "planned_duration_type": step.duration_type,
+                "planned_value": step.duration_value,
+                "actual_timer_s": _rounded(lap_timer, 1),
+                "actual_distance_m": _rounded(lap_distance, 1),
+                "completion_ratio": _rounded(ratio, 3),
+                "mean_speed_mps": _rounded(mean, 3),
+                "speed_status": speed_status.value,
+                "speed_reason_codes": sorted(speed_reasons),
+                "speed_coverage": _rounded(coverage, 3),
+                "target_modality": step.target_modality,
+                "target_low": step.target_low,
+                "target_high": step.target_high,
+                "target_valid_s": _rounded(target_valid, 1),
+                "target_in_range_s": _rounded(target_in, 1),
+                "in_target": in_target,
+                "hr_median_bpm": _rounded(hr_median, 1),
+                "flags": sorted(rep_flags),
+                "_mean": mean,
+                "_raw_timer": lap_timer,
+                "_raw_distance": lap_distance,
+            }
+        )
+    observed = [rep for rep in reps if rep["observed"]]
+    n_completed = sum(rep["fully_completed"] for rep in reps)
     if n_completed < len(work):
-        reasons.add('INCOMPLETE_WORK_STEPS')
+        reasons.add("INCOMPLETE_WORK_STEPS")
+
     def subtotal(key: str, flag: str) -> float | None:
         if not observed:
             return 0.0
         values = [rep[key] for rep in observed if rep[key] is not None]
         if len(values) < len(observed):
-            reasons.add('WORK_MEASUREMENT_MISSING')
+            reasons.add("WORK_MEASUREMENT_MISSING")
             if values:
                 flags.add(flag)
         return round(sum(values), 1) if values else None
-    completed_s = subtotal('_raw_timer', 'PARTIAL_WORK_TIMER')
-    completed_m = subtotal('_raw_distance', 'PARTIAL_WORK_DISTANCE')
+
+    completed_s = subtotal("_raw_timer", "PARTIAL_WORK_TIMER")
+    completed_m = subtotal("_raw_distance", "PARTIAL_WORK_DISTANCE")
     cv = None
     if len(valid_means) >= 2:
         average = sum(valid_means) / len(valid_means)
         if average > 0:
-            cv = 100 * math.sqrt(sum((value - average) ** 2 for value in valid_means)
-                                 / (len(valid_means) - 1)) / average
+            cv = (
+                100 * math.sqrt(sum((value - average) ** 2 for value in valid_means) / (len(valid_means) - 1)) / average
+            )
         else:
-            flags.add('ZERO_SPEED_DENOMINATOR')
+            flags.add("ZERO_SPEED_DENOMINATOR")
     first_rep, last_rep = reps[0], reps[-1]
     change = None
-    if (first_rep['fully_completed'] and last_rep['fully_completed']
-            and first_rep['speed_status'] == Status.available.value
-            and last_rep['speed_status'] == Status.available.value
-            and first_rep['_mean'] is not None and last_rep['_mean'] is not None):
-        if first_rep['_mean'] > 0:
-            change = 100 * (last_rep['_mean'] - first_rep['_mean']) / first_rep['_mean']
+    if (
+        first_rep["fully_completed"]
+        and last_rep["fully_completed"]
+        and first_rep["speed_status"] == Status.available.value
+        and last_rep["speed_status"] == Status.available.value
+        and first_rep["_mean"] is not None
+        and last_rep["_mean"] is not None
+    ):
+        if first_rep["_mean"] > 0:
+            change = 100 * (last_rep["_mean"] - first_rep["_mean"]) / first_rep["_mean"]
         else:
-            flags.add('ZERO_SPEED_DENOMINATOR')
+            flags.add("ZERO_SPEED_DENOMINATOR")
     quality = coverage_label(required_valid, required_eligible) if required_eligible else None
     if required_unassessable and quality == QualityStatus.good:
         quality = QualityStatus.limited
     for rep in reps:
-        del rep['_mean']
-        del rep['_raw_timer']
-        del rep['_raw_distance']
+        del rep["_mean"]
+        del rep["_raw_timer"]
+        del rep["_raw_distance"]
     return {
-        'status': (Status.partial if reasons else Status.available).value,
-        'quality_status': quality.value if quality else None,
-        'reason_codes': sorted(reasons), 'quality_flags': sorted(flags),
-        'value': {
-            'reps': reps, 'n_planned': len(work), 'n_observed': len(observed),
-            'n_completed': n_completed, 'step_completion_ratio': round(n_completed / len(work), 3),
-            'cv_speed': _rounded(cv, 3), 'last_first_change_pct': _rounded(change, 3),
-            'completed_work_s': completed_s, 'completed_work_m': completed_m,
-            'planned_work_s': round(sum(step.duration_value for step in work), 1)
-            if all(step.duration_type == 'time' for step in work) else None,
-            'planned_work_m': round(sum(step.duration_value for step in work), 1)
-            if all(step.duration_type == 'distance' for step in work) else None,
-            'target_coverage': _rounded(target_in_total / target_valid_total, 3)
-            if target_valid_total else None,
+        "status": (Status.partial if reasons else Status.available).value,
+        "quality_status": quality.value if quality else None,
+        "reason_codes": sorted(reasons),
+        "quality_flags": sorted(flags),
+        "value": {
+            "reps": reps,
+            "n_planned": len(work),
+            "n_observed": len(observed),
+            "n_completed": n_completed,
+            "step_completion_ratio": round(n_completed / len(work), 3),
+            "cv_speed": _rounded(cv, 3),
+            "last_first_change_pct": _rounded(change, 3),
+            "completed_work_s": completed_s,
+            "completed_work_m": completed_m,
+            "planned_work_s": round(sum(step.duration_value for step in work), 1)
+            if all(step.duration_type == "time" for step in work)
+            else None,
+            "planned_work_m": round(sum(step.duration_value for step in work), 1)
+            if all(step.duration_type == "distance" for step in work)
+            else None,
+            "target_coverage": _rounded(target_in_total / target_valid_total, 3) if target_valid_total else None,
         },
     }
 
@@ -488,75 +565,132 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     try:
         activity_id = uuid.UUID(subject_key)
     except ValueError as exc:
-        raise ValueError('invalid_subject_key') from exc
+        raise ValueError("invalid_subject_key") from exc
     activity = session.get(Activity, activity_id)
     if activity is None or activity.sport not in RUN_SPORTS:
         return []
-    annotation = session.scalar(select(ActivityAnnotation).where(
-        ActivityAnnotation.activity_id == activity_id).order_by(ActivityAnnotation.version.desc()).limit(1))
+    annotation = session.scalar(
+        select(ActivityAnnotation)
+        .where(ActivityAnnotation.activity_id == activity_id)
+        .order_by(ActivityAnnotation.version.desc())
+        .limit(1)
+    )
     head = head_version(session)
     completion = session.scalar(select(SessionCompletion).where(SessionCompletion.activity_id == activity_id))
     session_uid = completion.session_uid if completion else None
     revision = latest_revision(session, session_uid, head) if session_uid else None
     reason = None
-    if (annotation and annotation.excluded) or activity.resolution_state != 'resolved':
-        reason = 'ACTIVITY_EXCLUDED'
-    elif not revision or revision.deleted or revision.kind != 'run':
-        reason = 'NO_PLAN_LINK'
+    if (annotation and annotation.excluded) or activity.resolution_state != "resolved":
+        reason = "ACTIVITY_EXCLUDED"
+    elif not revision or revision.deleted or revision.kind != "run":
+        reason = "NO_PLAN_LINK"
     elif revision.structure is None:
-        reason = 'NO_STRUCTURED_PLAN'
+        reason = "NO_STRUCTURED_PLAN"
     refs = metric_source_refs(session, activity_id, session_uid, head)
     if reason:
         outcome = _early(Status.not_applicable, reason)
     else:
         assert revision is not None and revision.structure is not None
         plan = expand_plan(cast(list[dict], revision.structure))
-        if not any(step.type == 'work' for step in plan):
-            outcome = _early(Status.not_applicable, 'NO_WORK_STEPS')
+        if not any(step.type == "work" for step in plan):
+            outcome = _early(Status.not_applicable, "NO_WORK_STEPS")
         else:
-            watch_rows = session.scalars(select(ActivityWorkoutStep).where(
-                ActivityWorkoutStep.activity_id == activity_id).order_by(ActivityWorkoutStep.message_index)).all()
-            fit = [FitStep(row.message_index, row.duration_type, row.intensity, row.duration_value,
-                           row.target_type, row.target_low, row.target_high, row.repeat_from, row.repeat_count)
-                   for row in watch_rows]
+            watch_rows = session.scalars(
+                select(ActivityWorkoutStep)
+                .where(ActivityWorkoutStep.activity_id == activity_id)
+                .order_by(ActivityWorkoutStep.message_index)
+            ).all()
+            fit = [
+                FitStep(
+                    row.message_index,
+                    row.duration_type,
+                    row.intensity,
+                    row.duration_value,
+                    row.target_type,
+                    row.target_low,
+                    row.target_high,
+                    row.repeat_from,
+                    row.repeat_count,
+                )
+                for row in watch_rows
+            ]
             if not fit:
-                outcome = _early(Status.not_assessable, 'NO_WATCH_WORKOUT')
+                outcome = _early(Status.not_assessable, "NO_WATCH_WORKOUT")
             else:
-                lap_rows = session.scalars(select(ActivityLap).where(
-                    ActivityLap.activity_id == activity_id).order_by(ActivityLap.lap_index)).all()
-                laps = [LapIn(row.lap_index, (row.start_at - activity.start_at).total_seconds(),
-                              row.timer_s, row.elapsed_s, row.distance_m, row.wkt_step_index,
-                              (row.end_at - activity.start_at).total_seconds() if row.end_at else None, row.intensity)
-                        for row in lap_rows]
+                lap_rows = session.scalars(
+                    select(ActivityLap).where(ActivityLap.activity_id == activity_id).order_by(ActivityLap.lap_index)
+                ).all()
+                laps = [
+                    LapIn(
+                        row.lap_index,
+                        (row.start_at - activity.start_at).total_seconds(),
+                        row.timer_s,
+                        row.elapsed_s,
+                        row.distance_m,
+                        row.wkt_step_index,
+                        (row.end_at - activity.start_at).total_seconds() if row.end_at else None,
+                        row.intensity,
+                    )
+                    for row in lap_rows
+                ]
                 stream_row = session.get(ActivityStream, activity_id)
-                stream = ExecStream(stream_row.t_s, stream_row.hr_bpm, stream_row.speed_mps,
-                                    [tuple(pair) for pair in stream_row.timer_on],
-                                    tuple(stream_row.quality_flags)) if stream_row else None
+                stream = (
+                    ExecStream(
+                        stream_row.t_s,
+                        stream_row.hr_bpm,
+                        stream_row.speed_mps,
+                        [tuple(pair) for pair in stream_row.timer_on],
+                        tuple(stream_row.quality_flags),
+                    )
+                    if stream_row
+                    else None
+                )
                 outcome = execution_outcome(plan, fit, laps, stream)
-    value = outcome['value']
+    value = outcome["value"]
     if value is not None:
-        value['session_uid'] = str(session_uid) if session_uid else None
-        value['calendar_version'] = head
-    if value is not None and activity.fit_status == 'decoded' and (
-            not isinstance(refs.get('fit'), dict) or
-            refs['fit'].get('raw_object_id') is None or refs['fit'].get('zip_sha256') is None or
-            refs['fit'].get('fit_sha256') is None):
+        value["session_uid"] = str(session_uid) if session_uid else None
+        value["calendar_version"] = head
+    if (
+        value is not None
+        and activity.fit_status == "decoded"
+        and (
+            not isinstance(refs.get("fit"), dict)
+            or refs["fit"].get("raw_object_id") is None
+            or refs["fit"].get("zip_sha256") is None
+            or refs["fit"].get("fit_sha256") is None
+        )
+    ):
         synthetic = False
-        if settings.app_mode in {'demo', 'test'} and isinstance(refs.get('fit'), dict):
-            sources = [tuple(row) for row in session.execute(select(SourceRecord.source_kind, SourceRecord.payload_hash,
-                RawObject.sha256, RawObject.media_type).select_from(ActivitySource)
-                .join(SourceRecord, SourceRecord.id == ActivitySource.source_record_id)
-                .outerjoin(RawObject, RawObject.id == SourceRecord.raw_object_id)
-                .where(ActivitySource.activity_id == activity_id)).all()]
-            synthetic = _synthetic_provenance(sources, refs['fit'].get('normalized_hash'))
+        if settings.app_mode in {"demo", "test"} and isinstance(refs.get("fit"), dict):
+            sources = [
+                tuple(row)
+                for row in session.execute(
+                    select(SourceRecord.source_kind, SourceRecord.payload_hash, RawObject.sha256, RawObject.media_type)
+                    .select_from(ActivitySource)
+                    .join(SourceRecord, SourceRecord.id == ActivitySource.source_record_id)
+                    .outerjoin(RawObject, RawObject.id == SourceRecord.raw_object_id)
+                    .where(ActivitySource.activity_id == activity_id)
+                ).all()
+            ]
+            synthetic = _synthetic_provenance(sources, refs["fit"].get("normalized_hash"))
         if synthetic:
-            outcome['quality_flags'] = sorted(set(outcome['quality_flags']) | {'SYNTHETIC_PROVENANCE'})
+            outcome["quality_flags"] = sorted(set(outcome["quality_flags"]) | {"SYNTHETIC_PROVENANCE"})
         else:
-            outcome = _early(Status.invalid, 'INPUT_PROVENANCE_MISSING')
-    return [MetricResultData(
-        metric_id=METRIC_ID, method_version=METHOD_VERSION, subject_type='activity',
-        subject_key=str(activity_id), status=Status(outcome['status']),
-        quality_status=QualityStatus(outcome['quality_status']) if outcome['quality_status'] else None,
-        value=outcome['value'], reason_codes=tuple(outcome['reason_codes']),
-        quality_flags=tuple(outcome['quality_flags']), source_refs=refs,
-        anchor_keys=(), config_hash=config_hash(CONFIG), unit=None)]
+            outcome = _early(Status.invalid, "INPUT_PROVENANCE_MISSING")
+    return [
+        MetricResultData(
+            metric_id=METRIC_ID,
+            method_version=METHOD_VERSION,
+            subject_type="activity",
+            subject_key=str(activity_id),
+            status=Status(outcome["status"]),
+            quality_status=QualityStatus(outcome["quality_status"]) if outcome["quality_status"] else None,
+            value=outcome["value"],
+            reason_codes=tuple(outcome["reason_codes"]),
+            quality_flags=tuple(outcome["quality_flags"]),
+            source_refs=refs,
+            anchor_keys=(),
+            config_hash=config_hash(CONFIG),
+            unit=None,
+        )
+    ]

@@ -1,4 +1,5 @@
 """Component level planned versus actual assessment, and the completion status it derives."""
+
 from __future__ import annotations
 
 import math
@@ -31,10 +32,17 @@ METRIC_ID = "planned_actual_session"
 METHOD_VERSION = "v1"
 WINDOW_DAYS: tuple[int, ...] = ()
 DEPENDS_ON = ("work_interval_execution",)
-CONFIG: dict = {"ratio_met": .9, "ratio_partial": .5, "exceeded": 1.15,
-          "step_met": 1, "target_met": .75, "target_partial": .4,
-          "partial_rule": "any_not_met.v1", "moved_rule": "assessed.v1",
-          "precedence": ["skipped", "moved", "extra", "partial", "modified", "as_planned", "unknown"]}
+CONFIG: dict = {
+    "ratio_met": 0.9,
+    "ratio_partial": 0.5,
+    "exceeded": 1.15,
+    "step_met": 1,
+    "target_met": 0.75,
+    "target_partial": 0.4,
+    "partial_rule": "any_not_met.v1",
+    "moved_rule": "assessed.v1",
+    "precedence": ["skipped", "moved", "extra", "partial", "modified", "as_planned", "unknown"],
+}
 SENSIBLE_REASONS = {"symptom_onset", "fatigue", "illness"}
 
 
@@ -45,12 +53,25 @@ def component(name: str, actual: float | None, planned: float | None) -> dict:
         return {"name": name, "value": None, "status": "not_assessable"}
     ratio = actual / planned
     if name == "step_completion_ratio":
-        status = "met" if ratio >= CONFIG["step_met"] else "partially_met" if ratio >= CONFIG["ratio_partial"] else "not_met"
+        status = (
+            "met" if ratio >= CONFIG["step_met"] else "partially_met" if ratio >= CONFIG["ratio_partial"] else "not_met"
+        )
     elif name == "target_coverage":
-        status = "met" if ratio >= CONFIG["target_met"] else "partially_met" if ratio >= CONFIG["target_partial"] else "not_met"
+        status = (
+            "met"
+            if ratio >= CONFIG["target_met"]
+            else "partially_met"
+            if ratio >= CONFIG["target_partial"]
+            else "not_met"
+        )
     else:
-        status = ("met" if ratio >= CONFIG["ratio_met"]
-                  else "partially_met" if ratio >= CONFIG["ratio_partial"] else "not_met")
+        status = (
+            "met"
+            if ratio >= CONFIG["ratio_met"]
+            else "partially_met"
+            if ratio >= CONFIG["ratio_partial"]
+            else "not_met"
+        )
     return {"name": name, "value": round(ratio, 3), "status": status}
 
 
@@ -68,19 +89,29 @@ def _derives_status(linked: bool, overall: object) -> bool:
     return linked or overall in ("skipped", "extra")
 
 
-def planned_actual_outcome(plan: dict | None, completion: dict | None, activity: dict | None,
-                           intervals: dict | None, candidates: list[dict], coverage_complete: bool,
-                           as_of: date) -> dict:
+def planned_actual_outcome(
+    plan: dict | None,
+    completion: dict | None,
+    activity: dict | None,
+    intervals: dict | None,
+    candidates: list[dict],
+    coverage_complete: bool,
+    as_of: date,
+) -> dict:
     match_method = completion.get("match_method") if completion else None
     prior_status = completion.get("status") if completion else None
-    linked = completion is not None and any(completion.get(field) for field in
-                                            ("activity_id", "strong_workout_id", "manual_session_id", "subject_key"))
-    values = {"overall_status": "unknown", "components": [],
-              "certainty": plan.get("certainty") if plan else None,
-              "kind": plan.get("kind") if plan else activity.get("kind") if activity else None,
-              "candidate_activity_ids": [str(c.get("subject_key") or c.get("activity_id")) for c in candidates],
-              "calendar_version": plan.get("calendar_version_number") if plan else None,
-              "match_method": match_method or "none"}
+    linked = completion is not None and any(
+        completion.get(field) for field in ("activity_id", "strong_workout_id", "manual_session_id", "subject_key")
+    )
+    values = {
+        "overall_status": "unknown",
+        "components": [],
+        "certainty": plan.get("certainty") if plan else None,
+        "kind": plan.get("kind") if plan else activity.get("kind") if activity else None,
+        "candidate_activity_ids": [str(c.get("subject_key") or c.get("activity_id")) for c in candidates],
+        "calendar_version": plan.get("calendar_version_number") if plan else None,
+        "match_method": match_method or "none",
+    }
     reasons: list[str] = []
     flags: list[str] = []
     if prior_status == "skipped" and match_method in {"explicit", "user_marked", "confirmed_move"}:
@@ -106,18 +137,22 @@ def planned_actual_outcome(plan: dict | None, completion: dict | None, activity:
         if activity is None:
             reasons.append("ACTIVITY_EXCLUDED")
         if plan:
-            for name, planned_field, actual_field in (("duration_ratio", "planned_duration_s", "timer_s"),
-                                                     ("distance_ratio", "planned_distance_m", "distance_m")):
+            for name, planned_field, actual_field in (
+                ("duration_ratio", "planned_duration_s", "timer_s"),
+                ("distance_ratio", "planned_distance_m", "distance_m"),
+            ):
                 item = component(name, activity.get(actual_field) if activity else None, plan.get(planned_field))
                 if item["status"] != "omitted":
                     components.append(item)
             need_steps, need_target = _required_structure(plan)
             if need_steps:
-                components.append(component("step_completion_ratio", intervals.get("step_completion_ratio")
-                                            if intervals else None, 1))
+                components.append(
+                    component("step_completion_ratio", intervals.get("step_completion_ratio") if intervals else None, 1)
+                )
             if need_target:
-                components.append(component("target_coverage", intervals.get("target_coverage")
-                                            if intervals else None, 1))
+                components.append(
+                    component("target_coverage", intervals.get("target_coverage") if intervals else None, 1)
+                )
         values["components"] = components
         if not components and not reasons:
             reasons.append("INSUFFICIENT_PLAN")
@@ -127,26 +162,43 @@ def planned_actual_outcome(plan: dict | None, completion: dict | None, activity:
         if activity is not None and components:
             by_name = {c["name"]: c for c in components}
             actual_timer = activity.get("timer_s")
-            duration_raw = (actual_timer / plan["planned_duration_s"] if plan and
-                            isinstance(actual_timer, (int, float)) and math.isfinite(actual_timer)
-                            and plan.get("planned_duration_s") and plan["planned_duration_s"] > 0 else None)
+            duration_raw = (
+                actual_timer / plan["planned_duration_s"]
+                if plan
+                and isinstance(actual_timer, (int, float))
+                and math.isfinite(actual_timer)
+                and plan.get("planned_duration_s")
+                and plan["planned_duration_s"] > 0
+                else None
+            )
             step_raw = intervals.get("step_completion_ratio") if intervals else None
-            if (step_raw is not None and step_raw < 1 and duration_raw is not None
-                    and duration_raw < CONFIG["ratio_met"]):
+            if (
+                step_raw is not None
+                and step_raw < 1
+                and duration_raw is not None
+                and duration_raw < CONFIG["ratio_met"]
+            ):
                 values["overall_status"] = "partial"
             elif any(c["status"] == "not_met" for c in components):
                 values["overall_status"] = "partial"
-            elif (any(c["status"] != "not_assessable" for c in components) and
-                  (completion.get("modification_reason") or any(c["status"] == "partially_met"
-                                                                for c in components))):
+            elif any(c["status"] != "not_assessable" for c in components) and (
+                completion.get("modification_reason") or any(c["status"] == "partially_met" for c in components)
+            ):
                 values["overall_status"] = "completed_modified"
             elif not unknown_component and all(c["status"] == "met" for c in components):
                 values["overall_status"] = "completed_as_planned"
-            for name, planned_field, actual_field in (("duration_ratio", "planned_duration_s", "timer_s"),
-                                                     ("distance_ratio", "planned_distance_m", "distance_m")):
+            for name, planned_field, actual_field in (
+                ("duration_ratio", "planned_duration_s", "timer_s"),
+                ("distance_ratio", "planned_distance_m", "distance_m"),
+            ):
                 measurement = activity.get(actual_field)
-                if (name in by_name and plan and plan.get(planned_field)
-                        and isinstance(measurement, (int, float)) and math.isfinite(measurement)):
+                if (
+                    name in by_name
+                    and plan
+                    and plan.get(planned_field)
+                    and isinstance(measurement, (int, float))
+                    and math.isfinite(measurement)
+                ):
                     if measurement / plan[planned_field] > CONFIG["exceeded"]:
                         flags.append("EXCEEDED")
         if match_method == "confirmed_move" and activity is not None:
@@ -162,9 +214,17 @@ def planned_actual_outcome(plan: dict | None, completion: dict | None, activity:
         status = "available" if not reasons else "partial"
     else:
         status = "partial" if reasons and linked else "missing"
-    outcome = {"status": status, "quality_status": "good" if status == "available" and not flags else
-               "limited" if status == "partial" or flags else None,
-               "value": values, "reason_codes": reasons, "quality_flags": flags}
+    outcome = {
+        "status": status,
+        "quality_status": "good"
+        if status == "available" and not flags
+        else "limited"
+        if status == "partial" or flags
+        else None,
+        "value": values,
+        "reason_codes": reasons,
+        "quality_flags": flags,
+    }
     if _derives_status(linked, overall):
         outcome["derived_completion_status"] = overall
     return outcome
@@ -182,15 +242,22 @@ def _activity(session: Session, completion: SessionCompletion) -> tuple[dict | N
             return None, {"activity_id": str(completion.activity_id), "resolution_state": None}
         tz = athlete_tz(session)
         local_day = date_in_zone(activity_row.start_at, tz)
-        eligible = any(r.activity_id == activity_row.id for r in load_runs(session, local_day,
-                                                                          local_day + date.resolution))
+        eligible = any(
+            r.activity_id == activity_row.id for r in load_runs(session, local_day, local_day + date.resolution)
+        )
         if not eligible:
-            return None, {"activity_id": str(completion.activity_id),
-                          "resolution_state": activity_row.resolution_state,
-                          **metric_source_refs(session, activity_row.id, completion.session_uid)}
+            return None, {
+                "activity_id": str(completion.activity_id),
+                "resolution_state": activity_row.resolution_state,
+                **metric_source_refs(session, activity_row.id, completion.session_uid),
+            }
         refs = metric_source_refs(session, activity_row.id, completion.session_uid)
-        return {"kind": "run", "timer_s": activity_row.timer_s, "distance_m": activity_row.distance_m,
-                "activity_id": str(activity_row.id)}, refs
+        return {
+            "kind": "run",
+            "timer_s": activity_row.timer_s,
+            "distance_m": activity_row.distance_m,
+            "activity_id": str(activity_row.id),
+        }, refs
     if completion.strong_workout_id:
         strong_row = session.get(StrongWorkoutRow, completion.strong_workout_id)
         if strong_row is None or strong_row.resolution_state != "resolved":
@@ -198,20 +265,31 @@ def _activity(session: Session, completion: SessionCompletion) -> tuple[dict | N
         source_record = session.get(SourceRecord, strong_row.source_record_id)
         raw_object = session.get(RawObject, strong_row.raw_object_id)
         return {"kind": "strength", "timer_s": strong_row.duration_s, "distance_m": None}, {
-            "strong_workout_id": str(strong_row.id), "source_record_id": str(strong_row.source_record_id),
+            "strong_workout_id": str(strong_row.id),
+            "source_record_id": str(strong_row.source_record_id),
             "source_payload_hash": source_record.payload_hash if source_record else None,
             "source_parser_version": source_record.parser_version if source_record else None,
-            "raw_object_id": str(strong_row.raw_object_id), "raw_sha256": raw_object.sha256 if raw_object else None,
-            "payload_hash": strong_row.payload_hash}
+            "raw_object_id": str(strong_row.raw_object_id),
+            "raw_sha256": raw_object.sha256 if raw_object else None,
+            "payload_hash": strong_row.payload_hash,
+        }
     if completion.manual_session_id:
         manual_row = session.get(ManualSession, completion.manual_session_id)
         if manual_row is None:
             return None, {"manual_session_id": str(completion.manual_session_id)}
         return {"kind": manual_row.kind, "timer_s": manual_row.duration_s, "distance_m": None}, {
-            "manual_session_id": str(manual_row.id), "version": manual_row.version,
-            "source_revision": sha256_json({"version": manual_row.version, "date": manual_row.date.isoformat(),
-                                             "time": manual_row.time.isoformat() if manual_row.time else None,
-                                             "duration_s": manual_row.duration_s, "kind": manual_row.kind})}
+            "manual_session_id": str(manual_row.id),
+            "version": manual_row.version,
+            "source_revision": sha256_json(
+                {
+                    "version": manual_row.version,
+                    "date": manual_row.date.isoformat(),
+                    "time": manual_row.time.isoformat() if manual_row.time else None,
+                    "duration_s": manual_row.duration_s,
+                    "kind": manual_row.kind,
+                }
+            ),
+        }
     return None, {}
 
 
@@ -221,10 +299,16 @@ def _interval_components(value: dict | None) -> dict | None:
     result = dict(value)
     reps = value.get("reps")
     if isinstance(reps, list):
-        valid = [float(rep["target_valid_s"]) for rep in reps if isinstance(rep, dict)
-                 and rep.get("target_valid_s") is not None]
-        in_range = [float(rep["target_in_range_s"]) for rep in reps if isinstance(rep, dict)
-                    and rep.get("target_in_range_s") is not None]
+        valid = [
+            float(rep["target_valid_s"])
+            for rep in reps
+            if isinstance(rep, dict) and rep.get("target_valid_s") is not None
+        ]
+        in_range = [
+            float(rep["target_in_range_s"])
+            for rep in reps
+            if isinstance(rep, dict) and rep.get("target_in_range_s") is not None
+        ]
         if valid and len(valid) == len(in_range) and sum(valid) > 0:
             result["target_coverage"] = sum(in_range) / sum(valid)
     planned = value.get("n_planned")
@@ -244,18 +328,42 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     completion = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == uid))
     if plan is None and completion is None:
         return []
-    plan_data = ({"local_date": plan.local_date, "kind": plan.kind, "certainty": plan.certainty,
-                  "planned_duration_s": plan.planned_duration_s, "planned_distance_m": plan.planned_distance_m,
-                  "structure": plan.structure, "calendar_version_number": plan.calendar_version_number}
-                 if plan else None)
-    completion_data = ({"status": completion.status, "match_method": completion.match_method,
-                        "modification_reason": completion.modification_reason,
-                        "activity_id": completion.activity_id, "strong_workout_id": completion.strong_workout_id,
-                        "manual_session_id": completion.manual_session_id} if completion else None)
+    plan_data = (
+        {
+            "local_date": plan.local_date,
+            "kind": plan.kind,
+            "certainty": plan.certainty,
+            "planned_duration_s": plan.planned_duration_s,
+            "planned_distance_m": plan.planned_distance_m,
+            "structure": plan.structure,
+            "calendar_version_number": plan.calendar_version_number,
+        }
+        if plan
+        else None
+    )
+    completion_data = (
+        {
+            "status": completion.status,
+            "match_method": completion.match_method,
+            "modification_reason": completion.modification_reason,
+            "activity_id": completion.activity_id,
+            "strong_workout_id": completion.strong_workout_id,
+            "manual_session_id": completion.manual_session_id,
+        }
+        if completion
+        else None
+    )
     activity, activity_refs = _activity(session, completion) if completion else (None, {})
-    interval_row = (current_results(session, interval_metric.METRIC_ID, [str(completion.activity_id)])
-                    .get(str(completion.activity_id)) if completion and completion.activity_id else None)
-    intervals = _interval_components(interval_row.value) if interval_row and isinstance(interval_row.value, dict) else None
+    interval_row = (
+        current_results(session, interval_metric.METRIC_ID, [str(completion.activity_id)]).get(
+            str(completion.activity_id)
+        )
+        if completion and completion.activity_id
+        else None
+    )
+    intervals = (
+        _interval_components(interval_row.value) if interval_row and isinstance(interval_row.value, dict) else None
+    )
     local_date = plan.local_date if plan else None
     if local_date is None and completion:
         if completion.activity_id:
@@ -273,20 +381,44 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     candidates = candidates_for_session(session, uid) if plan else []
     coverage = activities_coverage_complete(session, local_date, local_date + date.resolution) if local_date else False
     outcome = planned_actual_outcome(plan_data, completion_data, activity, intervals, candidates, coverage, as_of)
-    refs = {"session_uid": str(uid), "plan": {"revision_id": str(plan.id),
-            "revision": plan.revision, "calendar_version": plan.calendar_version_number,
-            "structure_hash": sha256_json(plan.structure)} if plan else None,
-            "completion_association_hash": completion_association_hash(completion) if completion else None,
-            "activity": activity_refs, "interval_result_id": str(interval_row.id) if interval_row else None,
-            "interval_dependency_hash": interval_row.dependency_hash if interval_row else None,
-            "candidate_activity_ids": outcome["value"]["candidate_activity_ids"],
-            "coverage_complete": coverage, "as_of": as_of.isoformat()}
+    refs = {
+        "session_uid": str(uid),
+        "plan": {
+            "revision_id": str(plan.id),
+            "revision": plan.revision,
+            "calendar_version": plan.calendar_version_number,
+            "structure_hash": sha256_json(plan.structure),
+        }
+        if plan
+        else None,
+        "completion_association_hash": completion_association_hash(completion) if completion else None,
+        "activity": activity_refs,
+        "interval_result_id": str(interval_row.id) if interval_row else None,
+        "interval_dependency_hash": interval_row.dependency_hash if interval_row else None,
+        "candidate_activity_ids": outcome["value"]["candidate_activity_ids"],
+        "coverage_complete": coverage,
+        "as_of": as_of.isoformat(),
+    }
     refs["input_hash"] = sha256_json(refs)
-    return [MetricResultData(METRIC_ID, METHOD_VERSION, "session", subject_key, Status(outcome["status"]),
-                             tuple(outcome["reason_codes"]), tuple(outcome["quality_flags"]), refs, (),
-                             config_hash(CONFIG), window_label=local_date.isoformat() if local_date else None,
-                             quality_status=QualityStatus(outcome["quality_status"]) if outcome["quality_status"] else None,
-                             value=outcome["value"], unit=None, timezone=tz.key)]
+    return [
+        MetricResultData(
+            METRIC_ID,
+            METHOD_VERSION,
+            "session",
+            subject_key,
+            Status(outcome["status"]),
+            tuple(outcome["reason_codes"]),
+            tuple(outcome["quality_flags"]),
+            refs,
+            (),
+            config_hash(CONFIG),
+            window_label=local_date.isoformat() if local_date else None,
+            quality_status=QualityStatus(outcome["quality_status"]) if outcome["quality_status"] else None,
+            value=outcome["value"],
+            unit=None,
+            timezone=tz.key,
+        )
+    ]
 
 
 def write_completion_status(session: Session, result: MetricResultData, now: datetime) -> bool:
@@ -294,7 +426,9 @@ def write_completion_status(session: Session, result: MetricResultData, now: dat
     overall = (result.value or {}).get("overall_status")
     if overall is None:
         return False
-    completion = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == UUID(result.subject_key)))
+    completion = session.scalar(
+        select(SessionCompletion).where(SessionCompletion.session_uid == UUID(result.subject_key))
+    )
     if completion is None:
         return False
     linked = any((completion.activity_id, completion.strong_workout_id, completion.manual_session_id))
