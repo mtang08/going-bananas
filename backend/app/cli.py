@@ -96,6 +96,9 @@ def _parse() -> argparse.Namespace:
     metrics.add_argument("--metric", default="all")
     metrics.add_argument("--since", type=date.fromisoformat)
     metrics.add_argument("--until", type=date.fromisoformat)
+    assess = sub.add_parser("metrics-assess-session")
+    assess.add_argument("--session-uid", type=uuid.UUID, required=True)
+    assess.add_argument("--apply", action="store_true")
     fit = sub.add_parser("fit-backfill")
     fit.add_argument("--since", type=date.fromisoformat, required=True)
     strong = sub.add_parser("strong-import")
@@ -281,6 +284,62 @@ def main() -> int:
                     'subjects': len({(row.metric_id, row.subject_key) for row in rows}),
                     'results_current': sum(row.is_current for row in rows), 'history_rows': len(rows)}
             print(json.dumps(metric_summary))
+        elif args.command == "metrics-assess-session":
+            from app.calendar_models import SessionCompletion
+            from app.metrics import engine as metrics_engine
+            from app.metrics import intervals, planned_actual
+
+            uid = args.session_uid
+            session_key = str(uid)
+            with SessionLocal() as session:
+                completion = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == uid))
+                if completion is None:
+                    raise ValueError('completion_not_found')
+                activity_key = str(completion.activity_id) if completion.activity_id is not None else None
+
+                def snapshot(completion: SessionCompletion) -> dict[str, Any]:
+                    interval = None
+                    if activity_key is not None:
+                        interval = metrics_engine.latest_results(
+                            session, intervals.METRIC_ID, intervals.METHOD_VERSION, [activity_key],
+                        ).get(activity_key)
+                    comparison = metrics_engine.latest_results(
+                        session, planned_actual.METRIC_ID, planned_actual.METHOD_VERSION, [session_key],
+                    ).get(session_key)
+                    comparison_snapshot = None
+                    if comparison is not None:
+                        assert comparison.value is not None
+                        comparison_snapshot = {
+                            'status': comparison.status,
+                            'overall_status': comparison.value['overall_status'],
+                            'components': comparison.value['components'],
+                            'reason_codes': comparison.reason_codes,
+                            'config_hash': comparison.config_hash,
+                        }
+                    return {
+                        'completion_status': completion.status,
+                        'completion_version': completion.version,
+                        'interval': {
+                            'status': interval.status,
+                            'reason_codes': interval.reason_codes,
+                            'quality_flags': interval.quality_flags,
+                            'step_completion_ratio': (interval.value or {}).get('step_completion_ratio'),
+                            'config_hash': interval.config_hash,
+                        } if interval is not None else None,
+                        'planned_actual': comparison_snapshot,
+                    }
+
+                before = snapshot(completion)
+                metrics_engine.assess_completion(session, uid)
+                after = snapshot(completion)
+                if args.apply:
+                    session.commit()
+                else:
+                    session.rollback()
+            print(json.dumps({
+                'session_uid': session_key, 'activity_id': activity_key, 'applied': args.apply,
+                'before': before, 'after': after,
+            }, sort_keys=True, default=str))
         elif args.command == "fit-backfill":
             from app.adapters.garmin.personal import GarminPersonalSource
             from app.services.fit_ingest import backfill_fit
