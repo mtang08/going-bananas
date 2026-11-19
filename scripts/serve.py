@@ -14,6 +14,9 @@ if os.environ.get('APP_MODE', 'demo') == 'real':
     commands.append((['uv', 'run', 'python', '-m', 'app.cli', 'worker'], root/'backend'))
 if '--dev' in sys.argv:
     commands.append((['npm','run','dev'],root/'frontend'))
+startup = subprocess.run(['uv', 'run', 'python', '-m', 'app.cli', 'metrics-refresh-today'], cwd=root/'backend')
+if startup.returncode != 0:
+    print('Startup metric refresh failed; metric pages compute on view until the next write.', flush=True)
 children=[]
 stop=False
 

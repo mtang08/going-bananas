@@ -70,6 +70,7 @@ def _parse() -> argparse.Namespace:
     metrics.add_argument("--metric", default="all")
     metrics.add_argument("--since", type=date.fromisoformat)
     metrics.add_argument("--until", type=date.fromisoformat)
+    sub.add_parser("metrics-refresh-today")
     assess = sub.add_parser("metrics-assess-session")
     assess.add_argument("--session-uid", type=uuid.UUID, required=True)
     assess.add_argument("--apply", action="store_true")
@@ -216,7 +217,11 @@ def main() -> int:
     try:
         if args.command == "coach":
             return _coach(args)
-        if args.command == "metrics-recompute":
+        if args.command == "metrics-refresh-today":
+            with SessionLocal.begin() as session:
+                summary = derived.refresh_today(session)
+            print(json.dumps(summary))
+        elif args.command == "metrics-recompute":
             from app.metric_models import MetricResult
             from app.metrics import engine as metrics_engine
             from app.metrics import refresh

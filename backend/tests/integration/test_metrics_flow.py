@@ -418,6 +418,24 @@ def test_serialized_writers_keep_both_changes(db, tmp_path):
         assert current(session, 'run_volume_frequency', f'w7:{TODAY}').value['timer_duration_s'] == 10020
 
 
+class FixedFactory:
+    def __init__(self, db):
+        self.db = db
+
+    def __call__(self):
+        session = self.db()
+        session.info['metrics_now'] = NOW
+        return session
+    def begin(self):
+        from contextlib import contextmanager
+        @contextmanager
+        def transaction():
+            with self() as session:
+                with session.begin():
+                    yield session
+        return transaction()
+
+
 def test_cli_recompute_and_preview(db, tmp_path, monkeypatch, capsys):
     import json
     import sys
@@ -425,20 +443,7 @@ def test_cli_recompute_and_preview(db, tmp_path, monkeypatch, capsys):
     from app import cli
     from app.services import strong_import
     seed(db, tmp_path)
-    class FixedFactory:
-        def __call__(self):
-            session = db()
-            session.info['metrics_now'] = NOW
-            return session
-        def begin(self):
-            from contextlib import contextmanager
-            @contextmanager
-            def transaction():
-                with self() as session:
-                    with session.begin():
-                        yield session
-            return transaction()
-    monkeypatch.setattr(cli, 'SessionLocal', FixedFactory())
+    monkeypatch.setattr(cli, 'SessionLocal', FixedFactory(db))
     args = ['cli', 'metrics-recompute', '--since', str(TODAY), '--until', str(TODAY), '--metric', 'run_volume_frequency']
     monkeypatch.setattr(sys, 'argv', args)
     assert cli.main() == 0
@@ -672,3 +677,25 @@ def test_metric_gets_write_nothing(db, tmp_path):
         assert windows[0]['volume']['id'] is None
         assert windows[0]['volume']['value']['run_count'] == 4
         assert windows[1]['volume']['id'] is not None
+
+
+def test_metrics_refresh_today_cli(db, tmp_path, monkeypatch, capsys):
+    import json
+    import sys
+
+    from app import cli
+    seed(db, tmp_path)
+    monkeypatch.setattr(cli, 'SessionLocal', FixedFactory(db))
+    monkeypatch.setattr(sys, 'argv', ['cli', 'metrics-refresh-today'])
+    assert cli.main() == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first['as_of'] == str(TODAY) and set(first) == {'as_of', 'new_results', 'ms'}
+    assert cli.main() == 0
+    assert json.loads(capsys.readouterr().out)['new_results'] == 0
+    with db() as session:
+        session.execute(text("UPDATE metric_results SET config_hash = :stale WHERE is_current "
+                             "AND metric_id = 'run_volume_frequency' AND subject_key = :key"),
+                        {'stale': '0' * 64, 'key': f'w7:{TODAY}'})
+        session.commit()
+    assert cli.main() == 0
+    assert json.loads(capsys.readouterr().out)['new_results'] > 0

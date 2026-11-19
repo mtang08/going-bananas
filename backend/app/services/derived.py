@@ -9,14 +9,16 @@ from __future__ import annotations
 import time
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta
+from typing import Any
 
-from sqlalchemy import event, inspect, select
+from sqlalchemy import event, func, inspect, select
 from sqlalchemy.orm import Session
 
 from app import logs
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.db import bump_data_revision
 from app.fit_models import FitFile
+from app.metric_models import MetricResult as MetricResultRow
 from app.metrics import refresh
 from app.models import Activity, ActivityAnnotation, ActivitySource, AppState, CoverageInterval, ProfileVersion
 from app.services.matching import rematch_dates
@@ -234,3 +236,18 @@ def install() -> None:
     for name, listener in listeners:
         if not event.contains(Session, name, listener):
             event.listen(Session, name, listener)
+
+
+def refresh_today(session: Session) -> dict[str, Any]:
+    """Startup pass: today's windows and the eager set behind them, then prompts. Returns a summary."""
+    started = time.perf_counter()
+    with refresh.refreshing(session):
+        before = session.scalar(select(func.count()).select_from(MetricResultRow)) or 0
+        as_of = refresh.local_today(session)
+        refresh.ensure_windows(session, as_of)
+        generate_prompts(session, refresh.clock(session))
+        session.flush()
+    new_results = (session.scalar(select(func.count()).select_from(MetricResultRow)) or 0) - before
+    ms = round((time.perf_counter() - started) * 1000)
+    log.info('startup refresh as_of=%s new_results=%d ms=%d', as_of, new_results, ms)
+    return {'as_of': as_of.isoformat(), 'new_results': new_results, 'ms': ms}
