@@ -151,6 +151,16 @@ describe('Activity execution', () => {
     expect(screen.getByText('Interval · 800 m')).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Reps' })).not.toBeInTheDocument()
   })
+  it('explains unavailable rep comparisons with readable and unknown reasons', async () => {
+    fixture = { ...base, intervals: metric<IntervalValue>('work_interval_execution', null, 'not_assessable', ['LAP_ALIGNMENT_AMBIGUOUS', 'FOO_BAR']) }
+    mount()
+    expect(await screen.findByText('Rep comparison unavailable: Laps can match the workout in more than one way, FOO_BAR')).toBeInTheDocument()
+  })
+  it('shows readable quality flags for available intervals', async () => {
+    fixture = { ...base, intervals: { ...base.intervals!, quality_flags: ['LAP_SPLIT_MERGED'] } }
+    mount()
+    expect(await screen.findByText('Split laps combined')).toBeInTheDocument()
+  })
   it('makes missing FIT evidence explicit while retaining summary', async () => {
     fixture = { ...base, activity: { ...base.activity, fit_status: 'not_fetched' },
       laps: [], watch_steps: [], intervals: null, intensity: null }
