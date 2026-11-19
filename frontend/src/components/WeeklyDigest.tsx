@@ -1,11 +1,16 @@
-import { Button, Card } from './ui'
+import { Badge, Button, Card } from './ui'
 import {
+  MARKER_LABELS,
   dateLabel,
   fmtDistance,
   fmtDuration,
+  fmtPercent,
+  pageHref,
+  sessionTitle,
   type Unit,
   type WeeklyDigest as WeeklyDigestData,
 } from '../api'
+import { COMPONENT_LABELS, COMPONENT_STATUS_LABELS, reasonText } from '../lib/reasonLabels'
 import './plan-overview.css'
 
 export type DigestWeek = 'this' | 'last'
@@ -21,6 +26,8 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
+const NOT_DONE = new Set(['missed', 'not_recorded'])
+
 export function WeeklyDigest({
   digest: d,
   unit,
@@ -34,6 +41,8 @@ export function WeeklyDigest({
 }) {
   const t = d.totals
   const finished = d.days_elapsed >= 7
+  const keyRows = d.sessions.filter((s) => s.key)
+  const notDone = d.sessions.filter((s) => !s.key && s.kind !== 'mobility' && NOT_DONE.has(s.outcome))
   const outcomeDetail = (
     [
       ['partial', 'partial'],
@@ -106,6 +115,66 @@ export function WeeklyDigest({
             {t.run_distance.planned_estimated > 0 ? '~' : ''}
             {fmtDistance(t.run_distance.planned_to_date_m, unit)} planned
           </p>
+          {keyRows.length > 0 && (
+            <>
+              <h3>Key sessions</h3>
+              {keyRows.map((row) => {
+                const ex = row.execution
+                return (
+                  <div
+                    className="digest-key-session"
+                    data-testid="digest-key-session"
+                    key={row.session_uid}
+                  >
+                    <strong>
+                      {sessionTitle(row)} · {dateLabel(row.local_date, { weekday: 'short' })}
+                    </strong>
+                    <Badge className={`marker marker-${row.outcome}`}>
+                      {MARKER_LABELS[row.outcome]}
+                    </Badge>
+                    {ex && (
+                      <>
+                        {ex.components.length > 0 && (
+                          <ul className="digest-chips">
+                            {ex.components.map((c) => (
+                              <li key={c.name}>
+                                {COMPONENT_LABELS[c.name]} {fmtPercent(c.value)} ·{' '}
+                                {COMPONENT_STATUS_LABELS[c.status]}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {ex.reps_completed !== null && ex.reps_planned !== null && (
+                          <span>Reps {ex.reps_completed} of {ex.reps_planned}</span>
+                        )}
+                        {ex.reason_codes.length > 0 && (
+                          <span className="muted-text">
+                            {ex.reason_codes.map(reasonText).join(' · ')}
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {row.actual?.subject === 'activity' && (
+                      <a href={pageHref.activity(row.actual.id)}>Open run</a>
+                    )}
+                  </div>
+                )
+              })}
+            </>
+          )}
+          {notDone.length > 0 && (
+            <>
+              <h3>Missed or not recorded</h3>
+              <ul data-testid="digest-not-done">
+                {notDone.map((row) => (
+                  <li key={row.session_uid}>
+                    {sessionTitle(row)} · {dateLabel(row.local_date, { weekday: 'short' })} ·{' '}
+                    {MARKER_LABELS[row.outcome]}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           {t.sessions.unplanned > 0 && (
             <p data-testid="digest-unplanned">
               Unplanned: {plural(t.sessions.unplanned, 'session', 'sessions')} ·{' '}
