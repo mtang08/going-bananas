@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any, Literal
 from uuid import UUID
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, text
@@ -17,9 +16,10 @@ from app.db import get_session
 from app.errors import fail
 from app.fit_models import ActivityLap, ActivityWorkoutStep
 from app.metric_models import MetricConfig, MetricResult
-from app.metrics import engine, intervals
+from app.metrics import engine, intervals, refresh
 from app.models import Activity, AppState
 from app.services import calendar, workout_progression
+from app.services.timezone import athlete_tz
 
 router = APIRouter()
 
@@ -39,7 +39,7 @@ def _window(start: date, end: date, limit: int | None = None) -> None:
 
 def recovery_nights(session: Session, start: date, end: date) -> dict:
     _window(start, end, 92)
-    engine.ensure_nights(session, start, end)
+    refresh.ensure_nights(session, start, end)
     nights = []
     for offset in range((end - start).days + 1):
         day = start + timedelta(days=offset)
@@ -57,11 +57,11 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
         fail('activity_not_found', 'Activity not found', 404)
     if activity.sport not in ('running', 'trail_running', 'treadmill_running'):
         fail('not_run_activity', 'Activity is not a run')
-    with engine._refreshing(session):
-        engine._refresh_runs(session, [activity_id])
+    with refresh.refreshing(session):
+        refresh.refresh_runs(session, [activity_id])
         completion = session.scalar(select(SessionCompletion).where(SessionCompletion.activity_id == activity_id))
         if completion and completion.session_uid:
-            engine._refresh_plans(session, [completion.session_uid])
+            refresh.refresh_plans(session, [completion.session_uid])
         session.flush()
     head = session.scalar(select(AppState.calendar_head_version).where(AppState.id == 1)) or 0
     planned = next((row for row in calendar.state_at(session, head)
@@ -88,7 +88,7 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
         return [{column.key: getattr(row, column.key) for column in model.__table__.columns
                  if column.key not in {'id', 'activity_id'}} for row in rows]
     return {'activity': {'id': activity.id, 'start_at': activity.start_at, 'end_at': activity.end_at,
-        'local_date': activity.start_at.astimezone(ZoneInfo(engine._profile_timezone(session))).date(),
+        'local_date': activity.start_at.astimezone(athlete_tz(session)).date(),
         'sport': activity.sport, 'distance_m': activity.distance_m, 'timer_s': activity.timer_s,
         'elapsed_s': activity.elapsed_s, 'fit_status': activity.fit_status},
         'planned': planned, 'completion': calendar.completion_data(session, completion) if completion else None,
@@ -117,9 +117,9 @@ def explain_metric(session: Session, result_id: UUID) -> dict:
 
 def long_run_history(session: Session, start: date, end: date) -> list[dict]:
     _window(start, end)
-    ids = engine._activity_ids(session, start, end)
-    with engine._refreshing(session):
-        engine._refresh_runs(session, ids)
+    ids = refresh.activities_between(session, start, end)
+    with refresh.refreshing(session):
+        refresh.refresh_runs(session, ids)
         session.flush()
     rows = session.scalars(select(MetricResult).where(MetricResult.metric_id == 'long_run_exposure',
         MetricResult.subject_type == 'activity', MetricResult.subject_key.in_([str(uid) for uid in ids]),
@@ -133,8 +133,8 @@ RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
 def _refresh_intervals(session: Session, activity_ids: list[UUID]) -> None:
     if not activity_ids:
         return
-    with engine._refreshing(session):
-        engine.compute_subjects(session, intervals.METRIC_ID, [str(uid) for uid in activity_ids])
+    with refresh.refreshing(session):
+        refresh.compute_subjects(session, intervals.METRIC_ID, [str(uid) for uid in activity_ids])
         session.flush()
 
 
@@ -158,8 +158,8 @@ def activity_workout_history(session: Session, activity_id: UUID, limit: int) ->
 
 @router.get('/metrics/windows')
 def get_windows(as_of: date | None = None, session: Session = Depends(get_session)) -> dict:
-    as_of = as_of or engine._today(session)
-    engine.ensure_windows(session, as_of)
+    as_of = as_of or refresh.local_today(session)
+    refresh.ensure_windows(session, as_of)
     def result(metric: str, key: str) -> dict | None:
         return metric_data(current(session, metric, key))
     windows = [{'days': n, 'volume': result('run_volume_frequency', f'w{n}:{as_of}'),
@@ -177,7 +177,7 @@ def get_windows(as_of: date | None = None, session: Session = Depends(get_sessio
 
 @router.get('/metrics/recovery')
 def get_recovery(start: date | None = None, end: date | None = None, session: Session = Depends(get_session)) -> dict:
-    end = end or engine._today(session)
+    end = end or refresh.local_today(session)
     data = recovery_nights(session, start or end - timedelta(days=6), end)
     session.commit()
     return envelope(session, data)
@@ -201,7 +201,7 @@ def get_long_runs(start: date, end: date, session: Session = Depends(get_session
 def get_workout_progression(start: date | None = None, end: date | None = None,
                             group_by: Literal['signature', 'recipe'] = 'signature',
                             session: Session = Depends(get_session)) -> dict:
-    today = engine._today(session)
+    today = refresh.local_today(session)
     end = min(end or today, today)
     data = workout_progression_data(session, start or end - timedelta(days=179), end, group_by)
     session.commit()
