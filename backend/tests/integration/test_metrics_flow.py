@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
-from app.api.metrics import activity_execution, current, explain_metric, get_windows, recovery_nights
+from app.api.metrics import activity_execution, explain_metric, get_windows, long_run_history, recovery_nights
 from app.checkin_models import SessionRpe
 from app.config import settings
 from app.db import bump_data_revision, get_revision
@@ -85,6 +85,17 @@ def counts(session):
     return tuple(session.scalar(select(func.count()).select_from(model)) for model in (MetricResult, Prompt))
 
 
+def current(session, metric, key):
+    return engine.current_results(session, metric, [key]).get(key)
+
+
+def materialize(session):
+    """Store today's windows before testing reads of persisted results."""
+    refresh.ensure_windows(session, TODAY)
+    session.commit()
+
+
+
 def _statements(session, action) -> int:
     """SQL statements sent on this session's connection while `action` runs."""
     seen: list[str] = []
@@ -116,6 +127,7 @@ def test_four_runs_idempotent_reads_and_explanation(db, tmp_path):
     ids = seed(db, tmp_path)
     with db() as session:
         session.info['metrics_now'] = NOW
+        materialize(session)
         revision = get_revision(session)
         data = get_windows(TODAY, session)['data']
         assert set(data['aerobic']) == {'w28', 'w84'}
@@ -146,7 +158,7 @@ def test_source_refresh_history_and_rollback(db, tmp_path):
     ids = seed(db, tmp_path)
     with db() as session:
         session.info['metrics_now'] = NOW
-        get_windows(TODAY, session)
+        materialize(session)
         before = get_revision(session)
         old = current(session, 'run_volume_frequency', f'w7:{TODAY}')
         old_id = old.id
@@ -568,3 +580,92 @@ def test_deleting_completion_refreshes_its_plan(db, tmp_path):
         recomputed = current(session, 'planned_actual_session', str(uid))
         assert recomputed.value['overall_status'] == 'unknown'
         assert recomputed.id != skipped.id
+
+
+def test_planned_actual_compute_is_pure_and_refresh_writes_status(db, tmp_path):
+    from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
+
+    ids = seed(db, tmp_path)
+    uid = uuid.uuid4()
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        session.get(AppState, 1).calendar_head_version = 1
+        session.add(CalendarVersion(number=1, kind='bootstrap', actor='system'))
+        session.flush()
+        session.add(CalendarSessionRevision(session_uid=uid, revision=1, calendar_version_number=1,
+            local_date=TODAY, kind='run', intent='Test run', planned_duration_s=3000, certainty='committed'))
+        session.add(SessionCompletion(session_uid=uid, activity_id=ids[-1], status='unknown', match_method='explicit',
+            modification_reason='symptom_onset', version=1, input_version=1, updated_at=NOW))
+        session.commit()
+        session.execute(text("UPDATE session_completions SET status = 'unknown' WHERE session_uid = :uid"), {'uid': uid})
+        session.commit()
+        session.expire_all()
+        completion = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == uid))
+        version, revision = completion.version, get_revision(session)
+        engine.metric_modules()
+        result, = engine.REGISTRY['planned_actual_session'].compute(session, str(uid))
+        assert result.value['overall_status'] == 'completed_modified'
+        assert completion.status == 'unknown'
+        assert not session.dirty
+        refresh.assess_completion(session, uid)
+        assert completion.status == 'completed_modified'
+        assert completion.version == version + 1
+        assert get_revision(session) == revision + 1
+
+
+def test_read_results_previews_without_writing_then_serves_stored(db, tmp_path):
+    seed(db, tmp_path)
+    as_of = TODAY - timedelta(days=1)
+    key = f'w7:{as_of}'
+    metric = 'run_volume_frequency'
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        before = counts(session)
+        preview = engine.read_results(session, metric, [key])[key]
+        assert preview['id'] is None and preview['is_current'] is False
+        assert preview['value']['run_count'] == 3
+        srpe_key = f'{key}:run'
+        srpe = engine.read_results(session, 'session_rpe_load', [srpe_key])[srpe_key]
+        assert srpe is not None and srpe['subject_key'] == srpe_key
+        assert srpe['id'] is None
+        assert counts(session) == before and not session.new and not session.dirty
+        refresh.ensure_windows(session, as_of)
+        session.commit()
+        stored = engine.read_results(session, metric, [key])[key]
+        assert stored['id'] is not None and set(stored) == set(preview)
+        assert (stored['value'], stored['dependency_hash']) == (preview['value'], preview['dependency_hash'])
+
+        session.execute(text('UPDATE metric_results SET config_hash = :stale WHERE id = :id'),
+                        {'stale': '0' * 64, 'id': stored['id']})
+        session.commit()
+        assert engine.read_results(session, metric, [key])[key] == preview
+
+        session.execute(text("UPDATE metric_results SET method_version = 'obsolete', config_hash = :config WHERE id = :id"),
+                        {'id': stored['id'], 'config': stored['config_hash']})
+        session.commit()
+        assert engine.read_results(session, metric, [key])[key] == preview
+
+
+def test_metric_gets_write_nothing(db, tmp_path):
+    ids = seed(db, tmp_path)
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        materialize(session)
+        stale = current(session, 'run_volume_frequency', f'w7:{TODAY}')
+        session.execute(text('UPDATE metric_results SET config_hash = :stale WHERE id = :id'),
+                        {'stale': '0' * 64, 'id': stale.id})
+        session.commit()
+        session.execute(text('SET TRANSACTION READ ONLY'))
+        transaction = session.get_transaction()
+        before, revision = counts(session), get_revision(session)
+        windows = get_windows(TODAY, session)['data']['windows']
+        activity_execution(session, ids[-1])
+        recovery_nights(session, TODAY - timedelta(days=2), TODAY)
+        long_run_history(session, TODAY - timedelta(days=13), TODAY)
+        assert session.get_transaction() is transaction
+        assert counts(session) == before
+        assert get_revision(session) == revision
+        assert not session.dirty and not session.new
+        assert windows[0]['volume']['id'] is None
+        assert windows[0]['volume']['value']['run_count'] == 4
+        assert windows[1]['volume']['id'] is not None
