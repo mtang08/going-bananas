@@ -114,3 +114,106 @@ def test_out_of_scope_auto_holder_reserves_subject() -> None:
     assert result['delete_auto_session_uids'] == []
     assert result['links'] == result['extras'] == []
     assert result['candidates'] == {P2: []}
+
+
+def test_fragment_never_auto_links() -> None:
+    fragment = {**actual(R1), "timer_s": 30}
+    result = plan_matches([DAY], [plan(P1)], [fragment], [])
+
+    assert result["links"] == result["extras"] == []
+    assert result["candidates"][P1] == [
+        {"subject_key": R1, "local_date": DAY.isoformat(), "kind": "run", "reason": "FRAGMENT_CANDIDATE"},
+    ]
+    assert plan_matches([DAY], [], [fragment], [])["extras"] == []
+
+
+def test_fragment_beside_real_run_not_ambiguous() -> None:
+    short = {**actual(R1), "timer_s": 30}
+    real = {**actual(R2), "timer_s": 3000}
+    result = plan_matches([DAY], [{**plan(P1), "planned_duration_s": 3000}], [short, real], [])
+
+    assert result["links"] == [{"session_uid": P1, "subject_key": R2, "match_method": "auto_same_day"}]
+    assert result["candidates"] == {}
+
+
+def test_fragment_uses_strict_thresholds_and_excludes_strength() -> None:
+    target = plan(P1)
+    boundary = {**actual(R1), "timer_s": 300, "distance_m": 400}
+    short_distance = {**boundary, "distance_m": 399}
+
+    assert plan_matches([DAY], [target], [boundary], [])["links"][0]["subject_key"] == R1
+    assert plan_matches([DAY], [target], [short_distance], [])["candidates"][P1][0]["reason"] == "FRAGMENT_CANDIDATE"
+
+    strength_target = plan(P1, kind="strength")
+    strength_run = {**actual(f"strong:{R1}", kind="strength"), "timer_s": 30, "distance_m": 0}
+    assert plan_matches([DAY], [strength_target], [strength_run], [])["links"][0]["subject_key"] == f"strong:{R1}"
+
+
+def test_warmup_file_and_workout_file() -> None:
+    target = {**plan(P1), "planned_duration_s": 3420, "has_work_steps": True}
+    warmup = {**actual(R1), "timer_s": 600, "has_workout_steps": False}
+    workout = {**actual(R2), "timer_s": 2820, "has_workout_steps": True}
+    result = plan_matches([DAY], [target], [warmup, workout], [])
+
+    assert result["links"] == [{"session_uid": P1, "subject_key": R2, "match_method": "auto_same_day"}]
+
+
+def test_two_similar_runs_stay_ambiguous() -> None:
+    target = {**plan(P1), "planned_duration_s": 3000, "has_work_steps": False}
+    first = {**actual(R1), "timer_s": 2900, "has_workout_steps": False}
+    second = {**actual(R2), "timer_s": 3100, "has_workout_steps": False}
+    result = plan_matches([DAY], [target], [first, second], [])
+
+    assert result["links"] == []
+    candidates = result["candidates"][P1]
+    assert [row["reason"] for row in candidates] == ["AMBIGUOUS_MATCH", "AMBIGUOUS_MATCH"]
+    assert [(row["subject_key"], row["cost"]) for row in candidates] == [(R2, 0.033), (R1, 0.034)]
+
+
+def test_existing_auto_reopened_by_second_run() -> None:
+    target = {**plan(P1), "planned_duration_s": 3000}
+    subjects = [{**actual(R1), "timer_s": 2900}, {**actual(R2), "timer_s": 3100}]
+    completion = {"session_uid": P1, "subject_key": R1, "match_method": "auto_same_day", "status": "unknown"}
+    result = plan_matches([DAY], [target], subjects, [completion])
+
+    assert result["delete_auto_session_uids"] == [P1]
+    assert result["links"] == []
+    assert [row["reason"] for row in result["candidates"][P1]] == ["AMBIGUOUS_MATCH", "AMBIGUOUS_MATCH"]
+
+
+def test_existing_auto_kept_when_still_winner() -> None:
+    target = {**plan(P1), "planned_duration_s": 3000, "has_work_steps": True}
+    subjects = [{**actual(R1), "timer_s": 3000, "has_workout_steps": True}, {**actual(R2), "timer_s": 30}]
+    completion = {"session_uid": P1, "subject_key": R1, "match_method": "auto_same_day", "status": "unknown"}
+    result = plan_matches([DAY], [target], subjects, [completion])
+
+    assert result["delete_auto_session_uids"] == result["links"] == []
+    assert result["candidates"] == {}
+
+
+def test_explicit_fragment_link_is_protected() -> None:
+    old = {"session_uid": P1, "subject_key": R1, "match_method": "explicit", "status": "unknown"}
+    fragment = {**actual(R1), "timer_s": 30}
+    result = plan_matches([DAY], [plan(P1), plan(P2)], [fragment], [old])
+
+    assert result["delete_auto_session_uids"] == result["links"] == result["extras"] == []
+    assert result["candidates"] == {P2: []}
+
+
+def test_score_margin_is_inclusive() -> None:
+    target = {**plan(P1), "planned_duration_s": 3000}
+    exact = {**actual(R1), "timer_s": 3000}
+    rival = {**actual(R2), "timer_s": 4500}
+    result = plan_matches([DAY], [target], [exact, rival], [])
+
+    assert result["links"][0]["subject_key"] == R1
+
+
+def test_scored_day_assigns_distinct_subjects_using_planned_distance() -> None:
+    short = {**plan(P1), "planned_distance_m": 4000}
+    long = {**plan(P2), "planned_distance_m": 8000}
+    short_run = {**actual(R1), "distance_m": 4000}
+    long_run = {**actual(R2), "distance_m": 8000}
+    result = plan_matches([DAY], [short, long], [long_run, short_run], [])
+
+    assert [(link["session_uid"], link["subject_key"]) for link in result["links"]] == [(P1, R1), (P2, R2)]
