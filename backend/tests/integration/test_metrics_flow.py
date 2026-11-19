@@ -77,9 +77,6 @@ def seed(db, tmp_path):
         session.add_all([SessionRpe(activity_id=runs[1].id, rpe=6, source='garmin_fit', collected_at=NOW),
                          SessionRpe(activity_id=runs[3].id, rpe=5, source='manual', collected_at=NOW)])
         session.commit()
-        state = session.get(AppState, 1)
-        state.planning_authority = 'calendar'
-        session.commit()
         return [row.id for row in runs]
 
 
@@ -154,8 +151,6 @@ def test_revision_nested_and_legacy(db):
         before = get_revision(session)
         assert bump_data_revision(session) == before+1
         assert bump_data_revision(session) == before+2
-        session.commit()
-        session.get(AppState, 1).planning_authority = 'calendar'
         session.commit()
         before = get_revision(session)
         savepoint = session.begin_nested()

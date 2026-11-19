@@ -22,7 +22,6 @@ from app.coach_v2_models import (
     CoachProposalChange,
     CoachProposalRevision,
     CoachSnapshot,
-    DailyGuidance,
 )
 from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.metric_models import Prompt
@@ -43,7 +42,7 @@ from app.services.exceptions.lifecycle import close_finding
 NOW = datetime(2026, 11, 16, 17, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
 DELETE_ORDER = (ExceptionFinding, ExceptionPatch, CoachDecisionKey, CoachProposalChange, CoachProposalRevision,
-                CoachProposal, CoachSnapshot, DailyGuidance, CheckinRevision, SymptomReport, Checkin, SessionRpe, Prompt,
+                CoachProposal, CoachSnapshot, CheckinRevision, SymptomReport, Checkin, SessionRpe, Prompt,
                 SessionCompletion, CalendarSessionRevision, CalendarVersion, IntensityAnchor, BlockBenchmarkResult, Event,
                 BlockDecision, BlockVersion, Block)
 
