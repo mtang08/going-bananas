@@ -17,7 +17,7 @@ Paths below are relative to `backend/`.
 | Coach context | `app/services/snapshot.py`, `decision_inputs.py`, `knowledge.py`: filtered evidence, fingerprints, verified KB |
 | Planning | `app/planning_models.py`, `app/api/planning.py`, `app/api/anchors.py`: blocks and calibration |
 | Feedback | `app/checkin_models.py`, `app/services/checkins.py`, `prompts.py` |
-| Metrics | `app/metrics/contract.py`, `engine.py`, then relevant metric module; `app/metric_models.py` |
+| Metrics | `app/metrics/contract.py`, `engine.py` (registry, inputs, result storage and reads), `refresh.py` (recomputation), `app/services/derived.py` (commit-time and startup refresh), metric modules and `app/metric_models.py` |
 | Ingestion | `app/adapters/` parses provider formats; `app/services/` orchestrates sync/import/FIT and source history |
 | Pure calculations | `app/domain/`: analytics, recurrence, associations |
 | Storage changes | `migrations/versions/`, `app/migrations_head.py` |
