@@ -62,7 +62,7 @@ def _required_structure(plan: dict) -> tuple[bool, bool]:
     return bool(work), any((step.get("target") or {}).get("modality") == "speed" for step in work)
 
 
-def _derives_status(linked: bool, overall: str) -> bool:
+def _derives_status(linked: bool, overall: object) -> bool:
     """An assessment owns the completion status when a subject is linked or the outcome is skipped or extra."""
     return linked or overall in ("skipped", "extra")
 
