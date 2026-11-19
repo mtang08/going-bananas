@@ -21,7 +21,7 @@ from app.api.metrics import router as metrics_router
 from app.api.planning import router as planning_router
 from app.api.sync import router as sync_router
 from app.config import settings
-from app.db import SessionLocal, get_revision, get_session
+from app.db import SessionLocal, get_revision, get_session, global_write_lock
 from app.errors import fail
 from app.logs import configure, request_error
 from app.metrics.engine import install_triggers
@@ -110,7 +110,7 @@ def ready():
 
 def serialize_source_write(request: Request, session: Session = Depends(get_session)) -> None:
     if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
-        session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+        global_write_lock(session)
 
 
 install_triggers()
