@@ -17,8 +17,9 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from app import cli
-from app.calendar_models import CalendarSessionRevision, CalendarVersion
+from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.config import settings
+from app.metric_models import MetricResult
 from app.migrations_head import EXPECTED_HEAD
 from app.models import Activity, AppState, ProfileVersion
 from app.services import calendar
@@ -77,6 +78,14 @@ def test_calendar_preview_initializes_fresh_migrated_database(demo_cli, capsys, 
         historical = next(row for row in rows if row['kind'] == 'run'
                           and row['local_date'] == today - timedelta(days=2))
         assert historical['recipe_id'] == 'REC002'
+        activity = session.execute(select(Activity).where(Activity.local_date == today - timedelta(days=14))).scalar_one()
+        completion = session.execute(select(SessionCompletion).where(SessionCompletion.activity_id == activity.id)).scalar_one()
+        assert completion.status == 'completed_as_planned'
+        interval = session.execute(select(MetricResult).where(
+            MetricResult.subject_key == str(activity.id), MetricResult.metric_id == 'work_interval_execution',
+            MetricResult.is_current.is_(True))).scalar_one()
+        assert interval.value['n_completed'] == 4
+        assert {'LAP_SPLIT_MERGED', 'NONWORK_STEP_OMITTED'} <= set(interval.quality_flags)
         long_days = [row['local_date'] for row in rows if row['recipe_id'] == 'REC002']
         long_weeks = [day - timedelta(days=day.weekday()) for day in long_days]
         assert len(long_weeks) == len(set(long_weeks))

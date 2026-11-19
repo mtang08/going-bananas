@@ -53,21 +53,23 @@ def _runs(today: date) -> list[tuple[int, int, float | None]]:
     for ago in range(28, 1, -2):
         if ago == 4:
             continue
-        result.append((ago, 4800 if ago == 2 else 2880 if ago == 6 else 3300 if ago == 12 else 1800,
+        result.append((ago, {2: 4800, 6: 2880, 12: 3300, 14: 2760}.get(ago, 1800),
                        None if ago == 20 else 2.8))
     result.append((1, 1800, 2.8))
     return result
 
 
 def _lap_specs(ago: int, timer: int, speed: float | None) -> list[tuple[int, float | None, int, int | None]]:
-    if ago not in (6, 12):
+    if ago not in (6, 12, 14):
         return [(timer, speed, 140, None)]
-    reps = 4 if ago == 6 else 5
-    work = [3.6, 3.6, 3.4, 3.6] if ago == 6 else [3.5] * 5
+    work = [3.6, 3.6, 3.4, 3.6] if ago == 6 else ([3.6] * 4 if ago == 14 else [3.5] * 5)
     specs: list[tuple[int, float | None, int, int | None]] = [(600, 2.8, 140, 0)]
-    for k in range(reps):
-        specs.extend([(300, work[k], 156 + 2 * (k + 1) if ago == 6 else 158, 1),
-                      (120, 2.5, 140, 2)])
+    if ago == 14:
+        specs = [(300, 2.8, 140, 0)] * 2
+    for k, work_speed in enumerate(work):
+        specs.append((300, work_speed, 156 + 2 * (k + 1) if ago == 6 else 158, 1))
+        if ago != 14 or k < len(work) - 1:
+            specs.append((120, 2.5, 140, 2))
     specs.append((600, 2.8, 140, 4))
     if sum(row[0] for row in specs) != timer:
         raise ValueError('demo_lap_duration_mismatch')
@@ -104,12 +106,12 @@ def _fit_rows(session: Session, activity: Activity, ago: int, timer: int, speed:
         speed_mps=speeds, distance_m=distances, altitude_m=[None]*timer,
         cadence=[None]*timer, timer_on=[[0, timer]], sample_count=timer, max_gap_s=1,
         quality_flags=[]))
-    if ago in (6, 12):
+    if ago in (6, 12, 14):
         steps = [
             ('Warm up', 'warmup', 'time', 600, None, None, None, None, None),
             ('Work', 'active', 'time', 300, 'speed', 3.4, 3.8, None, None),
             ('Recover', 'recovery', 'time', 120, None, None, None, None, None),
-            (None, None, 'repeat_until_steps_cmplt', None, None, None, None, 1, 4 if ago == 6 else 5),
+            (None, None, 'repeat_until_steps_cmplt', None, None, None, None, 1, 5 if ago == 12 else 4),
             ('Cool down', 'cooldown', 'time', 600, None, None, None, None, None),
         ]
         for index, (name, intensity, kind, step_duration, target, low, high, repeat_from, count) in enumerate(steps):
@@ -169,7 +171,7 @@ def _history(today: date, slots: dict[str, StrengthRoutineSlot]) -> list[dict]:
     entries: list[tuple[date, int, str, str, int, str | None, uuid.UUID | None, list[dict] | None]] = []
     for ago in (14, 10, 8, 4, 2, 12, 6):
         day = today - timedelta(days=ago)
-        recipe = 'REC002' if ago == 2 else 'REC003' if ago in (12, 6) else 'REC001'
+        recipe = 'REC002' if ago == 2 else 'REC003' if ago in (6, 12, 14) else 'REC001'
         entries.append((day, 0, 'run', 'Threshold 4 × 5 min' if recipe == 'REC003' else
                         'Long run' if recipe == 'REC002' else 'Easy run',
                         4800 if ago == 2 else 2880 if recipe == 'REC003' else 1800,
