@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.config import settings
+from app.domain.sports import RUN_SPORTS
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep
 from app.metrics.contract import (
     MetricResultData,
@@ -488,7 +489,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     except ValueError as exc:
         raise ValueError('invalid_subject_key') from exc
     activity = session.get(Activity, activity_id)
-    if activity is None or activity.sport not in ('running', 'trail_running', 'treadmill_running'):
+    if activity is None or activity.sport not in RUN_SPORTS:
         return []
     annotation = session.scalar(select(ActivityAnnotation).where(
         ActivityAnnotation.activity_id == activity_id).order_by(ActivityAnnotation.version.desc()).limit(1))

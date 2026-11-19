@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.domain.analytics import utc_date_bounds
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
+from app.domain.sports import RUN_SPORTS
 from app.metrics.contract import MetricResultData, Status, completion_association_hash, config_hash, sha256_json
 from app.metrics.engine import current_results, load_runs, register
 from app.models import Activity, AppState, ManualSession, RawObject, SourceRecord
@@ -179,7 +180,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
             source_refs.append({**_plan_ref(session, plan, completion), "classes": classes})
     # Query all stored history so the nearest earlier/later exposure is not cut off at the display window.
     bounds = session.execute(select(func.min(Activity.start_at), func.max(Activity.start_at)).where(
-        Activity.sport.in_(("running", "trail_running", "treadmill_running")))).one()
+        Activity.sport.in_(RUN_SPORTS))).one()
     runs = (load_runs(session, bounds[0].astimezone(tz).date(),
                       bounds[1].astimezone(tz).date() + timedelta(days=1)) if bounds[0] and bounds[1] else [])
     long_by_id = current_results(session, "long_run_exposure", [str(run.activity_id) for run in runs])
