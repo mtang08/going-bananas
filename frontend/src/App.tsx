@@ -10,7 +10,8 @@ import {
   Settings2,
 } from 'lucide-react'
 import { dateLabel, localDate, type CheckinRequest, type Profile } from './api'
-import { useServer, type Unit } from './components/shared'
+import { useServer } from './components/shared'
+import type { Unit } from './lib/format'
 import { CheckinModalV2 } from './pages/CheckinModalV2'
 import { Home } from './pages/Home'
 import { Calendar } from './pages/Calendar'
