@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ExceptionsView, Finding, Patch } from '../api/types/exceptions'
 import { CopyPrompt } from '../components/CopyPrompt'
 import { SyncCard } from '../components/SyncCard'
@@ -28,11 +29,13 @@ import {
   type PromptList,
   type SessionState,
   type Unit,
+  type WeeklyDigest as WeeklyDigestData,
 } from '../api'
 import type { ProposalSummary } from '../api/types/coach'
 import { QueryState } from '../components/QueryState'
-import { SessionSummary, WeekOverview } from '../components/PlanOverview'
+import { mondayOfWeek, SessionSummary, WeekOverview } from '../components/PlanOverview'
 import { WeeklyMileage } from '../components/WeeklyMileage'
+import { WeeklyDigest, type DigestWeek } from '../components/WeeklyDigest'
 import type { WeeklyProjection } from '../api/types/calendar'
 
 export function Home({
@@ -55,6 +58,20 @@ export function Home({
     queryKey: ['v2', 'calendar', 'weekly-projection'],
     queryFn: () => api<WeeklyProjection>('/calendar/weekly-projection'),
   })
+  const [digestWeek, setDigestWeek] = useState<DigestWeek>('this')
+  const digestNow = useQuery({
+    queryKey: qk.weeklyDigest('current'),
+    queryFn: () => api<WeeklyDigestData>('/calendar/weekly-digest'),
+  })
+  const lastWeekStart = digestNow.data?.data
+    ? addDays(mondayOfWeek(digestNow.data.data.today), -7)
+    : null
+  const digestLast = useQuery({
+    queryKey: qk.weeklyDigest(lastWeekStart ?? 'pending'),
+    queryFn: () => api<WeeklyDigestData>(`/calendar/weekly-digest?week_start=${lastWeekStart}`),
+    enabled: digestWeek === 'last' && lastWeekStart !== null,
+  })
+  const digest = digestWeek === 'last' ? digestLast : digestNow
   const prompts = useQuery({ queryKey: qk.prompts, queryFn: () => api<PromptList>('/prompts') })
   const exceptions = useQuery({
     queryKey: qk.exceptions,
@@ -379,6 +396,28 @@ export function Home({
       >
         {projection.data?.data && <WeeklyMileage projection={projection.data.data} unit={unit} />}
       </QueryState>
+      <QueryState
+        loading={digest.isPending}
+        error={digest.error}
+        stale={!!digest.data}
+        retry={() => {
+          void digest.refetch()
+        }}
+      >
+        {digest.data?.data && (
+          <WeeklyDigest
+            digest={digest.data.data}
+            unit={unit}
+            week={digestWeek}
+            onWeekChange={setDigestWeek}
+          />
+        )}
+      </QueryState>
+      {digestWeek === 'last' && !digestLast.data && (
+        <Button variant="outline" size="sm" onClick={() => setDigestWeek('this')}>
+          Back to this week
+        </Button>
+      )}
       <QueryState
         loading={block.isPending}
         error={block.error}

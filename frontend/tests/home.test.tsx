@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Home } from '../src/pages/Home'
 import type { ProposalSummary } from '../src/api/types/coach'
-import type { BlockVersion, CalendarView, SessionState } from '../src/api'
+import { addDays, type BlockVersion, type CalendarView, type SessionState, type WeeklyDigest } from '../src/api'
 
 const finding = (id: string, severity: Severity, summary: string, version = 1): Finding => ({ id, rule_code: 'FATIGUE_PERSISTING', category: 'accumulated_fatigue', severity, status: 'open', entity_key: `fatigue:${id}`, summary, evidence: [], evidence_at: '2026-11-11T12:00:00Z', first_seen_at: '2026-11-11T12:00:00Z', last_seen_at: '2026-11-11T12:00:00Z', patch_id: null, version, is_new_since_last_review: true })
 const pa1: Patch = { id: 'pa1', proposal_id: 'p9', calendar_version_number: 2, category: 'accumulated_fatigue', severity: 'caution', ladder_level: 'next_days', window_start: '2026-11-11', window_end: '2026-11-13', reassess_on: '2026-11-11', monitor: ['Morning fatigue'], return_criteria: ['Fatigue below 6'], escalate_criteria: ['Fatigue rising'], unchanged: [], status: 'open', resolved_at: null, resolved_by: null, resolution_note: null, created_at: '2026-11-10T12:00:00Z', version: 1, session_uids: [], reassess_due: true }
@@ -22,12 +22,29 @@ const session = (id: string, day: string, overrides: Partial<SessionState> = {})
 })
 const baseSessions = () => [session('s1', '2026-11-11'), session('s2', '2026-11-13', { recipe_id: null, placeholder: true, is_original: false }),
   session('s3', '2026-11-19', { recipe_id: 'REC002', certainty: 'provisional' })]
+const digestFor = (weekStart: string, done = 2): WeeklyDigest => {
+  const by_outcome = { planned: 0, completed: done, modified: 0, partial: 0, moved: 0, missed: 0, recorded: 0, not_recorded: 0 }
+  return {
+    schema: 'weekly_digest.v1', week_start: weekStart, week_end: addDays(weekStart, 6), today: '2026-11-11',
+    days_elapsed: 3, timezone: 'America/New_York', calendar_version: 2, plan_available: true,
+    activity_coverage_complete: true,
+    totals: {
+      sessions: { planned: 5, planned_to_date: 3, done, by_outcome, removed: 0, unplanned: 0 },
+      by_kind: { run: { planned: 3, planned_to_date: 2, done }, strength: { planned: 2, planned_to_date: 1, done: 0 }, cross: { planned: 0, planned_to_date: 0, done: 0 }, mobility: { planned: 0, planned_to_date: 0, done: 0 } },
+      time: { planned_s: 18000, planned_to_date_s: 9000, planned_unknown: 0, actual_s: 7200, actual_unknown: 0, unplanned_s: 0 },
+      run_distance: { planned_m: 30000, planned_to_date_m: 16000, planned_estimated: 0, planned_unknown: 0, actual_m: 12000, actual_unknown: 0 },
+      key_sessions: { planned: 1, planned_to_date: 1, done: 1, by_outcome },
+    },
+    sessions: [], unplanned: [], removed: [],
+  }
+}
 let proposalItems: ProposalSummary[]
 let promptItems: unknown[]
 let calendar: CalendarView
 let exceptionsData: ExceptionsView
 let blockData: BlockVersion | null
 let error = false
+let digestFail = false
 let requests: { url: string; method: string; body: unknown; headers: Headers }[]
 const onCheckin = vi.fn()
 const clients: QueryClient[] = []
@@ -40,13 +57,16 @@ beforeEach(() => {
       { id: 'p2', kind: 'delayed_symptom', activity_id: 'a1', session_uid: null, status: 'open' },
     ]
   requests = []; error = false; onCheckin.mockReset()
+  digestFail = false
   calendar = { today: '2026-11-11', timezone: 'America/New_York', start: '2026-11-04', end: '2026-11-24',
     head: 2, version: 2, undo: null, last_planned_date: null, sessions: baseSessions(), completions: [] }
   vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
     const url = String(input), method = init?.method ?? 'GET'
     requests.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : null, headers: new Headers(init?.headers) })
     if (url.endsWith('/calendar') && error) return { ok: false, status: 500, json: async () => ({ error: { code: 'request_failed', message: 'boom' } }) }
+    if (url.includes('/calendar/weekly-digest') && digestFail) return { ok: false, status: 500, json: async () => ({ error: { code: 'request_failed', message: 'digest boom' } }) }
     const data = url.endsWith('/sync/status') ? { datasets: [], active_jobs: [] }
+      : url.includes('/calendar/weekly-digest') ? digestFor(new URL(url, 'http://x').searchParams.get('week_start') ?? '2026-11-09', url.includes('week_start') ? 1 : 2)
       : url.includes('/coach/proposals') ? { items: proposalItems }
       : url.endsWith('/calendar') ? calendar : url.endsWith('/prompts') ? { items: promptItems } : url.endsWith('/activities/a1') ? { id: 'a1', local_date: '2026-11-10', distance_m: 6437.376, sport: 'running' }
       : url.includes('/exceptions') || url.includes('/exception-patches') ? exceptionsData
@@ -143,6 +163,43 @@ describe('training home', () => {
     expect(await screen.findByText('Could not load this view')).toBeInTheDocument()
     expect(screen.getByText('boom')).toBeInTheDocument()
     expect(await screen.findByTestId('block-line')).toBeInTheDocument()
+  })
+  it('shows Planned vs done for the current week', async () => {
+    mount()
+    const digest = await screen.findByTestId('weekly-digest')
+    expect(digest).toHaveTextContent('2 of 3 sessions done so far · 5 planned this week')
+    expect(digest).toHaveTextContent('Nov 9–Nov 15')
+    expect(within(digest).getByRole('button', { name: 'This week' })).toHaveAttribute('aria-pressed', 'true')
+    expect(requests.some(({ url }) => url.endsWith('/calendar/weekly-digest'))).toBe(true)
+    expect(requests.some(({ url }) => url.includes('week_start'))).toBe(false)
+  })
+  it('loads the previous Monday for Last week', async () => {
+    mount()
+    const current = await screen.findByTestId('weekly-digest')
+    fireEvent.click(within(current).getByRole('button', { name: 'Last week' }))
+    const last = await screen.findByTestId('weekly-digest')
+    expect(last).toHaveTextContent('Nov 2–Nov 8')
+    expect(last).toHaveTextContent('1 of 3 sessions done so far')
+    expect(requests.some(({ url }) => url.endsWith('/calendar/weekly-digest?week_start=2026-11-02'))).toBe(true)
+    expect(within(last).getByRole('button', { name: 'Last week' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(within(last).getByRole('button', { name: 'This week' }))
+    expect(await screen.findByTestId('weekly-digest')).toHaveTextContent('Nov 9–Nov 15')
+  })
+  it('keeps independent panels when the digest fails', async () => {
+    digestFail = true
+    mount()
+    expect(await screen.findByRole('alert')).toHaveTextContent('digest boom')
+    expect(await screen.findByTestId('today-card')).toBeInTheDocument()
+  })
+  it('lets the athlete leave a failed Last week', async () => {
+    mount()
+    const current = await screen.findByTestId('weekly-digest')
+    digestFail = true
+    fireEvent.click(within(current).getByRole('button', { name: 'Last week' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('digest boom')
+    digestFail = false
+    fireEvent.click(screen.getByRole('button', { name: 'Back to this week' }))
+    expect(await screen.findByTestId('weekly-digest')).toHaveTextContent('Nov 9–Nov 15')
   })
   it('compacts repeats and preserves structured and imported prescription notes', async () => {
     calendar.sessions[0].notes = 'Stop if form deteriorates'
