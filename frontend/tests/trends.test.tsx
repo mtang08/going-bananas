@@ -3,14 +3,21 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Trends } from '../src/pages/Trends'
 import type {
-  BenchmarkRecord, IntensityValue, LongRunValue, MetricResult, MetricWindows, RecoveryNight,
+  AerobicWindowValue, BenchmarkRecord, IntensityValue, LongRunValue, MetricResult, MetricWindows, RecoveryNight,
   RecoveryNights, RecoverySignal, SpacingValue, SrpeValue, VolumeValue, ZoneDistribution,
 } from '../src/api'
 
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   LineChart: ({ children, data }: { children: React.ReactNode; data: unknown }) =>
-    <div data-testid={Array.isArray(data) && data[0] && 'speed' in data[0] ? 'progression-chart' : 'recovery-chart'} data-series={JSON.stringify(data)}>{children}</div>,
+    <div
+      data-testid={Array.isArray(data) && data[0] && 'ef' in data[0]
+        ? 'aerobic-chart'
+        : Array.isArray(data) && data[0] && 'speed' in data[0] ? 'progression-chart' : 'recovery-chart'}
+      data-series={JSON.stringify(data)}
+    >
+      {children}
+    </div>,
   Line: () => null, Tooltip: () => null, CartesianGrid: () => null, XAxis: () => null, YAxis: () => null,
 }))
 
@@ -21,6 +28,32 @@ const metric = <V,>(id: string, value: V | null, status: MetricResult<V>['status
   calculated_at: '2026-11-11T15:00:00Z', source_refs: {}, config_hash: '0'.repeat(64),
   anchor_set_hash: null, dependency_hash: '1'.repeat(64), timezone: 'America/New_York', is_current: true,
 })
+function aerobicWindow(days: 28 | 84, runsCounted: number, extra: Partial<AerobicWindowValue> = {}) {
+  return metric<AerobicWindowValue>('aerobic_efficiency', {
+    window_days: days,
+    runs_total: runsCounted,
+    runs_counted: runsCounted,
+    runs_without_result: 0,
+    not_counted: {},
+    ef_median_m_per_beat: runsCounted > 0 ? 1.2 : null,
+    ef_early_median_m_per_beat: null,
+    ef_late_median_m_per_beat: null,
+    ef_change_pct: null,
+    decoupling_runs_counted: 0,
+    decoupling_median_pct: null,
+    points: Array.from({ length: runsCounted }, (_, index) => ({
+      activity_id: `aerobic-${index}`,
+      local_date: `2026-11-${String(index + 1).padStart(2, '0')}`,
+      session_class: 'easy',
+      ef_m_per_beat: 1.2,
+      mean_speed_mps: 2.8,
+      mean_hr_bpm: 140,
+      decoupling_pct: null,
+      quality_flags: [],
+    })),
+    ...extra,
+  }, runsCounted > 0 ? 'available' : 'not_assessable')
+}
 const totals = {
   start_date: '2026-10-15', end_date: '2026-11-11', runs_missing_timer: 0,
   runs_missing_distance: 0, timer_duration_s: 9000, distance_m: 16093.44, run_count: 5,
@@ -160,8 +193,9 @@ describe('Trends', () => {
     mount()
     const disclosure = await screen.findByTestId('trends-not-assessable')
     expect(disclosure).not.toHaveAttribute('open')
-    expect(disclosure.querySelector('summary')).toHaveTextContent('Not yet assessable (1)')
+    expect(disclosure.querySelector('summary')).toHaveTextContent('Not yet assessable (2)')
     expect(screen.getByTestId('trend-intensity').closest('details')).toBe(disclosure)
+    expect(screen.getByTestId('trend-aerobic').closest('details')).toBe(disclosure)
     for (const id of ['trend-long-run', 'trend-srpe', 'trend-spacing', 'trend-volume', 'trend-recovery'])
       expect(screen.getByTestId(id).closest('details')).toBeNull()
   })
@@ -169,12 +203,13 @@ describe('Trends', () => {
     mount(); await screen.findByText('10.0 mi')
     fireEvent.click(screen.getByRole('button', { name: '7 days' }))
     const disclosure = screen.getByTestId('trends-not-assessable')
-    expect(disclosure.querySelector('summary')).toHaveTextContent('Not yet assessable (3)')
+    expect(disclosure.querySelector('summary')).toHaveTextContent('Not yet assessable (4)')
     expect(screen.getByText('Volume: missing').closest('details')).toBeNull()
     expect(screen.getByText('Session RPE load: missing').closest('details')).toBe(disclosure)
   })
   it('shows intensity in the grid once a zone is available', async () => {
-    windowData = { ...windows, windows: windows.windows.map(window => window.days !== 28 ? window : {
+    windowData = { ...windows, aerobic: { w28: null, w84: aerobicWindow(84, 1) },
+      windows: windows.windows.map(window => window.days !== 28 ? window : {
       ...window, intensity: metric<IntensityValue>('time_in_intensity', {
         hr: { ...zone, status: 'available', reason_codes: [], easy_s: 5400,
           moderate_s: 600, high_s: 0, unknown_s: 60, coverage: .95, confidence: 'moderate' },
@@ -184,6 +219,50 @@ describe('Trends', () => {
     mount(); await screen.findByTestId('trend-intensity')
     expect(screen.getByTestId('trend-intensity').closest('details')).toBeNull()
     expect(screen.queryByTestId('trends-not-assessable')).toBeNull()
+  })
+  it('shows aerobic efficiency summaries and chart', async () => {
+    const w84 = aerobicWindow(84, 8)
+    windowData = { ...windows, aerobic: {
+      w28: aerobicWindow(28, 7, {
+        ef_median_m_per_beat: 1.185,
+        ef_change_pct: 3.58,
+        decoupling_median_pct: 1.88,
+        decoupling_runs_counted: 1,
+      }),
+      w84,
+    } }
+    mount()
+    const card = await screen.findByTestId('trend-aerobic')
+    expect(card.closest('details')).toBeNull()
+    expect(card).toHaveTextContent(
+      '28 days: median 1.19 m/beat over 7 runs · +3.6% early → late · median drift 1.9% (1 run)',
+    )
+    expect(card).toHaveTextContent('84 days: median 1.20 m/beat over 8 runs')
+    expect(card).toHaveTextContent('Descriptive only.')
+    const chart = within(card).getByRole('img', { name: 'Metres per heartbeat on steady runs, last 84 days' })
+    expect(within(chart).getByTestId('aerobic-chart')).toHaveAttribute('data-series', JSON.stringify(
+      w84.value?.points.map(point => ({ date: point.local_date, ef: point.ef_m_per_beat })),
+    ))
+  })
+  it('defers aerobic efficiency without eligible runs', async () => {
+    windowData = { ...windows, aerobic: {
+      w28: null, w84: aerobicWindow(84, 0, { runs_total: 5, not_counted: { STRUCTURED_SESSION: 3, TOO_SHORT: 2 } }),
+    } }
+    mount()
+    const disclosure = await screen.findByTestId('trends-not-assessable')
+    fireEvent.click(within(disclosure).getByText(/Not yet assessable/))
+    const card = within(disclosure).getByTestId('trend-aerobic')
+    expect(card).toHaveTextContent(
+      '84 days: no steady easy or long runs (Structured workout 3, Too short after the 10-minute warm-up 2)',
+    )
+    expect(within(card).queryByRole('img')).toBeNull()
+  })
+  it('shows missing aerobic windows as missing', async () => {
+    mount()
+    const disclosure = await screen.findByTestId('trends-not-assessable')
+    const card = within(disclosure).getByTestId('trend-aerobic')
+    expect(card).toHaveTextContent('28 days: missing')
+    expect(card).toHaveTextContent('84 days: missing')
   })
   it('shows benchmark history outside the not-assessable disclosure',async()=>{
     mount()
