@@ -58,17 +58,21 @@ def _kind(row: dict) -> str:
     return "strength" if str(_subject_key(row)).startswith(("strong:", "manual:")) else "run"
 
 
-def plan_matches(days: list[date], planned: list[dict], runs: list[dict], completions: list[dict]) -> dict:
+def plan_matches(days: list[date], planned: list[dict], runs: list[dict], completions: list[dict],
+                 *, context_days: list[date] | None = None) -> dict:
     """Return only unambiguous links; candidate lists explain every unresolved plan."""
     day_scope = set(days)
+    context = set(context_days or days) | day_scope
     plans = [p for p in planned if p.get("kind") in ELIGIBLE_KINDS and not p.get("deleted")
-             and not p.get("skipped") and _day(p["local_date"]) in day_scope]
+             and not p.get("skipped") and _day(p["local_date"]) in context]
     plans.sort(key=lambda p: (_day(p["local_date"]), p["kind"], str(p["session_uid"])))
-    subjects = [r for r in runs if _subject_key(r) and _kind(r) in ELIGIBLE_KINDS
-                and _day(r["local_date"]) in day_scope and r.get("resolution_state", "resolved") == "resolved"]
+    context_subjects = [r for r in runs if _subject_key(r) and _day(r["local_date"]) in context]
+    subjects = [r for r in context_subjects if r.get("eligible", True)
+                and r.get("resolution_state", "resolved") == "resolved"]
     subjects.sort(key=lambda r: (_day(r["local_date"]), _kind(r), _subject_key(r) or ""))
     plan_by_uid = {str(p["session_uid"]): p for p in plans}
-    subject_by_key = {_subject_key(r): r for r in subjects}
+    subject_by_key = {_subject_key(r): r for r in context_subjects}
+    eligible_keys = {_subject_key(r) for r in subjects}
     protected_uids = set()
     protected_subjects = set()
     auto_uids = set()
@@ -84,27 +88,33 @@ def plan_matches(days: list[date], planned: list[dict], runs: list[dict], comple
                 protected_subjects.add(key)
         elif method == "auto_same_day":
             plan, subject = plan_by_uid.get(uid), subject_by_key.get(key)
-            if (plan is not None and subject is not None and key is not None
-                    and _day(plan["local_date"]) == _day(subject["local_date"])
-                    and plan["kind"] == _kind(subject)):
-                auto_uids.add(uid)
-                protected_subjects.add(key)
-            else:
+            if (plan is not None and subject is not None and _day(plan["local_date"]) in day_scope
+                    and (key not in eligible_keys or _day(plan["local_date"]) != _day(subject["local_date"])
+                         or plan["kind"] != _kind(subject))):
                 delete_auto.add(uid)
+            else:
+                auto_uids.add(uid)
+                if key:
+                    protected_subjects.add(key)
         elif completion.get("status") == "extra" and key:
-            existing_extra_subjects.add(key)
+            subject = subject_by_key.get(key)
+            if subject is not None and _day(subject["local_date"]) in day_scope:
+                existing_extra_subjects.add(key)
     available_plans = [p for p in plans if str(p["session_uid"]) not in protected_uids | auto_uids]
     available_subjects = [r for r in subjects if _subject_key(r) not in protected_subjects]
     links: list[dict] = []
     candidates: dict[str, list[dict]] = {}
-    for day in sorted(day_scope):
+    linked_subjects = set()
+    for day in sorted(context):
         for kind in ("run", "strength"):
             day_plans = [p for p in available_plans if _day(p["local_date"]) == day and p["kind"] == kind]
             day_subjects = [r for r in available_subjects if _day(r["local_date"]) == day and _kind(r) == kind]
             if len(day_plans) == len(day_subjects) == 1:
-                links.append({"session_uid": str(day_plans[0]["session_uid"]),
-                              "subject_key": _subject_key(day_subjects[0]), "match_method": "auto_same_day"})
-    linked_subjects = {link["subject_key"] for link in links}
+                key = _subject_key(day_subjects[0])
+                linked_subjects.add(key)
+                if day in day_scope:
+                    links.append({"session_uid": str(day_plans[0]["session_uid"]),
+                                  "subject_key": key, "match_method": "auto_same_day"})
     for day in sorted(day_scope):
         for kind in ("run", "strength"):
             day_plans = [p for p in available_plans if _day(p["local_date"]) == day and p["kind"] == kind]
@@ -130,8 +140,9 @@ def plan_matches(days: list[date], planned: list[dict], runs: list[dict], comple
         if key is None or key in linked_subjects:
             continue
         day = _day(subject["local_date"])
-        if any(p["kind"] == _kind(subject) and abs((_day(p["local_date"]) - day).days) <= 1
-               for p in available_plans):
+        if day not in day_scope or any(
+            p["kind"] == _kind(subject) and abs((_day(p["local_date"]) - day).days) <= 1 for p in plans
+        ):
             continue
         extras.append({"session_uid": str(uuid.uuid5(EXTRA_NAMESPACE, f"extra:{key}")),
                        "subject_key": key, "match_method": "none"})
@@ -170,11 +181,14 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
     days = sorted({d + timedelta(days=offset) for d in dates for offset in (-1, 0, 1) if d + timedelta(days=offset) >= origin})
     if not days:
         return set()
-    first, last = days[0], days[-1] + timedelta(days=1)
+    context_days = sorted({d + timedelta(days=offset) for d in days for offset in range(-2, 3)
+                           if d + timedelta(days=offset) >= origin})
+    context = set(context_days)
+    first, last = context_days[0], context_days[-1] + timedelta(days=1)
     plans = sessions_at_head(session, first, last)
     planned = [{"session_uid": p.session_uid, "local_date": p.local_date, "kind": p.kind}
                for p in plans]
-    runs = [{"subject_key": str(r.activity_id), "local_date": r.local_date, "kind": "run"}
+    runs: list[dict] = [{"subject_key": str(r.activity_id), "local_date": r.local_date, "kind": "run"}
             for r in load_runs(session, first, last)]
     strong = session.scalars(select(StrongWorkoutRow).where(StrongWorkoutRow.local_date >= first,
                             StrongWorkoutRow.local_date < last,
@@ -185,14 +199,18 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
                             ManualSession.linked_activity_id.is_(None))).all()
     runs += [{"subject_key": f"manual:{r.id}", "local_date": r.date, "kind": "strength"} for r in manual]
     existing = session.scalars(select(SessionCompletion)).all()
-    scoped_uids = {str(p["session_uid"]) for p in planned if p["local_date"] in days}
+    context_plan_uids = {str(p["session_uid"]) for p in planned if p["local_date"] in context}
     historical = session.scalars(select(CalendarSessionRevision.session_uid).where(
-        CalendarSessionRevision.local_date.in_(days),
+        CalendarSessionRevision.local_date.in_(context_days),
         CalendarSessionRevision.calendar_version_number <= state.calendar_head_version)).all()
-    scoped_uids.update(str(uid) for uid in historical)
-    scoped_subjects = {str(r["subject_key"]) for r in runs if r["local_date"] in days}
+    context_plan_uids.update(str(uid) for uid in historical)
+    context_subject_keys = {str(r["subject_key"]) for r in runs if r["local_date"] in context}
     zone = athlete_tz(session)
+    # A held subject omitted from eligible results can still disprove an auto link.
     for completion in existing:
+        key = _subject_key(_completion_dict(completion))
+        if key is None or key in context_subject_keys:
+            continue
         subject_day = None
         if completion.activity_id:
             raw = session.get(Activity, completion.activity_id)
@@ -203,15 +221,15 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
         elif completion.manual_session_id:
             raw_manual = session.get(ManualSession, completion.manual_session_id)
             subject_day = raw_manual.date if raw_manual else None
-        if subject_day in days:
-            key = _subject_key(_completion_dict(completion))
-            if key:
-                scoped_subjects.add(key)
-    scoped_existing = [c for c in existing if str(c.session_uid) in scoped_uids
-                       or _subject_key(_completion_dict(c)) in scoped_subjects]
-    result = plan_matches(days, planned, runs, [_completion_dict(c) for c in scoped_existing])
+        if subject_day in context:
+            context_subject_keys.add(key)
+            runs.append({"subject_key": key, "local_date": subject_day, "eligible": False})
+    context_existing = [c for c in existing if str(c.session_uid) in context_plan_uids
+                       or _subject_key(_completion_dict(c)) in context_subject_keys]
+    result = plan_matches(days, planned, runs, [_completion_dict(c) for c in context_existing],
+                          context_days=context_days)
     affected: set[UUID] = set()
-    by_uid = {str(c.session_uid): c for c in scoped_existing}
+    by_uid = {str(c.session_uid): c for c in context_existing}
     deleted_uids: set[str] = set()
     for uid in result["delete_auto_session_uids"]:
         old = by_uid.get(uid)
@@ -220,7 +238,7 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
             session.delete(old)
             deleted_uids.add(uid)
     for key in result["delete_extra_subject_keys"]:
-        for old in scoped_existing:
+        for old in context_existing:
             if old.status == "extra" and _subject_key(_completion_dict(old)) == key:
                 affected.add(old.session_uid)
                 session.delete(old)

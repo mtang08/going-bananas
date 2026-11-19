@@ -203,3 +203,39 @@ def test_historical_revision_before_bootstrap_origin_auto_links(db) -> None:
         assert linked is not None and linked.activity_id == actual.id
         assert linked.match_method == "auto_same_day"
         session.rollback()
+
+
+@pytest.mark.integration
+def test_moved_plan_auto_link_survives_unrelated_rematch(db) -> None:
+    previous_monday = date(2026, 11, 9)
+    monday = date(2026, 11, 16)
+    wednesday = date(2026, 11, 18)
+    with db() as session:
+        _seed(session)
+        original = _plan(monday.day)
+        activity = _activity(wednesday.day)
+        session.add_all([_plan(previous_monday.day), original, activity])
+        session.flush()
+
+        state = session.get(AppState, 1)
+        state.calendar_head_version = 2
+        session.add(CalendarVersion(number=2, parent_number=1, kind="manual_edit", actor="system"))
+        session.flush()
+        session.add(CalendarSessionRevision(
+            session_uid=original.session_uid, revision=2, calendar_version_number=2,
+            local_date=wednesday, kind="run", slot=0, intent="synthetic", certainty="committed",
+        ))
+        session.flush()
+        assert rematch_dates(session, {wednesday}) == {original.session_uid}
+        session.commit()
+
+        query = select(SessionCompletion).where(SessionCompletion.session_uid == original.session_uid)
+        link = session.scalar(query)
+        assert link is not None and link.activity_id == activity.id
+        assert link.match_method == "auto_same_day"
+        link_id = link.id
+
+        for touched_day in (previous_monday, monday):
+            assert original.session_uid not in rematch_dates(session, {touched_day})
+            session.flush()
+            assert session.scalar(query).id == link_id

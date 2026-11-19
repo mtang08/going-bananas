@@ -54,3 +54,63 @@ def test_stale_auto_and_adjacent_unique_link() -> None:
                             [plan(P1), plan(P2, DAY + timedelta(days=1))], [actual(R1)], [])
     assert adjacent["links"][0]["session_uid"] == P1
     assert adjacent["candidates"][P2] == []
+
+
+def test_extras_stable_across_scopes() -> None:
+    saturday = date(2026, 11, 21)
+    sunday = saturday + timedelta(days=1)
+    planned = [plan(P1, saturday)]
+    runs = [actual(R1, sunday)]
+
+    first = plan_matches([saturday + timedelta(days=i) for i in range(3)], planned, runs, [],
+                         context_days=[saturday + timedelta(days=i) for i in range(-2, 5)])
+    second = plan_matches([saturday + timedelta(days=i) for i in range(1, 4)], planned, runs, [],
+                          context_days=[saturday + timedelta(days=i) for i in range(-1, 6)])
+
+    assert first['extras'] == second['extras'] == []
+
+
+def test_auto_link_kept_when_plan_outside_scope() -> None:
+    completion = {"session_uid": P1, "subject_key": R1, "match_method": "auto_same_day", "status": "unknown"}
+
+    result = plan_matches([DAY], [], [], [completion])
+
+    assert result['delete_auto_session_uids'] == []
+
+
+def test_auto_link_with_ineligible_subject_needs_evidence_in_context() -> None:
+    completion = {"session_uid": P1, "subject_key": R1, "match_method": "auto_same_day", "status": "unknown"}
+    ineligible = {**actual(R1), "resolution_state": "pending"}
+
+    absent = plan_matches([DAY], [plan(P1)], [], [completion])
+    known = plan_matches([DAY], [plan(P1)], [ineligible], [completion])
+
+    assert absent['delete_auto_session_uids'] == []
+    assert known['delete_auto_session_uids'] == [P1]
+    assert known['links'] == known['extras'] == []
+
+
+def test_context_reserves_links_without_writing_outside_scope() -> None:
+    previous = DAY - timedelta(days=1)
+    next_day = DAY + timedelta(days=1)
+    planned = [plan(P1, DAY), plan(P2, previous)]
+    runs = [actual(R1, previous), actual(R2, next_day)]
+
+    result = plan_matches([DAY], planned, runs, [], context_days=[previous, DAY, next_day])
+
+    assert result['links'] == result['extras'] == []
+    assert result['candidates'] == {P1: [
+        {"subject_key": R2, "local_date": next_day.isoformat(), "kind": "run", "reason": "MOVE_CANDIDATE"},
+    ]}
+
+
+def test_out_of_scope_auto_holder_reserves_subject() -> None:
+    previous = DAY - timedelta(days=1)
+    completion = {"session_uid": P1, "subject_key": R1, "match_method": "auto_same_day", "status": "unknown"}
+    planned = [plan(P1, previous), plan(P2, DAY)]
+
+    result = plan_matches([DAY], planned, [actual(R1)], [completion], context_days=[previous, DAY])
+
+    assert result['delete_auto_session_uids'] == []
+    assert result['links'] == result['extras'] == []
+    assert result['candidates'] == {P2: []}
