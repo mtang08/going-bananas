@@ -19,6 +19,7 @@ from app.read.calendar import head_version
 from app.services import calendar, knowledge, proposals
 from app.services.decision_inputs import VerifiedKnowledge
 from app.services.proposals.schema import AnchorChange, DecisionError, SessionFields, anchor_key
+from app.services.proposals.validation import proposal_freshness
 from app.services.timezone import athlete_tz
 
 router = APIRouter(prefix='/coach', tags=['coach'])
@@ -47,7 +48,7 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
             ref = proposals._snapshot_ref(snapshot)
             context = proposals.load_context(session, proposal.snapshot_id, now=datetime.now(UTC),
                 kb=resolve_kb(ref.kb_routes))
-            is_current = not proposals.proposal_freshness(
+            is_current = not proposal_freshness(
                 ref, context, base_calendar_version=proposal.base_calendar_version,
                 base_block_version_id=proposal.base_block_version_id)
         except knowledge.KnowledgeIntegrityError:

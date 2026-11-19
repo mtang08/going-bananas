@@ -14,7 +14,6 @@ import pytest
 from app.domain.calendar_structure import expand_structure
 from app.services.block_benchmark import BenchmarkOutcome, BenchmarkSpec, benchmark_spec
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, fingerprint
-from app.services.proposals import proposal_freshness, validate_document, validate_subset
 from app.services.proposals.schema import (
     ActiveBlock,
     BlockBenchmark,
@@ -26,6 +25,7 @@ from app.services.proposals.schema import (
     derive_certainty,
     scope,
 )
+from app.services.proposals.validation import proposal_freshness, validate_document, validate_subset
 
 TODAY = date(2026, 11, 16)
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
