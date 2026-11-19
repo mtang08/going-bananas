@@ -23,6 +23,7 @@ from app.services.snapshot import (
     QUALITY_OP,
     RACE,
     ROLLING,
+    WEEKLY_DIGEST_MAX_CHARS,
     SnapshotInputs,
     build_payload,
     select_conditional_topics,
@@ -97,6 +98,26 @@ def finding(n: int, *, rule: str = "FATIGUE_HIGH", severity: str = "observe", st
         "version": 1,
         "is_new_since_last_review": True,
     }
+
+
+def digest_row(n: int, *, key: bool = False, kind: str = "run", outcome: str = "completed", day: int | None = None,
+               execution: dict | None = None, actual: dict | None = None) -> dict:
+    return {"session_uid": f"u{n:02d}", "local_date": (date(2026, 11, 9) + timedelta(days=day if day is not None else n % 7)).isoformat(),
+            "slot": 0, "kind": kind, "class": "quality" if key else "easy", "recipe_id": "REC005" if key else "REC001",
+            "custom": False, "intent": "SECRET-INTENT", "key": key, "changed": False, "outcome": outcome,
+            "modification_reason": None, "planned_duration_s": 3000.0, "planned_distance_m": 8000.0,
+            "planned_distance_estimated": False, "actual": actual, "execution": execution}
+
+
+def digest_week(rows: list[dict], unplanned: list[dict], start: str = "2026-11-09") -> dict:
+    by_outcome = {o: 0 for o in ("completed", "modified", "partial", "moved", "missed", "recorded", "not_recorded", "planned")}
+    return {"schema": "weekly_digest.v1", "week_start": start, "week_end": "2026-11-15", "today": "2026-11-16",
+            "days_elapsed": 7, "timezone": "America/New_York", "calendar_version": 7, "plan_available": True,
+            "activity_coverage_complete": True,
+            "totals": {"sessions": {"planned": len(rows), "planned_to_date": len(rows), "done": 0, "by_outcome": by_outcome,
+                                    "removed": 1, "unplanned": len(unplanned)},
+                       "by_kind": {}, "time": {}, "run_distance": {}, "key_sessions": {"planned": 0}},
+            "sessions": rows, "unplanned": unplanned, "removed": [{"session_uid": "gone", "local_date": "2026-11-10", "kind": "run"}]}
 
 
 def patch(n: int, *, status: str = "open", proposal_id: str = "p1") -> dict:
@@ -418,6 +439,7 @@ def test_projection_sections_per_operation() -> None:
             "recovery",
             "prior_decisions",
             "exception_summary",
+            "weekly_digest",
         },
         QUALITY_OP: {
             "quality_progression",
@@ -440,6 +462,7 @@ def test_projection_sections_per_operation() -> None:
             "recovery",
             "prior_decisions",
             "exception_summary",
+            "weekly_digest",
             "benchmark_history",
         },
         CALIB: {"execution", "prior_decisions"},
@@ -919,3 +942,71 @@ def test_aerobic_efficiency_section() -> None:
     }
     for operation in (DAILY, QUALITY_OP):
         assert "aerobic_efficiency" not in build_payload(source, operation)
+
+
+
+def test_weekly_digest_empty_by_default() -> None:
+    assert build_payload(inputs(), ROLLING)["weekly_digest"] == {
+        "schema": "weekly_digest.v1", "timezone": "America/New_York", "weeks": [],
+    }
+
+
+def test_weekly_digest_week_view_caps_and_shape() -> None:
+    component = {"name": "duration_ratio", "value": 0.97, "status": "met"}
+    execution = {"assessment_status": "available", "reason_codes": ["MOVE_CANDIDATE"], "quality_flags": ["MOVED"],
+                 "components": [component], "reps_planned": 6, "reps_completed": 5}
+    actual = {"subject": "activity", "id": "a5", "local_date": "2026-11-14", "duration_s": 2900.0,
+              "distance_m": 7900.0}
+    rows = [digest_row(n, key=True, day=n) for n in range(5)]
+    rows.append(digest_row(5, key=True, day=5, execution=execution, actual=actual))
+    rows += [digest_row(n, outcome="missed") for n in range(10, 19)]
+    rows += [digest_row(19, kind="mobility", outcome="not_recorded"), digest_row(20)]
+    unplanned = [{"subject": "activity", "id": f"x{i}", "local_date": f"2026-11-{9 + i:02d}", "kind": "run",
+                  "duration_s": 1800.0, "distance_m": 5000.0} for i in range(7)]
+    week, = build_payload(inputs(weekly_digest=[digest_week(rows, unplanned)]), ROLLING)["weekly_digest"]["weeks"]
+
+    assert [row["session_uid"] for row in week["key_sessions"]] == ["u02", "u03", "u04", "u05"]
+    assert week["key_sessions_omitted"] == 2
+    assessed = week["key_sessions"][-1]
+    assert assessed["activity_id"] == "a5"
+    assert assessed["actual_duration_s"] == 2900.0
+    assert assessed["assessment_status"] == "available"
+    assert assessed["components"] == [component]
+    assert assessed["reps_planned"] == 6 and assessed["reps_completed"] == 5
+    assert assessed["quality_flags"] == ["MOVED"]
+    unassessed = week["key_sessions"][0]
+    assert unassessed["assessment_status"] is None
+    assert unassessed["reason_codes"] == []
+    assert unassessed["components"] == []
+    assert unassessed["reps_planned"] is None and unassessed["activity_id"] is None
+    assert len(week["not_done"]) == 6
+    assert all(row["outcome"] == "missed" and row["kind"] != "mobility" for row in week["not_done"])
+    assert week["not_done_omitted"] == 3
+    assert [row["id"] for row in week["unplanned"]] == ["x3", "x4", "x5", "x6"]
+    assert week["unplanned_omitted"] == 3
+    assert week["totals"]["sessions"]["removed"] == 1
+    assert not {"sessions", "removed", "intent", "slot", "custom"}.intersection(week)
+    assert "SECRET-INTENT" not in canonical_json(week)
+
+
+def test_weekly_digest_budget() -> None:
+    components = [{"name": name, "value": 0.97, "status": "met"} for name in (
+        "duration_ratio", "distance_ratio", "step_completion_ratio", "target_coverage",
+    )]
+    execution = {"assessment_status": "available", "reason_codes": ["MOVE_CANDIDATE"], "quality_flags": ["MOVED"],
+                 "components": components, "reps_planned": 6, "reps_completed": 5}
+    actual = {"subject": "activity", "id": "a5", "local_date": "2026-11-14", "duration_s": 2900.0,
+              "distance_m": 7900.0}
+    rows = [digest_row(n, key=True, execution=execution, actual=actual) for n in range(4)]
+    rows += [digest_row(n, outcome="missed") for n in range(4, 12)]
+    rows += [digest_row(12), digest_row(13)]
+    unplanned = [{"subject": "activity", "id": f"x{i}", "local_date": f"2026-11-{9 + i:02d}", "kind": "run",
+                  "duration_s": 1800.0, "distance_m": 5000.0} for i in range(6)]
+    source = inputs(weekly_digest=[digest_week(rows, unplanned, start) for start in ("2026-11-02", "2026-11-09")])
+    section = build_payload(source, ROLLING)["weekly_digest"]
+    assert len(canonical_json(section)) <= WEEKLY_DIGEST_MAX_CHARS
+    assert len(section["weeks"]) == 2
+    for week in section["weeks"]:
+        assert week["key_sessions_omitted"] == 0
+        assert week["not_done_omitted"] == 2
+        assert week["unplanned_omitted"] == 2

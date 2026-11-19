@@ -44,6 +44,7 @@ from app.services.operations import OPERATIONS
 from app.services.proposals import DecisionError, derive_certainty, is_quality_slot, scope
 from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
+from app.services.weekly_digest import DIGEST_SCHEMA, HEADLINE_KINDS, NOT_DONE_OUTCOMES, load_week, week_bounds
 from app.services.workout_progression import assemble_groups, session_point
 from app.strong_models import StrongWorkoutRow
 
@@ -72,6 +73,10 @@ BENCHMARK_HISTORY_MAX = 6
 PROGRESSION_GROUPS_MAX = 3
 PROGRESSION_POINTS_MAX = 4
 AEROBIC_RECENT_MAX = 5
+KEY_SESSIONS_MAX = 4
+NOT_DONE_MAX = 6
+UNPLANNED_MAX = 4
+WEEKLY_DIGEST_MAX_CHARS = 10_500
 PROGRESSION_POINT_KEYS = ("local_date", "activity_id", "status", "reason_codes", "n_planned", "n_completed",
                           "work_speed_mps", "work_hr_bpm", "work_m_per_beat", "cv_speed",
                           "last_first_change_pct", "target_coverage", "sport")
@@ -175,6 +180,7 @@ class SnapshotInputs:
     exception_patches: list[dict] = field(default_factory=list)
     review_recommended: list[dict] = field(default_factory=list)
     benchmark_history: list[dict] = field(default_factory=list)
+    weekly_digest: list[dict] = field(default_factory=list)
 
 
 def _window(operation: str, section: str, inputs: SnapshotInputs) -> tuple[date, date]:
@@ -752,6 +758,74 @@ def _aerobic_efficiency(inputs: SnapshotInputs) -> dict:
     return section
 
 
+def _capped(rows: list[dict], limit: int) -> tuple[list[dict], int]:
+    kept = rows[-limit:]
+    return kept, len(rows) - len(kept)
+
+
+def _key_view(row: dict) -> dict:
+    actual = row.get("actual") or {}
+    execution = row.get("execution") or {}
+    return {
+        "session_uid": row["session_uid"],
+        "local_date": row["local_date"],
+        "class": row["class"],
+        "recipe_id": row.get("recipe_id"),
+        "changed": row["changed"],
+        "outcome": row["outcome"],
+        "modification_reason": row.get("modification_reason"),
+        "planned_duration_s": row.get("planned_duration_s"),
+        "planned_distance_m": row.get("planned_distance_m"),
+        "actual_duration_s": actual.get("duration_s"),
+        "actual_distance_m": actual.get("distance_m"),
+        "activity_id": actual.get("id") if actual.get("subject") == "activity" else None,
+        "assessment_status": execution.get("assessment_status"),
+        "reason_codes": list(execution.get("reason_codes") or []),
+        "quality_flags": list(execution.get("quality_flags") or []),
+        "components": [dict(c) for c in execution.get("components") or []],
+        "reps_planned": execution.get("reps_planned"),
+        "reps_completed": execution.get("reps_completed"),
+    }
+
+
+def _digest_week_view(week: dict) -> dict:
+    rows = sorted(week.get("sessions") or [],
+                  key=lambda r: (str(r["local_date"]), r.get("slot") or 0, str(r["session_uid"])))
+    key, key_omitted = _capped([_key_view(r) for r in rows if r["key"]], KEY_SESSIONS_MAX)
+    not_done, not_done_omitted = _capped(
+        [{"session_uid": r["session_uid"], "local_date": r["local_date"], "kind": r["kind"],
+          "class": r["class"], "outcome": r["outcome"]}
+         for r in rows
+         if not r["key"] and r["kind"] in HEADLINE_KINDS and r["outcome"] in NOT_DONE_OUTCOMES],
+        NOT_DONE_MAX,
+    )
+    unplanned, unplanned_omitted = _capped(
+        [dict(u) for u in sorted(week.get("unplanned") or [], key=lambda u: (str(u["local_date"]), str(u["id"])))],
+        UNPLANNED_MAX,
+    )
+    return {
+        "week_start": week["week_start"],
+        "week_end": week["week_end"],
+        "days_elapsed": week["days_elapsed"],
+        "activity_coverage_complete": week["activity_coverage_complete"],
+        "totals": week["totals"],
+        "key_sessions": key,
+        "key_sessions_omitted": key_omitted,
+        "not_done": not_done,
+        "not_done_omitted": not_done_omitted,
+        "unplanned": unplanned,
+        "unplanned_omitted": unplanned_omitted,
+    }
+
+
+def _weekly_digest_view(inputs: SnapshotInputs) -> dict:
+    return {
+        "schema": DIGEST_SCHEMA,
+        "timezone": inputs.timezone,
+        "weeks": [_digest_week_view(w) for w in inputs.weekly_digest],
+    }
+
+
 def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
     if operation not in OPERATIONS:
         raise ValueError("unsupported_operation")
@@ -917,6 +991,7 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         payload["exceptions"] = _exceptions_section(inputs)
     if operation in {ROLLING, BLOCK}:
         payload["exception_summary"] = _exception_summary(inputs)
+        payload["weekly_digest"] = _weekly_digest_view(inputs)
     if operation == POST_EVENT:
         payload["event"] = _event_section(inputs)
     if operation == BLOCK:
@@ -1446,6 +1521,8 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     events = _load_events(session, as_of)
     exception_findings, exception_patches = _load_exception_state(session, as_of, now)
     benchmark_history = _load_benchmark_history(session, block_rows)
+    this_monday = week_bounds(as_of)[0]
+    weekly = [load_week(session, this_monday - timedelta(days=7), today=as_of), load_week(session, this_monday, today=as_of)]
     return SnapshotInputs(
         as_of=as_of, now=now, timezone=zone.key, calendar_version=head,
         data_revision=state.data_revision if state else 0,
@@ -1458,6 +1535,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         metric_results=metrics, anchors=anchors, proposals=proposals, coverage=coverage(session, first, as_of),
         exception_findings=exception_findings, exception_patches=exception_patches,
         review_recommended=_load_review_recommended(session, as_of), benchmark_history=benchmark_history,
+        weekly_digest=weekly,
     )
 
 
