@@ -20,8 +20,8 @@ from app.metric_models import MetricResult
 from app.metrics.engine import REGISTRY, metric_modules
 from app.models import AppState, ProfileVersion
 from app.planning_models import Block, BlockVersion, Event, Goal
-from app.services import calendar
-from app.services.snapshot import _load_metrics, load_inputs
+from app.services import calendar, weekly_digest
+from app.services.snapshot import ROLLING, _load_metrics, build_payload, load_inputs
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
@@ -144,3 +144,21 @@ def test_snapshot_metrics_ignore_other_current_versions(seeded, monkeypatch):
         (long_run, new_version),
         (rpe, old_version),
     ]
+
+
+def test_rolling_snapshot_carries_weekly_digest(seeded):
+    inputs = load_inputs(seeded, TODAY, now=NOW)
+    payload = build_payload(inputs, ROLLING)
+    section = payload['weekly_digest']
+    assert section['schema'] == 'weekly_digest.v1'
+    assert [w['week_start'] for w in section['weeks']] == ['2026-11-09', '2026-11-16']
+    previous, current = section['weeks']
+    assert (previous['days_elapsed'], current['days_elapsed']) == (7, 1)
+    expected = weekly_digest.load_week(seeded, TODAY, today=TODAY)
+    assert current['totals'] == expected['totals']
+    sessions = current['totals']['sessions']
+    assert (sessions['planned'], sessions['planned_to_date'], sessions['by_outcome']['missed']) == (3, 1, 1)
+    assert previous['totals']['sessions']['planned'] == 0
+    assert [row['outcome'] for row in current['not_done']] == ['missed']
+    assert current['key_sessions'] == []
+    assert 'quality_sessions' not in payload['exception_summary']
