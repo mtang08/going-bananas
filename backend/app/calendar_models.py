@@ -100,11 +100,3 @@ class LegacyImportMap(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     __table_args__ = (UniqueConstraint('source_table','source_id','target_kind'),)
-
-class LegacyUndoRequest(Base):
-    __tablename__ = 'legacy_undo_requests'
-    idempotency_key: Mapped[str] = mapped_column(String(100), primary_key=True)
-    import_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('legacy_import_runs.id'), nullable=False)
-    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    result: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

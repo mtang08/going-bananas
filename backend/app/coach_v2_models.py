@@ -5,7 +5,6 @@ from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
-    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -107,19 +106,3 @@ class CoachDecisionKey(Base):
     decision_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     result: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-class DailyGuidance(Base):
-    __tablename__ = 'daily_guidance'
-    id: Mapped[uuid.UUID] = uuid_pk()
-    local_date: Mapped[date] = mapped_column(Date, nullable=False)
-    checkin_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    engine: Mapped[str] = mapped_column(String(20), nullable=False)
-    decision: Mapped[str] = mapped_column(String(24), nullable=False)
-    session_uid: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    rationale: Mapped[str] = mapped_column(Text, nullable=False)
-    missing_inputs: Mapped[list[Any]] = mapped_column(ARRAY(String(40)), nullable=False, default=list, server_default='{}')
-    coach_review_suggested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default='false')
-    trigger_codes: Mapped[list[Any]] = mapped_column(ARRAY(String(40)), nullable=False, default=list, server_default='{}')
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    __table_args__ = (UniqueConstraint('local_date','input_hash'), CheckConstraint("decision IN ('proceed','modify','reschedule','rest','seek_clinical_input')", name='ck_daily_guidance_decision'),)

@@ -35,8 +35,6 @@ class AppState(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     data_revision: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     calendar_head_version: Mapped[int] = mapped_column(Integer, default=0, server_default='0', nullable=False)
-    planning_authority: Mapped[str] = mapped_column(String(12), default='legacy', server_default='legacy', nullable=False)
-    __table_args__ = (CheckConstraint("planning_authority IN ('legacy','calendar')", name='ck_app_state_planning_authority'),)
 
 
 class ProfileVersion(Base):

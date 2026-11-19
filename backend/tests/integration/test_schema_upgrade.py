@@ -25,8 +25,8 @@ from sqlalchemy.orm import sessionmaker
 from app.config import settings
 from app.db import get_session
 from app.main import app
+from app.migrations_head import EXPECTED_HEAD as HEAD
 
-HEAD = '0019_lap_intensity_end'
 STAMP = datetime(2026, 11, 12, tzinfo=UTC)
 HEADERS = {'X-Local-Request': '1', 'Origin': 'http://testserver'}
 
@@ -171,7 +171,7 @@ def test_populated_0009_upgrade_preserves_legacy_and_serves_profile(isolated_sch
     after, _ = _legacy_snapshot(connection, projection)
     assert after == before
     assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == HEAD
-    assert connection.execute(text('SELECT calendar_head_version, planning_authority FROM app_state WHERE id=1')).one() == (0, 'legacy')
+    assert connection.execute(text('SELECT calendar_head_version FROM app_state WHERE id=1')).scalar_one() == 0
     assert connection.execute(text('SELECT fit_status FROM activities WHERE id=:id'), {'id': activity}).scalar_one() == 'not_fetched'
 
     factory = sessionmaker(bind=connection, expire_on_commit=False)
@@ -185,23 +185,11 @@ def test_populated_0009_upgrade_preserves_legacy_and_serves_profile(isolated_sch
             assert client.get('/api/v1/health/ready').status_code == 200
             profile = client.get('/api/v1/profile').json()['data']
             assert profile['strength_schedule_mode'] == 'alternating'
-            assert profile['planning_authority'] == 'legacy'
             profile['expected_version'] = profile['version']
-            profile['planning_authority'] = 'calendar'
             profile['preferences'] = {'long_run_weekdays': [6]}
             response = client.put('/api/v1/profile', json=profile, headers=HEADERS)
             assert response.status_code == 200, response.text
-            assert response.json()['data']['planning_authority'] == 'legacy'
-            assert connection.execute(text('SELECT planning_authority FROM app_state WHERE id=1')).scalar_one() == 'legacy'
-            connection.execute(text("UPDATE app_state SET planning_authority='calendar' WHERE id=1"))
-            connection.commit()
-            profile = client.get('/api/v1/profile').json()['data']
-            assert profile['planning_authority'] == 'calendar'
-            profile.update(expected_version=profile['version'], planning_authority='legacy')
-            response = client.put('/api/v1/profile', json=profile, headers=HEADERS)
-            assert response.status_code == 200, response.text
-            assert response.json()['data']['planning_authority'] == 'calendar'
-            assert connection.execute(text('SELECT planning_authority FROM app_state WHERE id=1')).scalar_one() == 'calendar'
+            assert 'planning_authority' not in response.json()['data']
         finally:
             app.dependency_overrides.pop(get_session, None)
 
@@ -218,9 +206,18 @@ def test_empty_round_trip_and_each_nonempty_downgrade_guard(isolated_schema):
     try:
         response = TestClient(app).get('/api/v1/profile')
         assert response.status_code == 200
-        assert response.json()['data']['planning_authority'] == 'legacy'
+        assert 'planning_authority' not in response.json()['data']
     finally:
         app.dependency_overrides.pop(get_session, None)
+    _migration(connection, '0019_lap_intensity_end', down=True)
+    assert connection.execute(text('SELECT planning_authority FROM app_state WHERE id=1')).scalar_one() == 'legacy'
+    connection.execute(text('UPDATE app_state SET calendar_head_version=2 WHERE id=1'))
+    connection.commit()
+    _migration(connection, HEAD)
+    connection.commit()
+    _migration(connection, '0019_lap_intensity_end', down=True)
+    assert connection.execute(text('SELECT planning_authority FROM app_state WHERE id=1')).scalar_one() == 'calendar'
+    connection.execute(text("UPDATE app_state SET planning_authority='legacy', calendar_head_version=0 WHERE id=1"))
     _migration(connection, '0015_coach_v2', down=True)
     connection.commit()
     guard_cases = [
@@ -277,6 +274,20 @@ def test_empty_round_trip_and_each_nonempty_downgrade_guard(isolated_schema):
     _migration(connection, HEAD)
     connection.commit()
     assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == HEAD
+
+
+def test_0020_refuses_to_drop_nonempty_tables(isolated_schema):
+    connection = isolated_schema
+    _migration(connection, '0019_lap_intensity_end')
+    row_id = _insert(connection, 'daily_guidance', local_date=STAMP.date(),
+        engine='local_rules.v2', decision='proceed', rationale='synthetic', input_hash='a'*64)
+    connection.commit()
+    with pytest.raises(RuntimeError, match='nonempty_table_drop_refused'):
+        _migration(connection, '0020_drop_planning_authority')
+    connection.rollback()
+    assert connection.execute(text("SELECT to_regclass('daily_guidance') IS NOT NULL")).scalar_one()
+    assert connection.execute(text('SELECT id FROM daily_guidance')).scalar_one() == row_id
+    assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == '0019_lap_intensity_end'
 
 
 def test_database_subject_uniqueness_ranges_and_late_foreign_keys(isolated_schema):
@@ -431,6 +442,8 @@ def test_single_open_upgrade_archives_older_drafts_and_preserves_history(isolate
     connection.commit()
     _, projection = _legacy_snapshot(connection)
     projection['coach_proposals'].remove('status')
+    projection['app_state'].remove('planning_authority')
+    del projection['daily_guidance']
     before, _ = _legacy_snapshot(connection, projection)
     _migration(connection, HEAD)
     connection.commit()
