@@ -92,6 +92,7 @@ const execution = {
   laps: [],
   watch_steps: [],
   planned_actual: null,
+  aerobic: null,
   intervals: null,
   intensity: null,
   rpe: { effective: null, source: null, manual: null, garmin_fit: null, srpe_load_au: null },
