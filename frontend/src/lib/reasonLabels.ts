@@ -1,4 +1,10 @@
 export const REASON_LABELS: Record<string, string> = {
+  REPS_EXCLUDED: 'Some reps left out of pace and HR',
+  NO_LINKED_ACTIVITY: 'No run linked',
+  INTERVAL_RESULT_MISSING: 'Rep analysis not computed yet',
+  TREADMILL: 'Treadmill: pace estimated by the watch',
+  NO_PLAN_LINK: 'Not linked to a planned session',
+  NO_WORK_STEPS: 'Plan has no work steps',
   LAP_STEP_ORDER_MISMATCH: 'Laps do not follow the watch workout',
   LAP_STEP_UNKNOWN: 'A lap refers to an unknown workout step',
   LAP_ALIGNMENT_AMBIGUOUS: 'Laps can match the workout in more than one way',
