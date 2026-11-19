@@ -37,7 +37,7 @@ all migrations, the full research library, or private data to orient yourself.
 | Coaching snapshots, validation, proposals | `backend/app/api/coach.py`, `backend/app/services/{snapshot,decision_inputs,proposals}.py` |
 | Calendar, completion, undo | `backend/app/api/calendar.py`, `backend/app/services/{calendar,matching,weekly_digest}.py` |
 | Blocks, anchors, schedule configuration | `backend/app/api/{planning,anchors}.py`, `backend/app/planning_models.py` |
-| Check-ins and daily guidance | `backend/app/api/checkins.py`, `backend/app/services/{checkins,prompts,daily_guidance}.py` |
+| Check-ins and prompts | `backend/app/api/checkins.py`, `backend/app/services/{checkins,prompts}.py` |
 | Metrics, FIT, weekly mileage | `backend/app/metrics/`, `backend/app/services/{fit_ingest,weekly_projection}.py` |
 | Garmin/Strong ingestion | `backend/app/adapters/`, `backend/app/services/{sync,export_import,strong_import}.py` |
 | UI and navigation | [frontend/AGENTS.md](frontend/AGENTS.md), `frontend/src/App.tsx`, relevant `src/pages/` file |
@@ -55,9 +55,8 @@ calendar expansion do not call a model. Strong remains the lifting workflow.
 The current coaching path is the **repo-local `.codex/skills/going-bananas-coach`**
 package and the calendar proposal API. Its manifest declares `coach_proposal.v1`,
 calendar authority, and manual activation. `README.md` describes this user flow.
-The `skills/going-bananas-coach/` package and `api/agent.py`,
-`services/agent_plans.py`, and `services/coaching.py` contain older flows.
-Do not copy them as the default pattern for new coaching work.
+`app/agent_models.py` and `app/coaching_models.py` map frozen legacy history
+tables. Application requests no longer read those tables.
 
 `docs/running-coach-workflow.md` and `docs/handoff.md` include an earlier automatic
 activation design; `planning/remaining_mvp/` contains design/task history. They

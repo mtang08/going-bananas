@@ -18,7 +18,6 @@ from app.db import engine
 from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.metrics.engine import install_triggers
 from app.models import AppState, ProfileVersion
-from app.models import Checkin as LegacyCheckin
 from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
@@ -262,31 +261,6 @@ def test_source_only_drift_marks_pending_stale(proposal_session: Session) -> Non
     stored = session.get(CoachProposal, proposal.proposal_id)
     assert stored is not None and stored.status == "stale"
     assert session.scalar(select(func.count(CalendarVersion.number))) == 1
-
-
-@pytest.mark.parametrize(
-    ("symptoms", "change", "gait"),
-    [("none", None, "affected"), ("severe", None, "normal"), ("moderate", "worse", "normal")],
-)
-def test_legacy_categorical_safety_without_numeric_severity(
-    proposal_session: Session, symptoms: str, change: str | None, gait: str
-) -> None:
-    session = proposal_session
-    row = LegacyCheckin(
-        idempotency_key=f"legacy-{uuid.uuid4()}",
-        observed_at=NOW - timedelta(hours=1),
-        symptoms=symptoms,
-        change=change,
-        gait=gait,
-        feeling="okay",
-        effort=None,
-    )
-    session.add(row)
-    session.flush()
-    result = collect_decision_inputs(session, "review_rolling_plan", TODAY, now=NOW, kb=KB)
-    assert result["safety_guard"]["legacy_safety_active"] is True
-    assert result["source_versions"]["legacy_checkins"][-1]["severity_numeric"] is None
-    assert "note" not in result["source_versions"]["legacy_checkins"][-1]
 
 
 def test_accepted_add_records_server_session_uid(proposal_session: Session) -> None:
@@ -535,46 +509,6 @@ def test_verified_knowledge_content_drift_is_stale_evidence(proposal_session: Se
         )
     assert (caught.value.code, caught.value.commit) == ("stale_evidence", True)
     assert session.scalar(select(func.count(CalendarVersion.id))) == 1
-
-
-def test_legacy_window_boundary_and_mild_v2_does_not_erase_guard(proposal_session: Session) -> None:
-    from app.checkin_models import Checkin as CheckinV2
-
-    session = proposal_session
-    row = LegacyCheckin(
-        idempotency_key=f"legacy-{uuid.uuid4()}",
-        observed_at=NOW - timedelta(hours=72),
-        symptoms="moderate",
-        change="worse",
-        gait="normal",
-        feeling="okay",
-    )
-    session.add(row)
-    mild = CheckinV2(
-        idempotency_key=f"mild-{uuid.uuid4()}",
-        version=1,
-        kind="exception",
-        observed_at=NOW - timedelta(minutes=1),
-        fatigue=1,
-        illness="none",
-        gait_change="no",
-        context_tags=[],
-    )
-    session.add(mild)
-    session.flush()
-    included = collect_decision_inputs(session, "review_rolling_plan", TODAY, now=NOW, kb=KB)
-    assert included["safety_guard"]["legacy_safety_active"] is True
-    assert included["safety_guard"]["max_symptom_severity"] is None
-    assert any(item["id"] == str(row.id) for item in included["source_versions"]["legacy_checkins"])
-    row.observed_at = NOW - timedelta(hours=72, microseconds=1)
-    session.flush()
-    excluded = collect_decision_inputs(session, "review_rolling_plan", TODAY, now=NOW, kb=KB)
-    assert excluded["safety_guard"]["legacy_safety_active"] is False
-    assert all(item["id"] != str(row.id) for item in excluded["source_versions"]["legacy_checkins"])
-    row.observed_at = NOW + timedelta(microseconds=1)
-    session.flush()
-    future = collect_decision_inputs(session, "review_rolling_plan", TODAY, now=NOW, kb=KB)
-    assert future["safety_guard"]["legacy_safety_active"] is False
 
 
 def test_reject_all_anchor_only_creates_no_source(proposal_session: Session) -> None:

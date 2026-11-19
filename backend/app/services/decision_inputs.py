@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.calendar_models import LegacyImportMap, LegacyImportRun, SessionCompletion
+from app.calendar_models import SessionCompletion
 from app.checkin_models import SessionRpe
 from app.domain.athlete_facts import clinical_restriction
 from app.fit_models import FitFile
@@ -29,7 +29,6 @@ from app.models import (
     RecoveryObservation,
     SourceRecord,
 )
-from app.models import Checkin as LegacyCheckin
 from app.planning_models import Event, Goal, IntensityAnchor, StrengthRoutineSlot
 from app.services.block_benchmark import active_block_version
 from app.strong_models import StrongWorkoutRow
@@ -91,35 +90,6 @@ def _sorted(session: Session, model: Any, key: Any) -> list[Any]:
     return list(session.scalars(select(model).order_by(key)))
 
 
-def _legacy(session: Session, now: datetime) -> tuple[list[dict], bool]:
-    rows = session.scalars(
-        select(LegacyCheckin)
-        .where(LegacyCheckin.observed_at >= now - timedelta(hours=72), LegacyCheckin.observed_at <= now)
-        .order_by(LegacyCheckin.observed_at, LegacyCheckin.id)
-    ).all()
-    projected = [
-        {
-            "schema_version": 1,
-            "id": str(row.id),
-            "version": row.version,
-            "observed_at": _json_default(row.observed_at),
-            "activity_id": str(row.activity_id) if row.activity_id else None,
-            "symptoms": row.symptoms,
-            "change": row.change,
-            "gait": row.gait,
-            "feeling": row.feeling,
-            "effort": row.effort,
-            "severity_numeric": None,
-        }
-        for row in rows
-    ]
-    active = any(
-        row.gait == "affected" or row.symptoms == "severe" or (row.symptoms == "moderate" and row.change == "worse")
-        for row in rows
-    )
-    return projected, active
-
-
 def collect_decision_inputs(
     session: Session, operation: str, as_of: date, *, now: datetime, kb: VerifiedKnowledge
 ) -> dict:
@@ -128,13 +98,7 @@ def collect_decision_inputs(
 
     profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
     app_state = session.get(AppState, 1)
-    legacy, legacy_active = _legacy(session, now)
-    imported_ids = {
-        row.target_id
-        for row in session.scalars(select(LegacyImportMap).where(LegacyImportMap.source_table == "checkins"))
-        if row.target_id
-    }
-    checkins = [row for row in _sorted(session, CheckinV2, CheckinV2.id) if row.id not in imported_ids]
+    checkins = _sorted(session, CheckinV2, CheckinV2.id)
     checkin_ids = {row.id for row in checkins}
     symptoms = [row for row in _sorted(session, SymptomReport, SymptomReport.id) if row.checkin_id in checkin_ids]
     recent_ids = {row.id for row in checkins if now - timedelta(hours=72) <= row.observed_at <= now}
@@ -149,7 +113,6 @@ def collect_decision_inputs(
         "max_symptom_severity": max_severity,
         "illness_present": illness,
         "clinical_restriction_active": clinical,
-        "legacy_safety_active": legacy_active,
     }
     activities = _sorted(session, Activity, Activity.id)
     annotations = _sorted(session, ActivityAnnotation, ActivityAnnotation.id)
@@ -167,7 +130,6 @@ def collect_decision_inputs(
         else None,
         "calendar": app_state.calendar_head_version if app_state else 0,
         "block": None,
-        "history_epoch": None,
         "routine": max((r.version for r in _sorted(session, StrengthRoutineSlot, StrengthRoutineSlot.id)), default=0),
         "activities": _project(
             activities,
@@ -224,7 +186,6 @@ def collect_decision_inputs(
                 "supersedes_key",
             ),
         ),
-        "legacy_checkins": legacy,
     }
     if annotations:
         source_versions["annotations"] = _project(annotations, ("activity_id", "version", "workout_label", "excluded"))
@@ -290,12 +251,6 @@ def collect_decision_inputs(
             "typical_duration_s",
             "main_lower_body_lifts",
         ),
-    )
-    import_run = session.scalars(
-        select(LegacyImportRun).order_by(LegacyImportRun.imported_at.desc(), LegacyImportRun.id.desc()).limit(1)
-    ).first()
-    source_versions["history_epoch"] = (
-        _wire({"id": import_run.id, "source_fingerprint": import_run.source_fingerprint}) if import_run else None
     )
     events = _sorted(session, Event, Event.id)
     if events:

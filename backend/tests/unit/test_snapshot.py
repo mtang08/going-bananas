@@ -411,7 +411,6 @@ def test_prior_decisions_include_outcomes() -> None:
 def test_projection_sections_per_operation() -> None:
     common = {
         "snapshot_meta",
-        "legacy_checkins",
         "completed_exposures",
         "block",
         "anchors",
@@ -483,10 +482,8 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
     source = minimal()
     captured = []
     source_versions = {
-        "legacy_checkins": [],
         "activity_sources": [{"source_id": "synthetic", "payload_hash": "a" * 64}] * 4000,
         "profile": {"version": 1},
-        "history_epoch": None,
     }
 
     class FakeSession:
@@ -518,7 +515,6 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
                 "max_symptom_severity": None,
                 "illness_present": False,
                 "clinical_restriction_active": False,
-                "legacy_safety_active": False,
             },
         }
 
@@ -558,10 +554,8 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
     assert provenance == {
         "sha256": hashlib.sha256(canonical_json(source_versions).encode()).hexdigest(),
         "collections": {
-            "legacy_checkins": {"kind": "array", "count": 0},
             "activity_sources": {"kind": "array", "count": 4000},
             "profile": {"kind": "object", "count": 1},
-            "history_epoch": {"kind": "scalar", "count": 0},
         },
     }
     assert len(canonical_json(first["payload"])) < 30_000
