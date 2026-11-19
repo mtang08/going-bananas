@@ -62,6 +62,12 @@ const NAME: Record<string, string> = {
   step_completion_ratio: 'Steps completed',
   target_coverage: 'Time in target',
 }
+function repLaps(indexes: number[]): string {
+  if (indexes.length === 0) return '—'
+  if (indexes.length === 1) return `Lap ${indexes[0] + 1}`
+  return `Laps ${indexes[0] + 1}–${indexes[indexes.length - 1] + 1}`
+}
+
 function watchStepText(step: WatchStep, unit: Unit): string {
   const label =
     step.step_name ??
@@ -292,6 +298,7 @@ export function Activity({
                       <TableHeader>
                         <TableRow>
                           <TableHead>Rep</TableHead>
+                          <TableHead>Laps</TableHead>
                           <TableHead>Planned</TableHead>
                           <TableHead>Actual time</TableHead>
                           <TableHead>Actual distance</TableHead>
@@ -305,6 +312,7 @@ export function Activity({
                         {intervals.value.reps.map((rep) => (
                           <TableRow key={rep.rep}>
                             <TableCell>{rep.rep}</TableCell>
+                            <TableCell>{repLaps(rep.lap_indexes)}</TableCell>
                             <TableCell>
                               {rep.planned_duration_type === 'time'
                                 ? fmtClock(rep.planned_value)

@@ -36,6 +36,8 @@ WINDOW_DAYS: tuple[int, ...] = ()
 DEPENDS_ON: tuple[str, ...] = ()
 CONFIG = {
     'segment_source': 'plan_plus_wkt_step_index',
+    'completion_tolerance': {'time_s_max': 1.0, 'time_fraction': 0.005, 'distance_ratio': 0.99},
+    'watch_plan_value_rule': {'equal_within': 0.01, 'mismatch_above': 0.5},
     'alignment_rule': 'monotone_min_cost_split_omit.v1',
     'alignment_costs': {'split': 1, 'omit_nonwork': 2, 'omit_work': 10},
     'missing_rep_reason_rule': 'top_level.v1',
@@ -213,6 +215,13 @@ def _early(status: Status, reason: str) -> dict[str, Any]:
             'reason_codes': [reason], 'quality_flags': []}
 
 
+def _complete(duration_type: str, actual: float, planned: float) -> bool:
+    tolerance = cast(dict[str, float], CONFIG['completion_tolerance'])
+    if duration_type == 'time':
+        return actual >= planned - min(tolerance['time_s_max'], tolerance['time_fraction'] * planned)
+    return actual / planned >= tolerance['distance_ratio']
+
+
 def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
                       laps: list[LapIn], stream: ExecStream | None) -> dict[str, Any]:
     work = [step for step in plan_steps if step.type == 'work']
@@ -228,6 +237,20 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
     if (len(watch_work) != len(work) or any(
         plan.duration_type != fit.duration_type for plan, (_, fit) in zip(work, watch_work))):
         return _early(Status.not_assessable, 'WATCH_WORKOUT_MISMATCH')
+    rule = cast(dict[str, float], CONFIG['watch_plan_value_rule'])
+    effective: dict[int, float] = {}
+    differs = False
+    for plan, (position, fit) in zip(work, watch_work):
+        value = plan.duration_value
+        if _number(fit.duration_value) and fit.duration_value > 0:
+            diff = abs(fit.duration_value - value) / value
+            if diff > rule['mismatch_above']:
+                return _early(Status.not_assessable, 'WATCH_WORKOUT_MISMATCH')
+            if diff <= rule['equal_within']:
+                value = min(value, fit.duration_value)
+            else:
+                differs = True
+        effective[position] = value
     ordered_laps = sorted(laps, key=lambda lap: lap.lap_index)
     if len({lap.lap_index for lap in ordered_laps}) != len(ordered_laps):
         return _early(Status.not_assessable, 'LAP_STEP_ORDER_MISMATCH')
@@ -236,7 +259,7 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
         step = paired[position]
         values = [ordered_laps[p].timer_s if step.duration_type == 'time'
                   else ordered_laps[p].distance_m for p in positions]
-        return all(_number(value) for value in values) and sum(cast(float, value) for value in values) / step.duration_value >= 1
+        return all(_number(value) for value in values) and _complete(step.duration_type, sum(cast(float, value) for value in values), effective[position])
     align = align_laps([step.message_index for step in watch], frozenset(paired),
                        [AlignLap(p, lap.wkt_step_index) for p, lap in enumerate(ordered_laps)],
                        completes, cast(dict[str, int], CONFIG['alignment_costs']))
@@ -244,6 +267,8 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
         return _early(Status.not_assessable, align.error)
     reasons: set[str] = set()
     flags: set[str] = set(align.flags)
+    if differs:
+        reasons.add('WATCH_PLAN_DURATION_DIFFERS')
     if any(position in paired for position in align.omitted):
         reasons.add('WORK_STEP_SKIPPED')
     if any(position in paired for position in align.tail):
@@ -266,13 +291,15 @@ def execution_outcome(plan_steps: list[PlanStep], fit_steps: list[FitStep],
         speed_reasons: list[str] = []
         rep_flags: list[str] = []
         actual = lap_timer if step.duration_type == 'time' else lap_distance
-        ratio = actual / step.duration_value if _number(actual) and step.duration_value > 0 else None
-        completed = ratio is not None and ratio >= 1
+        ratio = actual / effective[watch_position] if _number(actual) else None
+        completed = _complete(step.duration_type, actual, effective[watch_position]) if _number(actual) else False
+        if completed and ratio is not None and ratio < 1:
+            rep_flags.append('COMPLETED_WITHIN_TOLERANCE')
         if not rep_laps:
             rep_reasons.append('WORK_STEP_NOT_RECORDED')
         elif ratio is None:
             rep_reasons.append('COMPLETION_VALUE_MISSING')
-        elif ratio < 1:
+        elif not completed:
             rep_reasons.append('INCOMPLETE_WORK_STEP')
         speed_status = Status.missing if not rep_laps else Status.not_assessable
         mean = coverage = target_valid = target_in = in_target = hr_median = None

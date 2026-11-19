@@ -182,7 +182,8 @@ def test_hr_and_timer_helpers() -> None:
     short_plan = [replace(step, duration_value=60, target_modality='effort',
                           target_low=None, target_high=None) if step.type == 'work' else step for step in plan]
     short_laps = [replace(lap, timer_s=60) if lap.lap_index in (1, 3, 5, 7) else lap for lap in laps]
-    out = execution_outcome(short_plan, fit, short_laps, None)
+    short_fit = [replace(step, duration_value=60) if step.intensity == 'active' else step for step in fit]
+    out = execution_outcome(short_plan, short_fit, short_laps, None)
     assert out['status'] == 'available'
     assert all(rep['hr_median_bpm'] is None and 'HR_NOT_REPORTED_SHORT_STEP' in rep['flags']
                for rep in out['value']['reps'])
@@ -259,7 +260,7 @@ def test_distance_targets_zero_speed_and_missing_original_endpoint() -> None:
     distance_plan = [PlanStep(i + 1, 'work', 'distance', 1000, str(i)) for i in range(3)]
     distance_fit = [FitStep(i, 'distance', 'active') for i in range(3)]
     distance_laps = [LapIn(i, i * 300, 300, 300, distance, i)
-                     for i, distance in enumerate((1000, 990, 1010))]
+                     for i, distance in enumerate((1000, 980, 1010))]
     out = execution_outcome(distance_plan, distance_fit, distance_laps, None)
     assert out['value']['n_completed'] == 2
     assert out['value']['step_completion_ratio'] == .667
@@ -354,3 +355,27 @@ def test_truncated_workout_reports_early_end() -> None:
     result = execution_outcome(plan, fit, laps[:4], stream)
     assert 'WORKOUT_ENDED_EARLY' in result['reason_codes']
     assert 'WORK_STEP_NOT_RECORDED' in result['reason_codes']
+
+
+def test_completion_tolerance_and_value_guard() -> None:
+    def result(duration_type, planned, watch, actual):
+        plan = [PlanStep(1, 'work', duration_type, planned, '0')]
+        fit = [FitStep(0, duration_type, 'active', watch)]
+        lap = LapIn(0, 0, actual if duration_type == 'time' else 300, 300,
+                    actual if duration_type == 'distance' else 1000, 0)
+        return execution_outcome(plan, fit, [lap], None)
+
+    out = result('time', 180, None, 179.999)
+    rep = out['value']['reps'][0]
+    assert rep['fully_completed'] and rep['completion_ratio'] == 1.0 and 179.999 / 180 < 1
+    assert 'COMPLETED_WITHIN_TOLERANCE' in rep['flags'] and 'COMPLETED_WITHIN_TOLERANCE' in out['quality_flags']
+    assert not result('time', 300, None, 297)['value']['reps'][0]['fully_completed']
+    out = result('distance', 1000, None, 991)
+    assert out['value']['reps'][0]['fully_completed'] and 'COMPLETED_WITHIN_TOLERANCE' in out['quality_flags']
+    assert not result('distance', 1000, None, 980)['value']['reps'][0]['fully_completed']
+    out = result('distance', 804.67, 800, 800)
+    assert out['value']['reps'][0]['fully_completed'] and 'WATCH_PLAN_DURATION_DIFFERS' not in out['reason_codes']
+    out = result('time', 300, 330, 300)
+    assert 'WATCH_PLAN_DURATION_DIFFERS' in out['reason_codes'] and out['value']['reps'][0]['completion_ratio'] == 1
+    assert result('time', 300, 600, 300)['reason_codes'] == ['WATCH_WORKOUT_MISMATCH']
+    assert result('time', 300, None, 300)['reason_codes'] == []
