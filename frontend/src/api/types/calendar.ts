@@ -158,11 +158,6 @@ export interface CalendarRollbackRequest {
   to_version: number
   reason?: string
 }
-export interface CalendarBootstrapRequest {
-  anchor_date: string
-  pattern: { quality: 1; long: 1 }
-  start_date: string
-}
 export interface CalendarWriteResult {
   version: number
   kind: CalendarVersionKind
