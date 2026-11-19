@@ -6,15 +6,15 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Literal, cast
 
-from sqlalchemy import and_, desc, func, or_, select, text
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.calendar_models import CalendarSessionRevision
 from app.coach_v2_models import CoachProposal
+from app.db import global_write_lock
 from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.planning_models import Event
-from app.services.calendar import LOCK_ID
 from app.services.exceptions.inputs import collect_detection_inputs
 from app.services.exceptions.lifecycle import close_finding
 from app.services.exceptions.rules import EVENT_REVIEW_DAYS, OBSERVE_EXPIRY_DAYS, detect
@@ -68,10 +68,6 @@ class DetectionResult:
     review_recommended: tuple[Recommendation, ...]
 
 
-def _lock(session: Session) -> None:
-    session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
-
-
 def _event_for(session: Session, entity_key: str) -> Event | None:
     try:
         return session.get(Event, uuid.UUID(entity_key.removeprefix('event:')))
@@ -110,7 +106,7 @@ def review_recommended(session: Session, today: date) -> list[Recommendation]:
 
 
 def run_detection(session: Session, now: datetime) -> DetectionResult:
-    _lock(session)
+    global_write_lock(session)
     inputs = collect_detection_inputs(session, now)
     new_ids: list[uuid.UUID] = []
     for c in detect(inputs):

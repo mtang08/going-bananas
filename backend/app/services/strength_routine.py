@@ -7,9 +7,10 @@ import statistics
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.db import global_write_lock
 from app.domain.cycle import recurring_sessions
 from app.errors import fail
 from app.planning_models import StrengthRoutineSlot
@@ -17,7 +18,6 @@ from app.services.profile import current_profile, profile_data
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
-LOCK_ID = 71382413
 _LIFT = re.compile(r'squat|deadlift|lunge|rdl|leg press|hip thrust|step up|leg curl', re.I)
 _SCHEDULE_FIELDS = ('strength_days_confirmed', 'strength_schedule_mode', 'scheduled_strength_days',
     'strength_week_a_start', 'strength_week_a_days', 'strength_week_b_days',
@@ -132,7 +132,7 @@ def _validate_slot(item: dict) -> dict:
 
 
 def replace_routine(session: Session, expected_version: int, slots: list[dict]) -> dict:
-    session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
+    global_write_lock(session)
     version = _version(session)
     if version != expected_version:
         fail('version_conflict', 'Routine changed; reload before editing', 409)

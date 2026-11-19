@@ -8,12 +8,12 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import desc, func, select, text
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.config import settings
-from app.db import bump_data_revision
+from app.db import bump_data_revision, global_write_lock
 from app.domain.cycle import opportunities
 from app.errors import fail
 from app.metrics.engine import load_runs
@@ -25,7 +25,6 @@ from app.services.strength_routine import routine_occurrences
 from app.services.timezone import athlete_today, athlete_tz, local_date
 from app.strong_models import StrongWorkoutRow
 
-LOCK_ID = 71382413
 WRITE_FIELDS = frozenset({'local_date', 'slot', 'kind', 'recipe_id', 'custom', 'placeholder',
     'intent', 'planned_duration_s', 'planned_distance_m', 'structure', 'strength_slot_id',
     'notes', 'locked'})
@@ -39,7 +38,7 @@ def _today(session: Session, now: datetime | None = None) -> date:
 
 
 def _lock(session: Session, expected_head: int | None = None) -> AppState:
-    session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
+    global_write_lock(session)
     state = session.get(AppState, 1, with_for_update=True, populate_existing=True)
     assert state is not None
     if expected_head is not None and state.calendar_head_version != expected_head:
