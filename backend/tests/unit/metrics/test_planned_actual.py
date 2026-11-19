@@ -150,3 +150,8 @@ def test_confirmed_move_assesses_components():
 
 def test_today_unlinked_not_yet_due():
     assert assess(plan(local_date=DAY), None, None)['reason_codes'] == ['NOT_YET_DUE']
+
+
+def test_unlinked_by_user():
+    result = assess(plan(local_date=DAY - timedelta(days=1)), linked(activity_id=None, match_method='user_marked'), None)
+    assert result['reason_codes'] == ['UNLINKED_BY_USER']

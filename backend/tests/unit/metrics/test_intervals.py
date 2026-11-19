@@ -204,7 +204,12 @@ def test_paused_timer_hr_lag_and_lap_bounds() -> None:
     assert rep['target_valid_s'] == 210
     assert rep['hr_median_bpm'] == 170
     assert rep['completion_ratio'] == 1
-    # An unknown elapsed duration may end at the next chronological lap only.
+    stored_end = execution_outcome(plan, fit, [replace(laps[0], elapsed_s=None, end_offset_s=270)], stream)
+    assert stored_end['value']['reps'][0]['speed_status'] == 'available'
+    disagreement = execution_outcome(plan, fit, [replace(laps[0], intensity='rest')], stream)
+    assert 'LAP_INTENSITY_DISAGREES' in disagreement['quality_flags']
+    assert disagreement['status'] == out['status']
+    assert disagreement['value']['n_completed'] == out['value']['n_completed']
     next_lap = LapIn(1, 270, 10, 10, 40, 1)
     next_fit = [*fit, FitStep(1, 'time', 'recovery')]
     inferred = execution_outcome(plan, next_fit, [replace(laps[0], elapsed_s=None), next_lap], stream)
