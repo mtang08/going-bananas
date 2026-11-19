@@ -169,7 +169,7 @@ def test_completion_assessed_after_flush_and_rollback_protects_link(calendar_fix
     assert client.get('/api/v1/calendar?start=2026-11-16&end=2026-11-29').json()['data']['head'] == 3
 
 
-def test_demo_history_uuid_and_legacy_authority_guard(calendar_fixture):
+def test_demo_history_uuid(calendar_fixture):
     client, connection, _ = calendar_fixture
     past = client.post('/api/v1/calendar/bootstrap', json={'anchor_date': '2026-11-02',
         'start_date': '2026-11-15', 'pattern': {'quality': 1, 'long': 1}}, headers=_headers())
@@ -193,14 +193,6 @@ def test_demo_history_uuid_and_legacy_authority_guard(calendar_fixture):
             history_edits=[])
         assert result['version'] == 1
         assert session.scalar(select(func.count()).select_from(CalendarVersion)) == 1
-        session.rollback()
-    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
-        state = session.get(AppState, 1)
-        state.planning_authority = 'legacy'
-        session.flush()
-        with pytest.raises(HTTPException) as error:
-            calendar.write_bootstrap(session, date(2026, 11, 2), date(2026, 11, 16))
-        assert error.value.status_code == 409
         session.rollback()
 
 

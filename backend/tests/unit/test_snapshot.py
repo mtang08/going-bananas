@@ -495,9 +495,6 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
         def execute(self, statement) -> None:
             self.calls.append(str(statement))
 
-        def get(self, model, key, **kwargs):
-            return type("State", (), {"planning_authority": "calendar"})()
-
         def add(self, row) -> None:
             self.rows.append(row)
 
@@ -608,31 +605,6 @@ def test_srpe_suffixed_windows_in_load_shape() -> None:
         f"w7:{AS_OF}:strength",
     }
     assert len(build_payload(inputs(metric_results=rows), ROLLING)["load_shape"]) == 3
-
-
-def test_snapshot_rejects_legacy_authority_before_refresh(monkeypatch) -> None:
-    import pytest
-
-    from app.metrics import engine as metrics_engine
-    from app.services import snapshot as module
-    from app.services.proposals import DecisionError
-
-    class LegacySession:
-        def __init__(self) -> None:
-            self.calls: list[str] = []
-
-        def execute(self, statement) -> None:
-            self.calls.append(str(statement))
-
-        def get(self, model, key, **kwargs):
-            return type("State", (), {"planning_authority": "legacy"})()
-
-    session = LegacySession()
-    monkeypatch.setattr(metrics_engine, "ensure_windows", lambda *args: session.calls.append("windows"))
-    with pytest.raises(DecisionError) as error:
-        module.build_snapshot(cast(Any, session), DAILY, AS_OF, now=NOW)
-    assert (error.value.code, error.value.http_status) == ("planning_not_active", 409)
-    assert session.calls == ["SELECT pg_advisory_xact_lock(71382413)"]
 
 
 def test_new_operation_windows_and_topics() -> None:

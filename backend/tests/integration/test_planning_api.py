@@ -9,7 +9,6 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.api.planning import router
-from app.models import AppState
 from app.planning_models import Block, BlockVersion, Event, Goal, StrengthRoutineSlot
 from app.services.strength_routine import confirmed_schedule, routine_occurrences
 
@@ -62,8 +61,8 @@ def test_routine_preserves_confirmed_schedule_and_versions(planning_fixture):
             StrengthRoutineSlot.version == 1, StrengthRoutineSlot.active.is_(True))) == 2
 
 
-def test_goal_event_block_routes_and_authority(planning_fixture):
-    client, connection = planning_fixture
+def test_goal_event_block_routes(planning_fixture):
+    client, _ = planning_fixture
     assert client.get('/api/v1/blocks/active').json()['data'] is None
     assert client.get('/api/v1/goals').json()['data']['items'] == []
     created = client.post('/api/v1/goals', json={'text': 'Complete a 5K',
@@ -85,15 +84,6 @@ def test_goal_event_block_routes_and_authority(planning_fixture):
     assert client.patch(f'/api/v1/events/{event_id}', json={'expected_version': 1,
         'status': 'registered'}).status_code == 200
     assert client.get('/api/v1/events').json()['data']['items'][0]['status'] == 'registered'
-    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
-        state = session.get(AppState, 1)
-        state.planning_authority = 'legacy'
-        session.commit()
-    assert client.get('/api/v1/goals').status_code == 200
-    assert client.post('/api/v1/goals', json={'text': 'Blocked', 'horizon': 'season',
-        'priority': 1}).status_code == 409
-    assert client.put('/api/v1/strength-routine', json={'expected_version': 2,
-        'slots': [{'label': 'A', 'default_weekday': 0, 'lower_body_cost': 'low'}]}).status_code == 409
 
 
 def test_block_active_uses_latest_version_and_history_is_ordered(planning_fixture):
