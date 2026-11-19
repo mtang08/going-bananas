@@ -1,24 +1,22 @@
-"""Metric recomputation: which subjects a change touches, and the explicit refresh entry points.
-
-The commit-time session listeners call `refresh_scopes`. Snapshot, CLI, and demo seed call
+"""Metric recomputation: select subjects with `scope_targets` and refresh them with `refresh_targets`.
+The commit-time pipeline that also re-matches and updates prompts is
+`app.services.derived.refresh_scopes`. Snapshot, CLI, and demo seed call
 `ensure_windows`, `ensure_nights`, and `assess_completion` directly. Work outside a commit runs
 inside `refreshing(session)`, which takes the global write lock and caches computed subjects.
 """
 from __future__ import annotations
 
 import re
-import time
 import uuid
 from collections.abc import Iterable, Sequence
 from contextlib import contextmanager
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import logs
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.db import global_write_lock
 from app.metric_models import MetricResult as MetricResultRow
@@ -33,8 +31,6 @@ from app.metrics.engine import (
 )
 from app.models import Activity, AppState
 from app.services.timezone import athlete_today, athlete_tz
-
-log = logs.get('metrics')
 
 
 def parse_scope(scope: str) -> tuple[str, str | tuple[date, ...] | uuid.UUID | None]:
@@ -217,75 +213,97 @@ def _all_dates(session: Session) -> set[date]:
     return dates
 
 
-def refresh_scopes(session: Session, scopes: Iterable[str]) -> list[MetricResultData]:
+@dataclass
+class Targets:
+    """What a set of refresh scopes reaches, before re-matching and expansion to subjects."""
+    dates: set[date] = field(default_factory=set)
+    recovery_dates: set[date] = field(default_factory=set)
+    activity_ids: set[uuid.UUID] = field(default_factory=set)
+    strength_keys: set[str] = field(default_factory=set)
+    plan_uids: set[uuid.UUID] = field(default_factory=set)
+    broad: bool = False
+    since: date | None = None
+
+
+def scope_targets(session: Session, scopes: Iterable[str]) -> Targets:
     from app.checkin_models import Checkin
     from app.models import ManualSession
-    from app.services.matching import rematch_dates
-    from app.services.prompts import generate_prompts
     from app.strong_models import StrongWorkoutRow
-    started = time.perf_counter()
-    scopes = list(scopes)
-    today = local_today(session)
-    dates = set(session.info.get('metrics_dates', ()))
-    recovery_dates: set[date] = set()
-    activity_ids: set[uuid.UUID] = set()
-    strength_keys: set[str] = set()
-    broad = False
-    all_since = None
+    zone = athlete_tz(session)
+    targets = Targets(dates=set(session.info.get('metrics_dates', ())),
+                      plan_uids={uid for uid in session.info.get('metrics_plan_uids', ()) if uid})
     for scope in scopes:
         kind, value = parse_scope(scope)
         if kind in ('calendar', 'timezone'):
-            broad = True
+            targets.broad = True
         elif kind in ('all', 'anchors'):
             assert isinstance(value, tuple)
-            all_since = min(all_since, value[0]) if all_since else value[0]
-            broad = True
+            targets.since = min(targets.since, value[0]) if targets.since else value[0]
+            targets.broad = True
         elif kind == 'activity':
             assert isinstance(value, uuid.UUID)
-            activity_ids.add(value)
+            targets.activity_ids.add(value)
             row = session.get(Activity, value)
             if row:
-                dates.add(row.start_at.astimezone(athlete_tz(session)).date())
+                targets.dates.add(row.start_at.astimezone(zone).date())
         elif kind == 'checkin':
             checkin = session.get(Checkin, value)
             if checkin:
-                day = checkin.observed_at.astimezone(athlete_tz(session)).date()
-                dates.update(day - timedelta(days=n) for n in range(3))
-                recovery_dates.add(day)
+                day = checkin.observed_at.astimezone(zone).date()
+                targets.dates.update(day - timedelta(days=n) for n in range(3))
+                targets.recovery_dates.add(day)
                 if checkin.activity_id:
-                    activity_ids.add(checkin.activity_id)
+                    targets.activity_ids.add(checkin.activity_id)
         elif kind.startswith('strength:'):
             prefix = kind.split(':')[1]
-            strength_keys.add(f'{prefix}:{value}')
+            targets.strength_keys.add(f'{prefix}:{value}')
             subject: Any = session.get(StrongWorkoutRow if prefix == 'strong' else ManualSession, value)
             if subject:
-                dates.add(subject.local_date if prefix == 'strong' else subject.date)
+                targets.dates.add(subject.local_date if prefix == 'strong' else subject.date)
         elif kind == 'recovery_dates':
             assert isinstance(value, tuple)
-            recovery_dates.update(value)
-            dates.update(value)
-    if broad:
-        all_dates = _all_dates(session)
-        dates.update(d for d in all_dates if all_since is None or d >= all_since)
-        recovery_dates.update(dates)
-    match_dates = dates | {today}
-    touched_uids = rematch_dates(session, match_dates)
-    session.flush()
-    for day in dates:
-        activity_ids.update(activities_between(session, day - timedelta(days=2), day + timedelta(days=30)))
-    if broad:
+            targets.recovery_dates.update(value)
+            targets.dates.update(value)
+    if targets.broad:
+        targets.dates.update(day for day in _all_dates(session) if targets.since is None or day >= targets.since)
+        targets.recovery_dates.update(targets.dates)
+    return targets
+
+
+def _date_ranges(days: Iterable[date], before: int, after: int) -> list[tuple[date, date]]:
+    """Merge the inclusive ranges [day - before, day + after] into disjoint inclusive ranges."""
+    ranges: list[tuple[date, date]] = []
+    for day in sorted(set(days)):
+        start, end = day - timedelta(days=before), day + timedelta(days=after)
+        if ranges and start <= ranges[-1][1] + timedelta(days=1):
+            ranges[-1] = (ranges[-1][0], max(ranges[-1][1], end))
+        else:
+            ranges.append((start, end))
+    return ranges
+
+
+def refresh_targets(session: Session, targets: Targets, matched_plan_uids: Iterable[uuid.UUID]) -> dict[str, int]:
+    """Recompute every subject `targets` reaches. Matching has already run; prompts run after.
+
+    Returns the counts for the refresh log line.
+    """
+    today = local_today(session)
+    activity_ids = set(targets.activity_ids)
+    for start, end in _date_ranges(targets.dates, before=2, after=30):
+        activity_ids.update(activities_between(session, start, end))
+    if targets.broad:
         activity_ids.update(session.scalars(select(Activity.id)))
-    results = refresh_runs(session, sorted(activity_ids, key=str))
-    results.extend(compute_subjects(session, 'session_rpe_load', sorted(strength_keys)))
+    refresh_runs(session, sorted(activity_ids, key=str))
+    compute_subjects(session, 'session_rpe_load', sorted(targets.strength_keys))
     linked = session.scalars(select(SessionCompletion.session_uid).where(SessionCompletion.activity_id.in_(activity_ids)))
     strength_links: list[uuid.UUID] = []
-    for key in strength_keys:
+    for key in targets.strength_keys:
         kind, raw_id = key.split(':', 1)
         column = SessionCompletion.strong_workout_id if kind == 'strong' else SessionCompletion.manual_session_id
         strength_links.extend(session.scalars(select(SessionCompletion.session_uid).where(column == uuid.UUID(raw_id))))
-    explicit_uids = [uid for uid in session.info.get('metrics_plan_uids', ()) if uid] + strength_links
-    plan_uids = [*touched_uids, *linked, *explicit_uids, *(_plan_uids(session) if broad else ())]
-    results.extend(refresh_plans(session, plan_uids))
+    plan_uids = [*matched_plan_uids, *linked, *targets.plan_uids, *strength_links,
+                 *(_plan_uids(session) if targets.broad else ())]
+    refresh_plans(session, plan_uids)
     as_ofs = {today}
     current = session.execute(select(MetricResultRow.subject_key, MetricResultRow.metric_id).where(
         current_result_filter(), MetricResultRow.subject_type.in_(('window', 'night')))).all()
@@ -295,11 +313,12 @@ def refresh_scopes(session: Session, scopes: Iterable[str]) -> list[MetricResult
         if match:
             end = date.fromisoformat(match[2])
             width = int(match[1]) * (2 if metric_id == 'run_volume_frequency' else 1)
-            if broad or metric_id == 'hard_session_spacing' or any(end - timedelta(days=width - 1) <= day <= end for day in dates):
+            if targets.broad or metric_id == 'hard_session_spacing' or any(
+                    end - timedelta(days=width - 1) <= day <= end for day in targets.dates):
                 as_ofs.add(end)
         elif key.startswith('night:'):
             stored_nights.add(date.fromisoformat(key[6:]))
-    for day in recovery_dates:
+    for day in targets.recovery_dates:
         end = min(day + timedelta(days=60), today)
         if day <= end:
             ensure_nights(session, day, end)
@@ -313,15 +332,5 @@ def refresh_scopes(session: Session, scopes: Iterable[str]) -> list[MetricResult
                     as_ofs.add(end)
     for as_of in sorted(as_ofs):
         ensure_windows(session, as_of)
-    generate_prompts(session, clock(session))
-    session.flush()
-    log.info('refresh scopes=%d dates=%d activities=%d plans=%d windows=%d nights=%d broad=%s ms=%d',
-             len(scopes), len(dates), len(activity_ids), len(set(plan_uids)), len(as_ofs), len(recovery_dates),
-             broad, round((time.perf_counter() - started) * 1000))
-    return results
-
-
-def recompute(session: Session, scope: str) -> list[MetricResultData]:
-    parse_scope(scope)
-    with refreshing(session):
-        return refresh_scopes(session, [scope])
+    return {'dates': len(targets.dates), 'activities': len(activity_ids), 'plans': len(set(plan_uids)),
+            'windows': len(as_ofs), 'nights': len(targets.recovery_dates)}

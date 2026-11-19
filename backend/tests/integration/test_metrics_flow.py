@@ -19,7 +19,7 @@ from app.checkin_models import SessionRpe
 from app.config import settings
 from app.db import bump_data_revision, get_revision
 from app.metric_models import MetricResult, Prompt
-from app.metrics import engine, refresh
+from app.metrics import engine
 from app.models import Activity, AppState, CoverageInterval, ProfileVersion
 from app.services import derived
 from app.services.sync import import_activity_page
@@ -246,7 +246,7 @@ def test_derived_failure_rolls_back_source_and_revision(db, tmp_path, monkeypatc
         session.get(Activity, ids[0]).timer_s = 9999
         def fail_refresh(*args):
             raise RuntimeError('synthetic calculation failure')
-        monkeypatch.setattr(refresh, 'refresh_scopes', fail_refresh)
+        monkeypatch.setattr(derived, 'refresh_scopes', fail_refresh)
         with pytest.raises(RuntimeError, match='synthetic calculation'):
             session.commit()
         session.rollback()

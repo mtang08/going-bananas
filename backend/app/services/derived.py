@@ -6,21 +6,49 @@ refresh, so a failed refresh rolls the write back. `app.main` and `app.cli` call
 """
 from __future__ import annotations
 
+import time
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import event, inspect, select
 from sqlalchemy.orm import Session
 
+from app import logs
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.db import bump_data_revision
 from app.fit_models import FitFile
 from app.metrics import refresh
 from app.models import Activity, ActivityAnnotation, ActivitySource, AppState, CoverageInterval, ProfileVersion
+from app.services.matching import rematch_dates
+from app.services.prompts import generate_prompts
 from app.services.timezone import athlete_tz
 
 REFRESH_ENABLED = True
 """Test seam: suites that run matching or an assessor themselves set this False. Commits still bump `data_revision`."""
+
+
+log = logs.get('metrics')
+
+
+def refresh_scopes(session: Session, scopes: Iterable[str]) -> None:
+    """Commit-time pipeline: scopes → re-match touched days → recompute metrics → prompts, then one log line."""
+    started = time.perf_counter()
+    scopes = list(scopes)
+    targets = refresh.scope_targets(session, scopes)
+    matched = rematch_dates(session, targets.dates | {refresh.local_today(session)})
+    session.flush()
+    counts = refresh.refresh_targets(session, targets, matched)
+    generate_prompts(session, refresh.clock(session))
+    session.flush()
+    log.info('refresh scopes=%d dates=%d activities=%d plans=%d windows=%d nights=%d broad=%s ms=%d',
+             len(scopes), counts['dates'], counts['activities'], counts['plans'], counts['windows'],
+             counts['nights'], targets.broad, round((time.perf_counter() - started) * 1000))
+
+
+def recompute(session: Session, scopes: Iterable[str]) -> None:
+    """Run the pipeline outside a commit, under the global write lock (demo seed)."""
+    with refresh.refreshing(session):
+        refresh_scopes(session, scopes)
 
 
 def enqueue(session: Session, scopes: Iterable[str]) -> None:
@@ -163,7 +191,7 @@ def _before_commit(session: Session) -> None:
         session.execute(select(AppState.id).where(AppState.id == 1).with_for_update())
         bump_data_revision(session)
         if REFRESH_ENABLED:
-            refresh.refresh_scopes(session, scopes)
+            refresh_scopes(session, scopes)
         session.flush()
     for key in ('metrics_scopes', 'metrics_dates', 'metrics_plan_uids', 'metrics_pending_sources'):
         session.info.pop(key, None)
