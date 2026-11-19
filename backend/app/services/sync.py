@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.adapters.garmin.normalize import InvalidRecord, parse_activity
 from app.adapters.garmin.personal import GarminPersonalSource
-from app.db import SessionLocal, bump_data_revision, engine
+from app.db import SessionLocal, bump_data_revision, engine, global_write_lock
 from app.logs import exception_summary, get
 from app.models import (
     Activity,
@@ -39,7 +39,6 @@ log = get('sync')
 
 PARSER_VERSION = "garmin-personal-v1"
 ADVISORY_LOCK = 837150921
-GLOBAL_WRITE_LOCK = 71382413
 
 
 def _required[T](value: T | None) -> T:
@@ -254,7 +253,7 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
         raise ValueError("invalid_account_scope")
     if not records:
         return {"seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
-    session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": GLOBAL_WRITE_LOCK})
+    global_write_lock(session)
     if timezone is None:
         timezone = timezone_name(session)
     if source_kind == "garmin_api" and records:
@@ -346,7 +345,7 @@ def import_recovery_page(session: Session, private_dir: Path, dataset: str,
     if source_metadata is not None and len(source_metadata) != len(records):
         raise ValueError("source_metadata_count_mismatch")
     if records:
-        session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": GLOBAL_WRITE_LOCK})
+        global_write_lock(session)
     counts = {"seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
     owners = {item.get("userProfilePK", item.get("userProfilePk")) for item in records
               if isinstance(item, dict) and type(item.get("userProfilePK", item.get("userProfilePk"))) is int}

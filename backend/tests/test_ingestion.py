@@ -7,6 +7,7 @@ import pytest
 
 from app.adapters.garmin.normalize import InvalidRecord, parse_activity
 from app.adapters.garmin.personal import GarminConfigurationError, GarminPersonalSource, GarminRemoteError
+from app.db import GLOBAL_WRITE_LOCK
 from app.services.backup import BackupError, validate_backup
 from app.services.sync import catchup_window, retry_delay, store_raw
 
@@ -21,7 +22,7 @@ def test_import_page_global_lock_precedes_source_access(monkeypatch, tmp_path):
         def __init__(self):
             self.events = []
 
-        def execute(self, statement, params):
+        def execute(self, statement, params=None):
             self.events.append(("lock", str(statement), params))
 
     def source_probe(*_args):
@@ -34,7 +35,7 @@ def test_import_page_global_lock_precedes_source_access(monkeypatch, tmp_path):
         sync.import_activity_page(session, tmp_path, [{}], account_scope="synthetic",
                                   source_kind="garmin_export", timezone="UTC")
     assert session.events[0][0] == "lock"
-    assert session.events[0][2] == {"key": sync.GLOBAL_WRITE_LOCK}
+    assert session.events[0][1] == f"SELECT pg_advisory_xact_lock({GLOBAL_WRITE_LOCK})"
     assert session.events[1] == ("source",)
     session.events.clear()
     assert sync.import_activity_page(session, tmp_path, [], account_scope="synthetic") == {
@@ -51,7 +52,7 @@ def test_recovery_import_global_lock_precedes_source_access(monkeypatch, tmp_pat
     events = []
 
     class SessionProbe:
-        def execute(self, statement, params):
+        def execute(self, statement, params=None):
             events.append(("lock", str(statement), params))
 
     def source_probe(*_args):
@@ -62,7 +63,7 @@ def test_recovery_import_global_lock_precedes_source_access(monkeypatch, tmp_pat
     row = {"userProfilePK": 17, "calendarDate": "2026-11-12", "lastNightAvg": 42}
     with pytest.raises(StopAtSource):
         sync.import_recovery_page(SessionProbe(), tmp_path, "hrv", [row])
-    assert events[0][0] == "lock" and events[0][2] == {"key": sync.GLOBAL_WRITE_LOCK}
+    assert events[0][0] == "lock" and events[0][1] == f"SELECT pg_advisory_xact_lock({GLOBAL_WRITE_LOCK})"
     assert events[1] == ("source",)
 
 
