@@ -276,3 +276,23 @@ def test_wrappers_use_call_and_check_download_shape(monkeypatch):
     source._client.download_activity = lambda id: {'bad': True}
     with pytest.raises(GarminConfigurationError, match='invalid_fit_download_shape'):
         source.download_activity('4')
+
+
+def test_lap_intensity_and_end_are_decoded(monkeypatch):
+    from app.adapters.garmin import fit
+
+    messages = {
+        'session_mesgs': [{'start_time': START_FIT_TS, 'sport': 'running'}],
+        'lap_mesgs': [
+            {'start_time': START_FIT_TS, 'timestamp': START_FIT_TS + 100, 'intensity': 'warmup'},
+            {'start_time': START_FIT_TS + 100, 'intensity': 'unknown_intensity'},
+        ],
+    }
+    monkeypatch.setattr(fit.Decoder, 'read', lambda self, **_: (messages, []))
+
+    first, second = decode_fit(build_synthetic_fit()).laps
+
+    assert first.intensity == 'warmup'
+    assert first.end_at == datetime.fromtimestamp(START_FIT_TS + FIT_EPOCH_OFFSET + 100, UTC)
+    assert second.intensity is None
+    assert second.end_at is None
