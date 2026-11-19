@@ -22,7 +22,7 @@ from app.services.calendar_structure import StructureError, expand_structure
 from app.services.matching import PROTECTED_METHODS
 from app.services.profile import current_profile
 from app.services.strength_routine import routine_occurrences
-from app.services.timezone import athlete_today, athlete_tz
+from app.services.timezone import athlete_today, athlete_tz, local_date
 from app.strong_models import StrongWorkoutRow
 
 LOCK_ID = 71382413
@@ -93,12 +93,22 @@ def state_at(session: Session, version: int) -> list[dict]:
         key=lambda row: (row.local_date, row.slot, str(row.session_uid))) if not row.deleted]
 
 
+def _subject_date(session: Session, subject: object) -> date | None:
+    if isinstance(subject, Activity):
+        return local_date(subject.start_at, athlete_tz(session))
+    if isinstance(subject, StrongWorkoutRow):
+        return subject.local_date
+    if isinstance(subject, ManualSession):
+        return subject.date
+    return None
+
+
 def _completion_date(session: Session, row: SessionCompletion, planned: dict[uuid.UUID, dict]) -> date | None:
     for field, model in SUBJECTS.items():
         subject_id = getattr(row, field)
         if subject_id:
             subject = session.get(model, subject_id)
-            return getattr(subject, 'local_date', getattr(subject, 'date', None)) if subject else None
+            return _subject_date(session, subject)
     session_row = planned.get(row.session_uid)
     return session_row['local_date'] if session_row else None
 
@@ -635,7 +645,7 @@ def put_completion(session: Session, session_uid: uuid.UUID, body: dict,
     for field, value in subjects.items():
         if value is not None:
             subject = session.get(SUBJECTS[field], value)
-            actual_date = getattr(subject, 'local_date', getattr(subject, 'date', None))
+            actual_date = _subject_date(session, subject)
     moved = bool(planned and actual_date and planned.local_date != actual_date)
     method = ('confirmed_move' if moved else 'explicit') if count else 'user_marked'
     status = 'moved' if moved else ('unknown' if count else body['status'])

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from urllib.parse import urlsplit
 
 import pytest
@@ -499,3 +499,25 @@ def test_unskip_removes_completion_and_restores_auto_match(calendar_fixture):
         matched = session.scalar(query)
         assert matched.activity_id == activity_id
         assert matched.match_method == 'auto_same_day'
+
+
+def test_explicit_link_uses_current_athlete_timezone(calendar_fixture):
+    client, connection, _ = calendar_fixture
+    _bootstrap(client)
+    target = next(s for s in client.get('/api/v1/calendar').json()['data']['sessions'] if s['kind'] == 'run')
+    day = date.fromisoformat(target['local_date'])
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        activity_id = _completion_test_run(session, day + timedelta(days=1))
+        activity = session.get(Activity, activity_id)
+        activity.start_at = activity.start_at.replace(hour=6)
+        activity.original_start = activity.start_at.isoformat()
+        session.flush()
+        version = session.scalar(select(func.max(ProfileVersion.version))) + 1
+        session.add(ProfileVersion(version=version, effective_at=datetime.now(UTC), timezone='America/Los_Angeles',
+                                   facts={}, preferences={}, unknowns=[]))
+        session.commit()
+    response = client.put(f"/api/v1/calendar/completions/{target['session_uid']}",
+                          json={'activity_id': str(activity_id)}, headers=_headers())
+    assert response.status_code == 200
+    assert response.json()['data']['match_method'] == 'explicit'
+    assert response.json()['data']['local_date'] == day.isoformat()

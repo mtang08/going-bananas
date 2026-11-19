@@ -173,3 +173,14 @@ def test_official_client_retry_after_header_is_preserved_without_body(tmp_path):
         source._call(failed_request)
     assert retry_delay(exc.value, 1) == 37
     assert "SECRET_RESPONSE_BODY" not in str(exc.value)
+
+
+@pytest.mark.parametrize('source,sport', [
+    ('indoor_running', 'treadmill_running'), ('treadmill_running', 'treadmill_running'),
+    ('street_running', 'running'), ('track_running', 'running'), ('virtual_run', 'running'),
+    ('ultra_run', 'running'), ('obstacle_run', 'running'), ('trail_running', 'trail_running'),
+])
+def test_run_activity_types(source, sport):
+    activity = parse_activity({'activityId': 101, 'startTimeGMT': '2026-10-01T12:00:00Z',
+                               'activityType': {'typeKey': source}})
+    assert activity.sport == sport
