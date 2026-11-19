@@ -39,7 +39,7 @@ from app.models import (
 )
 from app.services.timezone import athlete_tz
 
-METRIC_MODULES = ('volume', 'long_run', 'srpe', 'symptoms', 'intensity', 'intervals', 'recovery', 'planned_actual', 'spacing')
+METRIC_MODULES = ('volume', 'long_run', 'srpe', 'symptoms', 'intensity', 'intervals', 'recovery', 'planned_actual', 'spacing', 'aerobic')
 
 
 @dataclass(frozen=True)
@@ -417,7 +417,7 @@ def _activity_ids(session: Session, start: date, end: date) -> list[uuid.UUID]:
 def _refresh_runs(session: Session, activity_ids: Iterable[uuid.UUID]) -> list[MetricResultData]:
     keys = [str(uid) for uid in dict.fromkeys(activity_ids)]
     run_metrics = {'symptom_response_timeline', 'session_rpe_load', 'long_run_exposure',
-                   'intensity_time_distribution', 'work_interval_execution'}
+                   'intensity_time_distribution', 'work_interval_execution', 'aerobic_efficiency'}
     results = []
     for item in _ordered_registry():
         if item.metric_id in run_metrics:

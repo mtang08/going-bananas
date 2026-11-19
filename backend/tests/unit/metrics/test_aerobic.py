@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from app.metrics.aerobic import AeroStream, Sample, aerobic_outcome, analysis_spans, speed_cv_pct
+from app.metrics.aerobic import AeroStream, Sample, aerobic_outcome, analysis_spans, run_class, speed_cv_pct
 
 
 def stream(n, hr, speed, alt=None, timer_on=None, flags=()):
@@ -221,3 +221,31 @@ def test_half_grade_gate_compares_before_rounding():
     assert result['value']['elevation']['half_grade_diff_pct'] == 1.0
     assert result['value']['decoupling']['reason_codes'] == ['HALF_GRADE_DIFFERS']
     assert result['value']['decoupling']['pct'] is None
+
+
+def test_run_class():
+    easy = {'recipe_id': 'REC001', 'intent': 'Easy run', 'structure': None}
+    long = {'recipe_id': 'REC002', 'intent': 'Long run', 'structure': None}
+    warmup = {'type': 'warmup', 'duration_type': 'time', 'duration_value': 600}
+    cooldown = {'type': 'cooldown', 'duration_type': 'time', 'duration_value': 600}
+    four_by_five = [warmup, {'type': 'repeat', 'count': 4, 'steps': [
+        {'type': 'work', 'duration_type': 'time', 'duration_value': 300,
+         'target': {'modality': 'speed', 'low': 3.4, 'high': 3.8}},
+        {'type': 'recovery', 'duration_type': 'time', 'duration_value': 120},
+    ]}, cooldown]
+    steady = {'recipe_id': None, 'intent': 'Steady 40', 'structure': None}
+    quality = {'recipe_id': 'REC004', 'intent': 'Tempo', 'structure': [
+        warmup, {'type': 'work', 'duration_type': 'time', 'duration_value': 1200}, cooldown,
+    ]}
+
+    assert run_class(easy, 0, None) == ('easy', None)
+    assert run_class(long, 0, None) == ('long', None)
+    assert run_class({'recipe_id': 'REC003', 'structure': four_by_five}, 0, None) == (
+        'structured', 'STRUCTURED_SESSION',
+    )
+    assert run_class(quality, 0, None) == ('quality', 'NOT_EASY_OR_LONG')
+    assert run_class(steady, 0, None) == ('unplanned', None)
+    assert run_class(steady, 0, 'long') == ('long', None)
+    assert run_class(None, 0, 'quality') == ('quality', 'NOT_EASY_OR_LONG')
+    assert run_class(None, 4, None) == ('structured', 'STRUCTURED_SESSION')
+    assert run_class(None, 1, None) == ('unplanned', None)
