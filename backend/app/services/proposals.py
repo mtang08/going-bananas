@@ -378,7 +378,6 @@ def safety_active(guard: dict | None) -> bool:
         or (severity is not None and severity >= 6.5)
         or guard.get("illness_present")
         or guard.get("clinical_restriction_active")
-        or guard.get("legacy_safety_active")
     )
 
 

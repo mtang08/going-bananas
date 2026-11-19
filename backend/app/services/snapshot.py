@@ -170,7 +170,6 @@ class SnapshotInputs:
     block_decisions: list[dict] = field(default_factory=list)
     runs: list[dict] = field(default_factory=list)
     checkins: list[dict] = field(default_factory=list)
-    legacy_checkins: list[dict] = field(default_factory=list)
     prompts: list[dict] = field(default_factory=list)
     metric_results: list[dict] = field(default_factory=list)
     anchors: list[dict] = field(default_factory=list)
@@ -237,19 +236,12 @@ def _safety_guard(inputs: SnapshotInputs) -> dict:
     severities = [
         float(sym["severity"]) for c in recent for sym in c.get("symptoms", []) if sym.get("severity") is not None
     ]
-    legacy = [c for c in inputs.legacy_checkins if first <= _instant(c["observed_at"]) <= inputs.now]
     return {
         "window_hours": 72,
         "gait_change_yes": any(c.get("gait_change") == "yes" for c in recent),
         "max_symptom_severity": max(severities) if severities else None,
         "illness_present": any(c.get("illness") == "present" for c in recent),
         "clinical_restriction_active": bool(inputs.clinical_restriction and inputs.clinical_restriction.strip()),
-        "legacy_safety_active": any(
-            c.get("gait") == "affected"
-            or c.get("symptoms") == "severe"
-            or (c.get("symptoms") == "moderate" and c.get("change") == "worse")
-            for c in legacy
-        ),
     }
 
 
@@ -801,26 +793,6 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             "scope": {"start": start, "end": end},
             "safety_guard": _safety_guard(inputs),
         },
-        "legacy_checkins": [
-            _view(
-                c,
-                (
-                    "schema_version",
-                    "id",
-                    "version",
-                    "observed_at",
-                    "activity_id",
-                    "symptoms",
-                    "change",
-                    "gait",
-                    "feeling",
-                    "effort",
-                    "severity_numeric",
-                ),
-            )
-            for c in inputs.legacy_checkins
-            if inputs.now - timedelta(hours=72) <= _instant(c["observed_at"]) <= inputs.now
-        ],
         "completed_exposures": _completed_exposures(inputs, operation),
         "anchors": [
             _view(
@@ -1154,22 +1126,11 @@ def _load_runs(session: Session, first: date, as_of: date, rpe_rows: Sequence[Se
 
 
 def _load_checkins(session: Session, now: datetime, zone: ZoneInfo) -> list[dict]:
-    from app.calendar_models import LegacyImportMap
-
-    imported_ids = {
-        row.target_id
-        for row in session.scalars(select(LegacyImportMap).where(LegacyImportMap.source_table == "checkins"))
-        if row.target_id
-    }
-    checkin_rows = [
-        row
-        for row in session.scalars(
-            select(CheckinV2)
-            .where(CheckinV2.observed_at >= now - timedelta(days=120), CheckinV2.observed_at <= now)
-            .order_by(CheckinV2.observed_at, CheckinV2.id)
-        )
-        if row.id not in imported_ids
-    ]
+    checkin_rows = session.scalars(
+        select(CheckinV2)
+        .where(CheckinV2.observed_at >= now - timedelta(days=120), CheckinV2.observed_at <= now)
+        .order_by(CheckinV2.observed_at, CheckinV2.id)
+    ).all()
     symptom_rows = (
         session.scalars(
             select(SymptomReport)
@@ -1192,33 +1153,6 @@ def _load_checkins(session: Session, now: datetime, zone: ZoneInfo) -> list[dict
         for row in checkin_rows
     ]
     return checkins
-
-
-def _load_legacy_checkins(session: Session, now: datetime) -> list[dict]:
-    from app.models import Checkin as LegacyCheckin
-
-    legacy_rows = session.scalars(
-        select(LegacyCheckin)
-        .where(LegacyCheckin.observed_at >= now - timedelta(hours=72), LegacyCheckin.observed_at <= now)
-        .order_by(LegacyCheckin.observed_at, LegacyCheckin.id)
-    ).all()
-    legacy = [
-        dict(
-            schema_version=1,
-            id=row.id,
-            version=row.version,
-            observed_at=row.observed_at,
-            activity_id=row.activity_id,
-            symptoms=row.symptoms,
-            change=row.change,
-            gait=row.gait,
-            feeling=row.feeling,
-            effort=row.effort,
-            severity_numeric=None,
-        )
-        for row in legacy_rows
-    ]
-    return legacy
 
 
 def _load_prompts(session: Session, now: datetime) -> list[dict]:
@@ -1469,7 +1403,6 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     strong = _load_strong_workouts(strong_rows, rpe_rows)
     runs = _load_runs(session, first, as_of, rpe_rows)
     checkins = _load_checkins(session, now, zone)
-    legacy = _load_legacy_checkins(session, now)
     prompts = _load_prompts(session, now)
     metrics = _load_metrics(session, as_of, runs)
     anchors = _load_anchors(session)
@@ -1490,7 +1423,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         clinical_restriction=clinical_restriction(profile.facts) if profile else None,
         sessions=sessions, completions=completions, strength_slots=slots, strong_workouts=strong,
         goals=goals, events=events, active_block=active_block, block_decisions=decisions,
-        runs=runs, checkins=checkins, legacy_checkins=legacy, prompts=prompts,
+        runs=runs, checkins=checkins, prompts=prompts,
         metric_results=metrics, anchors=anchors, proposals=proposals, coverage=coverage(session, first, as_of),
         exception_findings=exception_findings, exception_patches=exception_patches,
         review_recommended=_load_review_recommended(session, as_of), benchmark_history=benchmark_history,
@@ -1528,7 +1461,6 @@ def build_snapshot(
         )
         kb = VerifiedKnowledge(**verify_selection(tuple(bundle.routes), root=kb_root))
         decision = collect_decision_inputs(session, operation, as_of, now=now, kb=kb)
-        payload["legacy_checkins"] = decision["source_versions"]["legacy_checkins"]
         meta = payload["snapshot_meta"]
         meta["source_fingerprint"] = decision["source_fingerprint"]
         meta["source_provenance"] = _source_provenance(decision["source_versions"])
