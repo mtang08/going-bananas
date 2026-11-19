@@ -18,13 +18,7 @@ import { Routine } from './settings/strengthRoutine'
 import { CalendarSetup } from './settings/CalendarSetup'
 import { ReviewDay, Preferences } from './settings/ProfilePreferences'
 
-export function PlanningSettings({
-  unit,
-  setUnit,
-}: {
-  unit: Unit
-  setUnit: (unit: Unit) => void
-}) {
+export function PlanningSettings({ unit, setUnit }: { unit: Unit; setUnit: (unit: Unit) => void }) {
   const calendar = useQuery({
     queryKey: qk.calendarView('head'),
     queryFn: () => api<CalendarView>('/calendar'),

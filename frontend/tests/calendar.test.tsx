@@ -201,11 +201,18 @@ afterEach(() => {
 
 describe('Calendar', () => {
   it('downloads the chosen Monday–Sunday week with workout details', async () => {
-    const create = vi.fn((blob: Blob) => { void blob; return 'blob:weekly-workouts' })
+    const create = vi.fn((blob: Blob) => {
+      void blob
+      return 'blob:weekly-workouts'
+    })
     const revoke = vi.fn()
     vi.stubGlobal('URL', { ...URL, createObjectURL: create, revokeObjectURL: revoke })
     const clicked: HTMLAnchorElement[] = []
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { clicked.push(this) })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicked.push(this)
+    })
     mount()
     await screen.findByText('Version 2')
     fireEvent.click(screen.getByRole('button', { name: 'Download this week' }))
@@ -230,11 +237,30 @@ describe('Calendar', () => {
   })
 
   it('exports structured prescriptions, notes, and empty days', () => {
-    const planned = { ...sessions[0], local_date: '2026-11-09', notes: 'Stay relaxed', structure: [{
-      type: 'repeat' as const, count: 2, steps: [{ type: 'work' as const, duration_type: 'time' as const,
-        duration_value: 300, target: { modality: 'effort' as const, low: null, high: null, effort_cue: 'steady' } }],
-    }] }
-    const text = weeklyWorkoutText([planned, { ...planned, session_uid: 'deleted', deleted: true }], '2026-11-09', 'mi')
+    const planned = {
+      ...sessions[0],
+      local_date: '2026-11-09',
+      notes: 'Stay relaxed',
+      structure: [
+        {
+          type: 'repeat' as const,
+          count: 2,
+          steps: [
+            {
+              type: 'work' as const,
+              duration_type: 'time' as const,
+              duration_value: 300,
+              target: { modality: 'effort' as const, low: null, high: null, effort_cue: 'steady' },
+            },
+          ],
+        },
+      ],
+    }
+    const text = weeklyWorkoutText(
+      [planned, { ...planned, session_uid: 'deleted', deleted: true }],
+      '2026-11-09',
+      'mi',
+    )
     expect(text).toContain('2 ×\n      Work 5:00 · steady')
     expect(text).toContain('Notes: Stay relaxed')
     expect(text).toContain('No planned session')
@@ -261,14 +287,19 @@ describe('Calendar', () => {
   it('shows a run from before plan setup without labeling it missed or extra', async () => {
     head = {
       ...view,
-      recorded_runs: [{ activity_id: 'tuesday-run', local_date: '2026-11-10', distance_m: 6740, timer_s: 2400 }],
+      recorded_runs: [
+        { activity_id: 'tuesday-run', local_date: '2026-11-10', distance_m: 6740, timer_s: 2400 },
+      ],
     }
     mount()
     await screen.findByText('Version 2')
     const tuesday = within(day('2026-11-10'))
     expect(tuesday.getByText('Recorded run')).toBeInTheDocument()
     expect(tuesday.getByText(/4.2 mi/)).toBeInTheDocument()
-    expect(tuesday.getByRole('link', { name: 'Open run' })).toHaveAttribute('href', '#activity/tuesday-run')
+    expect(tuesday.getByRole('link', { name: 'Open run' })).toHaveAttribute(
+      'href',
+      '#activity/tuesday-run',
+    )
     expect(tuesday.queryByText('No session')).not.toBeInTheDocument()
     expect(tuesday.queryByText(/Extra run|Missed|Not recorded/)).not.toBeInTheDocument()
     expect(writes()).toHaveLength(0)

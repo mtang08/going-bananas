@@ -35,7 +35,9 @@ export function WeeklyDigest({
   const t = d.totals
   const finished = d.days_elapsed >= 7
   const keyRows = d.sessions.filter((s) => s.key)
-  const notDone = d.sessions.filter((s) => !s.key && s.kind !== 'mobility' && NOT_DONE.has(s.outcome))
+  const notDone = d.sessions.filter(
+    (s) => !s.key && s.kind !== 'mobility' && NOT_DONE.has(s.outcome),
+  )
   const outcomeDetail = (
     [
       ['partial', 'partial'],
@@ -46,10 +48,12 @@ export function WeeklyDigest({
   )
     .filter(([key]) => t.sessions.by_outcome[key] > 0)
     .map(([key, label]) => `${t.sessions.by_outcome[key]} ${label}`)
-  const byKind = KIND_LABELS.filter(([kind]) => t.by_kind[kind].planned > 0).map(([kind, label]) => {
-    const { done, planned_to_date } = t.by_kind[kind]
-    return `${label} ${done}/${planned_to_date}`
-  })
+  const byKind = KIND_LABELS.filter(([kind]) => t.by_kind[kind].planned > 0).map(
+    ([kind, label]) => {
+      const { done, planned_to_date } = t.by_kind[kind]
+      return `${label} ${done}/${planned_to_date}`
+    },
+  )
   const dueSessions = d.sessions.filter((row) => row.local_date <= d.today)
   const actualDurationUnknown = t.time.actual_s === 0 && t.time.actual_unknown > 0
   const plannedDurationUnknown =
@@ -119,8 +123,9 @@ export function WeeklyDigest({
             {plannedDurationUnknown ? 'unknown' : fmtDuration(t.time.planned_to_date_s)} planned
           </p>
           <p>
-            Running: {actualDistanceUnknown ? 'unknown' : fmtDistance(t.run_distance.actual_m, unit)}{' '}
-            of {plannedDistance} planned
+            Running:{' '}
+            {actualDistanceUnknown ? 'unknown' : fmtDistance(t.run_distance.actual_m, unit)} of{' '}
+            {plannedDistance} planned
           </p>
           {keyRows.length > 0 && (
             <>
@@ -152,7 +157,9 @@ export function WeeklyDigest({
                           </ul>
                         )}
                         {ex.reps_completed !== null && ex.reps_planned !== null && (
-                          <span>Reps {ex.reps_completed} of {ex.reps_planned}</span>
+                          <span>
+                            Reps {ex.reps_completed} of {ex.reps_planned}
+                          </span>
                         )}
                         {ex.reason_codes.length > 0 && (
                           <span className="muted-text">

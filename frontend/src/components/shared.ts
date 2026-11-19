@@ -1,10 +1,13 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { api } from '../api/client'
 
+export function useServer<T>(key: readonly unknown[], path: string) {
+  return useQuery({ queryKey: key, queryFn: () => api<T>(path), placeholderData: keepPreviousData })
+}
 
-export function useServer<T>(key: readonly unknown[], path: string) { return useQuery({ queryKey: key, queryFn: () => api<T>(path), placeholderData: keepPreviousData }) }
-
-export function stateLabel(status?: string) { return status?.replaceAll('_', ' ') || 'not imported' }
+export function stateLabel(status?: string) {
+  return status?.replaceAll('_', ' ') || 'not imported'
+}
 
 export function relativeTime(iso: string, now: Date = new Date()): string {
   const then = Date.parse(iso)

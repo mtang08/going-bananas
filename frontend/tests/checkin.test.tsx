@@ -7,7 +7,12 @@ import { CheckinModalV2 } from '../src/pages/CheckinModalV2'
 import { qk } from '../src/api/queryKeys'
 import type { CheckinRequest } from '../src/api/types/checkins'
 
-const rec = { operation: 'exception_review', reason: 'Open findings at caution or hold need an exception review', finding_ids: ['f1'], prompt: EXCEPTION_PROMPT }
+const rec = {
+  operation: 'exception_review',
+  reason: 'Open findings at caution or hold need an exception review',
+  finding_ids: ['f1'],
+  prompt: EXCEPTION_PROMPT,
+}
 let checkinExceptions: { new_finding_ids: string[]; review_recommended: (typeof rec)[] }
 let requests: {
   url: string
@@ -40,7 +45,13 @@ beforeEach(() => {
         headers: new Headers(init?.headers),
       })
       if (method === 'GET' && url === '/api/v1/exceptions' && failFindings)
-        return { ok: false, status: 500, json: async () => ({ error: { code: 'request_failed', message: 'Findings unavailable' } }) }
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({
+            error: { code: 'request_failed', message: 'Findings unavailable' },
+          }),
+        }
       if (method === 'POST' && failPosts-- > 0)
         return {
           ok: false,
@@ -64,7 +75,26 @@ beforeEach(() => {
           ? { ...completion, version: 3 }
           : method === 'POST'
             ? { id: 'checkin', exceptions: checkinExceptions }
-            : url.includes('/exceptions') ? { findings: [{ id: 'f1', severity: 'caution', category: 'accumulated_fatigue', status: 'open', summary: 'Fatigue 7 today.' }, { id: 'f9', severity: 'observe', category: 'accumulated_fatigue', status: 'open', summary: 'Older finding.' }] } : {}
+            : url.includes('/exceptions')
+              ? {
+                  findings: [
+                    {
+                      id: 'f1',
+                      severity: 'caution',
+                      category: 'accumulated_fatigue',
+                      status: 'open',
+                      summary: 'Fatigue 7 today.',
+                    },
+                    {
+                      id: 'f9',
+                      severity: 'observe',
+                      category: 'accumulated_fatigue',
+                      status: 'open',
+                      summary: 'Older finding.',
+                    },
+                  ],
+                }
+              : {}
       return {
         ok: true,
         status: method === 'POST' ? 201 : 200,
@@ -308,35 +338,36 @@ it('supports Escape and keeps keyboard focus inside the check-in', () => {
   expect(close).toHaveBeenCalledTimes(1)
 })
 
-it.each([
-  ['current check-in', CheckinModalV2],
-])('%s restores focus to its opener after Escape', async (_name, Checkin) => {
-  function Harness() {
-    const [open, setOpen] = useState(false)
-    return (
-      <>
-        <button onClick={() => setOpen(true)}>Open check-in</button>
-        {open && <Checkin close={() => setOpen(false)} />}
-      </>
+it.each([['current check-in', CheckinModalV2]])(
+  '%s restores focus to its opener after Escape',
+  async (_name, Checkin) => {
+    function Harness() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Open check-in</button>
+          {open && <Checkin close={() => setOpen(false)} />}
+        </>
+      )
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    clients.push(client)
+    render(
+      <QueryClientProvider client={client}>
+        <Harness />
+      </QueryClientProvider>,
     )
-  }
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  clients.push(client)
-  render(
-    <QueryClientProvider client={client}>
-      <Harness />
-    </QueryClientProvider>,
-  )
-  const opener = screen.getByRole('button', { name: 'Open check-in' })
-  opener.focus()
-  fireEvent.click(opener)
-  const dialog = screen.getByRole('dialog', { name: 'Record check-in' })
-  expect(dialog.contains(document.activeElement)).toBe(true)
-  fireEvent.keyDown(dialog, { key: 'Escape' })
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-  await waitFor(() => expect(opener).toHaveFocus())
-  expect(posts()).toHaveLength(0)
-})
+    const opener = screen.getByRole('button', { name: 'Open check-in' })
+    opener.focus()
+    fireEvent.click(opener)
+    const dialog = screen.getByRole('dialog', { name: 'Record check-in' })
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(opener).toHaveFocus())
+    expect(posts()).toHaveLength(0)
+  },
+)
 
 it('exception check-in without findings is logged for Sunday', async () => {
   checkinExceptions = { new_finding_ids: [], review_recommended: [] }
@@ -348,7 +379,7 @@ it('exception check-in without findings is logged for Sunday', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Save check-in' }))
   expect(await screen.findByText('Logged for your Sunday review')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Copy prompt' })).toBeNull()
-  expect(requests.some(r => r.method === 'GET' && r.url === '/api/v1/exceptions')).toBe(false)
+  expect(requests.some((r) => r.method === 'GET' && r.url === '/api/v1/exceptions')).toBe(false)
 })
 
 it('retries findings after a saved check-in without saving again', async () => {
@@ -368,7 +399,9 @@ it('retries findings after a saved check-in without saving again', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   expect(await screen.findByText('Fatigue 7 today.')).toBeInTheDocument()
   expect(screen.queryByText(/Check-in saved, but findings could not load/)).toBeNull()
-  expect(requests.filter(r => r.method === 'GET' && r.url === '/api/v1/exceptions')).toHaveLength(2)
+  expect(requests.filter((r) => r.method === 'GET' && r.url === '/api/v1/exceptions')).toHaveLength(
+    2,
+  )
   expect(posts()).toHaveLength(1)
   expect(posts()[0].body).toEqual(saved)
   expect(saved?.idempotency_key).toBeTruthy()

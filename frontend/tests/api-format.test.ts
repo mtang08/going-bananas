@@ -1,35 +1,88 @@
 import { describe, expect, it } from 'vitest'
 import fixture from './fixtures/planning-wire.json'
 import { ANCHOR_UNIT, type AnchorCreate } from '../src/api/types/anchors'
-import { MISSING, clockToSeconds, fmtClock, fmtDistance, fmtDuration, fmtPaceFromSpeed, fmtPercent, fmtRpe, paceToSpeed, signatureLabel, statusText } from '../src/lib/format'
+import {
+  MISSING,
+  clockToSeconds,
+  fmtClock,
+  fmtDistance,
+  fmtDuration,
+  fmtPaceFromSpeed,
+  fmtPercent,
+  fmtRpe,
+  paceToSpeed,
+  signatureLabel,
+  statusText,
+} from '../src/lib/format'
 import { flattenStructure, formatStep } from '../src/lib/structure'
 import { pageHref } from '../src/lib/routes'
 import { qk } from '../src/api/queryKeys'
 import { sessionMarker, sessionTitle } from '../src/lib/session'
-import type { CalendarView, CompletionPut, PlannedStep, StructureItem } from '../src/api/types/calendar'
+import type {
+  CalendarView,
+  CompletionPut,
+  PlannedStep,
+  StructureItem,
+} from '../src/api/types/calendar'
 import type { GoalCreate, StrengthRoutineSlot } from '../src/api/types/blocks'
 import type { MetricResult, SrpeValue, VolumeValue } from '../src/api/types/metrics'
 import type { Profile } from '../src/api/types/profile'
 
 const wire: Record<string, unknown> = fixture
-const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
-const calendarView = (value: unknown): value is CalendarView => record(value) && typeof value.head === 'number' && typeof value.version === 'number' && typeof value.today === 'string' && typeof value.timezone === 'string' && Array.isArray(value.sessions) && Array.isArray(value.completions) && (value.undo === null || record(value.undo) && Array.isArray(value.undo.protected_session_uids))
-const profile = (value: unknown): value is Profile => record(value) && typeof value.version === 'number' && Array.isArray(value.scheduled_strength_days) && Array.isArray(value.strength_week_a_days) && Array.isArray(value.strength_week_b_days)
-const metric = <V>(value: unknown, valueCheck: (v: unknown) => v is V): value is MetricResult<V> => record(value) && typeof value.metric_id === 'string' && typeof value.status === 'string' && typeof value.dependency_hash === 'string' && Array.isArray(value.reason_codes) && valueCheck(value.value)
-const volume = (value: unknown): value is VolumeValue => record(value) && typeof value.run_count === 'number' && typeof value.runs_missing_timer === 'number' && (value.timer_duration_s === null || typeof value.timer_duration_s === 'number') && (value.distance_m === null || typeof value.distance_m === 'number')
-const srpe = (value: unknown): value is SrpeValue => record(value) && typeof value.sessions_total === 'number' && typeof value.sessions_without_load === 'number' && (value.load_au === null || typeof value.load_au === 'number')
-const structure = (value: unknown): value is StructureItem[] => Array.isArray(value) && value.length > 0 && value.every(item => record(item) && typeof item.type === 'string')
+const record = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+const calendarView = (value: unknown): value is CalendarView =>
+  record(value) &&
+  typeof value.head === 'number' &&
+  typeof value.version === 'number' &&
+  typeof value.today === 'string' &&
+  typeof value.timezone === 'string' &&
+  Array.isArray(value.sessions) &&
+  Array.isArray(value.completions) &&
+  (value.undo === null || (record(value.undo) && Array.isArray(value.undo.protected_session_uids)))
+const profile = (value: unknown): value is Profile =>
+  record(value) &&
+  typeof value.version === 'number' &&
+  Array.isArray(value.scheduled_strength_days) &&
+  Array.isArray(value.strength_week_a_days) &&
+  Array.isArray(value.strength_week_b_days)
+const metric = <V>(value: unknown, valueCheck: (v: unknown) => v is V): value is MetricResult<V> =>
+  record(value) &&
+  typeof value.metric_id === 'string' &&
+  typeof value.status === 'string' &&
+  typeof value.dependency_hash === 'string' &&
+  Array.isArray(value.reason_codes) &&
+  valueCheck(value.value)
+const volume = (value: unknown): value is VolumeValue =>
+  record(value) &&
+  typeof value.run_count === 'number' &&
+  typeof value.runs_missing_timer === 'number' &&
+  (value.timer_duration_s === null || typeof value.timer_duration_s === 'number') &&
+  (value.distance_m === null || typeof value.distance_m === 'number')
+const srpe = (value: unknown): value is SrpeValue =>
+  record(value) &&
+  typeof value.sessions_total === 'number' &&
+  typeof value.sessions_without_load === 'number' &&
+  (value.load_au === null || typeof value.load_au === 'number')
+const structure = (value: unknown): value is StructureItem[] =>
+  Array.isArray(value) &&
+  value.length > 0 &&
+  value.every((item) => record(item) && typeof item.type === 'string')
 
 describe('planning wire', () => {
   it('checks empty and populated calendar and rollback', () => {
     expect(calendarView(wire.empty_calendar)).toBe(true)
     expect(calendarView(wire.populated_calendar)).toBe(true)
-    if (!calendarView(wire.empty_calendar) || !calendarView(wire.populated_calendar)) throw Error('fixture')
+    if (!calendarView(wire.empty_calendar) || !calendarView(wire.populated_calendar))
+      throw Error('fixture')
     expect(wire.empty_calendar.head).toBe(0)
     expect(wire.empty_calendar.undo).toBeNull()
     expect(wire.populated_calendar.undo?.protected_session_uids).toEqual(['session-a'])
     expect(wire.populated_calendar.sessions[0].legacy_unstructured).toBe(true)
-    expect(wire.rollback_result).toMatchObject({ kind: 'rollback', preserved_session_uids: ['00000000-0000-0000-0000-000000000002'] })
+    expect(wire.rollback_result).toMatchObject({
+      kind: 'rollback',
+      preserved_session_uids: ['00000000-0000-0000-0000-000000000002'],
+    })
   })
   it('checks profile projections', () => {
     expect(profile(wire.profile_weekly)).toBe(true)
@@ -45,7 +98,8 @@ describe('planning wire', () => {
     expect(metric(wire.srpe_all_known, srpe)).toBe(true)
     expect(wire.metric_null).toBeNull()
     expect(metric(wire.metric_zero, volume)).toBe(true)
-    if (!metric(wire.volume_all_missing, volume) || !metric(wire.metric_zero, volume)) throw Error('fixture')
+    if (!metric(wire.volume_all_missing, volume) || !metric(wire.metric_zero, volume))
+      throw Error('fixture')
     expect(wire.volume_all_missing.value?.timer_duration_s).toBeNull()
     expect(wire.metric_zero.value?.timer_duration_s).toBe(0)
   })
@@ -59,7 +113,12 @@ describe('planning helpers', () => {
     expect(signatureLabel('ws1:3xd1610')).toBe('3 × 1.61 km')
     expect(signatureLabel('ws1:1xt60+1xt120')).toBe('1:00 + 2:00')
     expect(signatureLabel(null)).toBe('missing')
-    expect(qk.workoutProgression('recipe')).toEqual(['v2', 'metrics', 'workout-progression', 'recipe'])
+    expect(qk.workoutProgression('recipe')).toEqual([
+      'v2',
+      'metrics',
+      'workout-progression',
+      'recipe',
+    ])
   })
   it('formats missing and zero separately', () => {
     expect(fmtPaceFromSpeed(800 / 205, 'mi')).toBe('6:52 /mi')
@@ -90,26 +149,47 @@ describe('planning helpers', () => {
     if (!structure(wire.structure)) throw Error('fixture')
     const before = JSON.stringify(wire.structure)
     const expanded = flattenStructure(wire.structure)
-    expect(expanded.map(step => [step.step_path, step.repeat_index, step.expanded_step])).toEqual([
-      ['0', null, 1], ['1.steps.0', 0, 2], ['1.steps.1', 0, 3],
-      ['1.steps.0', 1, 4], ['1.steps.1', 1, 5],
-    ])
+    expect(expanded.map((step) => [step.step_path, step.repeat_index, step.expanded_step])).toEqual(
+      [
+        ['0', null, 1],
+        ['1.steps.0', 0, 2],
+        ['1.steps.1', 0, 3],
+        ['1.steps.0', 1, 4],
+        ['1.steps.1', 1, 5],
+      ],
+    )
     expect(JSON.stringify(wire.structure)).toBe(before)
     expect(formatStep(expanded[0], 'mi')).toBe('Warm-up 10:00 · effort')
   })
   it('rejects malformed children and overlong expansions', () => {
-    const good: PlannedStep = { type: 'work', duration_type: 'time', duration_value: 60, target: null }
-    expect(() => flattenStructure([{ type: 'repeat', count: 101, steps: [good] }])).toThrow('invalid_structure')
+    const good: PlannedStep = {
+      type: 'work',
+      duration_type: 'time',
+      duration_value: 60,
+      target: null,
+    }
+    expect(() => flattenStructure([{ type: 'repeat', count: 101, steps: [good] }])).toThrow(
+      'invalid_structure',
+    )
     for (const child of [
-      { ...good, type: 'repeat' }, { ...good, type: 'surprise' },
-      { ...good, duration_value: 0 }, { ...good, target: { modality: 'speed', low: 4, high: 3, effort_cue: null } },
+      { ...good, type: 'repeat' },
+      { ...good, type: 'surprise' },
+      { ...good, duration_value: 0 },
+      { ...good, target: { modality: 'speed', low: 4, high: 3, effort_cue: null } },
       { ...good, target: { modality: 'effort', low: null, high: null, effort_cue: '' } },
-    ]) expect(() => flattenStructure([{ type: 'repeat', count: 2, steps: [child] }] as StructureItem[])).toThrow('invalid_structure')
+    ])
+      expect(() =>
+        flattenStructure([{ type: 'repeat', count: 2, steps: [child] }] as StructureItem[]),
+      ).toThrow('invalid_structure')
     expect(() => flattenStructure([])).toThrow('invalid_structure')
   })
   it('formats target, titles, markers, and keys', () => {
-    const step: PlannedStep = { type: 'work', duration_type: 'distance', duration_value: 800,
-      target: { modality: 'speed', low: 3.8, high: 4, effort_cue: null } }
+    const step: PlannedStep = {
+      type: 'work',
+      duration_type: 'distance',
+      duration_value: 800,
+      target: { modality: 'speed', low: 3.8, high: 4, effort_cue: null },
+    }
     expect(formatStep(step, 'mi')).toBe('Work 800 m · 6:42 /mi–7:04 /mi')
     expect(sessionTitle({ kind: 'run', recipe_id: null, custom: false })).toBe('Quality slot')
     expect(sessionTitle({ kind: 'run', recipe_id: 'REC002', custom: false })).toBe('Long run')
@@ -117,8 +197,20 @@ describe('planning helpers', () => {
     const session = wire.populated_calendar.sessions[0]
     expect(sessionMarker(session, undefined, '2026-11-17')).toBe('not_recorded')
     expect(sessionMarker(session, undefined, '2026-11-16')).toBe('planned')
-    expect(sessionMarker(session, { status: 'skipped' } as CalendarView['completions'][number], '2026-11-17')).toBe('missed')
-    expect(sessionMarker(session, { status: 'completed_modified' } as CalendarView['completions'][number], '2026-11-17')).toBe('modified')
+    expect(
+      sessionMarker(
+        session,
+        { status: 'skipped' } as CalendarView['completions'][number],
+        '2026-11-17',
+      ),
+    ).toBe('missed')
+    expect(
+      sessionMarker(
+        session,
+        { status: 'completed_modified' } as CalendarView['completions'][number],
+        '2026-11-17',
+      ),
+    ).toBe('modified')
     expect(ANCHOR_UNIT.performance_3min).toBe('m')
     expect(ANCHOR_UNIT.performance_20_30min).toBe('mps')
     expect(qk.calendarView('head')).toEqual(['v2', 'calendar', 'view', 'head'])
@@ -132,14 +224,43 @@ describe('planning helpers', () => {
 
 // Compile-time producer DTO checks.
 const goalCreate: GoalCreate = { text: 'Run well', horizon: 'season', priority: 1 }
-const suggestedSlot: StrengthRoutineSlot = { id: null, label: 'Strength', default_weekday: 1, lower_body_cost: 'low', typical_duration_s: null, main_lower_body_lifts: [], active: true, version: 0 }
-const anchorCreate: AnchorCreate = { kind: 'performance_3min', value_low: 900, unit: 'm', protocol: 'time_trial_3min', confidence: 'high', calibrated_at: '2026-11-16T10:00:00Z', valid_from: '2026-11-16' }
+const suggestedSlot: StrengthRoutineSlot = {
+  id: null,
+  label: 'Strength',
+  default_weekday: 1,
+  lower_body_cost: 'low',
+  typical_duration_s: null,
+  main_lower_body_lifts: [],
+  active: true,
+  version: 0,
+}
+const anchorCreate: AnchorCreate = {
+  kind: 'performance_3min',
+  value_low: 900,
+  unit: 'm',
+  protocol: 'time_trial_3min',
+  confidence: 'high',
+  calibrated_at: '2026-11-16T10:00:00Z',
+  valid_from: '2026-11-16',
+}
 const completionPut: CompletionPut = { activity_id: 'activity-a' }
 void [goalCreate, suggestedSlot, anchorCreate, completionPut]
-// @ts-expect-error create requests cannot set status
-const invalidGoal: GoalCreate = { text: 'Run well', horizon: 'season', priority: 1, status: 'active' }
+const invalidGoal: GoalCreate = {
+  text: 'Run well',
+  horizon: 'season',
+  priority: 1,
+  // @ts-expect-error create requests cannot set status
+  status: 'active',
+}
 // @ts-expect-error anchor creation requires valid_from
-const invalidAnchor: AnchorCreate = { kind: 'performance_3min', value_low: 900, unit: 'm', protocol: 'time_trial_3min', confidence: 'high', calibrated_at: '2026-11-16T10:00:00Z' }
+const invalidAnchor: AnchorCreate = {
+  kind: 'performance_3min',
+  value_low: 900,
+  unit: 'm',
+  protocol: 'time_trial_3min',
+  confidence: 'high',
+  calibrated_at: '2026-11-16T10:00:00Z',
+}
 // @ts-expect-error completion match_method is derived by the server
 const invalidCompletion: CompletionPut = { match_method: 'explicit' }
 void [invalidGoal, invalidAnchor, invalidCompletion]
