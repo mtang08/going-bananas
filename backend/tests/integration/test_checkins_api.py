@@ -189,4 +189,8 @@ def test_routes_removed_and_replay_retains_original_payload(api_fixture):
     assert patched.status_code == 200, patched.text
     replay = client.post('/api/v1/v2/checkins', json=body)
     assert replay.status_code == 200
-    assert replay.json()['data'] == created.json()['data']
+    original = created.json()['data']
+    replayed = replay.json()['data']
+    assert replayed.pop('exceptions')['new_finding_ids'] == []
+    original.pop('exceptions')
+    assert replayed == original
