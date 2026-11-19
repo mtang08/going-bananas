@@ -126,7 +126,9 @@ def planned_actual_outcome(
     elif prior_status == "extra" and match_method != "confirmed_move" and linked and activity is not None:
         values["overall_status"] = "extra"
     elif not linked:
-        if plan and plan.get("local_date") and plan["local_date"] >= as_of:
+        if match_method == "user_marked" and prior_status == "completed_as_planned":
+            reasons.append("SELF_REPORTED_COMPLETION")
+        elif plan and plan.get("local_date") and plan["local_date"] >= as_of:
             reasons.append("NOT_YET_DUE")
         elif match_method == "user_marked" and prior_status != "skipped":
             reasons.append("UNLINKED_BY_USER")

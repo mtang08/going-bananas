@@ -169,7 +169,7 @@ export interface CompletionPut {
   activity_id?: string | null
   strong_workout_id?: string | null
   manual_session_id?: string | null
-  status?: 'skipped' | 'unknown'
+  status?: 'skipped' | 'unknown' | 'completed_as_planned'
   modification_reason?: ModificationReason | null
   reason_note?: string | null
 }

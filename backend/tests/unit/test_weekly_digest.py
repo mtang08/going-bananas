@@ -259,3 +259,13 @@ def test_missing_subject_row_keeps_outcome():
     (row,) = week["sessions"]
     assert row["actual"] is None
     assert row["outcome"] == "completed"
+
+
+def test_self_reported_strength_counts_as_done_with_unknown_time():
+    week = _assemble(
+        sessions=[_session(8, "strength", uid="lift", duration=3600)],
+        completions={"lift": _c("completed_as_planned", match_method="user_marked")},
+    )
+    assert week["totals"]["by_kind"]["strength"]["done"] == 1
+    assert week["totals"]["time"]["actual_unknown"] == 1
+    assert week["sessions"][0]["actual"] is None

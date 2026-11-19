@@ -58,7 +58,11 @@ export function SessionSummary({
         {s.planned_distance_m !== null && <span>{fmtDistance(s.planned_distance_m, unit)}</span>}
       </div>
       <div className="plan-session-status">
-        <Badge className={`marker marker-${marker}`}>{MARKER_LABELS[marker]}</Badge>
+        <Badge className={`marker marker-${marker}`}>
+          {completion?.match_method === 'user_marked' && marker === 'completed'
+            ? 'Completed · self-reported'
+            : MARKER_LABELS[marker]}
+        </Badge>
         <span>{s.certainty === 'committed' ? 'Committed' : 'Provisional'}</span>
         {!s.is_original && <span>Changed</span>}
         {s.recipe_id === 'REC009' && <Badge className="benchmark-chip">Benchmark</Badge>}

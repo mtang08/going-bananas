@@ -734,3 +734,35 @@ def test_explicit_link_uses_current_athlete_timezone(calendar_fixture):
     assert response.status_code == 200
     assert response.json()["data"]["match_method"] == "explicit"
     assert response.json()["data"]["local_date"] == day.isoformat()
+
+
+def test_self_report_undo_and_later_import(calendar_fixture, monkeypatch):
+    client, connection, _ = calendar_fixture
+    _bootstrap(client)
+    plan = next(s for s in client.get("/api/v1/calendar").json()["data"]["sessions"] if s["kind"] == "run")
+    day = date.fromisoformat(plan["local_date"])
+    monkeypatch.setattr(calendar, "calendar_today", lambda session, now=None: day)
+    uid = uuid.UUID(plan["session_uid"])
+    endpoint = f"/api/v1/calendar/completions/{uid}"
+
+    def mark():
+        response = client.put(
+            endpoint, json={"status": "completed_as_planned", "expected_version": 0}, headers=_headers()
+        )
+        assert response.status_code == 200, response.text
+        row = response.json()["data"]
+        assert row["match_method"] == "user_marked" and row["activity_id"] is None
+        assert row["status"] == "completed_as_planned"
+        return row["version"]
+
+    version = mark()
+    assert (
+        client.put(endpoint, json={"status": "unknown", "expected_version": version}, headers=_headers()).json()["data"]
+        is None
+    )
+    mark()
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        activity_id = _completion_test_run(session, day)
+        assert uid in rematch_dates(session, {day})
+        matched = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == uid))
+        assert matched.activity_id == activity_id and matched.match_method == "auto_same_day"

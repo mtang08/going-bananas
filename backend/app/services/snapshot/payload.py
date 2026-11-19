@@ -158,6 +158,12 @@ def _session_view(row: dict, completion: dict | None) -> dict:
     )
     result["is_original"] = row["revision"] == 1
     result["completion_status"] = completion["status"] if completion else None
+    if (
+        completion
+        and completion.get("match_method") == "user_marked"
+        and completion["status"] == "completed_as_planned"
+    ):
+        result["self_reported"] = True
     result["modification_reason"] = completion.get("modification_reason") if completion else None
     return result
 

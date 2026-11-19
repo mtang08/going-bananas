@@ -63,6 +63,7 @@ export const REASON_LABELS: Record<string, string> = {
   LAP_ALIGNMENT_AMBIGUOUS: 'Laps can match the workout in more than one way',
   NO_INDEXED_LAPS: 'Laps are not linked to workout steps',
   WATCH_WORKOUT_MISMATCH: 'Watch workout does not match the plan',
+  SELF_REPORTED_COMPLETION: 'Marked complete without a recording',
   NO_WATCH_WORKOUT: 'No watch workout recorded',
   UNSUPPORTED_REPEAT: 'This watch workout repeat cannot be assessed',
   MALFORMED_REPEAT: 'Watch workout repeat has invalid steps',

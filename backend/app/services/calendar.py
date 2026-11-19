@@ -162,7 +162,11 @@ def _protected(
             return True
     completion = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == uid))
     return bool(
-        completion and (completion.status == "skipped" or any(getattr(completion, key) is not None for key in SUBJECTS))
+        completion
+        and (
+            completion.status in {"skipped", "completed_as_planned"}
+            or any(getattr(completion, key) is not None for key in SUBJECTS)
+        )
     )
 
 
@@ -802,8 +806,8 @@ def put_completion(
         fail("invalid_completion", "At most one subject is allowed")
     if count and "status" in body:
         fail("invalid_completion", "Linked completion status is assessed")
-    if not count and body.get("status") not in {"skipped", "unknown"}:
-        fail("invalid_completion", "Unlinked completion must be skipped or unknown")
+    if not count and body.get("status") not in {"skipped", "unknown", "completed_as_planned"}:
+        fail("invalid_completion", "Invalid self-reported outcome")
     if body.get("modification_reason") not in {
         None,
         "symptom_onset",
@@ -827,7 +831,7 @@ def put_completion(
         not count
         and body["status"] == "unknown"
         and existing is not None
-        and existing.status == "skipped"
+        and existing.status in {"skipped", "completed_as_planned"}
         and all(getattr(existing, key) is None for key in SUBJECTS)
     ):
         session.delete(existing)
@@ -863,6 +867,11 @@ def put_completion(
             fail("subject_already_linked", "Subject already linked", 409)
         session.flush()
     planned = latest_revisions(session, head_version(session)).get(session_uid)
+    if body.get("status") == "completed_as_planned":
+        if not planned or planned.deleted or planned.kind == "rest" or planned.local_date > calendar_today(session):
+            fail("invalid_completion", "Choose a workout scheduled for today or earlier")
+        if existing and any(getattr(existing, key) for key in SUBJECTS):
+            fail("already_linked", "This workout already has a recording", 409)
     actual_date = None
     for field, value in subjects.items():
         if value is not None:

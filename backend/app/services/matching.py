@@ -148,6 +148,8 @@ def plan_matches(
         uid = str(completion["session_uid"])
         key = _subject_key(completion)
         method = completion.get("match_method")
+        if method == "user_marked" and completion.get("status") == "completed_as_planned" and not key:
+            continue  # A later import can supply the recording for a self-report.
         if method in PROTECTED_METHODS or completion.get("status") == "skipped":
             protected_uids.add(uid)
             if key:
@@ -413,7 +415,8 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
         uid = UUID(item["session_uid"])
         old = by_uid.get(str(uid))
         if old is not None and str(uid) not in deleted_uids:
-            if old.match_method in PROTECTED_METHODS or old.status == "skipped":
+            self_report = old.match_method == "user_marked" and old.status == "completed_as_planned"
+            if (old.match_method in PROTECTED_METHODS and not self_report) or old.status == "skipped":
                 continue
             new_subject = _subject_columns(item["subject_key"])
             old_subject = _subject_key(_completion_dict(old))

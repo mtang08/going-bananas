@@ -57,7 +57,7 @@ class CompletionInput(BaseModel):
     activity_id: uuid.UUID | None = None
     strong_workout_id: uuid.UUID | None = None
     manual_session_id: uuid.UUID | None = None
-    status: Literal["skipped", "unknown"] | None = None
+    status: Literal["skipped", "unknown", "completed_as_planned"] | None = None
     modification_reason: (
         Literal["symptom_onset", "fatigue", "illness", "schedule", "weather", "equipment", "other"] | None
     ) = None

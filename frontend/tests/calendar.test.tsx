@@ -508,6 +508,17 @@ describe('Calendar', () => {
     expect(screen.queryByRole('button', { name: 'Add session' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Record outcome' })).not.toBeInTheDocument()
   })
+  it('marks a past workout complete without attaching a recording', async () => {
+    mount()
+    await screen.findByText('Version 2')
+    expect(within(row('2026-11-19')).queryByRole('button', { name: 'Mark complete' })).toBeNull()
+    fireEvent.click(within(row('2026-11-09')).getByRole('button', { name: 'Mark complete' }))
+    await waitFor(() => expect(writes()).toHaveLength(1))
+    expect(writes()[0]).toMatchObject({
+      url: '/api/v1/calendar/completions/s3',
+      body: { status: 'completed_as_planned', expected_version: 0 },
+    })
+  })
   it('records skipped outcome without inferred status fields', async () => {
     mount()
     await screen.findByText('Version 2')

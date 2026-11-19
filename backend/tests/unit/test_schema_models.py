@@ -23,7 +23,8 @@ def test_single_chained_schema_head() -> None:
     script = ScriptDirectory.from_config(config)
     assert script.get_heads() == [EXPECTED_HEAD]
     revisions = [revision.revision for revision in script.walk_revisions()]
-    assert revisions[:11] == [
+    assert revisions[:12] == [
+        "0021_self_reported_completion",
         "0020_drop_planning_authority",
         "0019_lap_intensity_end",
         "0018_exception_findings",

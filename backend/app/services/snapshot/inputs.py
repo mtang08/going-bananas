@@ -91,7 +91,15 @@ def _load_completions(session: Session) -> list[dict]:
     completions = [
         row_view(
             row,
-            ("session_uid", "status", "activity_id", "strong_workout_id", "manual_session_id", "modification_reason"),
+            (
+                "session_uid",
+                "status",
+                "match_method",
+                "activity_id",
+                "strong_workout_id",
+                "manual_session_id",
+                "modification_reason",
+            ),
         )
         for row in completion_rows
     ]

@@ -114,7 +114,9 @@ class SessionCompletion(Base):
             "num_nonnulls(activity_id,strong_workout_id,manual_session_id) <= 1", name="ck_session_completions_subject"
         ),
         CheckConstraint(
-            "status IN ('skipped','unknown') OR num_nonnulls(activity_id,strong_workout_id,manual_session_id) = 1",
+            "status IN ('skipped','unknown') OR "
+            "(status = 'completed_as_planned' AND match_method = 'user_marked') OR "
+            "num_nonnulls(activity_id,strong_workout_id,manual_session_id) = 1",
             name="ck_session_completions_status_subject",
         ),
         CheckConstraint(

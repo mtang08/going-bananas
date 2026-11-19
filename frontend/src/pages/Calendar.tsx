@@ -185,15 +185,21 @@ export function Calendar({ unit }: { unit: Unit }) {
         <h3>{dateLabel(day, { weekday: 'long', month: 'short', day: 'numeric' })}</h3>
         {sessions.map((s) => {
           const completion = data.completions.find((c) => c.session_uid === s.session_uid)
+          const selfReported =
+            completion?.status === 'completed_as_planned' &&
+            completion.match_method === 'user_marked'
           const protectedCompletion =
             completion &&
-            (completion.status === 'skipped' ||
+            (selfReported ||
+              completion.status === 'skipped' ||
               Boolean(
                 completion.activity_id ||
                 completion.strong_workout_id ||
                 completion.manual_session_id,
               ))
           const canEdit = writable && day >= today && !s.locked && !protectedCompletion
+          const canMarkComplete =
+            writable && day <= today && s.kind !== 'rest' && !protectedCompletion
           const canRecord = writable && day < today && !protectedCompletion
           return (
             <div
@@ -254,6 +260,37 @@ export function Calendar({ unit }: { unit: Unit }) {
                       </Button>
                     )}
                   </div>
+                )}
+                {canMarkComplete && (
+                  <Button
+                    variant="link"
+                    disabled={outcome.isPending}
+                    onClick={() =>
+                      outcome.mutate({
+                        uid: s.session_uid,
+                        body: {
+                          status: 'completed_as_planned',
+                          expected_version: completion?.version ?? 0,
+                        },
+                      })
+                    }
+                  >
+                    Mark complete
+                  </Button>
+                )}
+                {writable && selfReported && (
+                  <Button
+                    variant="link"
+                    disabled={outcome.isPending}
+                    onClick={() =>
+                      outcome.mutate({
+                        uid: s.session_uid,
+                        body: { status: 'unknown', expected_version: completion.version },
+                      })
+                    }
+                  >
+                    Undo manual completion
+                  </Button>
                 )}
                 {canRecord && (
                   <Button

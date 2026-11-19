@@ -246,6 +246,11 @@ def assemble_week(
     by_outcome = lambda rs: {o: Counter(r["outcome"] for r in rs).get(o, 0) for o in OUTCOMES}  # noqa: E731
     total = lambda xs: round(sum(xs), 1)  # noqa: E731
     run_rows = [r for r in headline if r["kind"] == "run"]
+    self_reported = [
+        r
+        for r in headline
+        if r["outcome"] == "completed" and completions[r["session_uid"]].get("match_method") == "user_marked"
+    ]
     actual_runs = [sub for _, sub in in_week if sub["kind"] == "run"]
     key_rows = [r for r in rows if r["key"]]
     removed_rows = sorted(
@@ -279,7 +284,7 @@ def assemble_week(
                 "planned_to_date_s": total(r["planned_duration_s"] or 0 for r in headline if due(r)),
                 "planned_unknown": sum(r["planned_duration_s"] is None for r in headline),
                 "actual_s": total(sub["duration_s"] or 0 for _, sub in in_week),
-                "actual_unknown": sum(sub["duration_s"] is None for _, sub in in_week),
+                "actual_unknown": sum(sub["duration_s"] is None for _, sub in in_week) + len(self_reported),
                 "unplanned_s": total(u["duration_s"] or 0 for u in unplanned),
             },
             "run_distance": {
@@ -288,7 +293,8 @@ def assemble_week(
                 "planned_estimated": sum(r["planned_distance_estimated"] for r in run_rows),
                 "planned_unknown": sum(r["planned_distance_m"] is None for r in run_rows),
                 "actual_m": total(sub["distance_m"] or 0 for sub in actual_runs),
-                "actual_unknown": sum(sub["distance_m"] is None for sub in actual_runs),
+                "actual_unknown": sum(sub["distance_m"] is None for sub in actual_runs)
+                + sum(r["kind"] == "run" for r in self_reported),
             },
             "key_sessions": {**counts(key_rows), "by_outcome": by_outcome(key_rows)},
         },
@@ -358,6 +364,7 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
         select(
             completion.session_uid,
             completion.status,
+            completion.match_method,
             completion.activity_id,
             completion.strong_workout_id,
             completion.manual_session_id,
@@ -398,6 +405,7 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
     completions = {
         str(row.session_uid): {
             "status": row.status,
+            "match_method": row.match_method,
             "activity_id": row.activity_id,
             "strong_workout_id": row.strong_workout_id,
             "manual_session_id": row.manual_session_id,

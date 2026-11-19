@@ -104,6 +104,8 @@ Home's weekly mileage uses Monday–Sunday in your profile timezone. It adds rec
 
 Missing data and incomplete plan coverage are labeled. Treat the projection as a planning aid, especially where distance is estimated. Use the two-week grids to compare day-by-day sessions and open details before reviewing a proposal. Sessions marked provisional are an outlook that may change. Those badges follow the saved proposal, rather than making every next calendar week provisional.
 
+On the Calendar, use **Mark complete** for a workout you did today or earlier without a recording, including a strength session without a Strong import. The **Completed · self-reported** badge counts toward the weekly session total. Actual time, distance, and reps stay unknown. Use **Undo manual completion** to correct the entry. A later matching activity or Strong workout can supply measured details.
+
 Reps are matched to your watch workout in order. Split laps within a step are combined. An unrecorded warm-up, recovery, or cool-down can be skipped. A skipped work rep counts as unrecorded. The comparison is unavailable when equally plausible matches give different counts of completed reps.
 
 ## Find your way around
