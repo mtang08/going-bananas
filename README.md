@@ -222,9 +222,23 @@ Inspect or update them in Settings.
 
 ```sh
 make check                 # backend lint/types/unit tests + frontend checks/build
-make test-integration      # PostgreSQL integration tests in garmin_test
+make test-integration      # provision the isolated database and run PostgreSQL integration tests
 python3 scripts/test_coach_skill_v2.py  # reviewed helper contract tests; no live writes
 ```
+
+The integration runner uses a checkout-local PostgreSQL cluster under
+`private/integration-postgres/55439/` on `127.0.0.1:55439`. It provisions
+`garmin_test` for app and ingestion tests and `mvp1_migration_test` for migration
+fixtures. It sets the application mode and connection URLs for the test process
+without loading `.env`. `make test-db-start` provisions the same cluster without
+running tests. `make test-db-stop` stops it. If the port is occupied, set
+`TEST_DATABASE_PORT` to a free port for each command. The app and test clusters
+use separate ports and data directories.
+
+For an existing dedicated integration cluster, export `TEST_DATABASE_URL` and
+`MIGRATION_TEST_DATABASE_URL` as `postgresql+psycopg://` URLs for the two databases,
+then run `make test-integration-external`. The runner verifies the loopback port
+and database names before testing. Use only disposable synthetic data.
 
 Browser acceptance uses an isolated demo database and built frontend on port
 18000. Use a disposable demo environment, never real credentials or data:
