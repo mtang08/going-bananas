@@ -15,7 +15,7 @@ from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.fit_models import ActivityWorkoutStep
 from app.metrics.engine import load_runs
 from app.models import Activity, AppState, ManualSession
-from app.services.calendar_structure import StructureError, expand_structure
+from app.domain.calendar_structure import StructureError, expand_structure
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
