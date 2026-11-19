@@ -1,14 +1,11 @@
 """Calendar lineage and completion behavior on the guarded synthetic test database."""
 from __future__ import annotations
 
-import os
 import uuid
 from datetime import UTC, date, datetime, timedelta
-from urllib.parse import urlsplit
 
 import pytest
-from fastapi import FastAPI, HTTPException
-from fastapi.exceptions import RequestValidationError
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
@@ -16,10 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.calendar import get_completion_assessor, router
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.coach_v2_models import CoachProposal, CoachSnapshot
-from app.config import settings
-from app.db import engine, get_session
 from app.exception_models import ExceptionPatch
-from app.main import handle_http, handle_validation
 from app.models import Activity, AppState, ProfileVersion
 from app.services import calendar
 from app.services.matching import rematch_dates
@@ -30,52 +24,26 @@ def _headers():
 
 
 @pytest.fixture
-def calendar_fixture(monkeypatch):
+def calendar_fixture(monkeypatch, db_connection, metrics_disabled, session_factory, api_client, profile_factory,
+                     calendar_state):
     # This service-seam suite invokes matching/its injected assessor explicitly.
     # Real transactional refresh is covered by test_metrics_flow.
-    from app.metrics import engine as metric_engine
-    monkeypatch.setattr(metric_engine, '_refresh_scopes', lambda session, scopes: [])
-    parsed = urlsplit(settings.database_url)
-    assert settings.app_mode == 'test'
-    assert parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == int(os.environ.get('TEST_DATABASE_PORT', '55439'))
-    assert parsed.path == '/garmin_test'
     monkeypatch.setattr(calendar, '_today', lambda session, now=None: date(2026, 11, 16))
-    with engine.connect() as connection:
-        outer = connection.begin()
-        try:
-            with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
-                session.execute(delete(SessionCompletion))
-                session.execute(delete(CalendarSessionRevision))
-                session.execute(delete(CalendarVersion))
-                state = session.get(AppState, 1)
-                state.calendar_head_version = 0
-                state.planning_authority = 'calendar'
-                version = (session.scalar(select(func.max(ProfileVersion.version))) or 0) + 1
-                session.add(ProfileVersion(version=version, effective_at=datetime(2026, 11, 1, tzinfo=UTC),
-                    timezone='America/New_York', cycle_anchor=date(2026, 11, 2),
-                    anchor_confirmed=True, strength_days_confirmed=True,
-                    scheduled_strength_days=[0, 4], strength_schedule_mode='weekly',
-                    facts={}, preferences={}, unknowns=[]))
-                session.commit()
-            api = FastAPI()
-            api.include_router(router, prefix='/api/v1')
-            api.add_exception_handler(HTTPException, handle_http)
-            api.add_exception_handler(RequestValidationError, handle_validation)
-            def override_session():
-                with Session(bind=connection, join_transaction_mode='create_savepoint',
-                             expire_on_commit=False) as session:
-                    yield session
-            def assessor():
-                def assess(session, uid):
-                    row = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == uid))
-                    row.status = 'completed_modified'
-                    row.version += 1
-                return assess
-            api.dependency_overrides[get_session] = override_session
-            api.dependency_overrides[get_completion_assessor] = assessor
-            yield TestClient(api), connection, api
-        finally:
-            outer.rollback()
+    with session_factory() as session:
+        session.execute(delete(SessionCompletion))
+        session.execute(delete(CalendarSessionRevision))
+        session.execute(delete(CalendarVersion))
+        calendar_state(session, reset_head=True)
+        profile_factory(session)
+        session.commit()
+    def assessor():
+        def assess(session, uid):
+            row = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == uid))
+            row.status = 'completed_modified'
+            row.version += 1
+        return assess
+    client = api_client(router, overrides={get_completion_assessor: assessor})
+    return client, db_connection, client.app
 
 
 def _bootstrap(client):
