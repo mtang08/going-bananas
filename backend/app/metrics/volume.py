@@ -8,7 +8,12 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.domain.analytics import utc_date_bounds
-from app.metrics.contract import MetricResultData, QualityStatus, RunFact, Status, config_hash, sha256_json
+from app.metrics.contract import (
+    MetricResultData,
+    RunFact,
+    result_from_outcome,
+    sha256_json,
+)
 from app.metrics.engine import activities_coverage_complete, load_runs, register
 from app.services.timezone import athlete_tz
 
@@ -79,12 +84,9 @@ def volume_outcome(runs: list[RunFact], as_of: date, days: int, coverage_complet
 
 def _result(key: str, outcome: dict, source_refs: dict, timezone: str,
             start: datetime, end: datetime) -> MetricResultData:
-    return MetricResultData(METRIC_ID, METHOD_VERSION, "window", key, Status(outcome["status"]),
-                            tuple(outcome["reason_codes"]), tuple(outcome["quality_flags"]),
-                            source_refs, (), config_hash(CONFIG), window_start=start, window_end=end,
-                            window_label=key,
-                            quality_status=QualityStatus(outcome["quality_status"]) if outcome["quality_status"] else None,
-                            value=outcome["value"], unit=None, timezone=timezone)
+    return result_from_outcome(METRIC_ID, METHOD_VERSION, CONFIG, key=key, outcome=outcome, refs=source_refs,
+                               timezone=timezone, subject_type="window", window_start=start, window_end=end,
+                               window_label=key)
 
 
 @register(METRIC_ID, METHOD_VERSION, DEPENDS_ON)

@@ -15,7 +15,7 @@ from app.domain.analytics import utc_date_bounds
 from app.domain.associations import preceding_sessions
 from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
-from app.metrics.contract import MetricResultData, Status, config_hash, sha256_json
+from app.metrics.contract import MetricResultData, result_from_outcome, sha256_json
 from app.metrics.engine import load_runs, metric_source_refs, register
 from app.models import Activity
 from app.services.timezone import athlete_tz
@@ -167,14 +167,9 @@ def _checkins(session: Session, rows: list[Checkin]) -> tuple[list[CheckinIn], d
 
 def _result(key: str, outcome: dict, refs: dict, tz: str, start: datetime | None,
             end: datetime | None, is_window: bool = False) -> MetricResultData:
-    from app.metrics.contract import QualityStatus
-    return MetricResultData(METRIC_ID, METHOD_VERSION, "window" if is_window else "activity", key,
-                            Status(outcome["status"]), tuple(outcome["reason_codes"]),
-                            tuple(outcome["quality_flags"]), refs, (), config_hash(CONFIG),
-                            window_start=start, window_end=end,
-                            window_label=key if is_window else None,
-                            quality_status=QualityStatus(outcome["quality_status"]) if outcome["quality_status"] else None,
-                            value=outcome["value"], unit=None, timezone=tz)
+    return result_from_outcome(METRIC_ID, METHOD_VERSION, CONFIG, key=key, outcome=outcome, refs=refs, timezone=tz,
+                               subject_type="window" if is_window else "activity", window_start=start,
+                               window_end=end, window_label=key if is_window else None)
 
 
 @register(METRIC_ID, METHOD_VERSION, DEPENDS_ON)

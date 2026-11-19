@@ -8,12 +8,14 @@ import pytest
 from app.metrics import engine
 from app.metrics.contract import (
     QualityStatus,
+    Status,
     completion_association_hash,
     config_hash,
     coverage_label,
     integrate_timer_on,
     plausible_hr,
     plausible_speed,
+    result_from_outcome,
 )
 from app.metrics.engine import register
 from app.metrics.refresh import parse_scope
@@ -101,3 +103,23 @@ def test_registry_rejects_duplicate_unknown_and_cycle(monkeypatch: pytest.Monkey
         return []
     with pytest.raises(ValueError, match='metric_dependency_cycle'):
         engine.ordered_registry()
+
+
+OUTCOME = {"status": "available", "reason_codes": ["A"], "quality_flags": ["B"], "quality_status": "good", "value": {"n": 1}}
+
+
+def test_result_from_outcome_converts_enums_and_tuples() -> None:
+    result = result_from_outcome("m", "v1", {"k": 1}, key="s", outcome=OUTCOME, refs={}, timezone="UTC",
+                                 subject_type="activity", unit="s", anchor_keys=["a"])
+    assert (result.status, result.quality_status) == (Status.available, QualityStatus.good)
+    assert (result.reason_codes, result.quality_flags, result.anchor_keys) == (("A",), ("B",), ("a",))
+    assert (result.config_hash, result.unit, result.value) == (config_hash({"k": 1}), "s", {"n": 1})
+
+
+def test_result_from_outcome_without_quality_and_window_fields() -> None:
+    outcome = {**OUTCOME, "quality_status": None}
+    start, end = datetime(2026, 11, 1, tzinfo=UTC), datetime(2026, 11, 8, tzinfo=UTC)
+    result = result_from_outcome("m", "v1", {}, key="w7:2026-11-07", outcome=outcome, refs={"r": 1}, timezone="UTC",
+                                 subject_type="window", window_start=start, window_end=end, window_label="w7:2026-11-07")
+    assert result.quality_status is None
+    assert (result.subject_type, result.window_start, result.window_end, result.anchor_set_hash) == ("window", start, end, None)
