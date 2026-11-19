@@ -6,10 +6,11 @@ from collections import Counter
 from datetime import date, timedelta
 from typing import Literal, get_args
 
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
+from app.db import global_read_lock
 from app.domain.session_class import HARD_CLASSES, classify
 from app.errors import fail
 from app.metric_models import MetricResult
@@ -261,6 +262,6 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
 def weekly_digest(session: Session, week_start: date | None) -> dict:
     if week_start is not None and week_start.weekday() != 0:
         fail('invalid_week_start', 'Week start must be a Monday')
-    session.execute(text('SELECT pg_advisory_xact_lock_shared(:key)'), {'key': calendar.LOCK_ID})
+    global_read_lock(session)
     today = calendar._today(session)
     return load_week(session, week_start or week_bounds(today)[0], today=today)

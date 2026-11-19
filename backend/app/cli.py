@@ -113,9 +113,9 @@ def _parse() -> argparse.Namespace:
 
 
 def _coach(args) -> int:
-    from fastapi import HTTPException
     from pydantic import ValidationError
 
+    from app.errors import AppError
     from app.services import knowledge, proposals
     from app.services.decision_inputs import VerifiedKnowledge
     from app.services.timezone import athlete_tz, local_date
@@ -202,9 +202,8 @@ def _coach(args) -> int:
         else:
             output({'error': exc.code, 'message': exc.message}, error=True)
         return 3 if exc.code == 'stale_evidence' else 2
-    except HTTPException as exc:
-        code = exc.detail.get('code', 'request_error') if isinstance(exc.detail, dict) else 'request_error'
-        output({'error': code}, error=True)
+    except AppError as exc:
+        output({'error': exc.code}, error=True)
         return 4 if exc.status_code == 404 else 2
     except Exception:
         output({'error': 'unexpected_error'}, error=True)

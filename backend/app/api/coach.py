@@ -6,14 +6,14 @@ from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.core import envelope
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachProposalRevision, CoachSnapshot
 from app.db import get_session
-from app.errors import fail
+from app.errors import AppError, fail
 from app.exception_models import ExceptionPatch
 from app.models import AppState
 from app.services import calendar, knowledge, proposals
@@ -118,8 +118,7 @@ def delete_proposal(proposal_id: uuid.UUID, expected_revision: int = Query(..., 
         result = proposals.discard_proposal(session, proposal_id, expected_revision, now=datetime.now(UTC))
     except proposals.DecisionError as exc:
         session.rollback()
-        raise HTTPException(exc.http_status, detail={'code': exc.code, 'message': exc.message,
-            'fields': [issue.to_json() for issue in exc.fields]}) from exc
+        raise AppError(exc.code, exc.message, exc.http_status, [issue.to_json() for issue in exc.fields]) from exc
     session.commit()
     return envelope(session, {'proposal_id': result.proposal_id, 'revision': result.revision, 'status': result.status})
 
@@ -142,12 +141,10 @@ def post_decision(proposal_id: uuid.UUID, body: proposals.DecisionRequest,
             session.commit()
         else:
             session.rollback()
-        raise HTTPException(exc.http_status, detail={'code': exc.code, 'message': exc.message,
-            'fields': [issue.to_json() for issue in exc.fields]}) from exc
+        raise AppError(exc.code, exc.message, exc.http_status, [issue.to_json() for issue in exc.fields]) from exc
     except knowledge.KnowledgeIntegrityError as exc:
         session.rollback()
-        raise HTTPException(409, detail={'code': 'knowledge_unavailable',
-            'message': 'Research package changed; create a fresh coaching review'}) from exc
+        raise AppError('knowledge_unavailable', 'Research package changed; create a fresh coaching review', 409) from exc
     session.commit()
     return envelope(session, asdict(result))
 
@@ -178,12 +175,10 @@ def post_revision(proposal_id: uuid.UUID, body: proposals.RevisionRequest,
         result = proposals.revise_proposal(session, proposal_id, body, now=datetime.now(UTC), resolve_kb=resolve_kb)
     except proposals.DecisionError as exc:
         session.rollback()
-        raise HTTPException(exc.http_status, detail={'code': exc.code, 'message': exc.message,
-            'fields': [issue.to_json() for issue in exc.fields]}) from exc
+        raise AppError(exc.code, exc.message, exc.http_status, [issue.to_json() for issue in exc.fields]) from exc
     except knowledge.KnowledgeIntegrityError as exc:
         session.rollback()
-        raise HTTPException(409, detail={'code': 'knowledge_unavailable',
-            'message': 'Research package changed; refresh the coaching context before revising'}) from exc
+        raise AppError('knowledge_unavailable', 'Research package changed; refresh the coaching context before revising', 409) from exc
     session.commit()
     return envelope(session, {'proposal_id': result.proposal_id, 'revision': result.revision,
         'status': result.status, 'errors': [issue.to_json() for issue in result.issues]})
