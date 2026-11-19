@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.checkin_models import Checkin, SessionRpe, SymptomReport
-from app.metric_models import MetricResult, Prompt
-from app.metrics.engine import load_runs
+from app.metric_models import Prompt
+from app.metrics.engine import current_results, load_runs
 from app.models import Activity, AppState, ManualSession
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
@@ -173,10 +173,7 @@ def _facts(session: Session, now: datetime) -> dict[str, Any]:
     run_rows = _eligible_run_rows(session, list(session.scalars(select(Activity).where(
         Activity.sport.in_(RUN_SPORTS))).all()), zone)
     ids = [str(row.id) for row in run_rows]
-    long_rows = list(session.scalars(select(MetricResult).where(
-        MetricResult.metric_id == 'long_run_exposure', MetricResult.subject_type == 'activity',
-        MetricResult.is_current.is_(True), MetricResult.subject_key.in_(ids))).all()) if ids else []
-    long_by_id = {row.subject_key: row for row in long_rows}
+    long_by_id = current_results(session, 'long_run_exposure', ids)
     rpe_rows = list(session.scalars(select(SessionRpe).where(
         SessionRpe.activity_id.in_([row.id for row in run_rows]))).all()) if run_rows else []
     rpe_by_activity: dict[uuid.UUID, dict[str, float]] = {}
@@ -218,10 +215,7 @@ def _facts(session: Session, now: datetime) -> dict[str, Any]:
     revisions = {uid: revision for uid, revision in revisions.items()
                  if today - timedelta(days=7) <= revision.local_date <= today}
     metric_keys = [str(uid) for uid in revisions]
-    metric_rows = list(session.scalars(select(MetricResult).where(
-        MetricResult.metric_id == 'planned_actual_session', MetricResult.is_current.is_(True),
-        MetricResult.subject_key.in_(metric_keys))).all()) if metric_keys else []
-    metric_by_uid = {row.subject_key: row for row in metric_rows}
+    metric_by_uid = current_results(session, 'planned_actual_session', metric_keys)
     planned_actual = [{
         'session_uid': str(uid), 'local_date': revision.local_date,
         'kind': revision.kind, 'deleted': revision.deleted,

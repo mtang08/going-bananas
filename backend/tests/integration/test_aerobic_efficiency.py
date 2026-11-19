@@ -11,12 +11,14 @@ from types import SimpleNamespace
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from app import cli
+from app.api.metrics import activity_execution, get_windows
 from app.config import settings
+from app.metric_models import MetricResult
 from app.metrics import aerobic, engine
 from app.migrations_head import EXPECTED_HEAD
 from app.models import Activity, ActivityAnnotation
@@ -76,16 +78,21 @@ def test_demo_activity_results(demo):
         easy = aero(session, 8)
         assert easy.status == 'available'
         assert easy.value['session_class'] == 'easy'
-        assert easy.value['ef_m_per_beat'] == 1.2
-        assert easy.value['mean_hr_bpm'] == 140.0
+        assert easy.value['ef_m_per_beat'] == pytest.approx(1.183, abs=.002)
+        assert easy.value['mean_hr_bpm'] == pytest.approx(142.0, abs=.05)
         assert easy.value['decoupling']['reason_codes'] == ['DECOUPLING_TOO_SHORT']
-        assert easy.quality_flags == ['ELEVATION_UNKNOWN']
+        assert easy.quality_flags == []
         assert easy.unit == 'm_per_beat'
 
         long = aero(session, 2)
         assert long.value['session_class'] == 'long'
         assert long.value['decoupling']['status'] == 'available'
-        assert long.value['decoupling']['pct'] == 0.0
+        assert long.value['decoupling']['pct'] == pytest.approx(1.88, abs=.05)
+        assert long.value['ef_m_per_beat'] == pytest.approx(1.187, abs=.002)
+        assert aero(session, 1).value['ef_m_per_beat'] == pytest.approx(1.201, abs=.002)
+        hill = aero(session, 26)
+        assert 'HILLY_ROUTE' in hill.quality_flags
+        assert hill.value['ef_m_per_beat'] == pytest.approx(1.14, abs=.002)
 
         assert aero(session, 28).value['session_class'] == 'unplanned'
 
@@ -105,3 +112,42 @@ def test_demo_activity_results(demo):
         assert excluded.status == 'not_applicable'
         assert excluded.reason_codes == ['ACTIVITY_EXCLUDED']
         assert excluded.value is None
+
+
+def test_demo_windows(demo):
+    with demo() as session:
+        short_key = f'w28:{TODAY}'
+        long_key = f'w84:{TODAY}'
+        rows = engine.latest_results(session, aerobic.METRIC_ID, aerobic.METHOD_VERSION, [short_key, long_key])
+
+        row = rows[short_key]
+        assert row.status in ('available', 'partial')
+        value = row.value
+        assert value['runs_total'] == 13
+        assert value['runs_counted'] == 7
+        assert value['not_counted'] == {'SPEED_NOT_RECORDED': 1, 'STRUCTURED_SESSION': 5}
+        assert value['ef_early_median_m_per_beat'] == pytest.approx(1.144, abs=.002)
+        assert value['ef_late_median_m_per_beat'] == pytest.approx(1.185, abs=.002)
+        assert value['ef_change_pct'] == pytest.approx(3.58, abs=.05)
+        assert value['decoupling_runs_counted'] == 1 and row.quality_flags == []
+        assert rows[long_key].value['runs_counted'] == 8
+        assert rows[long_key].value['window_days'] == 84
+        assert rows[long_key].value['runs_total'] == 14
+        with pytest.raises(ValueError, match='^invalid_subject_key$'):
+            aerobic.compute(session, 'w7:2026-11-12')
+
+
+def test_aerobic_reads(demo):
+    with demo() as session:
+        easy_id = activity_on(session, 8).id
+        structured_id = activity_on(session, 6).id
+        assert get_windows(TODAY, session)['data']['aerobic']['w28']['metric_id'] == 'aerobic_efficiency'
+        assert activity_execution(session, easy_id)['aerobic']['value']['session_class'] == 'easy'
+        assert activity_execution(session, structured_id)['aerobic']['reason_codes'] == ['STRUCTURED_SESSION']
+
+        count = select(func.count()).select_from(MetricResult)
+        before = session.scalar(count)
+        get_windows(TODAY, session)
+        activity_execution(session, easy_id)
+        activity_execution(session, structured_id)
+        assert session.scalar(count) == before

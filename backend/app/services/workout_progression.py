@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
 from app.metrics import intervals
-from app.metrics.engine import latest_results
+from app.metrics.engine import current_results
 from app.models import Activity, AppState
 from app.services.calendar import state_at
 from app.services.calendar_structure import expand_structure, work_signature
@@ -145,7 +145,7 @@ def linked_run_ids(session: Session, start: date, end: date) -> list[UUID]:
 def progression_points(session: Session, start: date, end: date) -> list[dict]:
     plans = _structured_plans(session, start, end)
     completions, activities = _linked(session, plans)
-    rows = latest_results(session, intervals.METRIC_ID, intervals.METHOD_VERSION, [str(uid) for uid in activities])
+    rows = current_results(session, intervals.METRIC_ID, [str(uid) for uid in activities])
     tz = athlete_tz(session)
     points = []
     for plan in plans:

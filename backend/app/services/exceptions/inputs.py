@@ -15,8 +15,7 @@ from app.checkin_models import Checkin, SessionRpe, SymptomReport
 from app.domain.analytics import utc_date_bounds
 from app.domain.athlete_facts import clinical_restriction
 from app.domain.session_class import classify, expected_rpe
-from app.metric_models import MetricResult
-from app.metrics.engine import load_runs
+from app.metrics.engine import current_results, load_runs
 from app.metrics.recovery import SIGNALS
 from app.metrics.symptoms import linked_activity_for_checkin
 from app.models import Activity, AppState, ProfileVersion
@@ -118,17 +117,9 @@ def _sessions(session: Session, today: date, completions: Sequence[SessionComple
     return tuple(out)
 
 
-def _current(session: Session, metric_id: str, subjects: list[str]) -> list[MetricResult]:
-    if not subjects:
-        return []
-    return list(session.scalars(select(MetricResult).where(
-        MetricResult.metric_id == metric_id, MetricResult.method_version == 'v1',
-        MetricResult.is_current.is_(True), MetricResult.subject_key.in_(subjects))))
-
-
 def _planned_actual(session: Session, uids: list[str]) -> dict[str, PlannedActualFact]:
     out: dict[str, PlannedActualFact] = {}
-    for row in _current(session, 'planned_actual_session', uids):
+    for row in current_results(session, 'planned_actual_session', uids).values():
         components = row.value.get('components', []) if isinstance(row.value, dict) else []
         coverage = next((c.get('status') for c in components if c.get('name') == 'target_coverage'), None)
         out[row.subject_key] = PlannedActualFact(tuple(row.reason_codes), coverage)
@@ -138,7 +129,7 @@ def _planned_actual(session: Session, uids: list[str]) -> dict[str, PlannedActua
 def _recovery_adverse(session: Session, today: date) -> frozenset[date]:
     nights = [f"night:{(today - timedelta(days=n)).isoformat()}" for n in range(RECOVERY_DAYS)]
     return frozenset(date.fromisoformat(row.subject_key.removeprefix('night:'))
-                     for row in _current(session, 'recovery_multisignal_summary', nights)
+                     for row in current_results(session, 'recovery_multisignal_summary', nights).values()
                      if isinstance(row.value, dict) and any(
                          isinstance(row.value.get(m), dict) and row.value[m].get('adverse') is True for m in SIGNALS))
 

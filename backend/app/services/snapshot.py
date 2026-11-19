@@ -71,6 +71,7 @@ LIVE_PATCH = ("open", "escalated")
 BENCHMARK_HISTORY_MAX = 6
 PROGRESSION_GROUPS_MAX = 3
 PROGRESSION_POINTS_MAX = 4
+AEROBIC_RECENT_MAX = 5
 PROGRESSION_POINT_KEYS = ("local_date", "activity_id", "status", "reason_codes", "n_planned", "n_completed",
                           "work_speed_mps", "work_hr_bpm", "work_m_per_beat", "cv_speed",
                           "last_first_change_pct", "target_coverage", "sport")
@@ -731,6 +732,26 @@ def _quality_progression(inputs: SnapshotInputs, operation: str) -> list[dict]:
     ]
 
 
+def _aerobic_efficiency(inputs: SnapshotInputs) -> dict:
+    rows = {str(m["subject_key"]).split(":", 1)[0]: m for m in inputs.metric_results
+            if m.get("metric_id") == "aerobic_efficiency" and m.get("subject_type") == "window"
+            and m.get("subject_key") in {f"w28:{inputs.as_of.isoformat()}", f"w84:{inputs.as_of.isoformat()}"}}
+    section: dict[str, Any] = {"interpretation": "descriptive_only", "recent_runs": []}
+    for key in ("w28", "w84"):
+        row = rows.get(key)
+        if row is None:
+            section[key] = None
+            continue
+        view = _metric_view(row)
+        value = dict(view["value"] or {})
+        points = value.pop("points", [])
+        view["value"] = value
+        section[key] = view
+        if key == "w84":
+            section["recent_runs"] = list(points)[-AEROBIC_RECENT_MAX:]
+    return section
+
+
 def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
     if operation not in OPERATIONS:
         raise ValueError("unsupported_operation")
@@ -861,6 +882,7 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             _metric_view(m)
             for m in inputs.metric_results
             if m.get("subject_type") == "window" and m.get("subject_key") in keys
+            and m.get("metric_id") != "aerobic_efficiency"
         ]
     if operation not in {RACE}:
         quality_runs = [r for r in payload["completed_exposures"]["runs"] if r["class"] == "quality"]
@@ -875,6 +897,8 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         payload["execution"] = execution
     if operation in {ROLLING, QUALITY_OP, BLOCK}:
         payload["quality_progression"] = _quality_progression(inputs, operation)
+    if operation in {ROLLING, BLOCK}:
+        payload["aerobic_efficiency"] = _aerobic_efficiency(inputs)
     if operation not in {CALIB}:
         payload["symptoms"] = _symptoms(inputs, operation)
     if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, EXCEPTION, POST_EVENT}:
@@ -1177,6 +1201,8 @@ def _load_prompts(session: Session, now: datetime) -> list[dict]:
 
 
 def _load_metrics(session: Session, as_of: date, runs: list[dict]) -> list[dict]:
+    from app.metrics.engine import current_result_filter
+
     metric_keys = (
         {f"w{n}:{as_of.isoformat()}" for n in (7, 14, 28, 56, 84)}
         | {f"w{n}:{as_of.isoformat()}:{kind}" for n in (7, 14, 28, 56, 84) for kind in ("run", "strength")}
@@ -1185,7 +1211,7 @@ def _load_metrics(session: Session, as_of: date, runs: list[dict]) -> list[dict]
     )
     metric_rows = session.scalars(
         select(MetricResult)
-        .where(MetricResult.is_current.is_(True), MetricResult.subject_key.in_(metric_keys))
+        .where(current_result_filter(), MetricResult.subject_key.in_(metric_keys))
         .order_by(MetricResult.metric_id, MetricResult.subject_key, MetricResult.id)
     ).all()
     metrics = [

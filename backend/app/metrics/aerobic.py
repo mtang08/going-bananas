@@ -2,15 +2,19 @@
 from __future__ import annotations
 
 import math
+import re
 import statistics
 import uuid
 from dataclasses import dataclass
+from datetime import date, timedelta
+from statistics import median
 from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.domain.analytics import utc_date_bounds
 from app.domain.session_class import classify
 from app.fit_models import ActivityStream, ActivityWorkoutStep
 from app.metrics.contract import (
@@ -23,8 +27,9 @@ from app.metrics.contract import (
     metric_source_refs,
     plausible_hr,
     plausible_speed,
+    sha256_json,
 )
-from app.metrics.engine import register
+from app.metrics.engine import activities_coverage_complete, latest_results, load_runs, register
 from app.metrics.intervals import FitStep, after_timer_seconds, expand_fit
 from app.models import Activity, ActivityAnnotation, AppState
 from app.services.calendar_structure import expand_structure
@@ -348,9 +353,89 @@ def _result(subject_type: str, key: str, outcome: dict, refs: dict, tz: str, lab
                             value=outcome['value'], unit='m_per_beat', timezone=tz)
 
 
+def window_outcome(entries: list[dict], start: date, days: int, coverage_complete: bool) -> dict[str, Any]:
+    counted: list[dict] = []
+    not_counted: dict[str, int] = {}
+    for entry in entries:
+        result = entry['result']
+        if result is None:
+            key = 'NO_RESULT'
+        elif result['status'] in ('available', 'partial') and result['value'] is not None:
+            if not set(result['quality_flags']) & set(CONFIG['window_excluded_flags']):
+                counted.append(entry)
+                continue
+            key = next(f for f in CONFIG['window_excluded_flags'] if f in result['quality_flags'])
+        else:
+            key = (list(result['reason_codes']) or [str(result['status']).upper()])[0]
+        not_counted[key] = not_counted.get(key, 0) + 1
+    points = [{'activity_id': e['activity_id'], 'local_date': e['local_date'].isoformat(),
+               'session_class': e['result']['value'].get('session_class'),
+               'ef_m_per_beat': e['result']['value']['ef_m_per_beat'],
+               'mean_speed_mps': e['result']['value']['mean_speed_mps'],
+               'mean_hr_bpm': e['result']['value']['mean_hr_bpm'],
+               'decoupling_pct': e['result']['value']['decoupling']['pct'],
+               'quality_flags': list(e['result']['quality_flags'])}
+              for e in sorted(counted, key=lambda e: (e['local_date'], e['activity_id']))]
+    middle = (start + timedelta(days=days // 2)).isoformat()
+    efs = [p['ef_m_per_beat'] for p in points]
+    early = [p['ef_m_per_beat'] for p in points if p['local_date'] < middle]
+    late = [p['ef_m_per_beat'] for p in points if p['local_date'] >= middle]
+    decs = [p['decoupling_pct'] for p in points if p['decoupling_pct'] is not None]
+    enough = min(len(early), len(late)) >= CONFIG['trend_min_runs_per_half']
+    value = {'window_days': days, 'runs_total': len(entries), 'runs_counted': len(points),
+             'runs_without_result': not_counted.get('NO_RESULT', 0),
+             'not_counted': dict(sorted(not_counted.items())),
+             'ef_median_m_per_beat': round(median(efs), 3) if efs else None,
+             'ef_early_median_m_per_beat': round(median(early), 3) if early else None,
+             'ef_late_median_m_per_beat': round(median(late), 3) if late else None,
+             'ef_change_pct': round(100 * (median(late) - median(early)) / median(early), 2) if enough else None,
+             'decoupling_runs_counted': len(decs),
+             'decoupling_median_pct': round(median(decs), 2) if decs else None,
+             'points': points}
+    reasons: list[str] = []
+    if not points:
+        status = Status.not_assessable.value
+        reasons.append('NO_ELIGIBLE_RUNS')
+    else:
+        if value['runs_without_result']:
+            reasons.append('ACTIVITY_RESULT_MISSING')
+        status = (Status.partial if reasons or not coverage_complete else Status.available).value
+    if not coverage_complete:
+        reasons.append('SYNC_COVERAGE_INCOMPLETE')
+    return {'status': status, 'quality_status': None, 'value': value, 'reason_codes': reasons,
+            'quality_flags': ['TREND_TOO_FEW_RUNS'] if points and not enough else []}
+
+
+def _window(session: Session, subject_key: str, tz) -> MetricResultData:
+    match = re.fullmatch(r'w(\d+):(\d{4}-\d{2}-\d{2})', subject_key)
+    if match is None or int(match[1]) not in WINDOW_DAYS:
+        raise ValueError('invalid_subject_key')
+    days, as_of = int(match[1]), date.fromisoformat(match[2])
+    first = as_of - timedelta(days=days - 1)
+    runs = load_runs(session, first, as_of + timedelta(days=1))
+    keys = [str(run.activity_id) for run in runs]
+    rows = latest_results(session, METRIC_ID, METHOD_VERSION, keys)
+    entries = [{'activity_id': key, 'local_date': run.local_date,
+                'result': {'status': rows[key].status, 'reason_codes': rows[key].reason_codes,
+                           'quality_flags': rows[key].quality_flags, 'value': rows[key].value}
+                if key in rows else None} for key, run in zip(keys, runs)]
+    coverage = activities_coverage_complete(session, first, as_of + timedelta(days=1))
+    sources = [{'activity_id': key, 'source_revision': run.source_revision,
+                'metric_result_id': str(rows[key].id) if key in rows else None,
+                'metric_dependency_hash': rows[key].dependency_hash if key in rows else None}
+               for key, run in zip(keys, runs)]
+    refs = {'activity_ids': keys, 'sources': sources, 'coverage_complete': coverage,
+            'input_hash': sha256_json({'sources': sources, 'coverage_complete': coverage})}
+    start, end = utc_date_bounds(first, as_of, tz.key)
+    return _result('window', subject_key, window_outcome(entries, first, days, coverage), refs, tz.key,
+                   subject_key, start, end)
+
+
 @register(METRIC_ID, METHOD_VERSION, DEPENDS_ON)
 def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     tz = athlete_tz(session)
+    if subject_key.startswith('w'):
+        return [_window(session, subject_key, tz)]
     try:
         activity_id = uuid.UUID(subject_key)
     except ValueError as exc:
