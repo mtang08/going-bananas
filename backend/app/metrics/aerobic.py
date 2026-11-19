@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.domain.analytics import utc_date_bounds
+from app.domain.calendar_structure import expand_structure
 from app.domain.session_class import classify
 from app.domain.sports import RUN_SPORTS
 from app.fit_models import ActivityStream, ActivityWorkoutStep
@@ -33,7 +34,6 @@ from app.metrics.contract import (
 from app.metrics.engine import activities_coverage_complete, latest_results, load_runs, register
 from app.metrics.intervals import FitStep, after_timer_seconds, expand_fit
 from app.models import Activity, ActivityAnnotation, AppState
-from app.services.calendar_structure import expand_structure
 from app.services.timezone import athlete_tz, local_date
 
 METRIC_ID = 'aerobic_efficiency'

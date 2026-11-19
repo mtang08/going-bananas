@@ -9,12 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
+from app.domain.calendar_structure import expand_structure, work_signature
 from app.domain.sports import RUN_SPORTS
 from app.metrics import intervals
 from app.metrics.engine import current_results
 from app.models import Activity, AppState
 from app.services.calendar import state_at
-from app.services.calendar_structure import expand_structure, work_signature
 from app.services.timezone import athlete_tz, local_date
 
 ASSESSABLE = ('available', 'partial')

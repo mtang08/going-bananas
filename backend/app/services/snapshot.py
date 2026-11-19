@@ -22,6 +22,7 @@ from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachSnapshot
 from app.db import global_write_lock
 from app.domain.athlete_facts import clinical_restriction
+from app.domain.calendar_structure import work_signature
 from app.domain.local_time import date_in_zone
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
 from app.metric_models import MetricResult, Prompt
@@ -37,7 +38,6 @@ from app.planning_models import (
 )
 from app.services.block_benchmark import active_block_version
 from app.services.calendar import state_at
-from app.services.calendar_structure import work_signature
 from app.services.coverage import coverage
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION

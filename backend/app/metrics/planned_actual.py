@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.domain.calendar_structure import expand_structure
 from app.domain.local_time import date_in_zone
 from app.metrics import intervals as interval_metric
 from app.metrics.contract import (
@@ -21,7 +22,6 @@ from app.metrics.contract import (
 )
 from app.metrics.engine import activities_coverage_complete, current_results, load_runs, metric_source_refs, register
 from app.models import Activity, AppState, ManualSession, RawObject, SourceRecord
-from app.services.calendar_structure import expand_structure
 from app.services.matching import candidates_for_session
 from app.services.timezone import athlete_tz
 from app.services.timezone import local_date as tz_local_date
