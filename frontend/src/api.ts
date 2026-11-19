@@ -1,4 +1,3 @@
-import type { QueryClient } from '@tanstack/react-query'
 import { RECIPE_LABELS } from './api/types/calendar'
 import type {
   Completion,
@@ -144,6 +143,8 @@ export * from './api/types/anchors'
 export * from './api/types/activity'
 export * from './api/types/profile'
 export * from './api/types/sync'
+// TRANSITIONAL (ARCH-14y9): importers move to api/queryKeys in ARCH-14y2-14y9, then api.ts is deleted
+export { qk, invalidateKeys } from './api/queryKeys'
 
 export type Unit = 'mi' | 'km'
 export const MISSING = 'missing'
@@ -328,9 +329,6 @@ export function sessionMarker(
   if (c?.activity_id || c?.strong_workout_id || c?.manual_session_id) return 'recorded'
   return s.local_date < today ? 'not_recorded' : 'planned'
 }
-export function invalidateKeys(qc: QueryClient, keys: readonly (readonly unknown[])[]): void {
-  for (const key of keys) void qc.invalidateQueries({ queryKey: [...key] })
-}
 export const pageHref = {
   home: '#home',
   calendar: '#calendar',
@@ -338,33 +336,3 @@ export const pageHref = {
   settings: '#settings',
   activity: (id: string) => `#activity/${encodeURIComponent(id)}`,
 } as const
-export const qk = {
-  calendar: ['v2', 'calendar'] as const,
-  calendarView: (version: number | 'head') => ['v2', 'calendar', 'view', version] as const,
-  calendarVersions: ['v2', 'calendar', 'versions'] as const,
-  calendarDiff: (from: number, to: number) => ['v2', 'calendar', 'diff', from, to] as const,
-  weeklyDigest: (weekStart: string | 'current') =>
-    ['v2', 'calendar', 'weekly-digest', weekStart] as const,
-  prompts: ['v2', 'prompts'] as const,
-  checkins: ['v2', 'checkins'] as const,
-  metrics: ['v2', 'metrics'] as const,
-  metricsWindows: ['v2', 'metrics', 'windows'] as const,
-  metricsRecovery: (start: string, end: string) =>
-    ['v2', 'metrics', 'recovery', start, end] as const,
-  activityExecution: (id: string) => ['v2', 'metrics', 'execution', id] as const,
-  workoutProgression: (groupBy: string) =>
-    ['v2', 'metrics', 'workout-progression', groupBy] as const,
-  workoutHistory: (id: string) => ['v2', 'metrics', 'workout-history', id] as const,
-  activity: (id: string) => ['v2', 'activity', id] as const,
-  activitiesNear: (start: string, end: string) =>
-    ['v2', 'activities', start, end, 'running', null] as const,
-  coach: ['v2', 'coach'] as const,
-  exceptions: ['v2', 'exceptions'] as const,
-  goals: ['v2', 'goals'] as const,
-  events: ['v2', 'events'] as const,
-  anchors: ['v2', 'anchors'] as const,
-  strengthRoutine: ['v2', 'strength-routine'] as const,
-  blocksActive: ['v2', 'blocks', 'active'] as const,
-  blockBenchmarks: ['v2', 'blocks', 'benchmarks'] as const,
-  profile: ['profile'] as const,
-}
