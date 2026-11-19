@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -17,9 +17,9 @@ from app.db import get_session
 from app.errors import fail
 from app.fit_models import ActivityLap, ActivityWorkoutStep
 from app.metric_models import MetricConfig, MetricResult
-from app.metrics import engine
+from app.metrics import engine, intervals
 from app.models import Activity, AppState
-from app.services import calendar
+from app.services import calendar, workout_progression
 
 router = APIRouter()
 
@@ -127,6 +127,35 @@ def long_run_history(session: Session, start: date, end: date) -> list[dict]:
     return [metric_data(row) for row in rows if row.value and row.value.get('classification') == 'long']  # type: ignore[misc]
 
 
+RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
+
+
+def _refresh_intervals(session: Session, activity_ids: list[UUID]) -> None:
+    if not activity_ids:
+        return
+    with engine._refreshing(session):
+        engine.compute_subjects(session, intervals.METRIC_ID, [str(uid) for uid in activity_ids])
+        session.flush()
+
+
+def workout_progression_data(session: Session, start: date, end: date, group_by: str) -> dict:
+    _window(start, end, 366)
+    _refresh_intervals(session, workout_progression.linked_run_ids(session, start, end))
+    return {'start': start, 'end': end, 'group_by': group_by,
+            'groups': workout_progression.progression_groups(session, start, end, group_by)}
+
+
+def activity_workout_history(session: Session, activity_id: UUID, limit: int) -> dict:
+    activity = session.get(Activity, activity_id)
+    if activity is None:
+        fail('activity_not_found', 'Activity not found', 404)
+    if activity.sport not in RUN_SPORTS:
+        fail('not_run_activity', 'Activity is not a run')
+    start, end = workout_progression.history_window(session, activity)
+    _refresh_intervals(session, workout_progression.linked_run_ids(session, start, end))
+    return workout_progression.workout_history(session, activity, limit)
+
+
 @router.get('/metrics/windows')
 def get_windows(as_of: date | None = None, session: Session = Depends(get_session)) -> dict:
     as_of = as_of or engine._today(session)
@@ -163,5 +192,24 @@ def get_execution(activity_id: UUID, session: Session = Depends(get_session)) ->
 @router.get('/metrics/long-runs')
 def get_long_runs(start: date, end: date, session: Session = Depends(get_session)) -> dict:
     data = long_run_history(session, start, end)
+    session.commit()
+    return envelope(session, data)
+
+
+@router.get('/metrics/workout-progression')
+def get_workout_progression(start: date | None = None, end: date | None = None,
+                            group_by: Literal['signature', 'recipe'] = 'signature',
+                            session: Session = Depends(get_session)) -> dict:
+    today = engine._today(session)
+    end = min(end or today, today)
+    data = workout_progression_data(session, start or end - timedelta(days=179), end, group_by)
+    session.commit()
+    return envelope(session, data)
+
+
+@router.get('/activities/{activity_id}/workout-history')
+def get_workout_history(activity_id: UUID, limit: int = Query(6, ge=2, le=20),
+                        session: Session = Depends(get_session)) -> dict:
+    data = activity_workout_history(session, activity_id, limit)
     session.commit()
     return envelope(session, data)
