@@ -77,7 +77,7 @@ def _keys(value):
 def test_load_week_reads_stored_rows_without_writes(calendar_fixture, monkeypatch):  # noqa: F811
     _, connection, _ = calendar_fixture
     week_start, today = date(2030, 1, 7), date(2030, 1, 9)
-    monkeypatch.setattr(calendar, '_today', lambda session, now=None: today)
+    monkeypatch.setattr(calendar, 'calendar_today', lambda session, now=None: today)
     uid = {name: uuid.uuid4() for name in 'ABCDEKRMH'}
     component = {'name': 'duration_ratio', 'value': 0.8, 'status': 'partially_met'}
     with Session(bind=connection, join_transaction_mode='create_savepoint') as session:

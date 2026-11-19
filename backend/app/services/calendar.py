@@ -33,12 +33,9 @@ SUBJECTS = {'activity_id': Activity, 'strong_workout_id': StrongWorkoutRow,
             'manual_session_id': ManualSession}
 
 
-def _today(session: Session, now: datetime | None = None) -> date:
-    return athlete_today(session, now)
-
 
 def calendar_today(session: Session, now: datetime | None = None) -> date:
-    return _today(session, now)
+    return athlete_today(session, now)
 
 
 def _lock(session: Session, expected_head: int | None = None) -> AppState:

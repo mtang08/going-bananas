@@ -31,7 +31,7 @@ def test_weekly_projection_uses_accepted_head(calendar_fixture):  # noqa: F811
 
 def test_sunday_week_boundary(calendar_fixture, monkeypatch):  # noqa: F811
     client, _, _ = calendar_fixture
-    monkeypatch.setattr(calendar, '_today', lambda session, now=None: date(2026, 11, 22))
+    monkeypatch.setattr(calendar, 'calendar_today', lambda session, now=None: date(2026, 11, 22))
     response = client.get('/api/v1/calendar/weekly-projection')
     assert response.status_code == 200, response.text
     result = response.json()['data']
@@ -51,7 +51,7 @@ def test_projection_totals_and_missing_evidence(calendar_fixture, monkeypatch): 
     from app.models import Activity, ActivityAnnotation, AppState, ManualSession
 
     client, connection, _ = calendar_fixture
-    monkeypatch.setattr(calendar, '_today', lambda session, now=None: date(2030, 1, 9))
+    monkeypatch.setattr(calendar, 'calendar_today', lambda session, now=None: date(2030, 1, 9))
     with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
         state = session.get(AppState, 1)
         state.calendar_head_version = 1
