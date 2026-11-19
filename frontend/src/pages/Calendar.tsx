@@ -33,6 +33,7 @@ import type {
   Unit,
 } from '../api'
 import { mondayOfWeek, SessionSummary } from '../components/PlanOverview'
+import { downloadWeeklyWorkouts } from '../components/weeklyWorkoutExport'
 import { Modal } from '../components/Modal'
 import { Empty } from '../components/Empty'
 import { QueryState } from '../components/QueryState'
@@ -284,9 +285,16 @@ export function Calendar({ unit }: { unit: Unit }) {
           <p className="day-empty">No session</p>
         )}
         {recorded.map((run) => (
-          <div className="session-row" data-testid="session-row" data-date={day} key={run.activity_id}>
+          <div
+            className="session-row"
+            data-testid="session-row"
+            data-date={day}
+            key={run.activity_id}
+          >
             <strong>Recorded run</strong>
-            <p>{fmtDistance(run.distance_m, unit)} · {fmtDuration(run.timer_s)}</p>
+            <p>
+              {fmtDistance(run.distance_m, unit)} · {fmtDuration(run.timer_s)}
+            </p>
             <a href={pageHref.activity(run.activity_id)}>Open run</a>
           </div>
         ))}
@@ -373,6 +381,19 @@ export function Calendar({ unit }: { unit: Unit }) {
                   <div className="panel-head">
                     <h2>{week === 0 ? 'This week' : 'Next week'}</h2>
                     <span>Monday–Sunday</span>
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() =>
+                        downloadWeeklyWorkouts(
+                          data.sessions,
+                          addDays(mondayOfWeek(today), week * 7),
+                          unit,
+                        )
+                      }
+                    >
+                      Download {week === 0 ? 'this' : 'next'} week
+                    </Button>
                   </div>
                   <div className="calendar-week-grid">
                     {Array.from({ length: 7 }, (_, i) =>
@@ -414,7 +435,9 @@ export function Calendar({ unit }: { unit: Unit }) {
                       {new Date(version.created_at).toLocaleString()}
                       {version.reason && <span> · {version.reason}</span>}
                       {version.proposal_id && (
-                        <a href={`#proposal/${encodeURIComponent(version.proposal_id)}`}>Open proposal</a>
+                        <a href={`#proposal/${encodeURIComponent(version.proposal_id)}`}>
+                          Open proposal
+                        </a>
                       )}
                       <Button
                         variant="link"

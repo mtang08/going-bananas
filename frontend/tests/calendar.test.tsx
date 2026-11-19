@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Calendar } from '../src/pages/Calendar'
+import { weeklyWorkoutText } from '../src/components/weeklyWorkoutExport'
 import type { CalendarVersion, CalendarView, SessionState } from '../src/api'
 
 const base = {
@@ -197,6 +198,47 @@ afterEach(() => {
 })
 
 describe('Calendar', () => {
+  it('downloads the chosen Monday–Sunday week with workout details', async () => {
+    const create = vi.fn((blob: Blob) => { void blob; return 'blob:weekly-workouts' })
+    const revoke = vi.fn()
+    vi.stubGlobal('URL', { ...URL, createObjectURL: create, revokeObjectURL: revoke })
+    const clicked: HTMLAnchorElement[] = []
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { clicked.push(this) })
+    mount()
+    await screen.findByText('Version 2')
+    fireEvent.click(screen.getByRole('button', { name: 'Download this week' }))
+    expect(create).toHaveBeenCalledOnce()
+    const link = clicked[0]
+    expect(link.download).toBe('workouts-2026-11-09.txt')
+    expect(revoke).toHaveBeenCalledWith('blob:weekly-workouts')
+    const blob = create.mock.calls[0][0] as Blob
+    expect(blob.type).toBe('text/plain;charset=utf-8')
+    const text = await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.readAsText(blob)
+    })
+    expect(text).toContain('Workouts: 2026-11-09 to 2026-11-15')
+    expect(text).toContain('2026-11-09')
+    expect(text).toContain('Easy')
+    expect(text).not.toContain('2026-11-19')
+    fireEvent.click(screen.getByRole('button', { name: 'Download next week' }))
+    expect(clicked[1].download).toBe('workouts-2026-11-16.txt')
+    click.mockRestore()
+  })
+
+  it('exports structured prescriptions, notes, and empty days', () => {
+    const planned = { ...sessions[0], local_date: '2026-11-09', notes: 'Stay relaxed', structure: [{
+      type: 'repeat' as const, count: 2, steps: [{ type: 'work' as const, duration_type: 'time' as const,
+        duration_value: 300, target: { modality: 'effort' as const, low: null, high: null, effort_cue: 'steady' } }],
+    }] }
+    const text = weeklyWorkoutText([planned, { ...planned, session_uid: 'deleted', deleted: true }], '2026-11-09', 'mi')
+    expect(text).toContain('2 ×\n      Work 5:00 · steady')
+    expect(text).toContain('Notes: Stay relaxed')
+    expect(text).toContain('No planned session')
+    expect(text.match(/Notes: Stay relaxed/g)).toHaveLength(1)
+  })
+
   it('links coach versions to their proposal', async () => {
     const original = versions[0]
     try {
