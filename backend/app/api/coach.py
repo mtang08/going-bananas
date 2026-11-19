@@ -18,6 +18,7 @@ from app.exception_models import ExceptionPatch
 from app.read.calendar import head_version
 from app.services import calendar, knowledge, proposals
 from app.services.decision_inputs import VerifiedKnowledge
+from app.services.proposals.schema import AnchorChange, DecisionError, SessionFields, anchor_key
 from app.services.timezone import athlete_tz
 
 router = APIRouter(prefix='/coach', tags=['coach'])
@@ -61,8 +62,8 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
         'revision', 'saved_at', 'reason', 'changed_change_ids', 'changed_fields')}
         for row in session.scalars(select(CoachProposalRevision)
             .where(CoachProposalRevision.proposal_id == proposal.id).order_by(CoachProposalRevision.revision.desc()))]
-    data['anchor_changes'] = [{**item, 'anchor_key': proposals.anchor_key(
-        proposals.AnchorChange.model_validate(item), athlete_tz(session))} for item in cast(list[dict[str, Any]], proposal.anchor_changes or [])]
+    data['anchor_changes'] = [{**item, 'anchor_key': anchor_key(
+        AnchorChange.model_validate(item), athlete_tz(session))} for item in cast(list[dict[str, Any]], proposal.anchor_changes or [])]
     stored = {item['change_id']: item for item in proposal.payload.get('changes', [])}
     changes = list(session.scalars(select(CoachProposalChange).where(CoachProposalChange.proposal_id == proposal.id)))
     changes.sort(key=lambda row: int(row.change_id[1:]))
@@ -70,7 +71,7 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
         **{key: getattr(row, key) for key in ('change_id', 'op', 'session_uid', 'before', 'after', 'reason', 'decision')},
         'material_flags': stored.get(row.change_id, {}).get('material_flags', []),
         'current': {key: value for key, value in head_sessions[row.session_uid].items()
-                    if key in proposals.SessionFields.model_fields} if row.session_uid in head_sessions else None,
+                    if key in SessionFields.model_fields} if row.session_uid in head_sessions else None,
     } for row in changes])
     data['exception'] = proposal.payload.get('exception')
     data['event_review'] = proposal.payload.get('event_review')
@@ -111,7 +112,7 @@ def delete_proposal(proposal_id: uuid.UUID, expected_revision: int = Query(..., 
                     session: Session = Depends(get_session)) -> dict:
     try:
         result = proposals.discard_proposal(session, proposal_id, expected_revision, now=datetime.now(UTC))
-    except proposals.DecisionError as exc:
+    except DecisionError as exc:
         session.rollback()
         raise AppError(exc.code, exc.message, exc.http_status, [issue.to_json() for issue in exc.fields]) from exc
     session.commit()
@@ -131,7 +132,7 @@ def post_decision(proposal_id: uuid.UUID, body: proposals.DecisionRequest,
                   session: Session = Depends(get_session)) -> dict:
     try:
         result = proposals.decide_proposal(session, proposal_id, body, now=datetime.now(UTC), resolve_kb=resolve_kb)
-    except proposals.DecisionError as exc:
+    except DecisionError as exc:
         if exc.commit:
             session.commit()
         else:
@@ -168,7 +169,7 @@ def post_revision(proposal_id: uuid.UUID, body: proposals.RevisionRequest,
                   session: Session = Depends(get_session)) -> dict:
     try:
         result = proposals.revise_proposal(session, proposal_id, body, now=datetime.now(UTC), resolve_kb=resolve_kb)
-    except proposals.DecisionError as exc:
+    except DecisionError as exc:
         session.rollback()
         raise AppError(exc.code, exc.message, exc.http_status, [issue.to_json() for issue in exc.fields]) from exc
     except knowledge.KnowledgeIntegrityError as exc:

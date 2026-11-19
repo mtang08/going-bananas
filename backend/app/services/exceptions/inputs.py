@@ -35,7 +35,7 @@ from app.services.exceptions.facts import (
     SymptomFact,
 )
 from app.services.exceptions.rules import CHECKIN_LOOKBACK_DAYS, EVENT_REVIEW_DAYS
-from app.services.proposals import derive_certainty
+from app.services.proposals.schema import derive_certainty
 from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
 

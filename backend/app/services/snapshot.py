@@ -45,7 +45,7 @@ from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION
 from app.services.knowledge import CONDITIONAL_TOPICS, load_route, verify_selection
 from app.services.operations import OPERATIONS
 from app.services.profile import current_profile
-from app.services.proposals import derive_certainty, is_quality_slot, scope
+from app.services.proposals.schema import derive_certainty, is_quality_slot, scope
 from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
 from app.services.weekly_digest import DIGEST_SCHEMA, HEADLINE_KINDS, NOT_DONE_OUTCOMES, load_week, week_bounds
