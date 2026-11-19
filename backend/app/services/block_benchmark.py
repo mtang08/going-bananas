@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
 from app.checkin_models import SessionRpe
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import RECIPE_CLASS
 from app.models import Activity, AppState
 from app.planning_models import BlockBenchmarkResult, BlockVersion, Event
@@ -102,7 +103,7 @@ def _match(session: Session, activity_id: uuid.UUID, tz: ZoneInfo, result_overri
                             activity.workout_rpe)[0]
     return MatchFact(
         activity_id=activity.id,
-        local_date=activity.start_at.astimezone(tz).date(),
+        local_date=date_in_zone(activity.start_at, tz),
         distance_m=round(activity.distance_m) if activity.distance_m is not None else None,
         result_s=result_override if result_override is not None else (
             round(activity.timer_s) if activity.timer_s is not None else None),

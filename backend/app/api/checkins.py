@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.api.core import envelope
 from app.checkin_models import Checkin
 from app.db import get_session
+from app.domain.local_time import date_in_zone
 from app.errors import fail
 from app.metric_models import Prompt
 from app.services.calendar import _lock
@@ -68,8 +69,8 @@ def get_checkins(start: date | None = None, end: date | None = None,
     zone = athlete_tz(session)
     rows = session.scalars(select(Checkin).order_by(desc(Checkin.observed_at), desc(Checkin.id))).all()
     return envelope(session, {'items': [checkin_data(session, row) for row in rows
-        if (start is None or row.observed_at.astimezone(zone).date() >= start)
-        and (end is None or row.observed_at.astimezone(zone).date() <= end)]})
+        if (start is None or date_in_zone(row.observed_at, zone) >= start)
+        and (end is None or date_in_zone(row.observed_at, zone) <= end)]})
 
 
 @router.put('/activities/{activity_id}/rpe')

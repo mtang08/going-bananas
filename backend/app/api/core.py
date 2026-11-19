@@ -17,6 +17,7 @@ from app.domain.analytics import (
     pace_s_per_km,
     utc_date_bounds,
 )
+from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.models import (
@@ -72,7 +73,7 @@ def run_classifications(session: Session, rows: Sequence[Activity]) -> dict[str,
     for a in history:
         ann = annotations.get(a.id)
         observations.append(RunObservation(
-            id=str(a.id), local_date=a.start_at.astimezone(zone).date(), start_at=a.start_at,
+            id=str(a.id), local_date=date_in_zone(a.start_at, zone), start_at=a.start_at,
             sport=a.sport, distance_m=a.distance_m, elapsed_s=a.elapsed_s, moving_s=a.moving_s,
             avg_hr_bpm=a.avg_hr_bpm, manual_label=ann.workout_label if ann else None,
             source_label=a.source_workout_label, excluded=ann.excluded if ann else False,
@@ -95,7 +96,7 @@ def activity_data(session: Session, a: Activity, detail: bool = False,
     label = classification['effective_label'] if classification else (
         ann.workout_label if ann and ann.workout_label else a.source_workout_label)
     result = {'id': a.id, 'start_at': a.start_at, 'original_start': a.original_start,
-              'local_date': a.start_at.astimezone(zone).date(), 'source_local_date': a.local_date, 'sport': a.sport, 'subtype': a.subtype,
+              'local_date': date_in_zone(a.start_at, zone), 'source_local_date': a.local_date, 'sport': a.sport, 'subtype': a.subtype,
               'distance_m': a.distance_m, 'elapsed_s': a.elapsed_s, 'moving_s': a.moving_s,
               'moving_pace_s_per_km': pace_s_per_km(a.distance_m, a.moving_s),
               'avg_hr_bpm': a.avg_hr_bpm,

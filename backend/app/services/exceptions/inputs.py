@@ -14,6 +14,7 @@ from app.calendar_models import CalendarVersion, SessionCompletion
 from app.checkin_models import Checkin, SessionRpe, SymptomReport
 from app.domain.analytics import utc_date_bounds
 from app.domain.athlete_facts import clinical_restriction
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import classify, expected_rpe
 from app.metrics.engine import current_results, load_runs
 from app.metrics.recovery import SIGNALS
@@ -68,7 +69,7 @@ def _checkins(session: Session, now: datetime, today: date, zone: ZoneInfo) -> t
             linked = str(found) if found else None
         facts.append(CheckinFact(
             id=str(r.id), kind=r.kind, observed_at=_utc(r.observed_at), recorded_at=_utc(r.recorded_at),
-            local_date=r.observed_at.astimezone(zone).date(), fatigue=r.fatigue, illness=r.illness,
+            local_date=date_in_zone(r.observed_at, zone), fatigue=r.fatigue, illness=r.illness,
             gait_change=r.gait_change, context_tags=tuple(r.context_tags or ()),
             activity_id=str(r.activity_id) if r.activity_id else None, linked_activity_id=linked,
             symptoms=tuple(SymptomFact(str(s.id), s.site, s.side, float(s.severity), s.timing) for s in reports)))
@@ -175,7 +176,7 @@ def _block_benchmark(session: Session, today: date) -> BlockBenchmarkFact | None
 
 def collect_detection_inputs(session: Session, now: datetime) -> DetectionInputs:
     zone = athlete_tz(session)
-    today = now.astimezone(zone).date()
+    today = date_in_zone(now, zone)
     run_facts = load_runs(session, today - timedelta(days=RUN_DAYS - 1), today + timedelta(days=1))
     completions = session.scalars(select(SessionCompletion)).all()
     sessions = _sessions(session, today, completions)
