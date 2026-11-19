@@ -15,11 +15,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db import global_write_lock
+from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.cycle import opportunity
 from app.domain.local_time import date_in_zone
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.services.block_benchmark import BenchmarkOutcome, active_block_version
-from app.services.calendar_structure import StructureError, expand_structure
 from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, LadderLevel, PatchCategory, Severity
 from app.services.operations import Operation

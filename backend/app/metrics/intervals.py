@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.config import settings
+from app.domain.calendar_structure import expand_structure
 from app.domain.sports import RUN_SPORTS
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep
 from app.metrics.contract import (
@@ -29,7 +30,6 @@ from app.metrics.contract import (
 from app.metrics.engine import register
 from app.metrics.lap_alignment import AlignLap, align_laps
 from app.models import Activity, ActivityAnnotation, ActivitySource, AppState, RawObject, SourceRecord
-from app.services.calendar_structure import expand_structure
 
 METRIC_ID = 'work_interval_execution'
 METHOD_VERSION = 'v1'

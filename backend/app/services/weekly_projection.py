@@ -11,11 +11,11 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
 from app.db import global_read_lock
+from app.domain.calendar_structure import StructureError, expand_structure
 from app.metrics.contract import RunFact
 from app.metrics.engine import activities_coverage_complete, load_runs
 from app.models import AppState, ManualSession
 from app.services import calendar
-from app.services.calendar_structure import StructureError, expand_structure
 from app.services.timezone import athlete_tz
 
 

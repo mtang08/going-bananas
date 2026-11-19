@@ -14,11 +14,11 @@ from sqlalchemy.orm import Session
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.config import settings
 from app.db import bump_data_revision, global_write_lock
+from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.cycle import opportunities
 from app.errors import fail
 from app.metrics.engine import load_runs
 from app.models import Activity, AppState, ManualSession
-from app.services.calendar_structure import StructureError, expand_structure
 from app.services.matching import PROTECTED_METHODS
 from app.services.profile import current_profile
 from app.services.strength_routine import routine_occurrences
