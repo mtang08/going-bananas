@@ -1,67 +1,31 @@
 """Synthetic API preservation checks; all writes roll back beneath one outer transaction."""
 from __future__ import annotations
 
-import os
 import uuid
-from datetime import UTC, date, datetime
-from urllib.parse import urlsplit
+from datetime import date
 
 import pytest
-from fastapi import FastAPI, HTTPException
-from fastapi.exceptions import RequestValidationError
-from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.api.planning import router
-from app.config import settings
-from app.db import engine, get_session
-from app.main import handle_http, handle_validation
-from app.models import AppState, ProfileVersion
+from app.models import AppState
 from app.planning_models import Block, BlockVersion, Event, Goal, StrengthRoutineSlot
 from app.services.strength_routine import confirmed_schedule, routine_occurrences
 
 
 @pytest.fixture
-def planning_fixture():
-    parsed = urlsplit(settings.database_url)
-    assert settings.app_mode == 'test'
-    assert parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == int(os.environ.get('TEST_DATABASE_PORT', '55439'))
-    assert parsed.path == '/garmin_test'
-    with engine.connect() as connection:
-        transaction = connection.begin()
-        try:
-            with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
-                session.execute(delete(StrengthRoutineSlot))
-                session.execute(delete(Goal))
-                session.execute(delete(Event))
-                session.execute(delete(BlockVersion))
-                session.execute(delete(Block))
-                state = session.get(AppState, 1)
-                state.planning_authority = 'calendar'
-                version = (session.scalar(select(func.max(ProfileVersion.version))) or 0) + 1
-                profile = ProfileVersion(version=version,
-                    effective_at=datetime(2026, 11, 1, tzinfo=UTC), timezone='America/New_York',
-                    cycle_anchor=date(2026, 11, 2), anchor_confirmed=True,
-                    strength_days_confirmed=True, scheduled_strength_days=[],
-                    strength_schedule_mode='alternating', strength_week_a_start=date(2026, 11, 2),
-                    strength_week_a_days=[0, 4], strength_week_b_days=[1, 5],
-                    mobility_week_a_days=[2], mobility_week_b_days=[3], mobility_optional_days=[6],
-                    facts={}, preferences={}, unknowns=[])
-                session.add(profile)
-                session.commit()
-            api = FastAPI()
-            api.include_router(router, prefix='/api/v1')
-            api.add_exception_handler(HTTPException, handle_http)
-            api.add_exception_handler(RequestValidationError, handle_validation)
-            def override():
-                with Session(bind=connection, join_transaction_mode='create_savepoint',
-                             expire_on_commit=False) as session:
-                    yield session
-            api.dependency_overrides[get_session] = override
-            yield TestClient(api), connection
-        finally:
-            transaction.rollback()
+def planning_fixture(db_connection, session_factory, api_client, profile_factory, calendar_state):
+    with session_factory() as session:
+        for model in (StrengthRoutineSlot, Goal, Event, BlockVersion, Block):
+            session.execute(delete(model))
+        calendar_state(session)
+        profile_factory(session, scheduled_strength_days=[], strength_schedule_mode='alternating',
+                        strength_week_a_start=date(2026, 11, 2), strength_week_a_days=[0, 4],
+                        strength_week_b_days=[1, 5], mobility_week_a_days=[2], mobility_week_b_days=[3],
+                        mobility_optional_days=[6])
+        session.commit()
+    return api_client(router), db_connection
 
 
 def test_routine_preserves_confirmed_schedule_and_versions(planning_fixture):
