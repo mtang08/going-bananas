@@ -940,8 +940,7 @@ def _lock(session: Session) -> Any:
 
     session.execute(text("SELECT pg_advisory_xact_lock(71382413)"))
     state = session.get(AppState, 1, with_for_update=True, populate_existing=True)
-    if state is None or state.planning_authority != "calendar":
-        raise DecisionError("planning_not_active", "Calendar planning is not active", 409)
+    assert state is not None
     return state
 
 

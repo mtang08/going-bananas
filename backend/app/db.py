@@ -29,32 +29,21 @@ def get_revision(session: Session) -> int:
 
 def bump_data_revision(session: Session) -> int:
     from app.models import AppState
-    with session.no_autoflush:
-        authority = session.scalar(select(AppState.planning_authority).where(AppState.id == 1))
-    if authority == 'calendar':
-        outer = session.get_transaction()
-        if outer is None:
-            outer = session.begin()
-        marker = session.info.get('source_revision_bump')
-        if marker is not None and marker[0] is outer:
-            return marker[1]
-        session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
-        # Read the revision under the lock even if this identity was loaded
-        # earlier, preserving other pending AppState fields (e.g. plan head).
-        current = session.scalar(select(AppState.data_revision).where(AppState.id == 1).with_for_update())
-        state = session.get(AppState, 1)
-        assert state is not None and current is not None
-        state.data_revision = current + 1
-        session.flush()
-        session.info['source_revision_bump'] = (outer, state.data_revision)
-        return state.data_revision
-    state = session.get(AppState, 1, with_for_update=True)
-    if state is None:
-        state = AppState(id=1, data_revision=0)
-        session.add(state)
-        session.flush()
-    state.data_revision += 1
+    outer = session.get_transaction()
+    if outer is None:
+        outer = session.begin()
+    marker = session.info.get('source_revision_bump')
+    if marker is not None and marker[0] is outer:
+        return marker[1]
+    session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+    # Read the revision under the lock even if this identity was loaded
+    # earlier, preserving other pending AppState fields (e.g. plan head).
+    current = session.scalar(select(AppState.data_revision).where(AppState.id == 1).with_for_update())
+    state = session.get(AppState, 1)
+    assert state is not None and current is not None
+    state.data_revision = current + 1
     session.flush()
+    session.info['source_revision_bump'] = (outer, state.data_revision)
     return state.data_revision
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -26,7 +26,6 @@ from app.errors import fail
 from app.logs import configure, request_error
 from app.metrics.engine import install_triggers
 from app.migrations_head import EXPECTED_HEAD
-from app.models import AppState
 
 configure(settings.private_dir)
 app = FastAPI(title='Going Bananas Analytics', docs_url=None, redoc_url=None)
@@ -111,8 +110,7 @@ def ready():
 
 def serialize_source_write(request: Request, session: Session = Depends(get_session)) -> None:
     if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
-        if session.scalar(select(AppState.planning_authority).where(AppState.id == 1)) == 'calendar':
-            session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+        session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
 
 
 install_triggers()

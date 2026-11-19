@@ -563,7 +563,10 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
     assert captured[0].digest == session.rows[0].kb_digest
     assert captured[0].selected_records == tuple(first["payload"]["snapshot_meta"]["knowledge"]["selected_records"])
     assert "research_notes" in first["payload"]["snapshot_meta"]["knowledge"]["selected_records"][-1]["content"]
-    assert session.calls[:3] == ["SELECT pg_advisory_xact_lock(71382413)", "windows", "nights"]
+    advisory_lock, row_lock, windows, nights = session.calls[:4]
+    assert advisory_lock == "SELECT pg_advisory_xact_lock(71382413)"
+    assert row_lock.startswith("SELECT app_state.id") and row_lock.endswith("FOR UPDATE")
+    assert (windows, nights) == ("windows", "nights")
     assert "metrics_now" not in session.info
     assert "snapshot_id" not in first["payload"]["snapshot_meta"]
 

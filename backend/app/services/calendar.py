@@ -41,8 +41,7 @@ def _today(session: Session, now: datetime | None = None) -> date:
 def _lock(session: Session, expected_head: int | None = None) -> AppState:
     session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK_ID})
     state = session.get(AppState, 1, with_for_update=True, populate_existing=True)
-    if state is None or state.planning_authority != 'calendar':
-        fail('planning_not_active', 'Calendar planning is not active', 409)
+    assert state is not None
     if expected_head is not None and state.calendar_head_version != expected_head:
         fail('calendar_head_moved', 'Calendar changed; reload before editing', 409)
     return state
