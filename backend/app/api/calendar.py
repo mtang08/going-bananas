@@ -16,7 +16,7 @@ from app.api.core import envelope
 from app.calendar_models import CalendarVersion
 from app.db import get_session
 from app.errors import fail
-from app.services import calendar, weekly_projection
+from app.services import calendar, weekly_digest, weekly_projection
 from app.services.exceptions.detector import run_detection
 
 router = APIRouter()
@@ -81,6 +81,11 @@ def get_calendar(start: date | None = None, end: date | None = None,
 @router.get('/calendar/weekly-projection')
 def get_weekly_projection(session: Session = Depends(get_session)) -> dict:
     return envelope(session, weekly_projection.weekly_projection(session))
+
+
+@router.get('/calendar/weekly-digest')
+def get_weekly_digest(week_start: date | None = None, session: Session = Depends(get_session)) -> dict:
+    return envelope(session, weekly_digest.weekly_digest(session, week_start))
 
 
 @router.get('/calendar/versions')
