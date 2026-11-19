@@ -74,6 +74,12 @@ def planned_distance(row: dict, pace_mps: float | None) -> tuple[float | None, b
     return None, False
 
 
+def _recorded(completion: SessionCompletion) -> bool:
+    return any(subject_id is not None for subject_id in (
+        completion.activity_id, completion.strong_workout_id, completion.manual_session_id,
+    ))
+
+
 def weekly_projection(session: Session) -> dict:
     # Calendar writers use the exclusive variant of this transaction lock.
     session.execute(text('SELECT pg_advisory_xact_lock_shared(:key)'), {'key': calendar.LOCK_ID})
@@ -108,6 +114,8 @@ def weekly_projection(session: Session) -> dict:
             if completion.status in {'completed_as_planned', 'completed_modified', 'partial', 'moved', 'extra'}:
                 continue
             if completion.status == 'unknown':
+                if _recorded(completion):
+                    continue
                 if row['local_date'] < today:
                     unrecorded_past += 1
                 else:
