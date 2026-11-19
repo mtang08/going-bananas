@@ -336,3 +336,55 @@ export interface ActivityExecution {
   }
   symptoms: LinkedSymptom[]
 }
+
+export interface ProgressionPoint {
+  session_uid: string
+  activity_id: string | null
+  local_date: string
+  planned_date: string
+  recipe_id: string | null
+  intent: string | null
+  signature: string
+  recovery_s: number | null
+  target_modalities: string[]
+  sport: string | null
+  completion_status: string | null
+  status: 'available' | 'partial' | 'not_assessable' | 'missing'
+  reason_codes: string[]
+  quality_flags: string[]
+  n_planned: number
+  n_completed: number | null
+  step_completion_ratio: number | null
+  reps_used: number
+  reps_used_hr: number
+  work_speed_mps: number | null
+  work_hr_bpm: number | null
+  work_m_per_beat: number | null
+  cv_speed: number | null
+  last_first_change_pct: number | null
+  target_coverage: number | null
+  interval_result_id: string | null
+}
+export interface ProgressionGroup {
+  group_key: string
+  group_by: 'signature' | 'recipe'
+  signature: string | null
+  signatures: string[]
+  recipe_ids: string[]
+  sessions_total: number
+  sessions_assessable: number
+  latest_date: string
+  points: ProgressionPoint[]
+}
+export interface WorkoutProgression {
+  start: string
+  end: string
+  group_by: 'signature' | 'recipe'
+  groups: ProgressionGroup[]
+}
+export interface WorkoutHistory {
+  activity_id: string
+  signature: string | null
+  reason: string | null
+  points: ProgressionPoint[]
+}

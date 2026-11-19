@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import fixture from './fixtures/planning-wire.json'
-import { ANCHOR_UNIT, MISSING, clockToSeconds, flattenStructure, fmtClock, fmtDistance, fmtDuration, fmtPaceFromSpeed, fmtPercent, fmtRpe, formatStep, paceToSpeed, pageHref, qk, sessionMarker, sessionTitle, statusText } from '../src/api'
+import { ANCHOR_UNIT, MISSING, clockToSeconds, flattenStructure, fmtClock, fmtDistance, fmtDuration, fmtPaceFromSpeed, fmtPercent, fmtRpe, formatStep, paceToSpeed, pageHref, qk, sessionMarker, sessionTitle, signatureLabel, statusText } from '../src/api'
 import type { AnchorCreate, CalendarView, CompletionPut, GoalCreate, MetricResult, PlannedStep, Profile, SrpeValue, StrengthRoutineSlot, StructureItem, VolumeValue } from '../src/api'
 
 const wire: Record<string, unknown> = fixture
@@ -46,6 +46,15 @@ describe('planning wire', () => {
 })
 
 describe('planning helpers', () => {
+  it('labels work signatures', () => {
+    expect(signatureLabel('ws1:4xt300')).toBe('4 × 5:00')
+    expect(signatureLabel('ws1:3xd1000+4xd200')).toBe('3 × 1 km + 4 × 200 m')
+    expect(signatureLabel('ws1:1xt1200')).toBe('20:00')
+    expect(signatureLabel('ws1:3xd1610')).toBe('3 × 1.61 km')
+    expect(signatureLabel('ws1:1xt60+1xt120')).toBe('1:00 + 2:00')
+    expect(signatureLabel(null)).toBe('missing')
+    expect(qk.workoutProgression('recipe')).toEqual(['v2', 'metrics', 'workout-progression', 'recipe'])
+  })
   it('formats missing and zero separately', () => {
     expect(fmtPaceFromSpeed(800 / 205, 'mi')).toBe('6:52 /mi')
     expect(fmtPaceFromSpeed(0, 'km')).toBe(MISSING)

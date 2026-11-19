@@ -237,6 +237,27 @@ export const fmtRpe = (v: number | null | undefined): string =>
   v == null ? MISSING : `${Number(v.toFixed(1))}/10`
 export const statusText = (status: string): string => status.replaceAll('_', ' ')
 
+export function signatureLabel(signature: string | null): string {
+  if (!signature) return MISSING
+  const body = signature.includes(':') ? signature.slice(signature.indexOf(':') + 1) : signature
+  return body
+    .split('+')
+    .map((part) => {
+      const match = /^(\d+)x([td])(\d+)$/.exec(part)
+      if (!match) return part
+      const [, count, kind, raw] = match
+      const value = Number(raw)
+      const amount =
+        kind === 't'
+          ? fmtClock(value)
+          : value >= 1000
+            ? `${Number((value / 1000).toFixed(2))} km`
+            : `${value} m`
+      return count === '1' ? amount : `${count} × ${amount}`
+    })
+    .join(' + ')
+}
+
 export function clockToSeconds(text: string): number | null {
   if (!/^\d+:\d{2}(?::\d{2})?$/.test(text)) return null
   const parts = text.split(':').map(Number)
@@ -398,6 +419,9 @@ export const qk = {
   metricsRecovery: (start: string, end: string) =>
     ['v2', 'metrics', 'recovery', start, end] as const,
   activityExecution: (id: string) => ['v2', 'metrics', 'execution', id] as const,
+  workoutProgression: (groupBy: string) =>
+    ['v2', 'metrics', 'workout-progression', groupBy] as const,
+  workoutHistory: (id: string) => ['v2', 'metrics', 'workout-history', id] as const,
   activity: (id: string) => ['v2', 'activity', id] as const,
   activitiesNear: (start: string, end: string) =>
     ['v2', 'activities', start, end, 'running', null] as const,
