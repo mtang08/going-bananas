@@ -15,7 +15,12 @@ from app.checkin_models import Checkin, SymptomReport
 from app.domain.analytics import utc_date_bounds
 from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
-from app.metrics.contract import MetricResultData, QualityStatus, RunFact, Status, config_hash, sha256_json
+from app.metrics.contract import (
+    MetricResultData,
+    RunFact,
+    result_from_outcome,
+    sha256_json,
+)
 from app.metrics.engine import activities_coverage_complete, latest_results, load_runs, metric_source_refs, register
 from app.metrics.symptoms import linked_activity_for_checkin
 from app.metrics.volume import parse_window_key
@@ -196,12 +201,9 @@ def _linked_checkins(session: Session, run: RunFact) -> tuple[list[tuple[str, li
 
 def _result(key: str, outcome: dict, refs: dict, tz: str, start: datetime | None,
             end: datetime | None, is_window: bool = False, label: str | None = None) -> MetricResultData:
-    return MetricResultData(METRIC_ID, METHOD_VERSION, "window" if is_window else "activity", key,
-                            Status(outcome["status"]), tuple(outcome["reason_codes"]),
-                            tuple(outcome["quality_flags"]), refs, (), config_hash(CONFIG),
-                            window_start=start, window_end=end, window_label=key if is_window else label,
-                            quality_status=QualityStatus(outcome["quality_status"]) if outcome["quality_status"] else None,
-                            value=outcome["value"], unit=None, timezone=tz)
+    return result_from_outcome(METRIC_ID, METHOD_VERSION, CONFIG, key=key, outcome=outcome, refs=refs, timezone=tz,
+                               subject_type="window" if is_window else "activity", window_start=start,
+                               window_end=end, window_label=key if is_window else label)
 
 
 @register(METRIC_ID, METHOD_VERSION, DEPENDS_ON)

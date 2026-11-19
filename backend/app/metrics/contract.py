@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from enum import StrEnum
@@ -97,6 +97,33 @@ def sha256_json(value: Any) -> str:
 
 def config_hash(config: Mapping[str, Any]) -> str:
     return sha256_json(dict(config))
+
+
+def result_from_outcome(
+    metric_id: str,
+    method_version: str,
+    config: Mapping[str, Any],
+    *,
+    key: str,
+    outcome: Mapping[str, Any],
+    refs: dict[str, Any],
+    timezone: str,
+    subject_type: str,
+    unit: str | None = None,
+    window_start: datetime | None = None,
+    window_end: datetime | None = None,
+    window_label: str | None = None,
+    anchor_keys: Sequence[str] = (),
+    anchor_set_hash: str | None = None,
+) -> MetricResultData:
+    quality = outcome["quality_status"]
+    return MetricResultData(
+        metric_id, method_version, subject_type, key, Status(outcome["status"]),
+        tuple(outcome["reason_codes"]), tuple(outcome["quality_flags"]), refs, tuple(anchor_keys),
+        config_hash(config), window_start=window_start, window_end=window_end, window_label=window_label,
+        quality_status=QualityStatus(quality) if quality else None, value=outcome["value"], unit=unit,
+        anchor_set_hash=anchor_set_hash, timezone=timezone,
+    )
 
 
 def coverage_label(valid_s: float, eligible_s: float) -> QualityStatus | None:

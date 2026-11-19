@@ -14,13 +14,11 @@ from app.fit_models import ActivityStream
 from app.metrics.anchors import ActiveAnchor, active_anchors, anchor_set_hash
 from app.metrics.contract import (
     MetricResultData,
-    QualityStatus,
-    Status,
-    config_hash,
     coverage_label,
     integrate_timer_on,
     plausible_hr,
     plausible_speed,
+    result_from_outcome,
     sha256_json,
 )
 from app.metrics.engine import activities_coverage_complete, latest_results, load_runs, metric_source_refs, register
@@ -195,13 +193,11 @@ def window_outcome(items: list[dict | None], coverage_complete: bool = True) -> 
 
 def _result(key: str, outcome: dict, refs: dict, timezone: str, *, start: datetime | None = None,
             end: datetime | None = None) -> MetricResultData:
-    return MetricResultData(METRIC_ID, METHOD_VERSION, "window" if start else "activity", key,
-                            Status(outcome["status"]), tuple(outcome["reason_codes"]), tuple(outcome["quality_flags"]),
-                            refs, tuple(outcome["anchor_keys"]), config_hash(CONFIG), window_start=start,
-                            window_end=end, window_label=key if start else None,
-                            quality_status=QualityStatus(outcome["quality_status"]) if outcome["quality_status"] else None,
-                            value=outcome["value"], unit="s", timezone=timezone,
-                            anchor_set_hash=anchor_set_hash(outcome.get("anchors_used", [])))
+    return result_from_outcome(METRIC_ID, METHOD_VERSION, CONFIG, key=key, outcome=outcome, refs=refs,
+                               timezone=timezone, subject_type="window" if start else "activity", unit="s",
+                               window_start=start, window_end=end, window_label=key if start else None,
+                               anchor_keys=outcome["anchor_keys"],
+                               anchor_set_hash=anchor_set_hash(outcome.get("anchors_used", [])))
 
 
 @register(METRIC_ID, METHOD_VERSION, DEPENDS_ON)
