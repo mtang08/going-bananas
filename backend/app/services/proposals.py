@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import uuid
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -19,7 +18,13 @@ from app.domain.cycle import opportunity
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.services.block_benchmark import BenchmarkOutcome, active_block_version
 from app.services.calendar_structure import StructureError, expand_structure
-from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
+from app.services.decision_inputs import (
+    KnowledgeResolver,
+    VerifiedKnowledge,
+    canonical_json,
+    collect_decision_inputs,
+    digest,
+)
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, LadderLevel, PatchCategory, Severity
 from app.services.operations import Operation
 from app.services.profile import current_profile
@@ -911,10 +916,6 @@ def validate_subset(
     return issues
 
 
-def _hash(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value).encode()).hexdigest()
-
-
 def _lock(session: Session) -> Any:
     from app.models import AppState
 
@@ -1026,7 +1027,7 @@ def submit_proposal(session: Session, raw: dict, *, now: datetime, resolve_kb: K
     from app.coach_v2_models import CoachProposal, CoachSnapshot
 
     _lock(session)
-    input_hash = _hash(raw)
+    input_hash = digest(raw)
     existing = session.scalar(select(CoachProposal).where(CoachProposal.input_hash == input_hash)
         .execution_options(populate_existing=True))
     if existing:
@@ -1148,7 +1149,7 @@ def revise_proposal(session: Session, proposal_id: uuid.UUID, req: RevisionReque
         raise DecisionError("proposal_decided", "This proposal has a decision. Propose changes to the current calendar instead.", 409)
     if not req.reason.strip():
         raise DecisionError("invalid_revision", "Explain the requested revision", 422)
-    request_hash = _hash(req.model_dump(mode="json"))
+    request_hash = digest(req.model_dump(mode="json"))
     if req.expected_revision != proposal.revision:
         # A retry of the immediately preceding successful edit must not create another revision.
         latest = session.get(CoachProposalRevision, (proposal_id, proposal.revision))
@@ -1424,7 +1425,7 @@ def decide_proposal(
     if req.expected_revision != proposal.revision:
         raise DecisionError("proposal_revision_conflict", "This proposal was revised. Reload and review the latest revision.", 409)
     selection = _selection(proposal_id, req)
-    decision_hash = _hash(selection)
+    decision_hash = digest(selection)
     key = session.get(CoachDecisionKey, req.idempotency_key)
     if key and key.proposal_id != proposal_id:
         raise DecisionError("idempotency_conflict", "Key belongs to another proposal", 409)

@@ -53,6 +53,10 @@ def canonical_json(value: Any) -> str:
     )
 
 
+def digest(value: Any) -> str:
+    return hashlib.sha256(canonical_json(value).encode()).hexdigest()
+
+
 def _json_default(value: Any) -> str:
     if isinstance(value, datetime):
         if value.tzinfo is None or value.utcoffset() is None:
@@ -75,7 +79,7 @@ def fingerprint_vector(source_versions: dict, kb: VerifiedKnowledge) -> dict:
 
 
 def fingerprint(source_versions: dict, kb: VerifiedKnowledge) -> str:
-    return hashlib.sha256(canonical_json(fingerprint_vector(source_versions, kb)).encode()).hexdigest()
+    return digest(fingerprint_vector(source_versions, kb))
 
 
 def _wire(value: Any) -> Any:
@@ -122,9 +126,9 @@ def collect_decision_inputs(
         "profile": {
             "version": profile.version,
             "timezone": profile.timezone,
-            "facts_hash": hashlib.sha256(canonical_json(profile.facts or {}).encode()).hexdigest(),
-            "preferences_hash": hashlib.sha256(canonical_json(profile.preferences or {}).encode()).hexdigest(),
-            "unknowns_hash": hashlib.sha256(canonical_json(profile.unknowns or []).encode()).hexdigest(),
+            "facts_hash": digest(profile.facts or {}),
+            "preferences_hash": digest(profile.preferences or {}),
+            "unknowns_hash": digest(profile.unknowns or []),
         }
         if profile
         else None,
