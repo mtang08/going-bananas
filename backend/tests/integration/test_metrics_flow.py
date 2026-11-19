@@ -93,6 +93,7 @@ def test_four_runs_idempotent_reads_and_explanation(db, tmp_path):
         session.info['metrics_now'] = NOW
         revision = get_revision(session)
         data = get_windows(TODAY, session)['data']
+        assert set(data['aerobic']) == {'w28', 'w84'}
         volume = data['windows'][0]['volume']
         assert volume['value']['timer_duration_s'] == 9900
         assert volume['value']['distance_m'] == 27500
@@ -110,7 +111,7 @@ def test_four_runs_idempotent_reads_and_explanation(db, tmp_path):
         detail = activity_execution(session, ids[-1])
         assert detail['rpe']['effective'] == 5
         assert detail['rpe']['srpe_load_au'] == 300
-        assert set(detail) == {'activity','planned','completion','laps','watch_steps','planned_actual','intervals','intensity','rpe','symptoms'}
+        assert set(detail) == {'activity','planned','completion','laps','watch_steps','planned_actual','intervals','intensity','aerobic','rpe','symptoms'}
         nights = recovery_nights(session, TODAY-timedelta(days=2), TODAY)
         assert len(nights['nights']) == 3
         assert all(night['hrv']['value'] is None for night in nights['nights'])

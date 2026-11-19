@@ -98,6 +98,7 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
             if completion and completion.session_uid else None,
         'intervals': metric_data(current(session, 'work_interval_execution', str(activity_id))),
         'intensity': metric_data(current(session, 'intensity_time_distribution', str(activity_id))),
+        'aerobic': metric_data(current(session, 'aerobic_efficiency', str(activity_id))),
         'rpe': {'effective': effective, 'source': 'manual' if 'manual' in rpes else 'garmin_fit' if 'garmin_fit' in rpes else None,
             'manual': rpes.get('manual'), 'garmin_fit': rpes.get('garmin_fit'),
             'srpe_load_au': value('session_rpe_load').get('load_au')},
@@ -167,8 +168,9 @@ def get_windows(as_of: date | None = None, session: Session = Depends(get_sessio
         'srpe_strength': result('session_rpe_load', f'w{n}:{as_of}:strength'),
         'intensity': result('intensity_time_distribution', f'w{n}:{as_of}'),
         'long_run': result('long_run_exposure', f'w{n}:{as_of}')} for n in (7, 14, 28, 56)]
+    aerobic = {f'w{n}': result('aerobic_efficiency', f'w{n}:{as_of}') for n in (28, 84)}
     data = {'as_of': as_of, 'windows': windows,
-        'spacing': result('hard_session_spacing', f'w14:{as_of}'),
+        'spacing': result('hard_session_spacing', f'w14:{as_of}'), 'aerobic': aerobic,
         'symptoms': result('symptom_response_timeline', f'w28:{as_of}')}
     session.commit()
     return envelope(session, data)

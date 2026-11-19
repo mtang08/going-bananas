@@ -11,12 +11,14 @@ from types import SimpleNamespace
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from app import cli
+from app.api.metrics import activity_execution, get_windows
 from app.config import settings
+from app.metric_models import MetricResult
 from app.metrics import aerobic, engine
 from app.migrations_head import EXPECTED_HEAD
 from app.models import Activity, ActivityAnnotation
@@ -126,3 +128,19 @@ def test_demo_windows(demo):
         assert rows[long_key].value['runs_total'] == 14
         with pytest.raises(ValueError, match='^invalid_subject_key$'):
             aerobic.compute(session, 'w7:2026-11-12')
+
+
+def test_aerobic_reads(demo):
+    with demo() as session:
+        easy_id = activity_on(session, 8).id
+        structured_id = activity_on(session, 6).id
+        assert get_windows(TODAY, session)['data']['aerobic']['w28']['metric_id'] == 'aerobic_efficiency'
+        assert activity_execution(session, easy_id)['aerobic']['value']['session_class'] == 'easy'
+        assert activity_execution(session, structured_id)['aerobic']['reason_codes'] == ['STRUCTURED_SESSION']
+
+        count = select(func.count()).select_from(MetricResult)
+        before = session.scalar(count)
+        get_windows(TODAY, session)
+        activity_execution(session, easy_id)
+        activity_execution(session, structured_id)
+        assert session.scalar(count) == before
