@@ -263,7 +263,7 @@ export function CheckinModalV2({
         const c = submission.completion
         if (submission.stage < 2) {
           if (c && submission.reason) {
-            const updated = await put<Completion>(
+            const updated = await put<Completion | null>(
               `/calendar/completions/${encodeURIComponent(c.session_uid)}`,
               {
                 expected_version: c.version,

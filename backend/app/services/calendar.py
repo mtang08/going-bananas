@@ -13,11 +13,13 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.config import settings
+from app.db import bump_data_revision
 from app.domain.cycle import opportunities
 from app.errors import fail
 from app.metrics.engine import load_runs
 from app.models import Activity, AppState, ManualSession
 from app.services.calendar_structure import StructureError, expand_structure
+from app.services.matching import PROTECTED_METHODS
 from app.services.profile import current_profile
 from app.services.strength_routine import routine_occurrences
 from app.services.timezone import athlete_today, athlete_tz
@@ -563,7 +565,7 @@ def seed_demo_calendar(session: Session, *, anchor_date: date, start_date: date,
 
 
 def put_completion(session: Session, session_uid: uuid.UUID, body: dict,
-                   *, assess: Callable[[Session, uuid.UUID], None]) -> SessionCompletion:
+                   *, assess: Callable[[Session, uuid.UUID], None]) -> SessionCompletion | None:
     if not callable(assess):
         raise RuntimeError('completion_assessor_missing')
     _lock(session)
@@ -597,15 +599,37 @@ def put_completion(session: Session, session_uid: uuid.UUID, body: dict,
         fail('version_conflict', 'Completion changed; reload before editing', 409)
     if existing is not None and expected != existing.version:
         fail('version_conflict', 'Completion changed; reload before editing', 409)
+    if (not count and body['status'] == 'unknown' and existing is not None
+            and existing.status == 'skipped' and all(getattr(existing, key) is None for key in SUBJECTS)):
+        session.delete(existing)
+        bump_data_revision(session)
+        return None
+
+    now = datetime.now(UTC)
     for field, value in subjects.items():
         if value is None:
             continue
         if session.get(SUBJECTS[field], value) is None:
             fail('completion_subject_not_found', 'Completion subject not found', 404)
-        used = session.scalar(select(SessionCompletion.id).where(getattr(SessionCompletion, field) == value))
-        if used is not None and (existing is None or used != existing.id):
+        holder = session.scalar(select(SessionCompletion).where(
+            getattr(SessionCompletion, field) == value, SessionCompletion.session_uid != session_uid))
+        if holder is None:
+            continue
+        if holder.match_method in PROTECTED_METHODS:
             fail('subject_already_linked', 'Subject already linked', 409)
-    now = datetime.now(UTC)
+        if holder.status == 'extra':
+            session.delete(holder)
+        elif holder.match_method == 'auto_same_day':
+            for key in SUBJECTS:
+                setattr(holder, key, None)
+            holder.status = 'unknown'
+            holder.match_method = 'none'
+            holder.version += 1
+            holder.input_version += 1
+            holder.updated_at = now
+        else:
+            fail('subject_already_linked', 'Subject already linked', 409)
+        session.flush()
     planned = _latest(session, _head(session)).get(session_uid)
     actual_date = None
     for field, value in subjects.items():

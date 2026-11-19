@@ -134,7 +134,7 @@ export function Calendar({ unit }: { unit: Unit }) {
   })
   const outcome = useMutation({
     mutationFn: ({ uid, body }: { uid: string; body: CompletionPut }) =>
-      put<Completion>(`/calendar/completions/${encodeURIComponent(uid)}`, body),
+      put<Completion | null>(`/calendar/completions/${encodeURIComponent(uid)}`, body),
     onSuccess: () => {
       invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts])
       setOutcomeFor(null)
