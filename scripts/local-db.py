@@ -22,7 +22,6 @@ password = existing.get('POSTGRES_PASSWORD') or secrets.token_urlsafe(32)
 settings = {
     'POSTGRES_PASSWORD': password,
     'DATABASE_URL': f'postgresql+psycopg://garmin:{password}@127.0.0.1:55432/garmin_demo',
-    'TEST_DATABASE_URL': f'postgresql+psycopg://garmin:{password}@127.0.0.1:55432/garmin_test',
     'APP_MODE': 'demo',
     'PRIVATE_DIR': str(private/'demo'),
 }

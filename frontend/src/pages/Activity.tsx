@@ -1,3 +1,4 @@
+import { reasonText } from '../lib/reasonLabels'
 import {
   Badge,
   Button,
@@ -222,7 +223,7 @@ export function Activity({
                     <p>
                       Planned vs actual: {statusText(planned_actual.status)}
                       {planned_actual.reason_codes.length
-                        ? ` (${planned_actual.reason_codes.join(', ')})`
+                        ? ` (${planned_actual.reason_codes.map(reasonText).join(', ')})`
                         : ''}
                     </p>
                   ) : (
@@ -283,7 +284,7 @@ export function Activity({
                   </>
                 ) : intervals.value === null ? (
                   <p>
-                    Reps are {statusText(intervals.status)}: {intervals.reason_codes.join(', ')}
+                    Rep comparison unavailable: {intervals.reason_codes.map(reasonText).join(', ')}
                   </p>
                 ) : (
                   <>
@@ -470,7 +471,7 @@ export function Activity({
                 <ul>
                   {flags.map((flag) => (
                     <li key={flag}>
-                      <code>{flag}</code>
+                      <code>{reasonText(flag)}</code>
                     </li>
                   ))}
                 </ul>

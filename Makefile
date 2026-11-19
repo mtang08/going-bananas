@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 RUN := ./scripts/run
-.PHONY: doctor setup db-start db-stop migrate seed-demo dev build start check test-integration test-e2e sync
+.PHONY: doctor setup db-start db-stop migrate seed-demo dev build start check test-db-start test-db-stop test-integration test-integration-external test-e2e sync
 
 doctor:
 	$(RUN) python3 scripts/doctor.py
@@ -24,8 +24,14 @@ start:
 check:
 	$(RUN) bash -c 'cd backend && uv run ruff check . && uv run mypy app --ignore-missing-imports && uv run pytest tests/unit tests/test_*.py -m "not integration"'
 	$(RUN) bash -c 'cd frontend && npm run lint && npm run typecheck && npm test && npm run build'
+test-db-start:
+	python3 scripts/test-db.py start
+test-db-stop:
+	python3 scripts/test-db.py stop
 test-integration:
-	./scripts/with-mode test bash -c 'cd backend && uv run alembic upgrade head && uv run pytest tests/integration tests/test_ingestion_integration.py -m integration'
+	python3 scripts/test-db.py test
+test-integration-external:
+	python3 scripts/test-db.py test-external
 test-e2e:
 	$(RUN) bash -c 'cd frontend && npx playwright test'
 sync:

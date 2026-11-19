@@ -50,11 +50,12 @@ Legacy `coaching.py` and `agent_plans.py` are separate older workflows.
 
 ## Focused verification
 
-Run from repo root, substituting the relevant test file:
+Run from repo root. Use `PYTEST_ADDOPTS` to focus the integration suite while
+keeping its isolated PostgreSQL setup.
 
 ```sh
 ./scripts/with-mode test bash -c 'cd backend && uv run pytest tests/unit/test_proposals.py'
-./scripts/with-mode test bash -c 'cd backend && uv run alembic upgrade head && uv run pytest tests/integration/test_proposals.py'
+PYTEST_ADDOPTS='-k proposals' make test-integration
 ./scripts/run bash -c 'cd backend && uv run ruff check . && uv run mypy app --ignore-missing-imports'
 ```
 

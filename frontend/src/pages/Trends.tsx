@@ -1,3 +1,4 @@
+import { reasonText } from '../lib/reasonLabels'
 import { OUTCOME_LABELS } from '../coachLabels'
 import {
   Button,
@@ -62,7 +63,7 @@ function missingResult<V>(title: string, result: MetricResult<V> | null): string
   if (result === null) return `${title}: missing`
   if (result.value === null)
     return `${title}: ${statusText(result.status)}${
-      result.reason_codes.length ? ` (${result.reason_codes.join(', ')})` : ''
+      result.reason_codes.length ? ` (${result.reason_codes.map(reasonText).join(', ')})` : ''
     }`
   return null
 }
@@ -73,7 +74,7 @@ function coverage<V>(result: MetricResult<V> | null) {
 }
 function partialContext<V>(result: MetricResult<V> | null) {
   if (result?.status !== 'partial' || result.value === null) return null
-  const details = [...result.reason_codes, ...result.quality_flags]
+  const details = [...result.reason_codes, ...result.quality_flags].map(reasonText)
   return <small>Partial data{details.length ? `: ${details.join(', ')}` : ''}</small>
 }
 function intensityText(zone: ZoneDistribution, label: string): string {
@@ -83,7 +84,7 @@ function intensityText(zone: ZoneDistribution, label: string): string {
   if (zone.reason_codes.includes('ANCHOR_MISSING')) {
     return `${label}: No anchor — add aerobic-upper and threshold-lower anchors in Settings.`
   }
-  return `${label}: ${statusText(zone.status)}${zone.reason_codes.length ? ` (${zone.reason_codes.join(', ')})` : ''}`
+  return `${label}: ${statusText(zone.status)}${zone.reason_codes.length ? ` (${zone.reason_codes.map(reasonText).join(', ')})` : ''}`
 }
 function IntensityBar({ zone, label }: { zone: ZoneDistribution; label: string }) {
   const values = [zone.easy_s, zone.moderate_s, zone.high_s, zone.unknown_s]
