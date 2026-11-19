@@ -26,7 +26,7 @@ from app.config import settings
 from app.db import get_session
 from app.main import app
 
-HEAD = '0018_exception_findings'
+HEAD = '0019_lap_intensity_end'
 STAMP = datetime(2026, 11, 12, tzinfo=UTC)
 HEADERS = {'X-Local-Request': '1', 'Origin': 'http://testserver'}
 

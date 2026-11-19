@@ -33,6 +33,7 @@ class FitFile(Base):
     last_error: Mapped[str | None] = mapped_column(String(100))
     fit_sha256: Mapped[str | None] = mapped_column(String(64))
     profile_version: Mapped[str | None] = mapped_column(String(20))
+    decoder_version: Mapped[int | None] = mapped_column(Integer)
     sdk_version: Mapped[str | None] = mapped_column(String(20))
     decoded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decode_error: Mapped[str | None] = mapped_column(String(100))
@@ -53,7 +54,15 @@ class ActivityLap(Base):
     max_hr_bpm: Mapped[float | None] = mapped_column(Float)
     lap_trigger: Mapped[str | None] = mapped_column(String(30))
     wkt_step_index: Mapped[int | None] = mapped_column(Integer)
-    __table_args__ = (UniqueConstraint('activity_id','lap_index'),)
+    end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    intensity: Mapped[str | None] = mapped_column(String(20))
+    __table_args__ = (
+        UniqueConstraint('activity_id', 'lap_index'),
+        CheckConstraint(
+            "intensity IS NULL OR intensity IN ('active','rest','warmup','cooldown','recovery','interval','other')",
+            name='ck_activity_laps_intensity',
+        ),
+    )
 
 class ActivityWorkoutStep(Base):
     __tablename__ = 'activity_workout_steps'
