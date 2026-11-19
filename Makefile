@@ -27,9 +27,9 @@ check: check-docs check-backend check-frontend
 check-docs:
 	$(RUN) python3 scripts/check-docs.py
 check-backend:
-	$(RUN) bash -c 'cd backend && uv run ruff check . && uv run mypy app --ignore-missing-imports && uv run pytest tests/unit tests/test_*.py -m "not integration"'
+	$(RUN) bash -c 'cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app --ignore-missing-imports && uv run pytest tests/unit tests/test_*.py -m "not integration"'
 check-frontend:
-	$(RUN) bash -c 'cd frontend && npm run lint && npm run typecheck && npm test && npm run build'
+	$(RUN) bash -c 'cd frontend && npm run lint && npm run format:check && npm run typecheck && npm test && npm run build'
 complexity:
 	$(RUN) bash -c 'cd backend && uv run ruff check app --select C901 --config "lint.mccabe.max-complexity=15" --output-format concise || true'
 
