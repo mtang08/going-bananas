@@ -70,28 +70,36 @@ def test_demo_progression_groups_and_history(demo):
     start = TODAY - timedelta(days=179)
     with demo() as session:
         groups = progression_groups(session, start, TODAY, 'signature')
-        assert len(groups) == 1
+        assert [g['group_key'] for g in groups] == ['sig:ws1:4xt300', 'sig:ws1:5xt240']
+        other, = groups[1]['points']
+        assert (other['status'], other['work_speed_mps'], other['work_hr_bpm'], other['work_m_per_beat'],
+                other['recovery_s']) == ('available', 3.7, 163.0, 1.362, 480)
         group = groups[0]
         assert group['group_key'] == 'sig:ws1:4xt300'
-        assert (group['sessions_total'], group['sessions_assessable']) == (3, 2)
+        assert (group['sessions_total'], group['sessions_assessable']) == (4, 3)
         points = group['points']
-        assert [p['status'] for p in points] == ['available', 'not_assessable', 'available']
-        assert points[1]['reason_codes'] == ['WATCH_WORKOUT_MISMATCH']
-        last = points[2]
+        assert [p['status'] for p in points] == ['partial', 'available', 'not_assessable', 'available']
+        partial = points[0]
+        assert partial['n_completed'] == 3 and 'INCOMPLETE_WORK_STEPS' in partial['reason_codes']
+        assert 'REPS_EXCLUDED' not in partial['reason_codes']
+        assert (partial['work_speed_mps'], partial['work_hr_bpm'], partial['work_m_per_beat']) == (3.45, 160.0, 1.294)
+        assert points[2]['reason_codes'] == ['WATCH_WORKOUT_MISMATCH']
+        last = points[-1]
         assert (last['work_speed_mps'], last['work_hr_bpm'], last['work_m_per_beat']) == (3.55, 161.0, 1.323)
         assert (last['n_completed'], last['cv_speed'], last['last_first_change_pct']) == (4, 2.817, 0.0)
         assert last['target_coverage'] is None and last['recovery_s'] == 360
-        assert (points[0]['work_speed_mps'], points[0]['work_hr_bpm'], points[0]['work_m_per_beat']) == (3.6, 158.0, 1.367)
+        assert (points[1]['work_speed_mps'], points[1]['work_hr_bpm'], points[1]['work_m_per_beat']) == (3.6, 158.0, 1.367)
         recipe = progression_groups(session, start, TODAY, 'recipe')
-        assert len(recipe) == 1 and recipe[0]['group_key'] == 'recipe:REC003' and len(recipe[0]['points']) == 3
+        assert len(recipe) == 1 and recipe[0]['group_key'] == 'recipe:REC003' and len(recipe[0]['points']) == 5
+        assert recipe[0]['signatures'] == ['ws1:4xt300', 'ws1:5xt240']
         history = workout_history(session, activity_on(session, 6), 6)
         assert history['signature'] == 'ws1:4xt300' and history['reason'] is None
-        dates = [(TODAY - timedelta(days=ago)).isoformat() for ago in (14, 12, 6)]
+        dates = [(TODAY - timedelta(days=ago)).isoformat() for ago in (22, 14, 12, 6)]
         assert [p['local_date'] for p in history['points']] == dates
         assert [p['local_date'] for p in workout_history(session, activity_on(session, 6), 2)['points']] == dates[-2:]
         assert workout_history(session, activity_on(session, 8), 6)['reason'] == 'NO_STRUCTURED_PLAN'
         assert workout_history(session, activity_on(session, 28), 6)['reason'] == 'NO_PLAN_LINK'
-        assert len(linked_run_ids(session, start, TODAY)) == 3
+        assert len(linked_run_ids(session, start, TODAY)) == 5
 
 
 def test_progression_routes(demo):
@@ -120,7 +128,7 @@ def test_progression_routes(demo):
     response = client.get(progression, params=params)
     assert response.status_code == 200
     data = response.json()['data']
-    assert data['group_by'] == 'signature' and len(data['groups']) == 1
+    assert data['group_by'] == 'signature' and len(data['groups']) == 2
     recipe = client.get(progression, params={**params, 'group_by': 'recipe'})
     assert recipe.json()['data']['groups'][0]['group_key'] == 'recipe:REC003'
     assert client.get(progression, params={**params, 'group_by': 'week'}).status_code == 422
@@ -137,7 +145,7 @@ def test_progression_routes(demo):
         assert session.scalar(count) == before
     url = f'/api/v1/activities/{activity_id}/workout-history'
     response = client.get(url)
-    assert response.status_code == 200 and len(response.json()['data']['points']) == 3
+    assert response.status_code == 200 and len(response.json()['data']['points']) == 4
     for limit in (1, 21):
         assert client.get(url, params={'limit': limit}).status_code == 422
     assert client.get(f'/api/v1/activities/{uuid.uuid4()}/workout-history').status_code == 404
