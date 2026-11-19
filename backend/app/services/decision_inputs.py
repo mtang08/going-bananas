@@ -21,7 +21,6 @@ from app.models import (
     Activity,
     ActivityAnnotation,
     ActivitySource,
-    AppState,
     CoverageInterval,
     ManualSession,
     RawObject,
@@ -29,6 +28,7 @@ from app.models import (
     SourceRecord,
 )
 from app.planning_models import Event, Goal, IntensityAnchor, StrengthRoutineSlot
+from app.read.calendar import head_version
 from app.services.block_benchmark import active_block_version
 from app.services.profile import current_profile
 from app.strong_models import StrongWorkoutRow
@@ -101,7 +101,6 @@ def collect_decision_inputs(
     from app.checkin_models import SymptomReport
 
     profile = current_profile(session)
-    app_state = session.get(AppState, 1)
     checkins = _sorted(session, CheckinV2, CheckinV2.id)
     checkin_ids = {row.id for row in checkins}
     symptoms = [row for row in _sorted(session, SymptomReport, SymptomReport.id) if row.checkin_id in checkin_ids]
@@ -132,7 +131,7 @@ def collect_decision_inputs(
         }
         if profile
         else None,
-        "calendar": app_state.calendar_head_version if app_state else 0,
+        "calendar": head_version(session),
         "block": None,
         "routine": max((r.version for r in _sorted(session, StrengthRoutineSlot, StrengthRoutineSlot.id)), default=0),
         "activities": _project(

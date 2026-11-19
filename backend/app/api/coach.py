@@ -15,7 +15,7 @@ from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachProposa
 from app.db import get_session, global_write_lock
 from app.errors import AppError, fail
 from app.exception_models import ExceptionPatch
-from app.models import AppState
+from app.read.calendar import head_version
 from app.services import calendar, knowledge, proposals
 from app.services.decision_inputs import VerifiedKnowledge
 from app.services.timezone import athlete_tz
@@ -37,8 +37,7 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
     # Serialize read freshness against source writers before reading head/fingerprint.
     global_write_lock(session)
     session.refresh(proposal)
-    state = session.get(AppState, 1, populate_existing=True)
-    head = state.calendar_head_version if state else 0
+    head = head_version(session, populate_existing=True)
     head_sessions = {row['session_uid']: row for row in calendar.state_at(session, head)}
     snapshot = session.get(CoachSnapshot, proposal.snapshot_id)
     is_current = False

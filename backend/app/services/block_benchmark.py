@@ -15,8 +15,9 @@ from app.calendar_models import SessionCompletion
 from app.checkin_models import SessionRpe
 from app.domain.local_time import date_in_zone
 from app.domain.session_class import RECIPE_CLASS
-from app.models import Activity, AppState
+from app.models import Activity
 from app.planning_models import BlockBenchmarkResult, BlockVersion, Event
+from app.read.calendar import head_version
 from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
 
@@ -127,8 +128,7 @@ def benchmark_status(session: Session, block_version: BlockVersion, today: date)
               if row is not None and row.match_method == 'manual' and row.activity_id else None)
     first = spec.planned_date - timedelta(days=AUTO_BEFORE_DAYS)
     last = block_version.review_date + timedelta(days=AUTO_AFTER_DAYS)
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
+    head = head_version(session)
     bench = sorted([r for r in state_at(session, head)
                     if r['kind'] == 'run' and r['recipe_id'] in BENCHMARK_RECIPES and first <= r['local_date'] <= last],
                    key=lambda r: (r['local_date'], str(r['session_uid'])))

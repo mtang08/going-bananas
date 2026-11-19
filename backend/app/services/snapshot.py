@@ -36,6 +36,7 @@ from app.planning_models import (
     IntensityAnchor,
     StrengthRoutineSlot,
 )
+from app.read.calendar import head_version
 from app.services.block_benchmark import active_block_version
 from app.services.calendar import state_at
 from app.services.coverage import coverage
@@ -1392,7 +1393,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     zone = athlete_tz(session)
     state = session.get(AppState, 1)
     profile = current_profile(session)
-    head = state.calendar_head_version if state else 0
+    head = head_version(session)
     first = as_of - timedelta(days=120)
     sessions = _load_sessions(session, head, first, as_of)
     completions = _load_completions(session)

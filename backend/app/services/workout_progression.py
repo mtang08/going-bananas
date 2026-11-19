@@ -14,7 +14,8 @@ from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.metrics import intervals
 from app.metrics.engine import current_results
-from app.models import Activity, AppState
+from app.models import Activity
+from app.read.calendar import head_version
 from app.services.calendar import state_at
 from app.services.timezone import athlete_tz
 
@@ -119,7 +120,7 @@ HISTORY_LOOKAHEAD_DAYS = 7
 
 
 def _head_rows(session: Session) -> list[dict]:
-    head = session.scalar(select(AppState.calendar_head_version).where(AppState.id == 1)) or 0
+    head = head_version(session, populate_existing=True)
     return state_at(session, head) if head else []
 
 

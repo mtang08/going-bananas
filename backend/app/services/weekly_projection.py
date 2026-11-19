@@ -14,7 +14,8 @@ from app.db import global_read_lock
 from app.domain.calendar_structure import StructureError, expand_structure
 from app.metrics.contract import RunFact
 from app.metrics.engine import activities_coverage_complete, load_runs
-from app.models import AppState, ManualSession
+from app.models import ManualSession
+from app.read.calendar import head_version
 from app.services import calendar
 from app.services.timezone import athlete_tz
 
@@ -99,8 +100,7 @@ def weekly_projection(session: Session) -> dict:
     week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)
     timezone = athlete_tz(session).key
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
+    head = head_version(session)
     planned = calendar.state_at(session, head)
     plan_through = max((row['local_date'] for row in planned), default=None)
     recent = load_runs(session, min(week_start, today - timedelta(days=27)), today + timedelta(days=1))

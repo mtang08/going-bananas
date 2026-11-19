@@ -18,6 +18,7 @@ from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.cycle import opportunity
 from app.domain.local_time import date_in_zone
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
+from app.read.calendar import head_version
 from app.services.block_benchmark import BenchmarkOutcome, active_block_version
 from app.services.decision_inputs import (
     KnowledgeResolver,
@@ -952,7 +953,6 @@ def load_context(
 ) -> ValidationContext:
     from app.coach_v2_models import CoachSnapshot
     from app.exception_models import ExceptionFinding, ExceptionPatch
-    from app.models import AppState
     from app.planning_models import BlockVersion, Event
     from app.services.block_benchmark import benchmark_status
     from app.services.calendar import state_at
@@ -961,8 +961,7 @@ def load_context(
     snapshot = session.get(CoachSnapshot, snapshot_id)
     tz = athlete_tz(session)
     today = date_in_zone(now, tz)
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
+    head = head_version(session)
     rows = state_at(session, head)
     head_sessions = {
         row["session_uid"]: HeadSession(

@@ -19,8 +19,9 @@ from app.domain.session_class import classify, expected_rpe
 from app.metrics.engine import current_results, load_runs
 from app.metrics.recovery import SIGNALS
 from app.metrics.symptoms import linked_activity_for_checkin
-from app.models import Activity, AppState, ProfileVersion
+from app.models import Activity, ProfileVersion
 from app.planning_models import Event
+from app.read.calendar import head_version
 from app.services.block_benchmark import active_block_version, benchmark_spec, benchmark_status
 from app.services.calendar import state_at
 from app.services.exceptions.facts import (
@@ -95,8 +96,7 @@ def _runs(session: Session, run_facts: Sequence[Any], completions: Sequence[Sess
 
 
 def _sessions(session: Session, today: date, completions: Sequence[SessionCompletion]) -> tuple[SessionFact, ...]:
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
+    head = head_version(session)
     rows = [r for r in state_at(session, head)
             if today - timedelta(days=SESSION_PAST_DAYS) <= r['local_date'] <= today + timedelta(days=SESSION_FUTURE_DAYS)]
     numbers = {r['calendar_version_number'] for r in rows}
