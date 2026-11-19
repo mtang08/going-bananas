@@ -409,6 +409,7 @@ def test_projection_sections_per_operation() -> None:
         },
         ROLLING: {
             "quality_progression",
+            "aerobic_efficiency",
             "goals_and_constraints",
             "calendar",
             "load_shape",
@@ -430,6 +431,7 @@ def test_projection_sections_per_operation() -> None:
         },
         BLOCK: {
             "quality_progression",
+            "aerobic_efficiency",
             "goals_and_constraints",
             "calendar",
             "load_shape",
@@ -872,3 +874,48 @@ def test_quality_progression_section() -> None:
     assert set(last) == set(PROGRESSION_POINT_KEYS)
     assert build_payload(inputs(sessions=[easy]), ROLLING)['quality_progression'] == []
     assert 'quality_progression' not in build_payload(source, DAILY)
+
+
+def test_aerobic_efficiency_section() -> None:
+    def window(days: int, runs: int, median: float) -> dict:
+        label = f"w{days}"
+        key = f"{label}:{AS_OF.isoformat()}"
+        return {
+            "result_id": f"w-{label}", "metric_id": "aerobic_efficiency", "method_version": "v1",
+            "subject_type": "window", "subject_key": key, "window_label": key,
+            "status": "available", "quality_status": None, "unit": "m_per_beat",
+            "reason_codes": [], "quality_flags": [], "anchor_keys": [], "calculated_at": NOW,
+            "value": {
+                "window_days": days, "runs_counted": runs, "ef_median_m_per_beat": median,
+                "points": [
+                    {"activity_id": f"a{i}", "local_date": (AS_OF - timedelta(days=runs - i)).isoformat(),
+                     "session_class": "easy", "ef_m_per_beat": 1.17, "mean_speed_mps": 2.8,
+                     "mean_hr_bpm": 143.6, "decoupling_pct": None, "quality_flags": []}
+                    for i in range(runs)
+                ],
+            },
+        }
+
+    short = window(28, 4, 1.18)
+    long = window(84, 7, 1.17)
+    source = inputs(metric_results=[short, long])
+    payload = build_payload(source, ROLLING)
+    section = payload["aerobic_efficiency"]
+
+    assert section["interpretation"] == "descriptive_only"
+    assert section["w28"]["value"] == {
+        "window_days": 28, "runs_counted": 4, "ef_median_m_per_beat": 1.18,
+    }
+    assert section["w84"]["value"] == {
+        "window_days": 84, "runs_counted": 7, "ef_median_m_per_beat": 1.17,
+    }
+    assert [p["activity_id"] for p in section["recent_runs"]] == ["a2", "a3", "a4", "a5", "a6"]
+    assert all(row["metric_id"] != "aerobic_efficiency" for row in payload["load_shape"])
+    assert len(short["value"]["points"]) == 4
+    assert len(long["value"]["points"]) == 7
+    assert build_payload(source, BLOCK)["aerobic_efficiency"] == section
+    assert build_payload(inputs(), ROLLING)["aerobic_efficiency"] == {
+        "interpretation": "descriptive_only", "recent_runs": [], "w28": None, "w84": None,
+    }
+    for operation in (DAILY, QUALITY_OP):
+        assert "aerobic_efficiency" not in build_payload(source, operation)
