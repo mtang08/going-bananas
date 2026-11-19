@@ -42,6 +42,7 @@ const reps: IntervalValue['reps'] = [205, 208, 210, 214].map((time, index) => ({
   in_target: index !== 3, hr_median_bpm: null, flags: [],
 }))
 const base: ActivityExecution = {
+  aerobic: null,
   activity: {
     id: 'a1', local_date: '2026-11-08', sport: 'running', distance_m: 6900, timer_s: 2517,
     elapsed_s: 2600, fit_status: 'decoded', start_at: '2026-11-08T12:00:00Z',
@@ -270,4 +271,43 @@ describe('Activity execution', () => {
     expect(screen.getByRole('heading', { name: 'Session RPE' }).tagName).toBe('H2')
   })
 
+})
+
+describe('aerobic efficiency', () => {
+  const value = {
+    activity_id: 'a1', local_date: '2026-11-08', session_class: 'easy', sport: 'running',
+    ef_m_per_beat: 1.171, mean_speed_mps: 2.8, mean_hr_bpm: 143.5, analysis_s: 3000,
+    moving_s: 3000, paired_s: 3000, stopped_s: 0, coverage: 1, speed_cv_pct: 0, pauses_trimmed: 0,
+    decoupling: { status: 'available' as const, reason_codes: [], pct: 4.76, first_ef_m_per_beat: 1.2,
+      second_ef_m_per_beat: 1.14, first_mean_hr_bpm: 140, second_mean_hr_bpm: 147,
+      first_mean_speed_mps: 2.8, second_mean_speed_mps: 2.8, half_s: 1500 },
+    elevation: { status: 'available' as const, gain_m: 29.8, loss_m: 29, gain_m_per_km: 3.5, half_grade_diff_pct: 0 },
+  }
+  async function panel() {
+    mount()
+    const result = await screen.findByTestId('activity-aerobic')
+    result.querySelector('summary')!.click()
+    return within(result)
+  }
+  it('shows efficiency with pace, HR, terrain and drift', async () => {
+    fixture = {...base, aerobic: {...metric('aerobic_efficiency', value), quality_flags: ['HILLY_ROUTE']}}
+    const view = await panel()
+    expect(view.getByText('1.17 m per heartbeat · 9:35 /mi at 144 bpm')).toBeVisible()
+    expect(view.getByText(/Heart-rate drift \+4.8%/)).toBeVisible()
+    expect(view.getByText('Analysed 50:00 after the warm-up · data coverage 100% · climb 30 m')).toBeVisible()
+    expect(view.getByText('Hilly route')).toBeVisible()
+  })
+  it('explains missing drift on a short run', async () => {
+    fixture = {...base, aerobic: metric('aerobic_efficiency', {...value, decoupling: {
+      ...value.decoupling, status:'not_assessable', pct:null, reason_codes:['DECOUPLING_TOO_SHORT']}})}
+    expect((await panel()).getByText('Heart-rate drift: not assessed (Too short for a drift comparison)')).toBeVisible()
+  })
+  it('explains structured workouts', async () => {
+    fixture = {...base, aerobic: {...metric('aerobic_efficiency', value), value: null, status:'not_applicable',
+      reason_codes:['STRUCTURED_SESSION']}}
+    expect((await panel()).getByText('Not assessed: Structured workout')).toBeVisible()
+  })
+  it('reports a missing result', async () => {
+    expect((await panel()).getByText('Aerobic efficiency: missing')).toBeVisible()
+  })
 })

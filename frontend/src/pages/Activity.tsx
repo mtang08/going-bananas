@@ -131,6 +131,7 @@ export function Activity({
     watch_steps,
     planned_actual,
     intervals,
+    aerobic,
     intensity,
     rpe,
     symptoms,
@@ -141,6 +142,7 @@ export function Activity({
           ...(planned_actual?.quality_flags ?? []),
           ...(intervals?.quality_flags ?? []),
           ...(intensity?.quality_flags ?? []),
+          ...(aerobic?.quality_flags ?? []),
         ]),
       ).sort()
     : []
@@ -466,6 +468,46 @@ export function Activity({
                 <>
                   <p>{intensityText(intensity.value.hr, 'Heart rate')}</p>
                   <p>{intensityText(intensity.value.speed, 'Pace')}</p>
+                </>
+              )}
+            </Disclosure>
+            <Disclosure
+              variant="card"
+              className="training-disclosure"
+              data-testid="activity-aerobic"
+            >
+              <summary>Aerobic efficiency</summary>
+              {aerobic === null ? (
+                <p>Aerobic efficiency: missing</p>
+              ) : aerobic.value === null ? (
+                <p>Not assessed: {aerobic.reason_codes.map(reasonText).join(', ')}</p>
+              ) : (
+                <>
+                  <p>
+                    {aerobic.value.ef_m_per_beat.toFixed(2)} m per heartbeat ·{' '}
+                    {fmtPaceFromSpeed(aerobic.value.mean_speed_mps, unit)} at{' '}
+                    {Math.round(aerobic.value.mean_hr_bpm)} bpm
+                  </p>
+                  <p>
+                    {aerobic.value.decoupling.pct === null
+                      ? `Heart-rate drift: not assessed (${aerobic.value.decoupling.reason_codes.map(reasonText).join(', ')})`
+                      : `Heart-rate drift ${aerobic.value.decoupling.pct > 0 ? '+' : ''}${aerobic.value.decoupling.pct.toFixed(1)}% (second half vs first, relative to pace)`}
+                  </p>
+                  <p>
+                    Analysed {fmtClock(aerobic.value.analysis_s)} after the warm-up · data coverage{' '}
+                    {fmtPercent(aerobic.value.coverage)}
+                    {aerobic.value.elevation.status === 'available' &&
+                    aerobic.value.elevation.gain_m !== null
+                      ? ` · climb ${Math.round(aerobic.value.elevation.gain_m)} m`
+                      : ''}
+                  </p>
+                  {aerobic.quality_flags.length > 0 && (
+                    <p>{aerobic.quality_flags.map(reasonText).join(' · ')}</p>
+                  )}
+                  <small>
+                    Descriptive only. Heat, hills, fatigue, and sensor error change these numbers;
+                    compare similar runs.
+                  </small>
                 </>
               )}
             </Disclosure>

@@ -142,6 +142,10 @@ export interface WindowMetrics {
   srpe_strength: MetricResult<SrpeValue> | null
 }
 export interface MetricWindows {
+  aerobic: {
+    w28: MetricResult<AerobicWindowValue> | null
+    w84: MetricResult<AerobicWindowValue> | null
+  }
   as_of: string
   windows: WindowMetrics[]
   spacing: MetricResult<SpacingValue> | null
@@ -293,6 +297,7 @@ export interface LinkedSymptom {
   hours_after_end: number | null
 }
 export interface ActivityExecution {
+  aerobic: MetricResult<AerobicValue> | null
   // [DTO fixed here]
   activity: {
     id: string
@@ -387,4 +392,66 @@ export interface WorkoutHistory {
   signature: string | null
   reason: string | null
   points: ProgressionPoint[]
+}
+
+export interface AerobicDecoupling {
+  status: MetricStatus
+  reason_codes: string[]
+  pct: number | null
+  first_ef_m_per_beat: number | null
+  second_ef_m_per_beat: number | null
+  first_mean_hr_bpm: number | null
+  second_mean_hr_bpm: number | null
+  first_mean_speed_mps: number | null
+  second_mean_speed_mps: number | null
+  half_s: number
+}
+export interface AerobicElevation {
+  status: MetricStatus
+  gain_m: number | null
+  loss_m: number | null
+  gain_m_per_km: number | null
+  half_grade_diff_pct: number | null
+}
+export interface AerobicValue {
+  activity_id: string
+  local_date: string
+  sport: string
+  session_class: string
+  analysis_s: number
+  moving_s: number
+  paired_s: number
+  stopped_s: number
+  coverage: number
+  mean_speed_mps: number
+  mean_hr_bpm: number
+  ef_m_per_beat: number
+  speed_cv_pct: number | null
+  pauses_trimmed: number
+  decoupling: AerobicDecoupling
+  elevation: AerobicElevation
+}
+export interface AerobicPoint {
+  activity_id: string
+  local_date: string
+  session_class: string | null
+  ef_m_per_beat: number
+  mean_speed_mps: number
+  mean_hr_bpm: number
+  decoupling_pct: number | null
+  quality_flags: string[]
+}
+export interface AerobicWindowValue {
+  window_days: 28 | 84
+  runs_total: number
+  runs_counted: number
+  runs_without_result: number
+  not_counted: Record<string, number>
+  ef_median_m_per_beat: number | null
+  ef_early_median_m_per_beat: number | null
+  ef_late_median_m_per_beat: number | null
+  ef_change_pct: number | null
+  decoupling_runs_counted: number
+  decoupling_median_pct: number | null
+  points: AerobicPoint[]
 }
