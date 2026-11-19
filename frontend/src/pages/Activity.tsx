@@ -27,10 +27,12 @@ import {
   pageHref,
   qk,
   sessionTitle,
+  signatureLabel,
   statusText,
 } from '../api'
 import type {
   ActivityExecution,
+  WorkoutHistory,
   CheckinRequest,
   SessionKind,
   Unit,
@@ -38,6 +40,7 @@ import type {
   ZoneDistribution,
 } from '../api'
 import { QueryState } from '../components/QueryState'
+import { WorkoutProgressionTable } from '../components/WorkoutProgression'
 import { WorkoutStructure } from '../components/WorkoutStructure'
 const FIT = {
   not_fetched: 'not fetched yet',
@@ -147,6 +150,12 @@ export function Activity({
         item.type === 'work' ||
         (item.type === 'repeat' && item.steps.some((step) => step.type === 'work')),
     ) || intervals !== null
+  const history = useQuery({
+    queryKey: qk.workoutHistory(activityId),
+    enabled: Boolean(data) && Boolean(repsVisible),
+    queryFn: () =>
+      api<WorkoutHistory>(`/activities/${encodeURIComponent(activityId)}/workout-history`),
+  })
   return (
     <section className="page-content">
       <QueryState
@@ -362,6 +371,42 @@ export function Activity({
                     </p>
                   </>
                 )}
+              </Card>
+            )}
+            {repsVisible && (
+              <Card data-testid="activity-workout-history">
+                <h2>This workout over time</h2>
+                <QueryState
+                  loading={history.isPending}
+                  error={history.error}
+                  stale={Boolean(history.data)}
+                  retry={() => void history.refetch()}
+                >
+                  {history.data &&
+                    (history.data.data.signature === null ? (
+                      <p>
+                        No earlier sessions to compare:{' '}
+                        {reasonText(history.data.data.reason ?? 'NO_PLAN_LINK')}
+                      </p>
+                    ) : (
+                      <>
+                        <p>
+                          {signatureLabel(history.data.data.signature)} work · last{' '}
+                          {history.data.data.points.length}{' '}
+                          {history.data.data.points.length === 1 ? 'session' : 'sessions'}
+                        </p>
+                        {history.data.data.points.length < 2 && (
+                          <p>This is the first recorded session with these work steps.</p>
+                        )}
+                        <WorkoutProgressionTable
+                          points={history.data.data.points}
+                          unit={unit}
+                          currentActivityId={activityId}
+                        />
+                        <a href={pageHref.trends}>See the full history in Trends</a>
+                      </>
+                    ))}
+                </QueryState>
               </Card>
             )}
             <Disclosure variant="card" className="training-disclosure" data-testid="activity-laps">

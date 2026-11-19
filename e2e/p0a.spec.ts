@@ -87,7 +87,7 @@ test('p0a: manual edit versions', async ({ page, request }) => {
 test('p0a: structured workout per-rep', async ({ page, request }) => {
   const current = await data(await request.get('/api/v1/calendar'))
   const calendar = await data(await request.get(`/api/v1/calendar?start=${day(current.today,-14)}&end=${day(current.today,13)}`))
-  for (const [offset, mismatch] of [[-6,false],[-12,true]] as const) {
+  for (const [offset, mismatch] of [[-6,false],[-12,true],[-14,false]] as const) {
     const session = calendar.sessions.find((s: {local_date:string;recipe_id:string}) => s.local_date === day(calendar.today,offset) && s.recipe_id === 'REC003')
     const completion = calendar.completions.find((c: {session_uid:string}) => c.session_uid === session.session_uid)
     expect(completion.activity_id).toBeTruthy()
@@ -95,6 +95,22 @@ test('p0a: structured workout per-rep', async ({ page, request }) => {
     await expect(page.getByRole('heading',{name:'Reps'})).toBeVisible()
     if (mismatch) await expect(page.getByText(/watch workout does not match the planned structure/)).toBeVisible()
     else await expect(page.getByRole('table',{name:/reps/i}).locator('tbody tr')).toHaveCount(4)
+    if (offset === -14) {
+      await expect(page.getByText('Split laps combined', {exact: true})).toBeVisible()
+      const response = await request.get(`/api/v1/calendar?start=${day(current.today,-14)}&end=${current.today}`)
+      const envelope = await response.json()
+      const assessed = envelope.data.completions.find((c: {session_uid:string}) => c.session_uid === session.session_uid)
+      expect(assessed.status).toBe('completed_as_planned')
+      // Show the seeded session within Calendar's seven-day history viewport.
+      await page.route('**/api/v1/calendar', route => route.fulfill({
+        json: {...envelope, data: {...envelope.data, today: day(current.today,-7)}},
+      }))
+      await page.goto('/#calendar')
+      await page.getByText('Calendar history', {exact:true}).click()
+      const row = page.getByTestId('session-row').filter({has: page.locator(`a[href="#activity/${completion.activity_id}"]`)})
+      await expect(row.getByText('Completed', {exact:true})).toBeVisible()
+      await expect(row.getByText('Recorded · comparison unavailable')).toHaveCount(0)
+    }
   }
 })
 
