@@ -102,6 +102,13 @@ def _parse() -> argparse.Namespace:
     assess.add_argument("--apply", action="store_true")
     fit = sub.add_parser("fit-backfill")
     fit.add_argument("--since", type=date.fromisoformat, required=True)
+    reprocess = sub.add_parser(
+        "fit-reprocess", description="Re-decode retained FIT archives offline. "
+        "Applying re-runs metric refresh and same-day matching for the touched dates.",
+    )
+    reprocess.add_argument("--since", type=date.fromisoformat, required=True)
+    reprocess.add_argument("--activity-id", type=uuid.UUID)
+    reprocess.add_argument("--apply", action="store_true")
     strong = sub.add_parser("strong-import")
     strong.add_argument("csv", type=Path)
     strong.add_argument("--apply", action="store_true")
@@ -355,6 +362,16 @@ def main() -> int:
             key_file = Path(os.getenv('GARMIN_KEY_FILE', settings.private_dir / 'garmin-key'))
             with GarminPersonalSource(key_file, settings.private_dir / 'garmin-token.json') as source:
                 print(json.dumps(backfill_fit(SessionLocal, source, settings.private_dir, args.since)))
+        elif args.command == "fit-reprocess":
+            from app.services.fit_ingest import reprocess_fits
+
+            with SessionLocal() as session:
+                summary = reprocess_fits(session, settings.private_dir, args.since, args.activity_id)
+                if args.apply:
+                    session.commit()
+                else:
+                    session.rollback()
+            print(json.dumps({"mode": "apply" if args.apply else "dry_run", **summary}))
         elif args.command == "strong-import":
             from app.services.strong_import import import_strong_csv
             with SessionLocal() as session:
