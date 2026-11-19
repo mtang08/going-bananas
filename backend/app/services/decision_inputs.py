@@ -322,9 +322,3 @@ def collect_decision_inputs(
         "source_fingerprint": fingerprint(source_versions, kb),
         "safety_guard": guard,
     }
-
-
-def decision_input_fingerprint(
-    session: Session, operation: str, as_of: date, *, now: datetime, kb: VerifiedKnowledge
-) -> str:
-    return collect_decision_inputs(session, operation, as_of, now=now, kb=kb)["source_fingerprint"]
