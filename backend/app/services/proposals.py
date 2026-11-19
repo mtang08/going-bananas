@@ -22,6 +22,7 @@ from app.services.calendar_structure import StructureError, expand_structure
 from app.services.decision_inputs import KnowledgeResolver, VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, LadderLevel, PatchCategory, Severity
 from app.services.operations import Operation
+from app.services.profile import current_profile
 
 RECIPE_IDS = {f"REC{n:03d}" for n in range(1, 11)}
 BLOCK_OPS = {"review_training_block", "handle_goal_or_race_change"}
@@ -949,7 +950,7 @@ def load_context(
 ) -> ValidationContext:
     from app.coach_v2_models import CoachSnapshot
     from app.exception_models import ExceptionFinding, ExceptionPatch
-    from app.models import AppState, ProfileVersion
+    from app.models import AppState
     from app.planning_models import BlockVersion, Event
     from app.services.block_benchmark import benchmark_status
     from app.services.calendar import state_at
@@ -983,7 +984,7 @@ def load_context(
         )
         for row in rows
     }
-    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).first()
+    profile = current_profile(session)
     anchor = profile.cycle_anchor if profile and profile.anchor_confirmed else None
     inputs = (
         collect_decision_inputs(session, snapshot.operation, snapshot.as_of, now=now, kb=kb)

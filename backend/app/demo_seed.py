@@ -27,6 +27,7 @@ from app.models import (
 )
 from app.planning_models import StrengthRoutineSlot
 from app.services.calendar import apply_edits, seed_demo_calendar, state_at
+from app.services.profile import current_profile
 from app.services.sync import import_activity_page, store_raw
 
 TZ = ZoneInfo('America/New_York')
@@ -223,7 +224,7 @@ def seed_demo(session: Session, private_dir: Path, today: date) -> dict[str, int
     now = datetime.now(UTC)
     first_run = state.calendar_head_version == 0
     if first_run:
-        latest = session.scalar(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1))
+        latest = current_profile(session)
         session.add(ProfileVersion(version=(latest.version+1 if latest else 1), effective_at=now,
             timezone='America/New_York', cycle_anchor=today-timedelta(days=28),
             anchor_confirmed=True, strength_days_confirmed=True, scheduled_strength_days=[0,4],
