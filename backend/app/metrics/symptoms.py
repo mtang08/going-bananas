@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.checkin_models import Checkin, SymptomReport
 from app.domain.analytics import utc_date_bounds
 from app.domain.associations import preceding_sessions
+from app.domain.sports import RUN_SPORTS
 from app.metrics.contract import MetricResultData, Status, config_hash, sha256_json
 from app.metrics.engine import load_runs, metric_source_refs, register
 from app.models import Activity
@@ -29,7 +30,6 @@ CONFIG: dict[str, object] = {"link_hours": 48, "link_rule": "activity_id_else_as
           "bucket_24_48": ["hours_24_48"], "bucket_later": ["later"],
           "unknown_timing_rule": "by_hours_after_end", "site_normalization": "strip_lower",
           "gait_order": ["yes", "unsure", "no", "unknown"]}
-RUN_SPORTS = ("running", "trail_running", "treadmill_running")
 
 
 @dataclass(frozen=True)

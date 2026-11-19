@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.domain.analytics import utc_date_bounds
 from app.domain.session_class import classify
+from app.domain.sports import RUN_SPORTS
 from app.fit_models import ActivityStream, ActivityWorkoutStep
 from app.metrics.contract import (
     MetricResultData,
@@ -306,7 +307,6 @@ def aerobic_outcome(stream: AeroStream | None, *, treadmill: bool = False) -> di
             'quality_flags': sorted(flags)}
 
 
-RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
 
 
 def run_class(plan: dict | None, watch_work_steps: int, label: str | None) -> tuple[str, str | None]:

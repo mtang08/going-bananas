@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
+from app.domain.sports import RUN_SPORTS
 from app.metrics import intervals
 from app.metrics.engine import current_results
 from app.models import Activity, AppState
@@ -112,7 +113,6 @@ def assemble_groups(points: list[dict], group_by: str) -> list[dict]:
     return sorted(result, key=lambda g: (g['latest_date'], g['group_key']), reverse=True)
 
 
-RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
 HISTORY_LOOKBACK_DAYS = 365
 HISTORY_LOOKAHEAD_DAYS = 7
 

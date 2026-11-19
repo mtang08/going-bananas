@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.checkin_models import Checkin, SymptomReport
 from app.domain.analytics import utc_date_bounds
+from app.domain.sports import RUN_SPORTS
 from app.metrics.contract import MetricResultData, QualityStatus, RunFact, Status, config_hash, sha256_json
 from app.metrics.engine import activities_coverage_complete, latest_results, load_runs, metric_source_refs, register
 from app.metrics.symptoms import linked_activity_for_checkin
@@ -29,7 +30,6 @@ CONFIG = {"precedence": ["plan_link", "manual", "long_rule"], "long_recipe": "RE
           "rule_min_prior_runs": 4, "comparator_lookback_days": 30,
           "break_lookback_days": 14, "weekly_window_days": 7,
           "weekly_includes_current": True}
-RUN_SPORTS = ("running", "trail_running", "treadmill_running")
 
 
 def _measure(value: float | None) -> float | None:
