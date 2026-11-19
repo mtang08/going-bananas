@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Iterator
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -15,14 +15,19 @@ import pytest
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
+from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
+from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
 from app.config import settings
 from app.db import engine, get_session
+from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.main import handle_http, handle_validation
 from app.models import AppState, ProfileVersion
+from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, IntensityAnchor
+from app.services import calendar
 
 
 @pytest.fixture
@@ -112,3 +117,35 @@ def metrics_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.metrics import engine as metric_engine
 
     monkeypatch.setattr(metric_engine, '_refresh_scopes', lambda session, scopes: [])
+
+
+PROPOSAL_NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
+PROPOSAL_TODAY = date(2026, 11, 16)
+PROPOSAL_CALENDAR = [(16, 'strength'), (20, 'strength'), (23, 'strength'), (27, 'strength'), (18, 'run')]
+
+
+@pytest.fixture
+def proposal_session(
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: Callable[..., Session],
+    profile_factory: Callable[..., ProfileVersion],
+    calendar_state: Callable[..., AppState],
+) -> Iterator[Session]:
+    """Clean proposal and calendar tables, one profile, and a five-session calendar (one run on 2026-11-18)."""
+    monkeypatch.setattr(calendar, '_today', lambda session, now=None: PROPOSAL_TODAY)
+    with session_factory(expire_on_commit=False) as session:
+        session.info['metrics_now'] = PROPOSAL_NOW
+        for model in (ExceptionFinding, ExceptionPatch, BlockBenchmarkResult, CoachDecisionKey, CoachProposalChange,
+                      CoachProposal, CoachSnapshot, SessionCompletion, CalendarSessionRevision, CalendarVersion,
+                      BlockDecision, BlockVersion, Block, IntensityAnchor):
+            session.execute(delete(model))
+        calendar_state(session, reset_head=True)
+        profile_factory(session, effective_at=PROPOSAL_NOW - timedelta(days=1), cycle_anchor=PROPOSAL_TODAY)
+        session.flush()
+        edits = [{'op': 'add', 'fields': {'local_date': date(2026, 11, day), 'kind': kind, 'intent': 'Train',
+                  **({'recipe_id': 'REC001', 'planned_duration_s': 1800} if kind == 'run' else {})}}
+                 for day, kind in PROPOSAL_CALENDAR]
+        calendar.apply_edits(session, 0, edits, 'Fixture')
+        session.flush()
+        session.commit()
+        yield session
