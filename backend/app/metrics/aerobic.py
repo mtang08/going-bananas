@@ -1,6 +1,7 @@
 """Descriptive aerobic efficiency (EF) and HR drift on steady runs; never a fitness score."""
 from __future__ import annotations
 
+import math
 import statistics
 from dataclasses import dataclass
 from typing import Any, cast
@@ -158,7 +159,62 @@ def _decoupling(moving: list[Sample], analysis_s: float) -> dict[str, Any]:
     return result
 
 
-def aerobic_outcome(stream: AeroStream | None) -> dict[str, Any]:
+_NO_ELEVATION: dict[str, Any] = {'status': Status.missing.value, 'gain_m': None, 'loss_m': None,
+                 'gain_m_per_km': None, 'half_grade_diff_pct': None}
+
+
+def smoothed(t_s: list[int], values: list[float | None], half_window_s: float) -> list[float | None]:
+    result: list[float | None] = []
+    lo = hi = 0
+    total, count = 0.0, 0
+    for t in t_s:
+        while hi < len(t_s) and t_s[hi] <= t + half_window_s:
+            v = values[hi] if hi < len(values) else None
+            if v is not None and math.isfinite(v):
+                total, count = total + v, count + 1
+            hi += 1
+        while t_s[lo] < t - half_window_s:
+            v = values[lo] if lo < len(values) else None
+            if v is not None and math.isfinite(v):
+                total, count = total - v, count - 1
+            lo += 1
+        result.append(total / count if count else None)
+    return result
+
+
+def elevation_summary(t_s: list[int], altitude_m: list[float | None], samples: list[Sample]) -> dict[str, Any]:
+    cadence = CONFIG['altitude_smoothing_s']
+    smooth = smoothed(t_s, altitude_m, cadence / 2)
+    points: list[tuple[bool, float]] = []
+    next_at = elapsed = 0.0
+    meters = {True: 0.0, False: 0.0}
+    for sample in samples:
+        if sample.speed is not None and not _stopped(sample):
+            meters[sample.first_half] += sample.speed * sample.seconds
+        level = smooth[sample.index] if sample.index is not None else None
+        elapsed += sample.seconds
+        while next_at < elapsed:
+            if level is not None:
+                points.append((sample.first_half, level))
+            next_at += cadence
+    distance = meters[True] + meters[False]
+    if len(points) < 2 or distance <= 0:
+        return dict(_NO_ELEVATION)
+    gain = sum(max(0.0, b - a) for (_, a), (_, b) in zip(points, points[1:]))
+    loss = sum(max(0.0, a - b) for (_, a), (_, b) in zip(points, points[1:]))
+    grades: list[float] = []
+    for half in (True, False):
+        levels = [level for first, level in points if first == half]
+        if len(levels) < 2 or meters[half] <= 0:
+            grades = []
+            break
+        grades.append(100 * (levels[-1] - levels[0]) / meters[half])
+    return {'status': Status.available.value, 'gain_m': gain, 'loss_m': loss,
+            'gain_m_per_km': 1000 * gain / distance,
+            'half_grade_diff_pct': grades[1] - grades[0] if grades else None}
+
+
+def aerobic_outcome(stream: AeroStream | None, *, treadmill: bool = False) -> dict[str, Any]:
     if stream is None:
         return _early(Status.not_assessable, 'NO_STREAM')
     timer_flags = [flag for flag in _TIMER_FLAGS if flag in stream.quality_flags]
@@ -184,11 +240,12 @@ def aerobic_outcome(stream: AeroStream | None) -> dict[str, Any]:
         hr = stream.hr_bpm[i] if known and i is not None and i < len(stream.hr_bpm) else None
         speed = speed if plausible_speed(speed) else None
         hr = hr if plausible_hr(hr) else None
+        index = i if known else None
         first_seconds = min(seconds, max(0.0, midpoint - elapsed))
         if first_seconds:
-            samples.append(Sample(i, first_seconds, True, speed, hr))
+            samples.append(Sample(index, first_seconds, True, speed, hr))
         if seconds > first_seconds:
-            samples.append(Sample(i, seconds - first_seconds, False, speed, hr))
+            samples.append(Sample(index, seconds - first_seconds, False, speed, hr))
         elapsed += seconds
     stopped_s = float(sum(s.seconds for s in samples if _stopped(s)))
     if stopped_s / analysis_s > CONFIG['stopped_max_fraction']:
@@ -205,12 +262,25 @@ def aerobic_outcome(stream: AeroStream | None) -> dict[str, Any]:
         return _early(Status.not_assessable, 'PACE_NOT_STEADY')
     speed, hr = _means(paired)
     flags = (['STOPS_EXCLUDED'] if stopped_s else []) + (['PAUSES_TRIMMED'] if pauses_trimmed else [])
+    elevation = (dict(_NO_ELEVATION, status=Status.not_applicable.value) if treadmill
+                 else elevation_summary(stream.t_s, stream.altitude_m, samples))
+    decoupling = _decoupling(moving, analysis_s)
+    diff = elevation['half_grade_diff_pct']
+    if decoupling['pct'] is not None and diff is not None and abs(diff) > CONFIG['half_grade_diff_max_pct']:
+        decoupling.update(status=Status.not_assessable.value, reason_codes=['HALF_GRADE_DIFFERS'], pct=None)
+    flags += ['TREADMILL'] if treadmill else []
+    flags += ['ELEVATION_UNKNOWN'] if elevation['status'] == Status.missing.value else []
+    gain_per_km = elevation['gain_m_per_km']
+    flags += ['HILLY_ROUTE'] if gain_per_km is not None and gain_per_km > CONFIG['hilly_gain_m_per_km'] else []
+    for key, places in (('gain_m', 1), ('loss_m', 1), ('gain_m_per_km', 2), ('half_grade_diff_pct', 2)):
+        if elevation[key] is not None:
+            elevation[key] = round(elevation[key], places)
     value = {'analysis_s': round(analysis_s, 1), 'moving_s': round(moving_s, 1),
              'paired_s': round(paired_s, 1), 'stopped_s': round(stopped_s, 1),
              'coverage': round(paired_s / moving_s, 3), 'mean_speed_mps': round(speed, 3),
              'mean_hr_bpm': round(hr, 1), 'ef_m_per_beat': round(60 * speed / hr, 3),
              'speed_cv_pct': round(cv, 2) if cv is not None else None, 'pauses_trimmed': pauses_trimmed,
-             'decoupling': _decoupling(moving, analysis_s)}
+             'decoupling': decoupling, 'elevation': elevation}
     return {'status': (Status.available if quality == QualityStatus.good else Status.partial).value,
             'quality_status': quality.value, 'value': value,
             'reason_codes': [] if quality == QualityStatus.good else ['LOW_COVERAGE'],
