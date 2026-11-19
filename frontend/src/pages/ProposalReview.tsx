@@ -14,6 +14,7 @@ import { CoachText, ExceptionCard, EventReviewCard, PatchUpdates } from './propo
 import { ProposedChanges } from './proposal/ProposedChanges'
 import { ProposalIntro } from './proposal/ProposalIntro'
 import { AnchorChangeCard, BlockChangeCard } from './proposal/ChangeCards'
+import { DecisionActions } from './proposal/DecisionActions'
 
 export function ProposalReview({ proposalId }: { proposalId: string }) {
   return <ReviewForm key={proposalId} proposalId={proposalId} />
@@ -358,62 +359,23 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
               </div>
             )}
             {!terminal && (
-              <div className="proposal-actions">
-                <Button
-                  disabled={
-                    disabled ||
-                    invalidSelection ||
-                    (hasChanges && selected.length === 0 && anchors.length === 0 && !block)
-                  }
-                  onClick={() => submit(false)}
-                >
-                  {hasChanges ? 'Accept selected' : 'Accept (no changes)'}
-                </Button>
-                {hasChanges && (
-                  <Button variant="outline" disabled={disabled} onClick={() => submit(true)}>
-                    Reject all
-                  </Button>
-                )}
-              </div>
-            )}
-            {!terminal && (
-              <div className="proposal-secondary" data-testid="proposal-secondary">
-                <p className="fineprint">
-                  Reject all keeps this proposal in history. Discard removes it without a decision.
-                </p>
-                {confirmDiscard ? (
-                  <div className="notice warning">
-                    <p>
-                      Discard this proposal? It will be removed from the open list. The calendar
-                      will not change.
-                    </p>
-                    <Button
-                      variant="outline"
-                      disabled={discardDisabled}
-                      onClick={() => {
-                        if (proposal && !discardDisabled) discard.mutate(proposal.revision)
-                      }}
-                    >
-                      Confirm discard
-                    </Button>{' '}
-                    <Button
-                      variant="outline"
-                      disabled={discard.isPending}
-                      onClick={() => setConfirmDiscard(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    variant="link"
-                    disabled={discardDisabled}
-                    onClick={() => setConfirmDiscard(true)}
-                  >
-                    Discard proposal
-                  </Button>
-                )}
-              </div>
+              <DecisionActions
+                hasChanges={hasChanges}
+                acceptDisabled={
+                  disabled ||
+                  invalidSelection ||
+                  (hasChanges && selected.length === 0 && anchors.length === 0 && !block)
+                }
+                rejectDisabled={disabled}
+                discardDisabled={discardDisabled}
+                discardPending={discard.isPending}
+                confirmDiscard={confirmDiscard}
+                onAccept={() => submit(false)}
+                onRejectAll={() => submit(true)}
+                onAskDiscard={() => setConfirmDiscard(true)}
+                onConfirmDiscard={() => discard.mutate(proposal.revision)}
+                onCancelDiscard={() => setConfirmDiscard(false)}
+              />
             )}
             <p>
               <a href="#calendar">Calendar history and protected undo</a>
