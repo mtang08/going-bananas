@@ -231,7 +231,7 @@ export interface RepResult {
   flags: string[]
   rep: number
   planned_step: number
-  lap_index: number | null
+  lap_indexes: number[]
   status: MetricStatus
   planned_duration_type: 'time' | 'distance'
   planned_value: number

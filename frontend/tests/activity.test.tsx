@@ -33,7 +33,7 @@ const structure: NonNullable<NonNullable<ActivityExecution['planned']>['structur
 ]
 const reps: IntervalValue['reps'] = [205, 208, 210, 214].map((time, index) => ({
   rep: index + 1, planned_step: 2 + 2 * index, step_path: '1.steps.0', repeat_index: index,
-  lap_index: 1 + 2 * index, observed: true, fully_completed: true, status: 'available',
+  lap_indexes: [1 + 2 * index], observed: true, fully_completed: true, status: 'available',
   reason_codes: [], planned_duration_type: 'distance', planned_value: 800,
   actual_timer_s: time, actual_distance_m: 800, completion_ratio: 1,
   mean_speed_mps: 800 / time, speed_status: 'available', speed_reason_codes: [],
@@ -134,6 +134,20 @@ describe('Activity execution', () => {
     expect(screen.getByText('Heart rate: not assessable — add aerobic-upper and threshold-lower anchors in Settings.')).toBeInTheDocument()
     expect(screen.getByText('No symptom reports are linked to this run.')).toBeInTheDocument()
     expect(requests).toEqual([{ url: '/api/v1/activities/a1/execution', method: 'GET' }])
+  })
+  it('shows the recorded laps for each rep', async () => {
+    const interval = base.intervals!
+    const value = interval.value!
+    const changed = [
+      { ...reps[0], lap_indexes: [1] },
+      { ...reps[1], lap_indexes: [2, 3] },
+      { ...reps[2], lap_indexes: [], observed: false },
+    ]
+    fixture = { ...base, intervals: { ...interval, value: { ...value, reps: changed } } }
+    mount()
+    const table = await screen.findByRole('table', { name: 'Reps' })
+    const rows = within(table).getAllByRole('row').slice(1)
+    expect(rows.map(row => within(row).getAllByRole('cell')[1].textContent)).toEqual(['Lap 2', 'Laps 3–4', '—'])
   })
   it('shows watch and planned steps when structure mismatches', async () => {
     fixture = { ...base, intervals: metric<IntervalValue>('work_interval_execution', null, 'not_assessable', ['WATCH_WORKOUT_MISMATCH']) }
