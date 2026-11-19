@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.metrics import intervals as interval_metric
 from app.metrics.contract import (
     MetricResultData,
     QualityStatus,
@@ -244,7 +245,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
                         "activity_id": completion.activity_id, "strong_workout_id": completion.strong_workout_id,
                         "manual_session_id": completion.manual_session_id} if completion else None)
     activity, activity_refs = _activity(session, completion) if completion else (None, {})
-    interval_row = (latest_results(session, "work_interval_execution", "v1", [str(completion.activity_id)])
+    interval_row = (latest_results(session, interval_metric.METRIC_ID, interval_metric.METHOD_VERSION, [str(completion.activity_id)])
                     .get(str(completion.activity_id)) if completion and completion.activity_id else None)
     intervals = _interval_components(interval_row.value) if interval_row and isinstance(interval_row.value, dict) else None
     local_date = plan.local_date if plan else None

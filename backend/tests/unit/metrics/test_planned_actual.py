@@ -92,3 +92,38 @@ def test_target_coverage_rebuilt_before_threshold() -> None:
     target = next(c for c in result["value"]["components"] if c["name"] == "target_coverage")
     assert target["value"] == .75
     assert target["status"] == "partially_met"
+
+
+def _five_rep_plan() -> dict:
+    return plan(structure=[{**WORK[0], "target": None} for _ in range(5)])
+
+
+def _five_rep_intervals(completed: int) -> dict:
+    return _interval_components({"n_planned": 5, "n_completed": completed,
+                                 "reps": [{"fully_completed": i < completed} for i in range(5)]})
+
+
+def test_split_lap_full_value_completes_as_planned() -> None:
+    result = assess(_five_rep_plan(), linked(), {"kind": "run", "timer_s": 3000}, _five_rep_intervals(5))
+    assert result["value"]["overall_status"] == "completed_as_planned"
+
+
+def test_skipped_work_rep_is_modified_not_planned() -> None:
+    result = assess(_five_rep_plan(), linked(), {"kind": "run", "timer_s": 3000}, _five_rep_intervals(4))
+    assert result["value"]["overall_status"] == "completed_modified"
+    step = next(item for item in result["value"]["components"] if item["name"] == "step_completion_ratio")
+    assert step["status"] == "partially_met"
+
+
+def test_not_assessable_interval_stays_unknown() -> None:
+    result = assess(_five_rep_plan(), linked(), {"kind": "run", "timer_s": 3000}, None)
+    assert result["value"]["overall_status"] == "unknown"
+    assert "COMPONENT_NOT_ASSESSABLE" in result["reason_codes"]
+    assert result["derived_completion_status"] == "unknown"
+
+
+def test_modification_reason_preserved() -> None:
+    result = assess(_five_rep_plan(), linked(modification_reason="fatigue"),
+                    {"kind": "run", "timer_s": 3000}, _five_rep_intervals(5))
+    assert result["value"]["overall_status"] == "completed_modified"
+    assert "SENSIBLE_MODIFICATION" in result["quality_flags"]
