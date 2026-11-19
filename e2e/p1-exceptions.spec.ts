@@ -79,7 +79,6 @@ test.beforeAll(async ({request})=>{
   expect(profile.ok()).toBe(true)
   const envelope = await profile.json()
   expect(envelope.mode).toBe('demo')
-  expect(envelope.data.planning_authority).toBe('calendar')
 })
 
 test('p1: repeated fatigue raises a caution finding',async ({page,request})=>{

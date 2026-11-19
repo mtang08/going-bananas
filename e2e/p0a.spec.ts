@@ -14,7 +14,6 @@ test.beforeEach(async ({ request }) => {
   expect(response.ok()).toBe(true)
   const envelope = await response.json()
   expect(envelope.mode).toBe('demo')
-  expect(envelope.data.planning_authority).toBe('calendar')
 })
 
 test('p0a: home shows today and 14-day strip', async ({ page, request }) => {

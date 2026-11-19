@@ -49,7 +49,6 @@ export interface Activity {
   sources?: unknown[]
 }
 export interface Profile {
-  planning_authority: 'legacy' | 'calendar'
   version: number
   timezone: string
   cycle_anchor: string | null
