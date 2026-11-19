@@ -10,7 +10,7 @@ import type {
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   LineChart: ({ children, data }: { children: React.ReactNode; data: unknown }) =>
-    <div data-testid="recovery-chart" data-series={JSON.stringify(data)}>{children}</div>,
+    <div data-testid={Array.isArray(data) && data[0] && 'speed' in data[0] ? 'progression-chart' : 'recovery-chart'} data-series={JSON.stringify(data)}>{children}</div>,
   Line: () => null, Tooltip: () => null, CartesianGrid: () => null, XAxis: () => null, YAxis: () => null,
 }))
 
@@ -92,12 +92,26 @@ const recovery: RecoveryNights = {
     night('2026-11-07', true), night('2026-11-08', false),
   ],
 }
+const progressionPoint = (id: string, status: 'available' | 'not_assessable') => ({
+  session_uid: id, activity_id: id, local_date: '2026-11-09', planned_date: '2026-11-09',
+  recipe_id: 'REC003', intent: 'Threshold', signature: 'ws1:4xt300', recovery_s: 360,
+  target_modalities: ['speed'], sport: 'running', completion_status: 'unknown', status,
+  reason_codes: status === 'available' ? [] : ['WATCH_WORKOUT_MISMATCH'], quality_flags: [],
+  n_planned: 4, n_completed: status === 'available' ? 4 : null, step_completion_ratio: 1,
+  reps_used: 4, reps_used_hr: 4, work_speed_mps: 3.6, work_hr_bpm: 160, work_m_per_beat: 1.35,
+  cv_speed: null, last_first_change_pct: null, target_coverage: null, interval_result_id: id,
+})
+const g4x5 = { group_key: 'sig:ws1:4xt300', group_by: 'signature', signature: 'ws1:4xt300',
+  signatures: ['ws1:4xt300'], recipe_ids: ['REC003'], sessions_total: 3, sessions_assessable: 2,
+  latest_date: '2026-11-09', points: [progressionPoint('a', 'available'), progressionPoint('b', 'not_assessable'), progressionPoint('c', 'available')] }
+let progressionData = { start: '2026-05-15', end: '2026-11-11', group_by: 'signature', groups: [g4x5] }
 let benchmarkData:{items:unknown[]}={items:[]}
 let windowData = windows
 let recoveryData = recovery
 let windowStatus = 200
 let requests: string[] = []
 beforeEach(() => {
+  progressionData = { start: '2026-05-15', end: '2026-11-11', group_by: 'signature', groups: [g4x5] }
   benchmarkData={items:[]}
   windowData = windows
   recoveryData = recovery
@@ -109,7 +123,7 @@ beforeEach(() => {
     if (url.includes('/metrics/windows') && windowStatus !== 200) {
       return new Response(JSON.stringify({ error: { code: 'failed', message: 'Metrics unavailable' } }), { status: windowStatus })
     }
-    const data = url.includes('/blocks/benchmarks') ? benchmarkData : url.includes('/metrics/recovery') ? recoveryData : windowData
+    const data = url.includes('/metrics/workout-progression') ? progressionData : url.includes('/blocks/benchmarks') ? benchmarkData : url.includes('/metrics/recovery') ? recoveryData : windowData
     return new Response(JSON.stringify({ schema_version: 'v1', data_revision: 3, mode: 'demo', data }), { status: 200 })
   }))
 })
@@ -120,6 +134,27 @@ function mount() {
 }
 
 describe('Trends', () => {
+  it('shows workout progression for the default signature view', async () => {
+    mount()
+    const card = await screen.findByTestId('trend-workout-progression')
+    expect(await within(card).findByRole('option', { name: '4 × 5:00 · 2/3 assessed' })).toBeInTheDocument()
+    expect(within(card).getAllByTestId('progression-row')).toHaveLength(3)
+  })
+  it('switches to session-type grouping', async () => {
+    progressionData = { ...progressionData, group_by: 'recipe', groups: [{ ...g4x5,
+      group_key: 'recipe:REC003', signature: null as unknown as string, group_by: 'recipe' }] }
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Same session type' }))
+    await waitFor(() => expect(requests.some(url => url.includes('group_by=recipe'))).toBe(true))
+    const card = screen.getByTestId('trend-workout-progression')
+    expect(await within(card).findByRole('option', { name: 'Threshold intervals · 2/3 assessed' })).toBeInTheDocument()
+    expect(within(card).getByRole('columnheader', { name: 'Work steps' })).toBeInTheDocument()
+  })
+  it('explains an empty progression', async () => {
+    progressionData = { ...progressionData, groups: [] }
+    mount()
+    expect(await screen.findByText('No structured workouts in the last 180 days.')).toBeInTheDocument()
+  })
   it('collapses only panels that are not yet assessable', async () => {
     mount()
     const disclosure = await screen.findByTestId('trends-not-assessable')
@@ -254,7 +289,8 @@ describe('Trends', () => {
     mount()
     await waitFor(() => expect(requests).toContain('/api/v1/metrics/recovery?start=2026-10-15&end=2026-11-11'))
     expect(requests.every(url => url === '/api/v1/blocks/benchmarks' || url === '/api/v1/metrics/windows' ||
-      url === '/api/v1/metrics/recovery?start=2026-10-15&end=2026-11-11')).toBe(true)
+      url === '/api/v1/metrics/recovery?start=2026-10-15&end=2026-11-11' ||
+      url === '/api/v1/metrics/workout-progression?group_by=signature')).toBe(true)
   })
   it('shows windows request errors', async () => {
     windowStatus = 500

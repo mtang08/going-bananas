@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Disclosure,
+  NativeSelect,
   Table,
   TableBody,
   TableCell,
@@ -24,6 +25,7 @@ import {
 } from 'recharts'
 import {
   MISSING,
+  RECIPE_LABELS,
   addDays,
   api,
   dateLabel,
@@ -31,6 +33,7 @@ import {
   fmtDuration,
   fmtPercent,
   qk,
+  signatureLabel,
   query,
   statusText,
 } from '../api'
@@ -41,11 +44,14 @@ import type {
   MetricWindows,
   RecoveryNight,
   RecoveryNights,
+  ProgressionGroup,
+  WorkoutProgression,
   Unit,
   WindowMetrics,
   ZoneDistribution,
 } from '../api'
 import { QueryState } from '../components/QueryState'
+import { WorkoutProgressionChart, WorkoutProgressionTable } from '../components/WorkoutProgression'
 import './TrainingDesign.css'
 const DAYS = [7, 14, 28, 56] as const
 const CLASS: Record<HardClass, string> = {
@@ -365,6 +371,86 @@ const assessable = <V,>(result: MetricResult<V> | null): boolean =>
 const zoneShown = (zone: ZoneDistribution) =>
   zone.status === 'available' || zone.status === 'partial'
 
+function WorkoutProgressionCard({ unit }: { unit: Unit }) {
+  const [groupBy, setGroupBy] = useState<'signature' | 'recipe'>('signature')
+  const [selected, setSelected] = useState<string | null>(null)
+  const progression = useQuery({
+    queryKey: qk.workoutProgression(groupBy),
+    queryFn: () =>
+      api<WorkoutProgression>(`/metrics/workout-progression${query({ group_by: groupBy })}`),
+  })
+  const groups = progression.data?.data.groups ?? []
+  const group = groups.find((item) => item.group_key === selected) ?? groups[0] ?? null
+  const label = (item: ProgressionGroup) =>
+    item.signature
+      ? signatureLabel(item.signature)
+      : (RECIPE_LABELS[item.recipe_ids[0]] ?? item.recipe_ids[0])
+  return (
+    <Card data-testid="trend-workout-progression">
+      <h2>Workout progression</h2>
+      <p>
+        Sessions with the same work steps, newest first. Partial sessions use completed reps only;
+        missing data stays missing.
+      </p>
+      <div className="segmented" aria-label="Group workouts by">
+        {(
+          [
+            ['signature', 'Same work steps'],
+            ['recipe', 'Same session type'],
+          ] as const
+        ).map(([key, text]) => (
+          <Button
+            key={key}
+            variant="ghost"
+            type="button"
+            className={
+              groupBy === key ? 'active bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+            }
+            onClick={() => {
+              setGroupBy(key)
+              setSelected(null)
+            }}
+          >
+            {text}
+          </Button>
+        ))}
+      </div>
+      <QueryState
+        loading={progression.isPending}
+        error={progression.error}
+        stale={Boolean(progression.data)}
+        retry={() => void progression.refetch()}
+      >
+        {group ? (
+          <>
+            <label className="grid gap-2">
+              Workout
+              <NativeSelect
+                value={group.group_key}
+                onChange={(event) => setSelected(event.target.value)}
+              >
+                {groups.map((g) => (
+                  <option key={g.group_key} value={g.group_key}>
+                    {`${label(g)} · ${g.sessions_assessable}/${g.sessions_total} assessed`}
+                  </option>
+                ))}
+              </NativeSelect>
+            </label>
+            <WorkoutProgressionChart points={group.points} unit={unit} />
+            <WorkoutProgressionTable
+              points={group.points}
+              unit={unit}
+              showSignature={group.group_by === 'recipe'}
+            />
+          </>
+        ) : (
+          <p>No structured workouts in the last 180 days.</p>
+        )}
+      </QueryState>
+    </Card>
+  )
+}
+
 export function Trends({ unit }: { unit: Unit }) {
   const [days, setDays] = useState<WindowMetrics['days']>(28)
   const windows = useQuery({
@@ -587,6 +673,7 @@ export function Trends({ unit }: { unit: Unit }) {
           </>
         )}
       </QueryState>
+      <WorkoutProgressionCard unit={unit} />
       <Card data-testid="trend-recovery">
         <h2>Recovery</h2>
         <p>Sleep, overnight HRV, and resting HR per night. Missing nights stay missing.</p>
