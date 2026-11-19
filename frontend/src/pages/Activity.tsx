@@ -1,4 +1,4 @@
-import { reasonText } from '../lib/reasonLabels'
+import { COMPONENT_LABELS, reasonText } from '../lib/reasonLabels'
 import {
   Badge,
   Button,
@@ -58,12 +58,6 @@ const OVERALL: Record<string, string> = {
   extra: 'Extra',
   unknown: 'Unknown',
   ambiguous: 'Needs matching',
-}
-const NAME: Record<string, string> = {
-  duration_ratio: 'Duration vs plan',
-  distance_ratio: 'Distance vs plan',
-  step_completion_ratio: 'Steps completed',
-  target_coverage: 'Time in target',
 }
 function repLaps(indexes: number[]): string {
   if (indexes.length === 0) return '—'
@@ -260,7 +254,7 @@ export function Activity({
                         <TableBody>
                           {planned_actual.value.components.map((component) => (
                             <TableRow key={component.name}>
-                              <TableCell>{NAME[component.name]}</TableCell>
+                              <TableCell>{COMPONENT_LABELS[component.name]}</TableCell>
                               <TableCell>{fmtPercent(component.value)}</TableCell>
                               <TableCell>{statusText(component.status)}</TableCell>
                             </TableRow>

@@ -412,6 +412,8 @@ export const qk = {
   calendarView: (version: number | 'head') => ['v2', 'calendar', 'view', version] as const,
   calendarVersions: ['v2', 'calendar', 'versions'] as const,
   calendarDiff: (from: number, to: number) => ['v2', 'calendar', 'diff', from, to] as const,
+  weeklyDigest: (weekStart: string | 'current') =>
+    ['v2', 'calendar', 'weekly-digest', weekStart] as const,
   prompts: ['v2', 'prompts'] as const,
   checkins: ['v2', 'checkins'] as const,
   metrics: ['v2', 'metrics'] as const,
