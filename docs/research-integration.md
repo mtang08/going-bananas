@@ -89,8 +89,9 @@ recommendation's audit trail and cite the relevant source only when useful.
 ## Initial integration scope and case coverage (historical, November 10)
 
 The following describes the original deterministic coaching endpoints. Current
-Codex-driven daily/weekly planning and automatic persistence are documented in
-[the P0 implementation](p0-implementation.md). The KB import adds retrieval only;
+planning is in [the handoff](handoff.md) and the code; the earlier
+automatic-persistence design is in [the archived P0 implementation](archive/p0-implementation.md).
+The KB import adds retrieval only;
 neither the 15 baseline nor the 11 incremental research cases imply implemented
 product behavior or complete automated coverage.
 
