@@ -33,39 +33,46 @@ from app.models import Activity, AppState
 from app.services.timezone import athlete_today, athlete_tz
 
 
-def parse_scope(scope: str) -> tuple[str, str | tuple[date, ...] | uuid.UUID | None]:
-    if scope in ('calendar', 'timezone'):
-        return scope, None
-    if scope.startswith(('activity:', 'checkin:')):
-        kind, raw = scope.split(':', 1)
-        try:
+def parse_scope(scope: str) -> tuple[str, Any]:
+    """Split a refresh scope into `(kind, value)`, or raise `ValueError('invalid_scope')`.
+
+    `activity:`, `checkin:`, `plan:` carry a UUID; `strength:strong:` and `strength:manual:` a UUID; `date:` and
+    `since:` an ISO date; `recovery_dates:` comma-separated ISO dates. `timezone` and `revision` carry nothing.
+    """
+    kind, _, raw = scope.partition(':')
+    try:
+        if scope in ('timezone', 'revision'):
+            return scope, None
+        if kind in ('activity', 'checkin', 'plan'):
             return kind, uuid.UUID(raw)
-        except ValueError as exc:
-            raise ValueError('invalid_scope') from exc
-    if scope.startswith('strength:'):
-        parts = scope.split(':')
-        if len(parts) == 3 and parts[1] in ('strong', 'manual'):
-            try:
-                return 'strength:' + parts[1], uuid.UUID(parts[2])
-            except ValueError as exc:
-                raise ValueError('invalid_scope') from exc
-    if scope.startswith(('anchors:', 'all:')):
-        kind, raw = scope.split(':', 1)
-        try:
+        if kind == 'strength':
+            prefix, _, raw_id = raw.partition(':')
+            if prefix in ('strong', 'manual'):
+                return f'strength:{prefix}', uuid.UUID(raw_id)
+        if kind in ('date', 'since'):
             value = date.fromisoformat(raw)
             if value.isoformat() == raw:
-                return kind, (value,)
-        except ValueError:
-            pass
-    if scope.startswith('recovery_dates:'):
-        values = scope.split(':', 1)[1].split(',')
-        try:
-            parsed = tuple(date.fromisoformat(value) for value in values)
-            if values and all(date_value.isoformat() == raw for date_value, raw in zip(parsed, values)):
-                return 'recovery_dates', parsed
-        except ValueError:
-            pass
+                return kind, value
+        if kind == 'recovery_dates':
+            parts = raw.split(',')
+            values = tuple(date.fromisoformat(part) for part in parts)
+            if all(value.isoformat() == part for value, part in zip(values, parts, strict=True)):
+                return kind, values
+    except ValueError:
+        pass
     raise ValueError('invalid_scope')
+
+
+# A stored hard_session_spacing window refreshes only when a changed date is within this distance of its as-of date.
+SPACING_REACH_DAYS = 14
+
+
+def _plan_dates(session: Session, uid: uuid.UUID) -> set[date]:
+    """The days of a session's two latest revisions: where it is now and where it was before this change."""
+    return set(session.scalars(select(CalendarSessionRevision.local_date)
+                               .where(CalendarSessionRevision.session_uid == uid)
+                               .order_by(CalendarSessionRevision.calendar_version_number.desc(),
+                                         CalendarSessionRevision.revision.desc()).limit(2)))
 
 
 def clock(session: Session) -> datetime:
@@ -230,16 +237,23 @@ def scope_targets(session: Session, scopes: Iterable[str]) -> Targets:
     from app.models import ManualSession
     from app.strong_models import StrongWorkoutRow
     zone = athlete_tz(session)
-    targets = Targets(dates=set(session.info.get('metrics_dates', ())),
-                      plan_uids={uid for uid in session.info.get('metrics_plan_uids', ()) if uid})
+    targets = Targets()
     for scope in scopes:
         kind, value = parse_scope(scope)
-        if kind in ('calendar', 'timezone'):
+        if kind == 'revision':
+            continue
+        if kind == 'timezone':
             targets.broad = True
-        elif kind in ('all', 'anchors'):
-            assert isinstance(value, tuple)
-            targets.since = min(targets.since, value[0]) if targets.since else value[0]
-            targets.broad = True
+        elif kind == 'since':
+            assert isinstance(value, date)
+            targets.since = min(targets.since, value) if targets.since else value
+        elif kind == 'date':
+            assert isinstance(value, date)
+            targets.dates.add(value)
+        elif kind == 'plan':
+            assert isinstance(value, uuid.UUID)
+            targets.plan_uids.add(value)
+            targets.dates.update(_plan_dates(session, value))
         elif kind == 'activity':
             assert isinstance(value, uuid.UUID)
             targets.activity_ids.add(value)
@@ -265,8 +279,10 @@ def scope_targets(session: Session, scopes: Iterable[str]) -> Targets:
             targets.recovery_dates.update(value)
             targets.dates.update(value)
     if targets.broad:
-        targets.dates.update(day for day in _all_dates(session) if targets.since is None or day >= targets.since)
+        targets.dates.update(_all_dates(session))
         targets.recovery_dates.update(targets.dates)
+    elif targets.since is not None:
+        targets.dates.update(day for day in _all_dates(session) if day >= targets.since)
     return targets
 
 
@@ -302,7 +318,7 @@ def refresh_targets(session: Session, targets: Targets, matched_plan_uids: Itera
         column = SessionCompletion.strong_workout_id if kind == 'strong' else SessionCompletion.manual_session_id
         strength_links.extend(session.scalars(select(SessionCompletion.session_uid).where(column == uuid.UUID(raw_id))))
     plan_uids = [*matched_plan_uids, *linked, *targets.plan_uids, *strength_links,
-                 *(_plan_uids(session) if targets.broad else ())]
+                 *(_plan_uids(session) if targets.broad else _plan_uids(session, targets.since) if targets.since else ())]
     refresh_plans(session, plan_uids)
     as_ofs = {today}
     current = session.execute(select(MetricResultRow.subject_key, MetricResultRow.metric_id).where(
@@ -313,8 +329,10 @@ def refresh_targets(session: Session, targets: Targets, matched_plan_uids: Itera
         if match:
             end = date.fromisoformat(match[2])
             width = int(match[1]) * (2 if metric_id == 'run_volume_frequency' else 1)
-            if targets.broad or metric_id == 'hard_session_spacing' or any(
-                    end - timedelta(days=width - 1) <= day <= end for day in targets.dates):
+            if (targets.broad or (targets.since is not None and end >= targets.since)
+                    or any(end - timedelta(days=width - 1) <= day <= end for day in targets.dates)
+                    or (metric_id == 'hard_session_spacing'
+                        and any(abs((end - day).days) <= SPACING_REACH_DAYS for day in targets.dates))):
                 as_ofs.add(end)
         elif key.startswith('night:'):
             stored_nights.add(date.fromisoformat(key[6:]))

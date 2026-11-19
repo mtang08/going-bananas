@@ -299,7 +299,7 @@ def seed_demo(session: Session, private_dir: Path, today: date) -> dict[str, int
     from app.metrics.refresh import ensure_windows
     from app.services.derived import recompute
     from app.services.prompts import generate_prompts
-    recompute(session, ['all:' + (today - timedelta(days=42)).isoformat()])
+    recompute(session, [f'since:{today - timedelta(days=42)}'])
     ensure_windows(session, as_of=today)
     generate_prompts(session, now=now)
     session.flush()
