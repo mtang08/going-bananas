@@ -238,9 +238,9 @@ def assemble_week(
     )
     headline = [r for r in rows if r["kind"] in HEADLINE_KINDS]
     due = lambda r: r["local_date"] <= today_s  # noqa: E731
-    counts = lambda rs: {
+    counts = lambda rs: {  # noqa: E731
         "planned": len(rs),
-        "planned_to_date": sum(map(due, rs)),  # noqa: E731
+        "planned_to_date": sum(map(due, rs)),
         "done": sum(r["outcome"] in DONE_OUTCOMES for r in rs),
     }
     by_outcome = lambda rs: {o: Counter(r["outcome"] for r in rs).get(o, 0) for o in OUTCOMES}  # noqa: E731
