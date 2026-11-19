@@ -1,17 +1,12 @@
 """Synthetic exception detector and API transactions under one outer rollback."""
 from __future__ import annotations
 
-import os
 import uuid
 from datetime import UTC, date, datetime, time, timedelta
-from urllib.parse import urlsplit
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
-from fastapi import FastAPI, HTTPException
-from fastapi.exceptions import RequestValidationError
-from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
@@ -29,10 +24,7 @@ from app.coach_v2_models import (
     CoachSnapshot,
     DailyGuidance,
 )
-from app.config import settings
-from app.db import engine, get_session
 from app.exception_models import ExceptionFinding, ExceptionPatch
-from app.main import handle_http, handle_validation
 from app.metric_models import Prompt
 from app.models import Activity, AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, Event, IntensityAnchor
@@ -77,42 +69,17 @@ def findings(session, rule_code=None):
 
 
 @pytest.fixture
-def exc_fixture(monkeypatch):
-    from app.metrics import engine as metric_engine
-    monkeypatch.setattr(metric_engine, '_refresh_scopes', lambda session, scopes: [])
-    parsed = urlsplit(settings.database_url)
-    assert settings.app_mode == 'test'
-    assert parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == int(os.environ.get('TEST_DATABASE_PORT', '55439'))
-    assert parsed.path == '/garmin_test'
-    with engine.connect() as connection:
-        outer = connection.begin()
-        try:
-            with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
-                for model in DELETE_ORDER:
-                    session.execute(delete(model))
-                state = session.get(AppState, 1)
-                state.planning_authority = 'calendar'
-                state.calendar_head_version = 0
-                version = (session.scalar(select(func.max(ProfileVersion.version))) or 0) + 1
-                session.add(ProfileVersion(version=version, effective_at=datetime.now(UTC) - timedelta(days=365),
-                    timezone='America/New_York', cycle_anchor=datetime.now(UTC).date(),
-                    anchor_confirmed=True, strength_days_confirmed=True,
-                    scheduled_strength_days=[0, 4], facts={}, preferences={}, unknowns=[]))
-                session.commit()
-            api = FastAPI()
-            api.include_router(exceptions_router, prefix='/api/v1')
-            api.include_router(checkins_router, prefix='/api/v1')
-            api.include_router(calendar_router, prefix='/api/v1')
-            api.add_exception_handler(HTTPException, handle_http)
-            api.add_exception_handler(RequestValidationError, handle_validation)
-            def override():
-                with Session(bind=connection, join_transaction_mode='create_savepoint', expire_on_commit=False) as session:
-                    yield session
-            api.dependency_overrides[get_session] = override
-            api.dependency_overrides[get_completion_assessor] = lambda: (lambda session, uid: None)
-            yield TestClient(api), connection
-        finally:
-            outer.rollback()
+def exc_fixture(metrics_disabled, db_connection, session_factory, api_client, profile_factory, calendar_state):
+    with session_factory() as session:
+        for model in DELETE_ORDER:
+            session.execute(delete(model))
+        calendar_state(session, reset_head=True)
+        profile_factory(session, effective_at=datetime.now(UTC) - timedelta(days=365),
+                        cycle_anchor=datetime.now(UTC).date())
+        session.commit()
+    client = api_client(exceptions_router, checkins_router, calendar_router,
+                        overrides={get_completion_assessor: lambda: (lambda session, uid: None)})
+    return client, db_connection
 
 
 def test_detection_is_idempotent(exc_fixture):
