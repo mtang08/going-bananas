@@ -91,12 +91,24 @@ const base: ActivityExecution = {
   rpe: { effective: 7, source: 'garmin_fit', manual: null, garmin_fit: 7, srpe_load_au: 293.6 },
   symptoms: [],
 }
+const historyPoint = (id: string, day: string) => ({
+  session_uid: id, activity_id: id, local_date: day, planned_date: day, recipe_id: 'REC003',
+  intent: 'Threshold', signature: 'ws1:4xd800', recovery_s: 360, target_modalities: ['speed'],
+  sport: 'running', completion_status: 'completed_as_planned', status: 'available' as const,
+  reason_codes: [], quality_flags: [], n_planned: 4, n_completed: 4, step_completion_ratio: 1,
+  reps_used: 4, reps_used_hr: 4, work_speed_mps: 3.6, work_hr_bpm: 160, work_m_per_beat: 1.35,
+  cv_speed: null, last_first_change_pct: null, target_coverage: null, interval_result_id: id,
+})
+const defaultHistory = { activity_id: 'a1', signature: 'ws1:4xd800' as string | null, reason: null as string | null,
+  points: [historyPoint('a3', '2026-10-01'), historyPoint('a2', '2026-10-15'), historyPoint('a1', '2026-11-08')] }
+let historyFixture = defaultHistory
 let fixture = base
 let status = 200
 let requests: { url: string; method: string }[] = []
 const onCheckin = vi.fn()
 beforeEach(() => {
   fixture = base
+  historyFixture = defaultHistory
   status = 200
   requests = []
   onCheckin.mockClear()
@@ -104,7 +116,7 @@ beforeEach(() => {
     requests.push({ url: String(input), method: init?.method ?? 'GET' })
     return status === 404
       ? new Response(JSON.stringify({ error: { code: 'not_found', message: 'Activity not found' } }), { status })
-      : new Response(JSON.stringify({ schema_version: 'v1', data_revision: 2, mode: 'demo', data: fixture }), { status })
+      : new Response(JSON.stringify({ schema_version: 'v1', data_revision: 2, mode: 'demo', data: String(input).includes('/workout-history') ? historyFixture : fixture }), { status })
   }))
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
@@ -114,6 +126,25 @@ function mount() {
 }
 
 describe('Activity execution', () => {
+  it('compares with previous sessions of the same workout', async () => {
+    mount()
+    const card = await screen.findByTestId('activity-workout-history')
+    expect(await within(card).findByText('4 × 800 m work · last 3 sessions')).toBeInTheDocument()
+    const rows = within(card).getAllByTestId('progression-row')
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toHaveTextContent('(this run)')
+  })
+  it('explains why there is no comparison', async () => {
+    historyFixture = { activity_id: 'a1', signature: null, reason: 'NO_STRUCTURED_PLAN', points: [] }
+    mount()
+    expect(await screen.findByText('No earlier sessions to compare: Plan has no structured steps')).toBeInTheDocument()
+  })
+  it('skips the history request for unstructured runs', async () => {
+    fixture = { ...base, planned: { ...base.planned!, structure: null }, intervals: null }
+    mount()
+    await screen.findByRole('heading', { name: 'Run · Sunday, November 8' })
+    expect(requests.some(request => request.url.includes('/workout-history'))).toBe(false)
+  })
   it('renders structured reps, summary, plans, intensity, RPE and missing HR', async () => {
     mount()
     expect(await screen.findByRole('heading', { name: 'Run · Sunday, November 8' })).toBeInTheDocument()
@@ -133,7 +164,7 @@ describe('Activity execution', () => {
     expect(screen.getByText('98%')).toBeInTheDocument()
     expect(screen.getByText('Heart rate: not assessable — add aerobic-upper and threshold-lower anchors in Settings.')).toBeInTheDocument()
     expect(screen.getByText('No symptom reports are linked to this run.')).toBeInTheDocument()
-    expect(requests).toEqual([{ url: '/api/v1/activities/a1/execution', method: 'GET' }])
+    expect(requests).toContainEqual({ url: '/api/v1/activities/a1/execution', method: 'GET' })
   })
   it('shows the recorded laps for each rep', async () => {
     const interval = base.intervals!
