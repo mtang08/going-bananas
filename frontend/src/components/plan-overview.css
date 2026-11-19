@@ -212,4 +212,29 @@
     font-size: 1.1rem;
     margin: 8px 0 4px;
   }
+  .weekly-digest h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 14px 0 6px;
+  }
+  .digest-key-session {
+    display: grid;
+    gap: 4px;
+    padding: 8px 0;
+    border-top: 1px solid #e3e8df;
+  }
+  .digest-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.85rem;
+  }
+  .digest-chips li {
+    padding: 2px 8px;
+    border: 1px solid #e3e8df;
+    border-radius: 999px;
+  }
 }

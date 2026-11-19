@@ -1,6 +1,11 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { DigestCounts, DigestOutcome, WeeklyDigest as WeeklyDigestData } from '../src/api'
+import type {
+  DigestCounts,
+  DigestOutcome,
+  DigestRow,
+  WeeklyDigest as WeeklyDigestData,
+} from '../src/api'
 import { WeeklyDigest } from '../src/components/WeeklyDigest'
 
 const counts: DigestCounts = { planned: 0, planned_to_date: 0, done: 0 }
@@ -35,6 +40,41 @@ const totals: WeeklyDigestData['totals'] = {
   },
   key_sessions: { ...counts, by_outcome: outcomes },
 }
+const a1 = {
+  session_uid: 's1',
+  local_date: '2026-11-10',
+  slot: 1,
+  kind: 'run',
+  class: 'quality',
+  recipe_id: 'REC004',
+  custom: false,
+  intent: null,
+  key: true,
+  changed: false,
+  outcome: 'partial',
+  modification_reason: null,
+  planned_duration_s: 3600,
+  planned_distance_m: null,
+  planned_distance_estimated: false,
+  actual: {
+    subject: 'activity',
+    id: 'a1',
+    local_date: '2026-11-10',
+    duration_s: 2952,
+    distance_m: 5000,
+  },
+  execution: {
+    assessment_status: 'partial',
+    components: [
+      { name: 'duration_ratio', value: 0.82, status: 'partially_met' },
+      { name: 'target_coverage', value: null, status: 'not_assessable' },
+    ],
+    reps_planned: 6,
+    reps_completed: 5,
+    quality_flags: [],
+    reason_codes: ['WORK_STEP_SKIPPED'],
+  },
+} satisfies DigestRow
 
 function digest(overrides: Partial<WeeklyDigestData> = {}): WeeklyDigestData {
   return {
@@ -172,5 +212,59 @@ describe('weekly digest', () => {
     expect(last).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(last)
     expect(onWeekChange).toHaveBeenCalledWith('last')
+  })
+
+  it('renders a key session with components, reps, reasons, and a run link', () => {
+    mount(digest({ sessions: [a1] }))
+    const row = within(screen.getByTestId('digest-key-session'))
+    expect(row.getByText(/Steady \/ tempo · Tue/)).toBeInTheDocument()
+    expect(row.getByText('Partial')).toBeInTheDocument()
+    expect(row.getByText('Duration vs plan 82% · Partly met')).toBeInTheDocument()
+    expect(row.getByText('Time in target missing · Not assessable')).toBeInTheDocument()
+    expect(row.getByText('Reps 5 of 6')).toBeInTheDocument()
+    expect(row.getByText('A work rep was skipped')).toBeInTheDocument()
+    expect(row.getByRole('link', { name: 'Open run' })).toHaveAttribute('href', '#activity/a1')
+  })
+
+  it('marks a key session with no assessment row', () => {
+    const execution = {
+      assessment_status: null,
+      reason_codes: ['ASSESSMENT_MISSING'],
+      quality_flags: [],
+      components: [],
+      reps_planned: null,
+      reps_completed: null,
+    }
+    mount(digest({ sessions: [{ ...a1, execution }] }))
+    const row = within(screen.getByTestId('digest-key-session'))
+    expect(row.getByText('Not assessed yet')).toBeInTheDocument()
+    expect(row.queryByRole('list')).not.toBeInTheDocument()
+  })
+
+  it('omits Open run for a manual or Strong subject', () => {
+    mount(digest({ sessions: [{ ...a1, actual: { ...a1.actual, subject: 'strong_workout' } }] }))
+    expect(screen.queryByRole('link', { name: 'Open run' })).not.toBeInTheDocument()
+  })
+
+  it('lists missed non-key sessions and hides mobility', () => {
+    const missed: DigestRow = { ...a1, outcome: 'missed', actual: null, execution: null }
+    const strength: DigestRow = {
+      ...missed,
+      session_uid: 's2',
+      kind: 'strength',
+      recipe_id: null,
+      key: false,
+    }
+    const mobility: DigestRow = {
+      ...strength,
+      session_uid: 's3',
+      kind: 'mobility',
+      outcome: 'not_recorded',
+    }
+    mount(digest({ sessions: [missed, strength, mobility] }))
+    const notDone = screen.getByTestId('digest-not-done')
+    expect(notDone).toHaveTextContent(/Strength.*Missed/)
+    expect(notDone).not.toHaveTextContent(/Mobility|Steady/)
+    expect(screen.getByTestId('digest-key-session')).toHaveTextContent(/Steady.*Missed/)
   })
 })
