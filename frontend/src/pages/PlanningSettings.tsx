@@ -1,46 +1,11 @@
 import { Button, Card, Disclosure, Input, NativeSelect } from '../components/ui'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  api,
-  post,
-  put,
-  patch,
-  qk,
-  invalidateKeys,
-  ApiError,
-  validDate,
-  dateLabel,
-  fmtDistance,
-  fmtClock,
-  fmtPaceFromSpeed,
-  clockToSeconds,
-  paceToSpeed,
-  pageHref,
-  WEEKDAY_LABELS,
-  HORIZON_LABELS,
-  EVENT_PRIORITY_LABELS,
-  ANCHOR_KIND_LABELS,
-  ANCHOR_UNIT,
-  PROTOCOL_LABELS,
-  type Profile,
-  type CalendarView,
-  type CalendarWriteResult,
-  type StrengthRoutine,
-  type StrengthRoutineSlot,
-  type Goal,
-  type GoalHorizon,
-  type RaceEvent,
-  type EventPriority,
-  type EventStatus,
-  type AnchorList,
-  type AnchorKind,
-  type AnchorProtocol,
-  type AnchorConfidence,
-  type Unit,
-} from '../api'
+import { api, post, put, patch, qk, invalidateKeys, validDate, dateLabel, fmtDistance, fmtClock, fmtPaceFromSpeed, clockToSeconds, paceToSpeed, pageHref, WEEKDAY_LABELS, EVENT_PRIORITY_LABELS, ANCHOR_KIND_LABELS, ANCHOR_UNIT, PROTOCOL_LABELS, type Profile, type CalendarView, type CalendarWriteResult, type StrengthRoutine, type StrengthRoutineSlot, type RaceEvent, type EventPriority, type EventStatus, type AnchorList, type AnchorKind, type AnchorProtocol, type AnchorConfidence, type Unit } from '../api'
 import { QueryState } from '../components/QueryState'
 import { SyncCard } from '../components/SyncCard'
+import { ErrorText, Select, profileBody } from './settings/shared'
+import { Goals } from './settings/Goals'
 
 type SlotDraft = Omit<StrengthRoutineSlot, 'id' | 'version'>
 const defaults: SlotDraft[] = [0, 4].map((day, i) => ({
@@ -62,69 +27,6 @@ const drafts = (routine: StrengthRoutine): SlotDraft[] =>
         active: s.active,
       }))
     : defaults
-function profileBody(profile: Profile) {
-  const keys = [
-    'timezone',
-    'cycle_anchor',
-    'anchor_confirmed',
-    'strength_days_confirmed',
-    'scheduled_strength_days',
-    'strength_schedule_mode',
-    'strength_week_a_start',
-    'strength_week_a_days',
-    'strength_week_b_days',
-    'mobility_week_a_days',
-    'mobility_week_b_days',
-    'mobility_optional_days',
-    'facts',
-    'preferences',
-    'unknowns',
-  ] as const
-  return {
-    ...Object.fromEntries(keys.map((key) => [key, profile[key]])),
-    expected_version: profile.version,
-  }
-}
-function ErrorText({ error }: { error: Error | null }) {
-  if (!error) return null
-  const message =
-    error instanceof ApiError && error.code === 'version_conflict'
-      ? 'Settings changed in another tab. Reload and try again.'
-      : error instanceof ApiError && error.code === 'calendar_exists'
-        ? 'A calendar already exists. Edit it on the Calendar page.'
-        : error.message
-  return (
-    <p className="error-text" role="alert">
-      {message}
-    </p>
-  )
-}
-function Select({
-  id,
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  id: string
-  label: string
-  value: string
-  options: Record<string, string>
-  onChange: (value: string) => void
-}) {
-  return (
-    <>
-      <label htmlFor={id}>{label}</label>
-      <NativeSelect id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-        {Object.entries(options).map(([v, text]) => (
-          <option key={v} value={v}>
-            {text}
-          </option>
-        ))}
-      </NativeSelect>
-    </>
-  )
-}
 function ScheduleLink() {
   return (
     <a
@@ -447,123 +349,6 @@ function ReviewDay({ profile }: { profile: Profile }) {
           Review day saved.
         </p>
       )}
-    </Card>
-  )
-}
-function Goals() {
-  const qc = useQueryClient(),
-    query = useQuery({ queryKey: qk.goals, queryFn: () => api<{ items: Goal[] }>('/goals') })
-  const [editing, setEditing] = useState<Goal | null>(null),
-    [text, setText] = useState(''),
-    [horizon, setHorizon] = useState<GoalHorizon>('3_6_months'),
-    [priority, setPriority] = useState(1),
-    [status, setStatus] = useState<Goal['status']>('active')
-  const reset = () => {
-    setEditing(null)
-    setText('')
-    setHorizon('3_6_months')
-    setPriority(1)
-    setStatus('active')
-  }
-  const save = useMutation({
-    mutationFn: () =>
-      editing
-        ? patch(`/goals/${encodeURIComponent(editing.id)}`, {
-            expected_version: editing.version,
-            text: text.trim(),
-            horizon,
-            priority,
-            status,
-          })
-        : post('/goals', { text: text.trim(), horizon, priority }),
-    onSuccess: () => {
-      invalidateKeys(qc, [qk.goals, qk.coach])
-      reset()
-    },
-  })
-  return (
-    <Card>
-      <h2>Goals</h2>
-      <QueryState
-        loading={query.isPending}
-        error={query.error}
-        stale={!!query.data}
-        retry={() => {
-          void query.refetch()
-        }}
-      >
-        {!query.data?.data.items.length && <p>No goals yet.</p>}
-        {query.data?.data.items.map((g) => (
-          <div key={g.id}>
-            {g.text} · {HORIZON_LABELS[g.horizon]} · priority {g.priority} · {g.status}{' '}
-            <Button
-              variant="link"
-              onClick={() => {
-                setEditing(g)
-                setText(g.text)
-                setHorizon(g.horizon)
-                setPriority(g.priority)
-                setStatus(g.status)
-                save.reset()
-              }}
-            >
-              Edit
-            </Button>
-          </div>
-        ))}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            save.mutate()
-          }}
-        >
-          <fieldset disabled={save.isPending}>
-            <label htmlFor="goal-text">Goal</label>
-            <Input
-              id="goal-text"
-              required
-              maxLength={200}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-            <Select
-              id="goal-horizon"
-              label="Horizon"
-              value={horizon}
-              options={HORIZON_LABELS}
-              onChange={(v) => setHorizon(v as GoalHorizon)}
-            />
-            <Select
-              id="goal-priority"
-              label="Priority (1 = highest)"
-              value={String(priority)}
-              options={Object.fromEntries([1, 2, 3, 4, 5].map((n) => [n, String(n)]))}
-              onChange={(v) => setPriority(Number(v))}
-            />
-            {editing && (
-              <Select
-                id="goal-status"
-                label="Status"
-                value={status}
-                options={{ active: 'Active', paused: 'Paused', done: 'Done', dropped: 'Dropped' }}
-                onChange={(v) => setStatus(v as Goal['status'])}
-              />
-            )}
-            <Button type="submit">{editing ? 'Save goal' : 'Add goal'}</Button>
-            {editing && (
-              <Button variant="link" type="button" onClick={reset}>
-                Cancel
-              </Button>
-            )}
-          </fieldset>
-        </form>
-        <ErrorText error={save.error} />
-        {save.isSuccess && (
-          <p className="success-text" role="status">
-            Goal saved.
-          </p>
-        )}
-      </QueryState>
     </Card>
   )
 }
