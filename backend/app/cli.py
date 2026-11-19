@@ -211,19 +211,20 @@ def _coach(args) -> int:
 def main() -> int:
     args = _parse()
     configure(settings.private_dir)
-    from app.metrics.engine import install_triggers
-    install_triggers()
+    from app.services import derived
+    derived.install()
     try:
         if args.command == "coach":
             return _coach(args)
         if args.command == "metrics-recompute":
             from app.metric_models import MetricResult
             from app.metrics import engine as metrics_engine
+            from app.metrics import refresh
             metrics_engine.metric_modules()
             if args.metric != 'all' and args.metric not in metrics_engine.REGISTRY:
                 raise ValueError('invalid_metric')
             with SessionLocal.begin() as session:
-                today = metrics_engine._today(session)
+                today = refresh.local_today(session)
                 since, until = args.since or today - timedelta(days=83), args.until or today
                 if since > until or until > today:
                     raise ValueError('invalid_date_window')
@@ -237,7 +238,7 @@ def main() -> int:
                                 pending.append(dependency)
                     session.info['metrics_filter'] = wanted
                 for day_offset in range((until - since).days + 1):
-                    metrics_engine.ensure_windows(session, since + timedelta(days=day_offset))
+                    refresh.ensure_windows(session, since + timedelta(days=day_offset))
                 query = select(MetricResult)
                 if args.metric != 'all':
                     query = query.where(MetricResult.metric_id == args.metric)
@@ -253,6 +254,7 @@ def main() -> int:
             from app.calendar_models import SessionCompletion
             from app.metrics import engine as metrics_engine
             from app.metrics import intervals, planned_actual
+            from app.metrics.refresh import assess_completion
 
             uid = args.session_uid
             session_key = str(uid)
@@ -295,7 +297,7 @@ def main() -> int:
                     }
 
                 before = snapshot(completion)
-                metrics_engine.assess_completion(session, uid)
+                assess_completion(session, uid)
                 after = snapshot(completion)
                 if args.apply:
                     session.commit()

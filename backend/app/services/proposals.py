@@ -1493,9 +1493,9 @@ def decide_proposal(
     if req.accept_block_change:
         block_id, block_changed = _save_block(session, doc, proposal_id, ctx, now)
         if block_changed:
-            from app.metrics.engine import enqueue_scopes
+            from app.services.derived import enqueue
 
-            enqueue_scopes(session, ["calendar"])
+            enqueue(session, ["calendar"])
             changed = True
     anchor_keys: list[str] = []
     for item in doc.anchor_changes:

@@ -515,7 +515,7 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
             },
         }
 
-    from app.metrics import engine as metrics_engine
+    from app.metrics import refresh as metrics_refresh
 
     original_verify = module.verify_selection
 
@@ -534,8 +534,8 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
         }
 
     monkeypatch.setattr(module, "verify_selection", verified_with_research_notes)
-    monkeypatch.setattr(metrics_engine, "ensure_windows", lambda session, as_of: session.calls.append("windows"))
-    monkeypatch.setattr(metrics_engine, "ensure_nights", lambda session, start, end: session.calls.append("nights"))
+    monkeypatch.setattr(metrics_refresh, "ensure_windows", lambda session, as_of: session.calls.append("windows"))
+    monkeypatch.setattr(metrics_refresh, "ensure_nights", lambda session, start, end: session.calls.append("nights"))
     monkeypatch.setattr(module, "load_inputs", lambda session, as_of, *, now: source)
     monkeypatch.setattr(module, "collect_decision_inputs", collect)
     session = FakeSession()

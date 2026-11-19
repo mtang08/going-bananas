@@ -1,6 +1,6 @@
 """Shared fixtures for PostgreSQL integration tests on the guarded synthetic `garmin_test` database.
 
-Importing `app.main` installs the metric session triggers, so no test needs `install_triggers()`.
+Importing `app.main` installs the metric session listeners for API tests.
 Every test runs inside one outer transaction that is rolled back; sessions use savepoints.
 """
 from __future__ import annotations
@@ -113,9 +113,9 @@ def calendar_state() -> Callable[..., AppState]:
 @pytest.fixture
 def metrics_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     """Skip transactional metric refresh for suites that call matching or assessors explicitly."""
-    from app.metrics import engine as metric_engine
+    from app.services import derived
 
-    monkeypatch.setattr(metric_engine, '_refresh_scopes', lambda session, scopes: [])
+    monkeypatch.setattr(derived, 'REFRESH_ENABLED', False)
 
 
 PROPOSAL_NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)

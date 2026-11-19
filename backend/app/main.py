@@ -24,8 +24,8 @@ from app.config import settings
 from app.db import SessionLocal, get_revision, get_session, global_write_lock
 from app.errors import fail
 from app.logs import configure, request_error
-from app.metrics.engine import install_triggers
 from app.migrations_head import EXPECTED_HEAD
+from app.services import derived
 
 configure(settings.private_dir)
 app = FastAPI(title='Going Bananas Analytics', docs_url=None, redoc_url=None)
@@ -113,7 +113,7 @@ def serialize_source_write(request: Request, session: Session = Depends(get_sess
         global_write_lock(session)
 
 
-install_triggers()
+derived.install()
 app.include_router(core_router, prefix='/api/v1', dependencies=[Depends(serialize_source_write)])
 app.include_router(anchors_router, prefix='/api/v1')
 app.include_router(calendar_router, prefix='/api/v1')

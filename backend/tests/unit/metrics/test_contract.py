@@ -15,7 +15,8 @@ from app.metrics.contract import (
     plausible_hr,
     plausible_speed,
 )
-from app.metrics.engine import parse_scope, recompute, register
+from app.metrics.engine import register
+from app.metrics.refresh import parse_scope
 
 
 def test_timer_union_keeps_unknown_edges_and_gaps() -> None:
@@ -76,7 +77,7 @@ def test_scope_and_empty_registry(monkeypatch: pytest.MonkeyPatch) -> None:
         with pytest.raises(ValueError, match='invalid_scope'):
             parse_scope(scope)
     assert not engine.REGISTRY
-    assert recompute(None, 'calendar') == []
+    assert engine.ordered_registry() == []
 
 
 def test_registry_rejects_duplicate_unknown_and_cycle(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -88,9 +89,9 @@ def test_registry_rejects_duplicate_unknown_and_cycle(monkeypatch: pytest.Monkey
     with pytest.raises(ValueError, match='duplicate_metric_registration'):
         register('a', 'v1', ())(a)
     with pytest.raises(ValueError, match='unknown_metric_dependency'):
-        recompute(None, 'calendar')
+        engine.ordered_registry()
     @register('b', 'v1', ('a',))
     def b(_session, _scope):
         return []
     with pytest.raises(ValueError, match='metric_dependency_cycle'):
-        recompute(None, 'calendar')
+        engine.ordered_registry()

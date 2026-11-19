@@ -15,7 +15,7 @@ from app.api.core import envelope
 from app.calendar_models import CalendarVersion
 from app.db import get_session
 from app.errors import fail
-from app.metrics.engine import assess_completion
+from app.metrics.refresh import assess_completion
 from app.services import calendar, weekly_digest, weekly_projection
 from app.services.exceptions.detector import run_detection
 

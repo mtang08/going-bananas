@@ -1434,7 +1434,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
 def build_snapshot(
     session: Session, operation: str, as_of: date, *, now: datetime, kb_root: Path | None = None
 ) -> dict:
-    from app.metrics.engine import ensure_nights, ensure_windows
+    from app.metrics.refresh import ensure_nights, ensure_windows
 
     session.execute(text("SELECT pg_advisory_xact_lock(71382413)"))
     session.execute(select(AppState.id).where(AppState.id == 1).with_for_update())
