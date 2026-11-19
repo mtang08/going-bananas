@@ -31,6 +31,7 @@ import {
   dateLabel,
   fmtDistance,
   fmtDuration,
+  fmtPaceFromSpeed,
   fmtPercent,
   qk,
   signatureLabel,
@@ -480,8 +481,13 @@ function aerobicLine(result: MetricResult<AerobicWindowValue> | null, days: 28 |
   return parts.join(' · ')
 }
 
-function AerobicChart({ points }: { points: AerobicPoint[] }) {
-  const series = points.map((point) => ({ date: point.local_date, ef: point.ef_m_per_beat }))
+function AerobicChart({ points, unit }: { points: AerobicPoint[]; unit: Unit }) {
+  const series = points.map((point) => ({
+    date: point.local_date,
+    ef: point.ef_m_per_beat,
+    pace: fmtPaceFromSpeed(point.mean_speed_mps, unit),
+    hr: Math.round(point.mean_hr_bpm),
+  }))
   return (
     <div
       className="chart"
@@ -498,11 +504,47 @@ function AerobicChart({ points }: { points: AerobicPoint[] }) {
             fontSize={11}
             width={40}
           />
-          <Tooltip />
+          <Tooltip
+            formatter={(value: number, _name, item) => [
+              `${value.toFixed(2)} m/beat · ${item.payload.pace} · ${item.payload.hr} bpm`,
+              'Aerobic efficiency',
+            ]}
+          />
           <Line dataKey="ef" name="m per heartbeat" stroke="#5b754d" />
         </LineChart>
       </ResponsiveContainer>
     </div>
+  )
+}
+
+function AerobicRunDetails({ points, unit }: { points: AerobicPoint[]; unit: Unit }) {
+  if (!points.length) return null
+  return (
+    <Disclosure className="training-disclosure">
+      <summary>Run details ({points.length})</summary>
+      <div className="table-scroll">
+        <Table aria-label="Aerobic efficiency by run">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>m/beat</TableHead>
+              <TableHead>Mean pace</TableHead>
+              <TableHead>Mean heart rate</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {[...points].reverse().map((point) => (
+              <TableRow key={point.activity_id}>
+                <TableCell>{dateLabel(point.local_date)}</TableCell>
+                <TableCell>{point.ef_m_per_beat.toFixed(2)}</TableCell>
+                <TableCell>{fmtPaceFromSpeed(point.mean_speed_mps, unit)}</TableCell>
+                <TableCell>{Math.round(point.mean_hr_bpm)} bpm</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </Disclosure>
   )
 }
 
@@ -621,9 +663,13 @@ export function Trends({ unit }: { unit: Unit }) {
         Steady easy and long runs · metres per heartbeat. Higher means faster at the same heart
         rate.
       </small>
-      {aerobicPoints.length >= 2 && <AerobicChart points={aerobicPoints} />}
+      {aerobicPoints.length >= 2 && <AerobicChart points={aerobicPoints} unit={unit} />}
       <p>{aerobicLine(aerobic28, 28)}</p>
       <p>{aerobicLine(aerobic84, 84)}</p>
+      <AerobicRunDetails
+        points={aerobicPoints.length ? aerobicPoints : (aerobic28?.value?.points ?? [])}
+        unit={unit}
+      />
       <small>
         Descriptive only. Heat, hills, fatigue, and sensor error change these numbers. Treadmill
         runs are left out.

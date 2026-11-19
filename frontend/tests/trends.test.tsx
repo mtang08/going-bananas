@@ -241,8 +241,15 @@ describe('Trends', () => {
     expect(card).toHaveTextContent('Descriptive only.')
     const chart = within(card).getByRole('img', { name: 'Metres per heartbeat on steady runs, last 84 days' })
     expect(within(chart).getByTestId('aerobic-chart')).toHaveAttribute('data-series', JSON.stringify(
-      w84.value?.points.map(point => ({ date: point.local_date, ef: point.ef_m_per_beat })),
+      w84.value?.points.map(point => ({
+        date: point.local_date, ef: point.ef_m_per_beat, pace: '9:35 /mi', hr: 140,
+      })),
     ))
+    fireEvent.click(within(card).getByText('Run details (8)'))
+    const firstRun = within(card).getByRole('row', { name: /Nov 8/ })
+    expect(firstRun).toHaveTextContent('1.20')
+    expect(firstRun).toHaveTextContent('9:35 /mi')
+    expect(firstRun).toHaveTextContent('140 bpm')
   })
   it('defers aerobic efficiency without eligible runs', async () => {
     windowData = { ...windows, aerobic: {
