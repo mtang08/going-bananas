@@ -17,8 +17,9 @@ Paths below are relative to `backend/`.
 | Coach context | `app/services/snapshot/` (inputs, payload, topics and build), `decision_inputs.py`, `knowledge.py` |
 | Shared reads | `app/read/` (calendar head and revisions, eligible runs), `app/domain/sports.py`, `app/domain/local_time.py` |
 | Planning | `app/planning_models.py`, `app/api/planning.py`, `app/api/anchors.py`: blocks and calibration |
-| Feedback | `app/checkin_models.py`, `app/services/checkins.py`, `prompts.py` |
-| Metrics | `app/metrics/contract.py`, `engine.py` (registry, inputs, result storage and reads), `refresh.py` (recomputation), `app/services/derived.py` (commit-time and startup refresh), metric modules and `app/metric_models.py` |
+| Feedback | `app/checkin_models.py`, `app/api/checkins.py`, `app/services/{checkins,prompts}.py` |
+| Exceptions | `app/exception_models.py`, `app/api/exceptions.py`, `app/services/exceptions/` for detection, lifecycle, and patches |
+| Metrics | `app/metrics/{contract,engine,refresh}.py`, relevant calculators, `app/metric_models.py`, and `app/services/derived.py`. [Write and refresh lifecycle](../docs/architecture.md) |
 | Ingestion | `app/adapters/` parses provider formats; `app/services/` orchestrates sync/import/FIT and source history |
 | Pure calculations | `app/domain/`: analytics, recurrence, associations |
 | Storage changes | `migrations/versions/`, `app/migrations_head.py` |
@@ -33,7 +34,7 @@ changes → explicit app decision → versioned calendar → actual matching/che
 
 - Keep domain decisions in services/pure calculations so API and CLI share them.
   Use the existing envelope/error patterns; coordinate wire changes with
-  `frontend/src/api.ts`, `frontend/src/api/types/`, and the helper if affected.
+  `frontend/src/api/client.ts`, `frontend/src/api/types/`, and the helper if affected.
 - PostgreSQL is the supported database. Use its integration tests for transaction,
   locking, JSON, migration, and stale-version behavior; SQLite is not a substitute.
 - Inspect the current transaction/lock boundaries before changing calendar or
@@ -46,8 +47,7 @@ changes → explicit app decision → versioned calendar → actual matching/che
   values stay unknown. Dates and recurrence use the athlete timezone, including DST.
 - Snapshot fields and fingerprint inputs belong together: changed decision evidence
   must invalidate stale proposals. Check `decision_inputs.py` when adding evidence.
-- Helper changes live in the repo-local `.codex` package, not the legacy `skills/`
-  copy. Update its manifest hashes when changing packaged files and run the v2
+- Helper changes live in the repo-local `.codex/skills/going-bananas-coach/` package. Update its manifest hashes when changing packaged files and run the v2
   helper tests. Do not silently install over the user's global skill copy.
 
 ## Focused verification

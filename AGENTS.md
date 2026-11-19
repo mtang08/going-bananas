@@ -37,12 +37,13 @@ all migrations, the full research library, or private data to orient yourself.
 | Coaching snapshots, validation, proposals | `backend/app/api/coach.py`, `backend/app/services/snapshot/`, `backend/app/services/decision_inputs.py`, `backend/app/services/proposals/` |
 | Calendar, completion, undo | `backend/app/api/calendar.py`, `backend/app/services/{calendar,matching,weekly_digest}.py` |
 | Blocks, anchors, schedule configuration | `backend/app/api/{planning,anchors}.py`, `backend/app/planning_models.py` |
-| Check-ins and prompts | `backend/app/api/checkins.py`, `backend/app/services/{checkins,prompts}.py` |
+| Check-ins, prompts, exception findings | `backend/app/api/{checkins,exceptions}.py`, `backend/app/services/{checkins,prompts}.py`, `backend/app/services/exceptions/` |
 | Metrics, FIT, weekly mileage | `backend/app/metrics/`, `backend/app/services/{fit_ingest,weekly_projection}.py` |
 | Garmin/Strong ingestion | `backend/app/adapters/`, `backend/app/services/{sync,export_import,strong_import}.py` |
-| UI and navigation | [frontend/AGENTS.md](frontend/AGENTS.md), `frontend/src/App.tsx`, relevant `src/pages/` file |
+| UI and navigation | [frontend/AGENTS.md](frontend/AGENTS.md), `frontend/src/App.tsx`, the relevant file in `frontend/src/pages/` |
 | Research content/retrieval | [running_coach_kb/AGENTS.md](running_coach_kb/AGENTS.md), `backend/app/services/knowledge.py` |
 | Startup, modes, backups | `Makefile`, `scripts/serve.py`, `scripts/with-mode`, [docs/operations.md](docs/operations.md) |
+| Layers, write → refresh lifecycle, metric identity, modes | [docs/architecture.md](docs/architecture.md) |
 | Save an idea for later | `.codex/skills/going-bananas-feature-request/SKILL.md`, `docs/backlog.md` |
 
 The architecture is React/TypeScript/Vite → same-origin FastAPI `/api/v1` →
@@ -55,11 +56,11 @@ calendar expansion do not call a model. Strong remains the lifting workflow.
 The current coaching path is the **repo-local `.codex/skills/going-bananas-coach`**
 package and the calendar proposal API. Its manifest declares `coach_proposal.v1`,
 calendar authority, and manual activation. `README.md` describes this user flow.
-`app/agent_models.py` and `app/coaching_models.py` map frozen legacy history
+`backend/app/agent_models.py` and `backend/app/coaching_models.py` map frozen legacy history
 tables. Application requests no longer read those tables.
 
 `docs/running-coach-workflow.md` and `docs/handoff.md` include an earlier automatic
-activation design; `planning/remaining_mvp/` contains design/task history. They
+activation design; `docs/archive/` and `planning/remaining_mvp/` contain design/task history. They
 are useful for rationale, not evidence that those contracts are current. Inspect
 the relevant implementation and tests when documents disagree. Explicit current
 user instructions set the requested direction; code describes what works today.

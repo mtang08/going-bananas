@@ -12,7 +12,7 @@ policy. Inherit the root iteration-speed policy; load only relevant material.
 - Candidate policies are not automatically active rules. Distinguish direct
   evidence from generalization and athlete-specific inference. Do not turn a
   research dose or safety bound into a universal prescription.
-- For new research, use the coach skill's `references/research-intake.md` and
+- For new research, use `.codex/skills/going-bananas-coach/references/research-intake.md` and
   record disposition in `research/coaching_web_intake.md`. Reuse verified sources;
   keep unverified candidates separate from runtime evidence. Update provenance
   and manifest hashes when promoting or changing registered content.
