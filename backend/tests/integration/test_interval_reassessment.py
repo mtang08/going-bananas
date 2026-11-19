@@ -11,7 +11,7 @@ from test_metrics_flow import NOW, TODAY, db, seed  # noqa: F401
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep
 from app.metric_models import MetricResult
-from app.metrics import engine, intervals
+from app.metrics import intervals, refresh
 from app.metrics.contract import config_hash
 from app.models import Activity, AppState
 
@@ -80,7 +80,7 @@ def test_interval_reassessment_preserves_history(db, tmp_path, short_work, expec
         session.add(stale)
         session.flush()
         initial_version = completion.version
-        engine.assess_completion(session, uid)
+        refresh.assess_completion(session, uid)
         session.flush()
         current = session.scalar(select(MetricResult).where(MetricResult.metric_id == intervals.METRIC_ID,
             MetricResult.subject_key == str(activity_id), MetricResult.is_current.is_(True)))
