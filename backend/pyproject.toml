@@ -23,3 +23,6 @@ markers = ["integration: needs a migrated PostgreSQL test database (auto-applied
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 ignore = ["E501"]
+
+[tool.ruff.format]
+exclude = ["migrations/**"]

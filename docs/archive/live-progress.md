@@ -1,5 +1,7 @@
 # Live progress — finish the running-coach workflow
 
+> **Archived 2026-11-15.** Historical record, not a current contract. For current behavior read `docs/architecture.md`, `docs/handoff.md`, and the code. Links inside this file are not maintained.
+
 ## Agent-plan completion checkpoint — November 11, 2026
 
 The persisted weekly/daily running-coach workflow is complete for the documented

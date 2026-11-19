@@ -1,5 +1,7 @@
 # P0 implementation and verification
 
+> **Archived 2026-11-15.** Historical record, not a current contract. For current behavior read `docs/architecture.md`, `docs/handoff.md`, and the code. Links inside this file are not maintained.
+
 November 11, 2026. The [living workflow](running-coach-workflow.md) is the current
 product contract. The user permits automatic activation of validated running
 proposals. The installed Codex skill supplies AI reasoning; no separate model

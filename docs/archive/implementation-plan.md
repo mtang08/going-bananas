@@ -1,5 +1,7 @@
 # Analytics MVP implementation plan
 
+> **Archived 2026-11-15.** Historical record, not a current contract. For current behavior read `docs/architecture.md`, `docs/handoff.md`, and the code. Links inside this file are not maintained.
+
 User update (2026-11-10): lifting is tracked in Strong, not Garmin. Strong CSV is a future separate source; no export/parser now. Strength totals are recorded sessions with incomplete coverage, never evidence of skipped lifting. See `backlog.md`.
 
 Updated 2026-11-10. Authoritative scope after the user's clarification: build the
