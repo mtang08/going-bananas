@@ -161,9 +161,10 @@ def _timer(events: list[dict], session: DecodedSession) -> tuple[tuple[tuple[int
     timer_events = [item for item in events if item.get('event') == 'timer' and item.get('event_type') != 'marker']
     if not timer_events:
         return (), {'TIMER_EVENTS_MISSING'}
+    stop_types: dict[object, str] = {'stop_disable': 'stop', 'stop_disable_all': 'stop_all'}
     try:
         ordered = sorted(((_offset(item.get('timestamp'), session.start_at),
-            {'stop_disable': 'stop', 'stop_disable_all': 'stop_all'}.get(item.get('event_type'), item.get('event_type')))
+            stop_types.get(item.get('event_type'), item.get('event_type')))
             for item in timer_events), key=lambda row: (row[0], 0 if row[1] in {'stop', 'stop_all'} else 1))
     except (FitDecodeError, TypeError):
         return (), {'TIMER_EVENTS_AMBIGUOUS'}
