@@ -16,7 +16,8 @@ from app.models import AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
-from app.services.proposals import DecisionError, DecisionRequest, decide_proposal, discard_proposal, submit_proposal
+from app.services.proposals import DecisionRequest, decide_proposal, discard_proposal, submit_proposal
+from app.services.proposals.schema import DecisionError
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)

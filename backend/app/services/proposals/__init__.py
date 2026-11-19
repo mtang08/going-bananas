@@ -60,28 +60,6 @@ from app.services.proposals.schema import (
     scope,
 )
 
-# isort: split
-
-# TRANSITIONAL (ARCH-08b3): importers move to proposals.schema, then this import is deleted
-from app.services.proposals.schema import (  # noqa: F401
-    ANCHOR_OPS,
-    PATCH_SCOPE_OPS,
-    AnchorChange,
-    BlockBenchmark,
-    BlockChange,
-    BlockConstraint,
-    BlockVersionFields,
-    Confidence,
-    Criterion,
-    EventReview,
-    ExceptionBlock,
-    PatchResolution,
-    PatchWindow,
-    SessionFields,
-    UnchangedSession,
-    derive_certainty,
-)
-
 
 def _issue(code: str, path: str, message: str | None = None) -> ValidationIssue:
     return ValidationIssue(code, path, message or code)
