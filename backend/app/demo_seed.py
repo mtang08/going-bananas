@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import uuid
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
@@ -82,6 +83,17 @@ def _lap_specs(ago: int, timer: int, speed: float | None) -> list[tuple[int, flo
     return specs
 
 
+def _easy_hr(ago: int, timer: int, sec: int) -> int:
+    """Synthetic: about 0.3 bpm lower per day across four weeks, plus a slow drift within the run."""
+    base = 146 - 0.3 * (28 - ago)
+    drift = 6 if timer >= 3600 else 3
+    return int(round(base + drift * sec / timer))
+
+
+def _altitude(ago: int, sec: int) -> float:
+    return 50 + 20 * math.sin(2 * math.pi * sec / 600) if ago == 26 else 50.0
+
+
 def _fit_rows(session: Session, activity: Activity, ago: int, timer: int, speed: float | None) -> None:
     if session.scalar(select(ActivityLap.id).where(ActivityLap.activity_id == activity.id).limit(1)):
         return
@@ -93,14 +105,16 @@ def _fit_rows(session: Session, activity: Activity, ago: int, timer: int, speed:
     distance = 0.0
     offset = 0
     for index, (duration, lap_speed, bpm, step) in enumerate(specs):
+        lap_hr = ([_easy_hr(ago, timer, sec) for sec in range(offset, offset + duration)]
+                  if len(specs) == 1 else [bpm] * duration)
+        hr.extend(lap_hr)
         session.add(ActivityLap(activity_id=activity.id, lap_index=index,
             start_at=activity.start_at + timedelta(seconds=offset), timer_s=duration,
             elapsed_s=duration, distance_m=duration * lap_speed if lap_speed is not None else None,
-            avg_speed_mps=lap_speed, avg_hr_bpm=bpm, max_hr_bpm=bpm,
+            avg_speed_mps=lap_speed, avg_hr_bpm=round(sum(lap_hr) / duration), max_hr_bpm=max(lap_hr),
             lap_trigger='session_end' if index == len(specs)-1 else 'time', wkt_step_index=step))
         for sec in range(offset, offset + duration):
             seconds.append(sec)
-            hr.append(bpm)
             speeds.append(lap_speed)
             if lap_speed is None:
                 distances.append(None)
@@ -109,7 +123,7 @@ def _fit_rows(session: Session, activity: Activity, ago: int, timer: int, speed:
                 distances.append(distance)
         offset += duration
     session.add(ActivityStream(activity_id=activity.id, t_s=seconds, hr_bpm=hr,
-        speed_mps=speeds, distance_m=distances, altitude_m=[None]*timer,
+        speed_mps=speeds, distance_m=distances, altitude_m=[None]*timer if speed is None else [_altitude(ago, sec) for sec in seconds],
         cadence=[None]*timer, timer_on=[[0, timer]], sample_count=timer, max_gap_s=1,
         quality_flags=[]))
     if ago in (6, 12, 14, 18, 22):
