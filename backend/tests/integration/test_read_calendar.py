@@ -9,12 +9,13 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from app.calendar_models import CalendarSessionRevision, CalendarVersion
 from app.config import settings
+from app.metrics.refresh import _plan_uids
 from app.models import AppState
 from app.read.calendar import head_version, latest_revision, latest_revisions
 
@@ -126,3 +127,18 @@ def test_latest_revision_single_session(db):
         assert state is not None
         state.calendar_head_version = 0
         assert latest_revision(session, uid_a) is None
+
+
+
+def test_refresh_plan_uids_reads_past_cached_head(db):
+    with db() as session:
+        uid_a, _ = _seed(session)
+        state = session.get(AppState, 1)
+        assert state is not None
+        state.calendar_head_version = 1
+        session.flush()
+        session.execute(update(AppState).where(AppState.id == 1).values(calendar_head_version=3)
+                        .execution_options(synchronize_session=False))
+        assert state.calendar_head_version == 1
+
+        assert _plan_uids(session) == [uid_a]
