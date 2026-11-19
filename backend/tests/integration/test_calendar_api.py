@@ -509,7 +509,7 @@ def test_explicit_link_uses_current_athlete_timezone(calendar_fixture):
     with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
         activity_id = _completion_test_run(session, day + timedelta(days=1))
         activity = session.get(Activity, activity_id)
-        activity.start_at = activity.start_at.replace(hour=6)
+        activity.start_at = datetime.combine(day + timedelta(days=1), datetime.min.time(), tzinfo=UTC) + timedelta(hours=6)
         activity.original_start = activity.start_at.isoformat()
         session.flush()
         version = session.scalar(select(func.max(ProfileVersion.version))) + 1
