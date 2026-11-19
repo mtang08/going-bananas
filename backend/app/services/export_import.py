@@ -88,29 +88,51 @@ def _preflight(session: Session, activities: tuple, scope: str) -> dict[str, int
                 comparable_fields += 1
                 if abs(new - old) > max(0.05, abs(old) * 0.001):
                     differing_fields += 1
-    return {"existing_activity_overlap": overlap, "new_activity_candidates": len(activities) - overlap,
-            "overlap_comparable_fields": comparable_fields, "overlap_differing_fields": differing_fields}
+    return {
+        "existing_activity_overlap": overlap,
+        "new_activity_candidates": len(activities) - overlap,
+        "overlap_comparable_fields": comparable_fields,
+        "overlap_differing_fields": differing_fields,
+    }
 
 
 def _coverage(session: Session, dataset: str, dates: list, now: datetime) -> dict[str, object] | None:
     if not dates:
         return None
     start, end = min(dates), max(dates)
-    existing = session.scalar(select(CoverageInterval).where(
-        CoverageInterval.dataset == dataset, CoverageInterval.start_date == start,
-        CoverageInterval.end_date == end, CoverageInterval.reason == "export_snapshot_observed",
-    ))
+    existing = session.scalar(
+        select(CoverageInterval).where(
+            CoverageInterval.dataset == dataset,
+            CoverageInterval.start_date == start,
+            CoverageInterval.end_date == end,
+            CoverageInterval.reason == "export_snapshot_observed",
+        )
+    )
     if existing is None:
-        session.add(CoverageInterval(dataset=dataset, start_date=start, end_date=end,
-                                     observed_start=start, observed_end=end, status="partial",
-                                     completed_at=now, reason="export_snapshot_observed",
-                                     fully_enumerated=False))
-    return {"first_date": start.isoformat(), "last_date": end.isoformat(), "count": len(dates),
-            "fully_enumerated": False}
+        session.add(
+            CoverageInterval(
+                dataset=dataset,
+                start_date=start,
+                end_date=end,
+                observed_start=start,
+                observed_end=end,
+                status="partial",
+                completed_at=now,
+                reason="export_snapshot_observed",
+                fully_enumerated=False,
+            )
+        )
+    return {
+        "first_date": start.isoformat(),
+        "last_date": end.isoformat(),
+        "count": len(dates),
+        "fully_enumerated": False,
+    }
 
 
-def import_export(session: Session, private_dir: Path, archive_path: Path, *, apply: bool = False,
-                  timezone: str | None = None) -> dict[str, object]:
+def import_export(
+    session: Session, private_dir: Path, archive_path: Path, *, apply: bool = False, timezone: str | None = None
+) -> dict[str, object]:
     """Inspect all input first; with apply=True, persist immutable bytes and revisions.
 
     The caller owns the transaction. Dry run performs no database or private-file writes.
@@ -133,13 +155,27 @@ def import_export(session: Session, private_dir: Path, archive_path: Path, *, ap
                 raise ExportError("mixed_source_account")
             counts = _preflight(session, scan.activities, scope)
             recovery_counts = Counter(item.metric for item in recovery_scan.observations)
-            dataset_dates = {"activities": [date.fromisoformat(parse_activity(item.normalized, timezone).local_date)
-                                            for item in scan.activities]}
-            dataset_dates.update({metric: [item.source_date for item in recovery_scan.observations
-                                           if item.metric == metric] for metric in ("sleep", "hrv", "resting_hr")})
-            datasets = {key: {"first_date": min(dates).isoformat(), "last_date": max(dates).isoformat(),
-                              "count": len(dates), "fully_enumerated": False}
-                        for key, dates in dataset_dates.items() if dates}
+            dataset_dates = {
+                "activities": [
+                    date.fromisoformat(parse_activity(item.normalized, timezone).local_date) for item in scan.activities
+                ]
+            }
+            dataset_dates.update(
+                {
+                    metric: [item.source_date for item in recovery_scan.observations if item.metric == metric]
+                    for metric in ("sleep", "hrv", "resting_hr")
+                }
+            )
+            datasets = {
+                key: {
+                    "first_date": min(dates).isoformat(),
+                    "last_date": max(dates).isoformat(),
+                    "count": len(dates),
+                    "fully_enumerated": False,
+                }
+                for key, dates in dataset_dates.items()
+                if dates
+            }
             summary: dict[str, object] = {
                 "status": "preflight_ok" if not apply else "complete",
                 "entries": scan.member_count,
@@ -162,22 +198,43 @@ def import_export(session: Session, private_dir: Path, archive_path: Path, *, ap
             session.flush()
             normalized = [item.normalized for item in scan.activities]
             originals = [item.original for item in scan.activities]
-            metadata = [{"archive_sha256": archive_sha, "member_sha256": item.member_sha256,
-                         "row_index": item.row_index,
-                         "field_paths": {"start_at": "startTimeGmt", "original_start": "startTimeGmt",
-                                         "local_date": "startTimeGmt", "sport": "activityType",
-                                         "subtype": "activityType", "distance_m": "distance",
-                                         "elapsed_s": "elapsedDuration", "moving_s": "movingDuration",
-                                         "avg_hr_bpm": "avgHr"},
-                         "unit_conversions": {"distance_m": "centimeters_to_meters",
-                                              "elapsed_s": "milliseconds_to_seconds",
-                                              "moving_s": "milliseconds_to_seconds"},
-                         "original_start": str(item.original["startTimeGmt"]),
-                         "source_timezone": "garmin_export_GMT_epoch_ms"}
-                        for item in scan.activities]
+            metadata = [
+                {
+                    "archive_sha256": archive_sha,
+                    "member_sha256": item.member_sha256,
+                    "row_index": item.row_index,
+                    "field_paths": {
+                        "start_at": "startTimeGmt",
+                        "original_start": "startTimeGmt",
+                        "local_date": "startTimeGmt",
+                        "sport": "activityType",
+                        "subtype": "activityType",
+                        "distance_m": "distance",
+                        "elapsed_s": "elapsedDuration",
+                        "moving_s": "movingDuration",
+                        "avg_hr_bpm": "avgHr",
+                    },
+                    "unit_conversions": {
+                        "distance_m": "centimeters_to_meters",
+                        "elapsed_s": "milliseconds_to_seconds",
+                        "moving_s": "milliseconds_to_seconds",
+                    },
+                    "original_start": str(item.original["startTimeGmt"]),
+                    "source_timezone": "garmin_export_GMT_epoch_ms",
+                }
+                for item in scan.activities
+            ]
             activity_counts = import_activity_page(
-                session, private_dir, normalized, account_scope=scope, source_kind="garmin_export",
-                timezone=timezone, batch=batch, raw_records=originals, source_metadata=metadata)
+                session,
+                private_dir,
+                normalized,
+                account_scope=scope,
+                source_kind="garmin_export",
+                timezone=timezone,
+                batch=batch,
+                raw_records=originals,
+                source_metadata=metadata,
+            )
             recovery_results = {}
             recovery_member_hashes: dict[str, str] = {}
             for dataset in ("sleep", "hrv", "resting_hr"):
@@ -191,34 +248,59 @@ def import_export(session: Session, private_dir: Path, archive_path: Path, *, ap
                     digest, member_relative = store_raw(private_dir, raw_member)
                     _raw_object(session, digest, member_relative, len(raw_member), "application/json")
                     recovery_member_hashes[member_name] = digest
-                field = {"sleep": "sleepTimeSeconds", "hrv": "lastNightAvg",
-                         "resting_hr": "restingHeartRate"}[dataset]
-                normalized_recovery = [{"userProfilePK": int(item.account_owner),
-                                        "calendarDate": item.source_date.isoformat(), field: item.value}
-                                       for item in observations]
-                recovery_metadata = [{"archive_sha256": archive_sha,
-                                      "member_sha256": recovery_member_hashes[item.member_name],
-                                      "source_field": item.source_field,
-                                      "source_record_identity": item.source_record_identity}
-                                     for item in observations]
+                field = {"sleep": "sleepTimeSeconds", "hrv": "lastNightAvg", "resting_hr": "restingHeartRate"}[dataset]
+                normalized_recovery = [
+                    {
+                        "userProfilePK": int(item.account_owner),
+                        "calendarDate": item.source_date.isoformat(),
+                        field: item.value,
+                    }
+                    for item in observations
+                ]
+                recovery_metadata = [
+                    {
+                        "archive_sha256": archive_sha,
+                        "member_sha256": recovery_member_hashes[item.member_name],
+                        "source_field": item.source_field,
+                        "source_record_identity": item.source_record_identity,
+                    }
+                    for item in observations
+                ]
                 recovery_results[dataset] = import_recovery_page(
-                    session, private_dir, dataset, normalized_recovery, batch=batch,
-                    source_kind="garmin_export", raw_records=[item.payload for item in observations],
-                    source_metadata=recovery_metadata)
-            invalid_skipped = sum(count for code, count in recovery_scan.skipped.items()
-                                  if not code.endswith("_unsupported"))
-            batch.status = ("complete" if activity_counts["rejected"] == 0 and invalid_skipped == 0 and
-                            all(row["rejected"] == 0 for row in recovery_results.values()) else "partial")
+                    session,
+                    private_dir,
+                    dataset,
+                    normalized_recovery,
+                    batch=batch,
+                    source_kind="garmin_export",
+                    raw_records=[item.payload for item in observations],
+                    source_metadata=recovery_metadata,
+                )
+            invalid_skipped = sum(
+                count for code, count in recovery_scan.skipped.items() if not code.endswith("_unsupported")
+            )
+            batch.status = (
+                "complete"
+                if activity_counts["rejected"] == 0
+                and invalid_skipped == 0
+                and all(row["rejected"] == 0 for row in recovery_results.values())
+                else "partial"
+            )
             batch.finished_at = datetime.now(UTC)
             for dataset, dates in dataset_dates.items():
                 _coverage(session, dataset, dates, batch.finished_at)
-            batch.counters = {"archive_sha256": archive_sha, "activities": activity_counts,
-                              "recovery": recovery_results, "datasets": datasets,
-                              "preserved_only": recovery_scan.skipped}
+            batch.counters = {
+                "archive_sha256": archive_sha,
+                "activities": activity_counts,
+                "recovery": recovery_results,
+                "datasets": datasets,
+                "preserved_only": recovery_scan.skipped,
+            }
             summary["activity_counts"] = activity_counts
             summary["recovery_counts"] = recovery_results
-            summary["replayed"] = (activity_counts["new_revisions"] == 0 and
-                                   all(row["new_revisions"] == 0 for row in recovery_results.values()))
+            summary["replayed"] = activity_counts["new_revisions"] == 0 and all(
+                row["new_revisions"] == 0 for row in recovery_results.values()
+            )
             summary["status"] = batch.status
             return summary
     except (OSError, BadZipFile) as exc:

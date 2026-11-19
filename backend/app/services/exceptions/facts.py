@@ -1,4 +1,5 @@
 """Plain-value inputs of the exception detector and its candidate output."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping

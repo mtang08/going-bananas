@@ -1,4 +1,5 @@
 """Single writer of exception finding and patch status changes."""
+
 from __future__ import annotations
 
 import uuid
@@ -13,8 +14,14 @@ from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, TERMINAL_FINDING, FindingStatus
 
 
-def close_finding(finding: ExceptionFinding, status: FindingStatus, *, now: datetime, note: str | None = None,
-                  proposal_id: uuid.UUID | None = None) -> None:
+def close_finding(
+    finding: ExceptionFinding,
+    status: FindingStatus,
+    *,
+    now: datetime,
+    note: str | None = None,
+    proposal_id: uuid.UUID | None = None,
+) -> None:
     if status not in TERMINAL_FINDING:
         raise ValueError(f"not a terminal finding status: {status}")
     finding.status = status
@@ -32,8 +39,14 @@ def address_findings(findings: Iterable[ExceptionFinding], patch: ExceptionPatch
         finding.version += 1
 
 
-def resolve_patch(patch: ExceptionPatch, status: Literal["resolved", "escalated"], *,
-                  by: Literal["coach", "athlete"], now: datetime, note: str | None = None) -> None:
+def resolve_patch(
+    patch: ExceptionPatch,
+    status: Literal["resolved", "escalated"],
+    *,
+    by: Literal["coach", "athlete"],
+    now: datetime,
+    note: str | None = None,
+) -> None:
     patch.status = status
     patch.resolved_at = now
     patch.resolved_by = by
@@ -44,8 +57,11 @@ def resolve_patch(patch: ExceptionPatch, status: Literal["resolved", "escalated"
     session = object_session(patch)
     if session is None:
         raise ValueError("patch_not_attached")
-    linked = session.scalars(select(ExceptionFinding).where(
-        ExceptionFinding.patch_id == patch.id, ExceptionFinding.status.in_(NON_TERMINAL_FINDING)).with_for_update())
+    linked = session.scalars(
+        select(ExceptionFinding)
+        .where(ExceptionFinding.patch_id == patch.id, ExceptionFinding.status.in_(NON_TERMINAL_FINDING))
+        .with_for_update()
+    )
     for finding in linked:
         close_finding(finding, "resolved", now=now)
 

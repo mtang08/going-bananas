@@ -24,8 +24,11 @@ def _pg_env(url: str) -> tuple[dict[str, str], str]:
     if parsed.scheme != "postgresql" or not parsed.path.strip("/"):
         raise BackupError("invalid_database_url")
     env = os.environ.copy()
-    env.update(PGHOST=parsed.hostname or "localhost", PGPORT=str(parsed.port or 5432),
-               PGDATABASE=unquote(parsed.path.lstrip("/")))
+    env.update(
+        PGHOST=parsed.hostname or "localhost",
+        PGPORT=str(parsed.port or 5432),
+        PGDATABASE=unquote(parsed.path.lstrip("/")),
+    )
     if parsed.username:
         env["PGUSER"] = unquote(parsed.username)
     if parsed.password:
@@ -34,8 +37,7 @@ def _pg_env(url: str) -> tuple[dict[str, str], str]:
 
 
 def _run(argv: list[str], env: dict[str, str]) -> None:
-    result = subprocess.run(argv, env=env, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL, check=False)
+    result = subprocess.run(argv, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     if result.returncode:
         raise BackupError("postgres_tool_failed")
 
@@ -73,11 +75,17 @@ def create_backup(database_url: str, private_dir: Path, output: Path) -> dict:
         files = [("database.pgdump", dump)] + [
             ("private/" + str(p.relative_to(private_dir)), p) for p in _safe_files(private_dir)
         ]
-        manifest: dict[str, Any] = {"version": 1, "created_at": datetime.now(UTC).isoformat(),
-                                    "contains_credentials": False, "files": {}}
+        manifest: dict[str, Any] = {
+            "version": 1,
+            "created_at": datetime.now(UTC).isoformat(),
+            "contains_credentials": False,
+            "files": {},
+        }
         for name, path in files:
-            manifest["files"][name] = {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                                       "bytes": path.stat().st_size}
+            manifest["files"][name] = {
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "bytes": path.stat().st_size,
+            }
         temp = output.with_suffix(output.suffix + ".tmp")
         fd = os.open(temp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         with os.fdopen(fd, "wb") as stream:
@@ -105,9 +113,12 @@ def validate_backup(archive_path: Path) -> tuple[dict, dict[str, bytes]]:
             raise BackupError("backup_too_many_entries")
         for member in members:
             name = member.name
-            if (not member.isfile() or name.startswith("/") or ".." in Path(name).parts
-                    or (name != "manifest.json" and name != "database.pgdump"
-                        and not name.startswith("private/"))):
+            if (
+                not member.isfile()
+                or name.startswith("/")
+                or ".." in Path(name).parts
+                or (name != "manifest.json" and name != "database.pgdump" and not name.startswith("private/"))
+            ):
                 raise BackupError("unsafe_backup_entry")
             if member.size > 5 * 1024**3:
                 raise BackupError("backup_entry_too_large")
@@ -151,8 +162,7 @@ def restore_backup(archive_path: Path, target_url: str, target_private_dir: Path
     try:
         dump.write_bytes(contents.pop("database.pgdump"))
         dump.chmod(0o600)
-        _run(["pg_restore", "--no-owner", "--no-acl", "--exit-on-error",
-              "--dbname", target_name, str(dump)], env)
+        _run(["pg_restore", "--no-owner", "--no-acl", "--exit-on-error", "--dbname", target_name, str(dump)], env)
         for name, data in contents.items():
             path = target_private_dir / name.removeprefix("private/")
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)

@@ -1,4 +1,5 @@
 """Current athlete profile query and wire data helpers."""
+
 from __future__ import annotations
 
 from sqlalchemy import desc, select
@@ -14,14 +15,44 @@ def current_profile(session: Session) -> ProfileVersion | None:
 
 def profile_data(profile: ProfileVersion | None) -> dict:
     if profile is None:
-        return {'version': 0, 'timezone': DEFAULT_TIMEZONE, 'cycle_anchor': None,
-                'anchor_confirmed': False, 'strength_days_confirmed': False,
-                'scheduled_strength_days': [], 'strength_schedule_mode': 'weekly',
-                'strength_week_a_start': None, 'strength_week_a_days': [], 'strength_week_b_days': [],
-                'mobility_week_a_days': [], 'mobility_week_b_days': [], 'mobility_optional_days': [],
-                'facts': {}, 'preferences': {}, 'unknowns': []}
-    return {**{key: getattr(profile, key) for key in ('version', 'timezone', 'cycle_anchor', 'anchor_confirmed',
-            'strength_days_confirmed', 'scheduled_strength_days', 'strength_schedule_mode',
-            'strength_week_a_start', 'strength_week_a_days', 'strength_week_b_days',
-            'mobility_week_a_days', 'mobility_week_b_days', 'mobility_optional_days',
-            'facts', 'preferences', 'unknowns')}}
+        return {
+            "version": 0,
+            "timezone": DEFAULT_TIMEZONE,
+            "cycle_anchor": None,
+            "anchor_confirmed": False,
+            "strength_days_confirmed": False,
+            "scheduled_strength_days": [],
+            "strength_schedule_mode": "weekly",
+            "strength_week_a_start": None,
+            "strength_week_a_days": [],
+            "strength_week_b_days": [],
+            "mobility_week_a_days": [],
+            "mobility_week_b_days": [],
+            "mobility_optional_days": [],
+            "facts": {},
+            "preferences": {},
+            "unknowns": [],
+        }
+    return {
+        **{
+            key: getattr(profile, key)
+            for key in (
+                "version",
+                "timezone",
+                "cycle_anchor",
+                "anchor_confirmed",
+                "strength_days_confirmed",
+                "scheduled_strength_days",
+                "strength_schedule_mode",
+                "strength_week_a_start",
+                "strength_week_a_days",
+                "strength_week_b_days",
+                "mobility_week_a_days",
+                "mobility_week_b_days",
+                "mobility_optional_days",
+                "facts",
+                "preferences",
+                "unknowns",
+            )
+        }
+    }

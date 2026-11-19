@@ -62,16 +62,27 @@ def import_strong_csv(session: Session, private_dir: Path, csv_path: Path, *, ap
     account = accounts[0] if accounts else None
     existing = {}
     if account:
-        existing = {row.source_identity: row for row in session.scalars(
-            select(StrongWorkoutRow).where(StrongWorkoutRow.source_account_id == account.id)).all()}
+        existing = {
+            row.source_identity: row
+            for row in session.scalars(
+                select(StrongWorkoutRow).where(StrongWorkoutRow.source_account_id == account.id)
+            ).all()
+        }
     new = sum(item.source_identity not in existing for item in workouts)
-    unchanged = sum(item.source_identity in existing and existing[item.source_identity].payload_hash == item.payload_hash
-                    for item in workouts)
+    unchanged = sum(
+        item.source_identity in existing and existing[item.source_identity].payload_hash == item.payload_hash
+        for item in workouts
+    )
     changed = len(workouts) - new - unchanged
     summary: dict[str, object] = {
-        "status": "preflight_ok", "workouts": len(workouts), "set_rows": sum(x.row_count for x in workouts),
-        "first_date": min(x.local_date for x in workouts), "last_date": max(x.local_date for x in workouts),
-        "new": new, "unchanged": unchanged, "changed_revisions": changed,
+        "status": "preflight_ok",
+        "workouts": len(workouts),
+        "set_rows": sum(x.row_count for x in workouts),
+        "first_date": min(x.local_date for x in workouts),
+        "last_date": max(x.local_date for x in workouts),
+        "new": new,
+        "unchanged": unchanged,
+        "changed_revisions": changed,
         "unknowns": ["source_timezone", "weight_unit", "dumbbell_weight_convention_change_date"],
     }
     if not apply:
@@ -92,26 +103,48 @@ def import_strong_csv(session: Session, private_dir: Path, csv_path: Path, *, ap
     added = conflicts = 0
     for item in workouts:
         prior = existing.get(item.source_identity)
-        source = session.scalar(select(SourceRecord).where(
-            SourceRecord.source_account_id == account.id,
-            SourceRecord.source_identity == item.source_identity,
-            SourceRecord.payload_hash == item.payload_hash))
+        source = session.scalar(
+            select(SourceRecord).where(
+                SourceRecord.source_account_id == account.id,
+                SourceRecord.source_identity == item.source_identity,
+                SourceRecord.payload_hash == item.payload_hash,
+            )
+        )
         if source is None:
-            source = SourceRecord(source_account_id=account.id, import_batch_id=batch.id,
-                                  raw_object_id=raw.id, source_identity=item.source_identity,
-                                  payload_hash=item.payload_hash, fetched_at=datetime.now(UTC),
-                                  parser_version=ADAPTER_VERSION, source_kind="strong_csv",
-                                  fields={"local_start": item.local_start, "row_count": item.row_count,
-                                          "timestamp_semantics": "source_local_timezone_unknown",
-                                          "weight_unit": "unknown"})
+            source = SourceRecord(
+                source_account_id=account.id,
+                import_batch_id=batch.id,
+                raw_object_id=raw.id,
+                source_identity=item.source_identity,
+                payload_hash=item.payload_hash,
+                fetched_at=datetime.now(UTC),
+                parser_version=ADAPTER_VERSION,
+                source_kind="strong_csv",
+                fields={
+                    "local_start": item.local_start,
+                    "row_count": item.row_count,
+                    "timestamp_semantics": "source_local_timezone_unknown",
+                    "weight_unit": "unknown",
+                },
+            )
             session.add(source)
             session.flush()
         if prior is None:
-            session.add(StrongWorkoutRow(source_account_id=account.id, source_identity=item.source_identity,
-                                         source_record_id=source.id, raw_object_id=raw.id, payload_hash=item.payload_hash,
-                                         local_date=date.fromisoformat(item.local_date), local_start=item.local_start,
-                                         workout_name=item.workout_name, duration_s=item.duration_s, sets=item.sets,
-                                         row_count=item.row_count))
+            session.add(
+                StrongWorkoutRow(
+                    source_account_id=account.id,
+                    source_identity=item.source_identity,
+                    source_record_id=source.id,
+                    raw_object_id=raw.id,
+                    payload_hash=item.payload_hash,
+                    local_date=date.fromisoformat(item.local_date),
+                    local_start=item.local_start,
+                    workout_name=item.workout_name,
+                    duration_s=item.duration_s,
+                    sets=item.sets,
+                    row_count=item.row_count,
+                )
+            )
             added += 1
         elif prior.payload_hash != item.payload_hash:
             # A changed export has no reliable source modification time. Keep
@@ -123,9 +156,15 @@ def import_strong_csv(session: Session, private_dir: Path, csv_path: Path, *, ap
         bump_data_revision(session)
     batch.status = "partial" if changed else "complete"
     batch.finished_at = datetime.now(UTC)
-    batch.counters = {"workouts": len(workouts), "set_rows": summary["set_rows"],
-                      "new": added, "unchanged": unchanged, "changed_revisions": changed,
-                      "revision_conflicts_new": conflicts, "csv_sha256": digest}
+    batch.counters = {
+        "workouts": len(workouts),
+        "set_rows": summary["set_rows"],
+        "new": added,
+        "unchanged": unchanged,
+        "changed_revisions": changed,
+        "revision_conflicts_new": conflicts,
+        "csv_sha256": digest,
+    }
     summary.update(status=batch.status, added=added, revision_conflicts_new=conflicts)
     return summary
 
@@ -138,7 +177,7 @@ def main() -> int:
     try:
         with SessionLocal() as session:
             if args.apply:
-                session.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': ADVISORY_LOCK})
+                session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": ADVISORY_LOCK})
             result = import_strong_csv(session, settings.private_dir, args.csv, apply=args.apply)
             if args.apply:
                 session.commit()

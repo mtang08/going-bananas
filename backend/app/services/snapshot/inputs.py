@@ -1,4 +1,5 @@
 """Snapshot inputs."""
+
 from __future__ import annotations
 
 import uuid
@@ -88,7 +89,10 @@ def _load_sessions(session: Session, head: int, first: date, as_of: date) -> lis
 def _load_completions(session: Session) -> list[dict]:
     completion_rows = session.scalars(select(SessionCompletion)).all()
     completions = [
-        row_view(row, ("session_uid", "status", "activity_id", "strong_workout_id", "manual_session_id", "modification_reason"))
+        row_view(
+            row,
+            ("session_uid", "status", "activity_id", "strong_workout_id", "manual_session_id", "modification_reason"),
+        )
         for row in completion_rows
     ]
     return completions
@@ -384,25 +388,47 @@ def _load_exception_state(session: Session, as_of: date, now: datetime) -> tuple
     from app.services.exceptions.detector import finding_data, last_review_at, patch_data
 
     last_review = last_review_at(session)
-    exception_findings = [finding_data(row, last_review) for row in session.scalars(
-        select(ExceptionFinding)
-        .where(or_(ExceptionFinding.status.in_(NON_TERMINAL_FINDING),
-                   ExceptionFinding.first_seen_at >= now - timedelta(days=SUMMARY_DAYS)))
-        .order_by(ExceptionFinding.first_seen_at.desc(), ExceptionFinding.id))]
-    exception_patches = [patch_data(session, row, as_of) for row in session.scalars(
-        select(ExceptionPatch)
-        .where(or_(ExceptionPatch.status.in_(LIVE_PATCH),
-                   ExceptionPatch.window_end >= as_of - timedelta(days=SUMMARY_DAYS - 1)))
-        .order_by(ExceptionPatch.created_at.desc(), ExceptionPatch.id))]
+    exception_findings = [
+        finding_data(row, last_review)
+        for row in session.scalars(
+            select(ExceptionFinding)
+            .where(
+                or_(
+                    ExceptionFinding.status.in_(NON_TERMINAL_FINDING),
+                    ExceptionFinding.first_seen_at >= now - timedelta(days=SUMMARY_DAYS),
+                )
+            )
+            .order_by(ExceptionFinding.first_seen_at.desc(), ExceptionFinding.id)
+        )
+    ]
+    exception_patches = [
+        patch_data(session, row, as_of)
+        for row in session.scalars(
+            select(ExceptionPatch)
+            .where(
+                or_(
+                    ExceptionPatch.status.in_(LIVE_PATCH),
+                    ExceptionPatch.window_end >= as_of - timedelta(days=SUMMARY_DAYS - 1),
+                )
+            )
+            .order_by(ExceptionPatch.created_at.desc(), ExceptionPatch.id)
+        )
+    ]
     return exception_findings, exception_patches
 
 
 def _load_benchmark_history(session: Session, block_rows: Sequence[BlockVersion]) -> list[dict]:
     versions = {(row.block_uid, row.version): row.objective for row in block_rows}
     benchmark_history = [
-        {"block_uid": row.block_uid, "objective": versions.get((row.block_uid, row.block_version)),
-         "protocol": row.protocol, "distance_m": row.distance_m, "local_date": row.local_date,
-         "result_s": row.result_s, "outcome": row.outcome}
+        {
+            "block_uid": row.block_uid,
+            "objective": versions.get((row.block_uid, row.block_version)),
+            "protocol": row.protocol,
+            "distance_m": row.distance_m,
+            "local_date": row.local_date,
+            "result_s": row.result_s,
+            "outcome": row.outcome,
+        }
         for row in session.scalars(
             select(BlockBenchmarkResult)
             .where(BlockBenchmarkResult.outcome.is_not(None))
@@ -428,10 +454,15 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     sessions = _load_sessions(session, head, first, as_of)
     completions = _load_completions(session)
     slots = _load_strength_slots(session)
-    strong_rows = session.scalars(select(StrongWorkoutRow).where(
-        StrongWorkoutRow.local_date >= first, StrongWorkoutRow.local_date <= as_of,
-        StrongWorkoutRow.resolution_state == "resolved",
-    ).order_by(StrongWorkoutRow.local_date, StrongWorkoutRow.id)).all()
+    strong_rows = session.scalars(
+        select(StrongWorkoutRow)
+        .where(
+            StrongWorkoutRow.local_date >= first,
+            StrongWorkoutRow.local_date <= as_of,
+            StrongWorkoutRow.resolution_state == "resolved",
+        )
+        .order_by(StrongWorkoutRow.local_date, StrongWorkoutRow.id)
+    ).all()
     rpe_rows = session.scalars(select(SessionRpe).order_by(SessionRpe.collected_at, SessionRpe.id)).all()
     strong = _load_strong_workouts(strong_rows, rpe_rows)
     runs = _load_runs(session, first, as_of, rpe_rows)
@@ -447,18 +478,37 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     exception_findings, exception_patches = _load_exception_state(session, as_of, now)
     benchmark_history = _load_benchmark_history(session, block_rows)
     this_monday = week_bounds(as_of)[0]
-    weekly = [load_week(session, this_monday - timedelta(days=7), today=as_of), load_week(session, this_monday, today=as_of)]
+    weekly = [
+        load_week(session, this_monday - timedelta(days=7), today=as_of),
+        load_week(session, this_monday, today=as_of),
+    ]
     return SnapshotInputs(
-        as_of=as_of, now=now, timezone=zone.key, calendar_version=head,
+        as_of=as_of,
+        now=now,
+        timezone=zone.key,
+        calendar_version=head,
         data_revision=state.data_revision if state else 0,
         cycle_anchor=profile.cycle_anchor if profile else None,
         anchor_confirmed=bool(profile.anchor_confirmed) if profile else False,
         clinical_restriction=clinical_restriction(profile.facts) if profile else None,
-        sessions=sessions, completions=completions, strength_slots=slots, strong_workouts=strong,
-        goals=goals, events=events, active_block=active_block, block_decisions=decisions,
-        runs=runs, checkins=checkins, prompts=prompts,
-        metric_results=metrics, anchors=anchors, proposals=proposals, coverage=coverage(session, first, as_of),
-        exception_findings=exception_findings, exception_patches=exception_patches,
-        review_recommended=_load_review_recommended(session, as_of), benchmark_history=benchmark_history,
+        sessions=sessions,
+        completions=completions,
+        strength_slots=slots,
+        strong_workouts=strong,
+        goals=goals,
+        events=events,
+        active_block=active_block,
+        block_decisions=decisions,
+        runs=runs,
+        checkins=checkins,
+        prompts=prompts,
+        metric_results=metrics,
+        anchors=anchors,
+        proposals=proposals,
+        coverage=coverage(session, first, as_of),
+        exception_findings=exception_findings,
+        exception_patches=exception_patches,
+        review_recommended=_load_review_recommended(session, as_of),
+        benchmark_history=benchmark_history,
         weekly_digest=weekly,
     )

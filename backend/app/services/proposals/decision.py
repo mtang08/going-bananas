@@ -87,7 +87,9 @@ def _save_block(
         session.flush()
     fields = change.version_fields.model_dump(mode="python")
     fields["constraints"] = [item.model_dump() for item in change.version_fields.constraints]
-    fields["benchmark"] = change.version_fields.benchmark.model_dump(mode="json") if change.version_fields.benchmark else None
+    fields["benchmark"] = (
+        change.version_fields.benchmark.model_dump(mode="json") if change.version_fields.benchmark else None
+    )
     if old:
         previous = session.get(BlockVersion, old.version_id)
         assert previous is not None
@@ -115,8 +117,15 @@ def _save_block(
     return version.id, True
 
 
-def _apply_exception_effects(session: Session, doc: ProposalDoc, proposal_id: uuid.UUID, snapshot_at: datetime,
-                             status: str, calendar_version: int | None, now: datetime) -> None:
+def _apply_exception_effects(
+    session: Session,
+    doc: ProposalDoc,
+    proposal_id: uuid.UUID,
+    snapshot_at: datetime,
+    status: str,
+    calendar_version: int | None,
+    now: datetime,
+) -> None:
     from app.exception_models import ExceptionFinding, ExceptionPatch
     from app.services.exceptions.lifecycle import address_findings, close_finding, resolve_patch, supersede_patch
 
@@ -136,10 +145,17 @@ def _apply_exception_effects(session: Session, doc: ProposalDoc, proposal_id: uu
         listed = findings(ExceptionFinding.id.in_(exc.finding_ids), active) if exc.finding_ids else []
         if calendar_version is not None:
             patch = ExceptionPatch(
-                proposal_id=proposal_id, calendar_version_number=calendar_version, category=exc.category,
-                severity=exc.severity, ladder_level=exc.ladder_level, status="open",
-                window_start=exc.patch_window.start, window_end=exc.patch_window.end, reassess_on=exc.reassess_on,
-                monitor=list(exc.monitor), return_criteria=list(exc.return_criteria),
+                proposal_id=proposal_id,
+                calendar_version_number=calendar_version,
+                category=exc.category,
+                severity=exc.severity,
+                ladder_level=exc.ladder_level,
+                status="open",
+                window_start=exc.patch_window.start,
+                window_end=exc.patch_window.end,
+                reassess_on=exc.reassess_on,
+                monitor=list(exc.monitor),
+                return_criteria=list(exc.return_criteria),
                 escalate_criteria=list(exc.escalate_criteria),
                 unchanged=[{"session_uid": str(item.session_uid), "reason": item.reason} for item in exc.unchanged],
             )
@@ -156,8 +172,13 @@ def _apply_exception_effects(session: Session, doc: ProposalDoc, proposal_id: uu
         resolve_patch(existing, item.status, by="coach", now=now, note=item.note)
         handled.add(existing.id)
     if doc.operation == "review_rolling_plan":
-        review(findings(ExceptionFinding.status == "open", ExceptionFinding.severity != "escalate",
-                        ExceptionFinding.evidence_at <= snapshot_at))
+        review(
+            findings(
+                ExceptionFinding.status == "open",
+                ExceptionFinding.severity != "escalate",
+                ExceptionFinding.evidence_at <= snapshot_at,
+            )
+        )
     elif doc.operation == "review_training_block":
         review(findings(active))
         query = select(ExceptionPatch).where(ExceptionPatch.status.in_(("open", "escalated")))
@@ -166,25 +187,42 @@ def _apply_exception_effects(session: Session, doc: ProposalDoc, proposal_id: uu
         for live in session.scalars(query.with_for_update()):
             supersede_patch(live, now=now)
     elif doc.operation == "post_event_review" and doc.event_review is not None:
-        review(findings(ExceptionFinding.rule_code == "POST_EVENT_REVIEW_DUE",
-                        ExceptionFinding.entity_key == f"event:{doc.event_review.event_id}", active))
+        review(
+            findings(
+                ExceptionFinding.rule_code == "POST_EVENT_REVIEW_DUE",
+                ExceptionFinding.entity_key == f"event:{doc.event_review.event_id}",
+                active,
+            )
+        )
     session.flush()
 
 
-def _apply_benchmark_effects(session: Session, doc: ProposalDoc, proposal_id: uuid.UUID, status: str,
-                             ctx: ValidationContext) -> None:
+def _apply_benchmark_effects(
+    session: Session, doc: ProposalDoc, proposal_id: uuid.UUID, status: str, ctx: ValidationContext
+) -> None:
     from app.planning_models import BlockBenchmarkResult, BlockVersion
 
     reviewed, bench, review = ctx.active_block, ctx.benchmark, doc.event_review
-    if (status not in {"accepted", "partially_accepted"} or doc.operation != "review_training_block" or review is None
-            or reviewed is None or bench is None or bench.status != "completed"):
+    if (
+        status not in {"accepted", "partially_accepted"}
+        or doc.operation != "review_training_block"
+        or review is None
+        or reviewed is None
+        or bench is None
+        or bench.status != "completed"
+    ):
         return
-    row = session.scalar(select(BlockBenchmarkResult).where(
-        BlockBenchmarkResult.block_uid == reviewed.block_uid,
-        BlockBenchmarkResult.block_version == reviewed.version).with_for_update())
+    row = session.scalar(
+        select(BlockBenchmarkResult)
+        .where(
+            BlockBenchmarkResult.block_uid == reviewed.block_uid, BlockBenchmarkResult.block_version == reviewed.version
+        )
+        .with_for_update()
+    )
     if row is None:
-        row = BlockBenchmarkResult(block_uid=reviewed.block_uid, block_version=reviewed.version,
-                                   match_method=bench.match_method or "auto")
+        row = BlockBenchmarkResult(
+            block_uid=reviewed.block_uid, block_version=reviewed.version, match_method=bench.match_method or "auto"
+        )
         session.add(row)
     version_row = session.get(BlockVersion, reviewed.version_id)
     assert version_row is not None
@@ -211,13 +249,20 @@ def decide_proposal(
     from app.services.calendar import apply_edits
 
     state = lock_planning(session)
-    proposal = session.scalar(select(CoachProposal).where(CoachProposal.id == proposal_id).with_for_update().execution_options(populate_existing=True))
+    proposal = session.scalar(
+        select(CoachProposal)
+        .where(CoachProposal.id == proposal_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if proposal is None:
         raise DecisionError("proposal_not_found", "Proposal not found", 404)
     if proposal.status == "discarded":
         raise DecisionError("proposal_discarded", "Discarded proposals cannot be decided", 409)
     if req.expected_revision != proposal.revision:
-        raise DecisionError("proposal_revision_conflict", "This proposal was revised. Reload and review the latest revision.", 409)
+        raise DecisionError(
+            "proposal_revision_conflict", "This proposal was revised. Reload and review the latest revision.", 409
+        )
     selection = _selection(proposal_id, req)
     decision_hash = digest(selection)
     key = session.get(CoachDecisionKey, req.idempotency_key)
@@ -255,7 +300,10 @@ def decide_proposal(
         raise DecisionError("knowledge_unavailable", "Verified knowledge is unavailable", 503) from exc
     ctx = load_context(session, proposal.snapshot_id, now=now, kb=kb)
     reasons = proposal_freshness(
-        ref, ctx, base_calendar_version=proposal.base_calendar_version, base_block_version_id=proposal.base_block_version_id
+        ref,
+        ctx,
+        base_calendar_version=proposal.base_calendar_version,
+        base_block_version_id=proposal.base_block_version_id,
     )
     if reasons:
         proposal.status = "stale"

@@ -36,7 +36,7 @@ from app.models import (
 )
 from app.services.timezone import athlete_tz
 
-log = get('sync')
+log = get("sync")
 
 PARSER_VERSION = "garmin-personal-v1"
 ADVISORY_LOCK = 837150921
@@ -97,16 +97,27 @@ def _account(session: Session, provider: str, scope: str) -> SourceAccount:
 def _rank(source: SourceRecord) -> tuple[datetime, int, datetime, str]:
     # Trust source-modified time when present. Then prefer API summary over
     # export. The first persisted observation time remains stable on replay.
-    return (source.source_modified_at or datetime.min.replace(tzinfo=UTC),
-            2 if source.source_kind == "garmin_api" else 1,
-            source.fetched_at if source.source_kind == "garmin_api" else datetime.min.replace(tzinfo=UTC),
-            source.payload_hash)
+    return (
+        source.source_modified_at or datetime.min.replace(tzinfo=UTC),
+        2 if source.source_kind == "garmin_api" else 1,
+        source.fetched_at if source.source_kind == "garmin_api" else datetime.min.replace(tzinfo=UTC),
+        source.payload_hash,
+    )
 
 
 CANONICAL_FIELDS = (
-    "start_at", "original_start", "source_timezone", "local_date", "sport",
-    "subtype", "distance_m", "elapsed_s", "moving_s", "avg_hr_bpm",
-    "cadence_spm", "source_workout_label",
+    "start_at",
+    "original_start",
+    "source_timezone",
+    "local_date",
+    "sport",
+    "subtype",
+    "distance_m",
+    "elapsed_s",
+    "moving_s",
+    "avg_hr_bpm",
+    "cadence_spm",
+    "source_workout_label",
     "timer_s",
 )
 
@@ -119,18 +130,28 @@ def detect_import_conflicts_for_manual(session: Session, manual: ManualSession) 
     """Queue explicit review for same-date imported strength and manual strength."""
     if manual.kind != "strength" or manual.linked_activity_id is not None:
         return
-    candidates = session.scalars(select(Activity).where(
-        Activity.local_date == manual.date, Activity.sport == "strength",
-        Activity.resolution_state.notin_(("merged", "excluded")))).all()
+    candidates = session.scalars(
+        select(Activity).where(
+            Activity.local_date == manual.date,
+            Activity.sport == "strength",
+            Activity.resolution_state.notin_(("merged", "excluded")),
+        )
+    ).all()
     for activity in candidates:
-        existing = session.scalars(select(Conflict).where(
-            Conflict.manual_session_id == manual.id,
-            Conflict.kind == "manual_import_overlap")).all()
+        existing = session.scalars(
+            select(Conflict).where(Conflict.manual_session_id == manual.id, Conflict.kind == "manual_import_overlap")
+        ).all()
         if any(str(activity.id) in row.activity_ids for row in existing):
             continue
-        session.add(Conflict(kind="manual_import_overlap", status="open",
-            activity_ids=[str(activity.id)], manual_session_id=manual.id,
-            details={"reason": "same_date_strength"}))
+        session.add(
+            Conflict(
+                kind="manual_import_overlap",
+                status="open",
+                activity_ids=[str(activity.id)],
+                manual_session_id=manual.id,
+                details={"reason": "same_date_strength"},
+            )
+        )
         activity.resolution_state = "pending"
         bump_data_revision(session)
 
@@ -138,9 +159,13 @@ def detect_import_conflicts_for_manual(session: Session, manual: ManualSession) 
 def detect_manual_conflicts(session: Session, activity: Activity) -> None:
     if activity.sport != "strength":
         return
-    manuals = session.scalars(select(ManualSession).where(
-        ManualSession.date == activity.local_date, ManualSession.kind == "strength",
-        ManualSession.linked_activity_id.is_(None))).all()
+    manuals = session.scalars(
+        select(ManualSession).where(
+            ManualSession.date == activity.local_date,
+            ManualSession.kind == "strength",
+            ManualSession.linked_activity_id.is_(None),
+        )
+    ).all()
     for manual in manuals:
         detect_import_conflicts_for_manual(session, manual)
 
@@ -148,10 +173,14 @@ def detect_manual_conflicts(session: Session, activity: Activity) -> None:
 def _detect_activity_overlap(session: Session, activity: Activity) -> None:
     if activity.garmin_id is not None:
         return
-    others = session.scalars(select(Activity).where(
-        Activity.id != activity.id, Activity.local_date == activity.local_date,
-        Activity.sport == activity.sport,
-        Activity.resolution_state.notin_(("merged", "excluded")))).all()
+    others = session.scalars(
+        select(Activity).where(
+            Activity.id != activity.id,
+            Activity.local_date == activity.local_date,
+            Activity.sport == activity.sport,
+            Activity.resolution_state.notin_(("merged", "excluded")),
+        )
+    ).all()
     for other in others:
         if abs((activity.start_at - other.start_at).total_seconds()) > 300:
             continue
@@ -162,8 +191,14 @@ def _detect_activity_overlap(session: Session, activity: Activity) -> None:
         conflicts = session.scalars(select(Conflict).where(Conflict.kind == "activity_overlap")).all()
         if any(sorted(row.activity_ids) == ids for row in conflicts):
             continue
-        session.add(Conflict(kind="activity_overlap", status="open", activity_ids=ids,
-            details={"reason": "close_time_and_distance", "withheld_count": 1}))
+        session.add(
+            Conflict(
+                kind="activity_overlap",
+                status="open",
+                activity_ids=ids,
+                details={"reason": "close_time_and_distance", "withheld_count": 1},
+            )
+        )
         activity.resolution_state = "pending"
         if other.resolution_state == "pending":
             other.resolution_state = "pending"
@@ -171,11 +206,15 @@ def _detect_activity_overlap(session: Session, activity: Activity) -> None:
 
 
 def _reconcile(session: Session, account: SourceAccount, identity: str, garmin_id: str | None) -> bool:
-    records = list(session.scalars(select(SourceRecord).where(
-        SourceRecord.source_account_id == account.id,
-        SourceRecord.source_identity == identity,
-        SourceRecord.rejected_reason.is_(None),
-    )).all())
+    records = list(
+        session.scalars(
+            select(SourceRecord).where(
+                SourceRecord.source_account_id == account.id,
+                SourceRecord.source_identity == identity,
+                SourceRecord.rejected_reason.is_(None),
+            )
+        ).all()
+    )
     if not records:
         return False
     records.sort(key=_rank, reverse=True)
@@ -187,28 +226,44 @@ def _reconcile(session: Session, account: SourceAccount, identity: str, garmin_i
             value = (source.fields or {}).get(field)
             if value is not None:
                 selected[field] = value
-                provenance[field] = {"source_record_id": str(source.id), "source_kind": source.source_kind,
-                                     "source_field": (source.fields or {}).get("field_paths", {}).get(field)}
+                provenance[field] = {
+                    "source_record_id": str(source.id),
+                    "source_kind": source.source_kind,
+                    "source_field": (source.fields or {}).get("field_paths", {}).get(field),
+                }
                 selected_by_record.setdefault(str(source.id), []).append(field)
                 break
     if "start_at" not in selected or "sport" not in selected:
         return False
-    activity = session.scalar(select(Activity).where(
-        Activity.source_account_id == account.id,
-        Activity.garmin_id == garmin_id,
-    )) if garmin_id else session.scalar(select(Activity).where(
-        Activity.source_account_id == account.id, Activity.source_identity == identity,
-    ))
+    activity = (
+        session.scalar(
+            select(Activity).where(
+                Activity.source_account_id == account.id,
+                Activity.garmin_id == garmin_id,
+            )
+        )
+        if garmin_id
+        else session.scalar(
+            select(Activity).where(
+                Activity.source_account_id == account.id,
+                Activity.source_identity == identity,
+            )
+        )
+    )
     selected["start_at"] = datetime.fromisoformat(selected["start_at"])
     selected["local_date"] = date.fromisoformat(selected["local_date"])
     if activity is not None and activity.fit_status == "decoded":
-        provenance.update({key: value for key, value in (activity.field_provenance or {}).items()
-                           if isinstance(value, dict) and value.get("source_kind") == "garmin_fit"})
+        provenance.update(
+            {
+                key: value
+                for key, value in (activity.field_provenance or {}).items()
+                if isinstance(value, dict) and value.get("source_kind") == "garmin_fit"
+            }
+        )
     semantic = {**selected, "field_provenance": provenance}
     changed = activity is None
     if activity is None:
-        activity = Activity(source_account_id=account.id, garmin_id=garmin_id,
-                            source_identity=identity, **semantic)
+        activity = Activity(source_account_id=account.id, garmin_id=garmin_id, source_identity=identity, **semantic)
         session.add(activity)
         session.flush()
     else:
@@ -221,14 +276,15 @@ def _reconcile(session: Session, account: SourceAccount, identity: str, garmin_i
         if changed:
             activity.canonical_revision += 1
     for source in records:
-        link = session.scalar(select(ActivitySource).where(
-            ActivitySource.activity_id == activity.id,
-            ActivitySource.source_record_id == source.id,
-        ))
+        link = session.scalar(
+            select(ActivitySource).where(
+                ActivitySource.activity_id == activity.id,
+                ActivitySource.source_record_id == source.id,
+            )
+        )
         chosen = selected_by_record.get(str(source.id), [])
         if link is None:
-            session.add(ActivitySource(activity_id=activity.id, source_record_id=source.id,
-                                       selected_fields=chosen))
+            session.add(ActivitySource(activity_id=activity.id, source_record_id=source.id, selected_fields=chosen))
         elif link.selected_fields != chosen:
             link.selected_fields = chosen
     if changed:
@@ -238,13 +294,19 @@ def _reconcile(session: Session, account: SourceAccount, identity: str, garmin_i
     return changed
 
 
-def import_activity_page(session: Session, private_dir: Path, records: list[dict[str, Any]],
-                         *, account_scope: str, source_kind: str = "garmin_api",
-                         timezone: str | None = None,
-                         fetched_at: datetime | None = None,
-                         batch: ImportBatch | None = None,
-                         raw_records: list[dict[str, Any]] | None = None,
-                         source_metadata: list[dict[str, Any]] | None = None) -> dict[str, int]:
+def import_activity_page(
+    session: Session,
+    private_dir: Path,
+    records: list[dict[str, Any]],
+    *,
+    account_scope: str,
+    source_kind: str = "garmin_api",
+    timezone: str | None = None,
+    fetched_at: datetime | None = None,
+    batch: ImportBatch | None = None,
+    raw_records: list[dict[str, Any]] | None = None,
+    source_metadata: list[dict[str, Any]] | None = None,
+) -> dict[str, int]:
     """Import one page. Caller commits page, coverage and checkpoint together."""
     if raw_records is not None and len(raw_records) != len(records):
         raise ValueError("raw_record_count_mismatch")
@@ -278,8 +340,9 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
         digest, relative = store_raw(private_dir, raw)
         raw_obj = session.scalar(select(RawObject).where(RawObject.sha256 == digest))
         if raw_obj is None:
-            raw_obj = RawObject(sha256=digest, relative_path=relative,
-                                byte_size=len(raw), media_type="application/json")
+            raw_obj = RawObject(
+                sha256=digest, relative_path=relative, byte_size=len(raw), media_type="application/json"
+            )
             session.add(raw_obj)
             session.flush()
         try:
@@ -290,22 +353,29 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
             rejected_reason = exc.code
             counts["rejected"] += 1
         source_identity = f"garmin:{canonical.provider_id}" if canonical and canonical.provider_id else f"hash:{digest}"
-        source = session.scalar(select(SourceRecord).where(
-            SourceRecord.source_account_id == account.id,
-            SourceRecord.source_identity == source_identity,
-            SourceRecord.payload_hash == digest,
-        ))
+        source = session.scalar(
+            select(SourceRecord).where(
+                SourceRecord.source_account_id == account.id,
+                SourceRecord.source_identity == source_identity,
+                SourceRecord.payload_hash == digest,
+            )
+        )
         if source is not None:
             continue
         fields: dict[str, Any] = {}
         if canonical:
             fields = {
-                "start_at": canonical.start_at.isoformat(), "original_start": canonical.source_time,
+                "start_at": canonical.start_at.isoformat(),
+                "original_start": canonical.source_time,
                 "source_timezone": canonical.timezone_assumption,
-                "local_date": canonical.local_date, "sport": canonical.sport,
-                "subtype": canonical.subtype, "distance_m": canonical.distance_m,
-                "elapsed_s": canonical.elapsed_s, "moving_s": canonical.moving_s,
-                "avg_hr_bpm": canonical.average_hr, "cadence_spm": canonical.average_cadence,
+                "local_date": canonical.local_date,
+                "sport": canonical.sport,
+                "subtype": canonical.subtype,
+                "distance_m": canonical.distance_m,
+                "elapsed_s": canonical.elapsed_s,
+                "moving_s": canonical.moving_s,
+                "avg_hr_bpm": canonical.average_hr,
+                "cadence_spm": canonical.average_cadence,
                 "source_workout_label": canonical.workout_label,
                 "field_paths": canonical.field_paths,
             }
@@ -316,11 +386,18 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
                 for key in ("field_paths", "original_start", "source_timezone"):
                     if key in metadata:
                         fields[key] = metadata[key]
-        source = SourceRecord(source_account_id=account.id, import_batch_id=batch.id if batch else None,
-                              raw_object_id=raw_obj.id, source_identity=source_identity,
-                              payload_hash=digest, fetched_at=now,
-                              parser_version="garmin-export-v1" if source_kind == "garmin_export" else PARSER_VERSION,
-                              source_kind=source_kind, fields=fields, rejected_reason=rejected_reason)
+        source = SourceRecord(
+            source_account_id=account.id,
+            import_batch_id=batch.id if batch else None,
+            raw_object_id=raw_obj.id,
+            source_identity=source_identity,
+            payload_hash=digest,
+            fetched_at=now,
+            parser_version="garmin-export-v1" if source_kind == "garmin_export" else PARSER_VERSION,
+            source_kind=source_kind,
+            fields=fields,
+            rejected_reason=rejected_reason,
+        )
         session.add(source)
         session.flush()
         counts["new_revisions"] += 1
@@ -329,13 +406,18 @@ def import_activity_page(session: Session, private_dir: Path, records: list[dict
     return counts
 
 
-def import_recovery_page(session: Session, private_dir: Path, dataset: str,
-                         records: list[dict[str, Any]], *,
-                         batch: ImportBatch | None = None,
-                         fetched_at: datetime | None = None,
-                         source_kind: str = "garmin_api",
-                         raw_records: list[dict[str, Any]] | None = None,
-                         source_metadata: list[dict[str, Any]] | None = None) -> dict[str, int]:
+def import_recovery_page(
+    session: Session,
+    private_dir: Path,
+    dataset: str,
+    records: list[dict[str, Any]],
+    *,
+    batch: ImportBatch | None = None,
+    fetched_at: datetime | None = None,
+    source_kind: str = "garmin_api",
+    raw_records: list[dict[str, Any]] | None = None,
+    source_metadata: list[dict[str, Any]] | None = None,
+) -> dict[str, int]:
     """Persist source observations, choosing API over export without erasing gaps."""
     if dataset not in {"sleep", "hrv", "resting_hr"}:
         raise ValueError("unsupported_dataset")
@@ -348,8 +430,11 @@ def import_recovery_page(session: Session, private_dir: Path, dataset: str,
     if records:
         global_write_lock(session)
     counts = {"seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
-    owners = {item.get("userProfilePK", item.get("userProfilePk")) for item in records
-              if isinstance(item, dict) and type(item.get("userProfilePK", item.get("userProfilePk"))) is int}
+    owners = {
+        item.get("userProfilePK", item.get("userProfilePk"))
+        for item in records
+        if isinstance(item, dict) and type(item.get("userProfilePK", item.get("userProfilePk"))) is int
+    }
     if len(owners) > 1:
         raise ValueError("mixed_source_account")
     page_owner = next(iter(owners)) if owners else None
@@ -371,8 +456,9 @@ def import_recovery_page(session: Session, private_dir: Path, dataset: str,
                 "resting_hr": ("restingHeartRate", "bpm", "daily_resting", "garmin_heart_rate_calendar_date"),
             }[dataset]
             value = item.get(field)
-            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
-                                     or not (0 <= float(value) < float("inf"))):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, (int, float)) or not (0 <= float(value) < float("inf"))
+            ):
                 raise ValueError("invalid_recovery_value")
             raw = _payload(raw_records[index] if raw_records is not None else item)
         except (TypeError, KeyError, ValueError):
@@ -382,52 +468,83 @@ def import_recovery_page(session: Session, private_dir: Path, dataset: str,
         digest, relative = store_raw(private_dir, raw)
         raw_obj = session.scalar(select(RawObject).where(RawObject.sha256 == digest))
         if raw_obj is None:
-            raw_obj = RawObject(sha256=digest, relative_path=relative,
-                                byte_size=len(raw), media_type="application/json")
+            raw_obj = RawObject(
+                sha256=digest, relative_path=relative, byte_size=len(raw), media_type="application/json"
+            )
             session.add(raw_obj)
             session.flush()
         identity = f"{dataset}:{source_date.isoformat()}:{statistic}"
-        source = session.scalar(select(SourceRecord).where(
-            SourceRecord.source_account_id == account.id,
-            SourceRecord.source_identity == identity,
-            SourceRecord.payload_hash == digest))
+        source = session.scalar(
+            select(SourceRecord).where(
+                SourceRecord.source_account_id == account.id,
+                SourceRecord.source_identity == identity,
+                SourceRecord.payload_hash == digest,
+            )
+        )
         if source is None:
-            fields = {"metric": dataset, "source_date": source_date.isoformat(),
-                      "value": value, "unit": unit, "statistic": statistic, "source_field": field}
+            fields = {
+                "metric": dataset,
+                "source_date": source_date.isoformat(),
+                "value": value,
+                "unit": unit,
+                "statistic": statistic,
+                "source_field": field,
+            }
             if source_metadata is not None:
                 fields["export_provenance"] = source_metadata[index]
                 fields["source_field"] = source_metadata[index].get("source_field", field)
-            source = SourceRecord(source_account_id=account.id,
-                import_batch_id=batch.id if batch else None, raw_object_id=raw_obj.id,
-                source_identity=identity, payload_hash=digest,
+            source = SourceRecord(
+                source_account_id=account.id,
+                import_batch_id=batch.id if batch else None,
+                raw_object_id=raw_obj.id,
+                source_identity=identity,
+                payload_hash=digest,
                 fetched_at=fetched_at or datetime.now(UTC),
                 parser_version="garmin-export-v1" if source_kind == "garmin_export" else PARSER_VERSION,
-                source_kind=source_kind, fields=fields,
-                rejected_reason="missing_recovery_owner" if missing_owner else None)
+                source_kind=source_kind,
+                fields=fields,
+                rejected_reason="missing_recovery_owner" if missing_owner else None,
+            )
             session.add(source)
             session.flush()
             counts["new_revisions"] += 1
         if missing_owner:
             counts["rejected"] += 1
             continue
-        candidates = session.scalars(select(SourceRecord).where(
-            SourceRecord.source_account_id == account.id,
-            SourceRecord.source_identity == identity,
-            SourceRecord.rejected_reason.is_(None))).all()
+        candidates = session.scalars(
+            select(SourceRecord).where(
+                SourceRecord.source_account_id == account.id,
+                SourceRecord.source_identity == identity,
+                SourceRecord.rejected_reason.is_(None),
+            )
+        ).all()
         valid = [candidate for candidate in candidates if candidate.fields.get("value") is not None]
         if not valid:
             continue
         selected = max(valid, key=_rank)
         selected_value = float(selected.fields["value"])
-        observation = session.scalar(select(RecoveryObservation).where(
-            RecoveryObservation.source_account_id == account.id,
-            RecoveryObservation.metric == dataset,
-            RecoveryObservation.source_date == source_date,
-            RecoveryObservation.statistic == statistic))
+        observation = session.scalar(
+            select(RecoveryObservation).where(
+                RecoveryObservation.source_account_id == account.id,
+                RecoveryObservation.metric == dataset,
+                RecoveryObservation.source_date == source_date,
+                RecoveryObservation.statistic == statistic,
+            )
+        )
         if observation is None:
-            session.add(RecoveryObservation(source_account_id=account.id, source_record_id=selected.id,
-                metric=dataset, source_date=source_date, time_semantics=semantics,
-                value=selected_value, unit=unit, statistic=statistic, source_revision=selected.payload_hash))
+            session.add(
+                RecoveryObservation(
+                    source_account_id=account.id,
+                    source_record_id=selected.id,
+                    metric=dataset,
+                    source_date=source_date,
+                    time_semantics=semantics,
+                    value=selected_value,
+                    unit=unit,
+                    statistic=statistic,
+                    source_revision=selected.payload_hash,
+                )
+            )
             bump_data_revision(session)
             counts["changed"] += 1
         elif observation.source_record_id != selected.id or observation.value != selected_value:
@@ -444,12 +561,21 @@ def enqueue_sync(session: Session, first: date, last: date, dataset: str = "acti
         raise ValueError("invalid_sync_range")
     # Serializes concurrent web/startup/scheduled requests until commit.
     session.execute(text(f"SELECT pg_advisory_xact_lock({ADVISORY_LOCK + 1})"))
-    active = session.scalar(select(SyncJob).where(SyncJob.dataset == dataset,
-        SyncJob.status.in_(("queued", "running", "retry_wait"))).order_by(SyncJob.created_at))
+    active = session.scalar(
+        select(SyncJob)
+        .where(SyncJob.dataset == dataset, SyncJob.status.in_(("queued", "running", "retry_wait")))
+        .order_by(SyncJob.created_at)
+    )
     if active:
         return active
-    job = SyncJob(dataset=dataset, start_date=first, end_date=last, status="queued",
-                  checkpoint={"offset": 0}, counters={"seen": 0, "changed": 0, "rejected": 0})
+    job = SyncJob(
+        dataset=dataset,
+        start_date=first,
+        end_date=last,
+        status="queued",
+        checkpoint={"offset": 0},
+        counters={"seen": 0, "changed": 0, "rejected": 0},
+    )
     session.add(job)
     session.flush()
     return job
@@ -467,12 +593,18 @@ def enqueue_catchup(session: Session, today: date) -> list[SyncJob]:
     jobs: list[SyncJob] = []
     for dataset in ("activities", "sleep", "hrv", "resting_hr"):
         state = session.get(SyncState, dataset)
-        if (state and state.last_attempt_at and state.last_attempt_at.date() >= today
-                and state.status in {"partial", "failed", "retry_wait", "running"}):
+        if (
+            state
+            and state.last_attempt_at
+            and state.last_attempt_at.date() >= today
+            and state.status in {"partial", "failed", "retry_wait", "running"}
+        ):
             continue
-        latest = session.scalar(select(CoverageInterval).where(
-            CoverageInterval.dataset == dataset,
-            CoverageInterval.status == "complete").order_by(CoverageInterval.end_date.desc()))
+        latest = session.scalar(
+            select(CoverageInterval)
+            .where(CoverageInterval.dataset == dataset, CoverageInterval.status == "complete")
+            .order_by(CoverageInterval.end_date.desc())
+        )
         if latest and latest.end_date >= today:
             continue
         days = 14 if dataset == "activities" else 7
@@ -483,8 +615,12 @@ def enqueue_catchup(session: Session, today: date) -> list[SyncJob]:
 
 def retry_delay(exc: Exception, attempt: int, now: datetime | None = None) -> float | None:
     status = getattr(exc, "status_code", None)
-    if (status not in {429, 500, 502, 503, 504}
-            and exc.__class__.__name__ not in {"Timeout", "ReadTimeout", "ConnectTimeout", "ConnectionError"}):
+    if status not in {429, 500, 502, 503, 504} and exc.__class__.__name__ not in {
+        "Timeout",
+        "ReadTimeout",
+        "ConnectTimeout",
+        "ConnectionError",
+    }:
         return None
     headers = getattr(exc, "response", None)
     retry_after = getattr(headers, "headers", {}).get("Retry-After") if headers else None
@@ -493,12 +629,13 @@ def retry_delay(exc: Exception, attempt: int, now: datetime | None = None) -> fl
             return max(0.0, float(retry_after))
         except ValueError:
             from email.utils import parsedate_to_datetime
+
             try:
                 target = parsedate_to_datetime(retry_after)
                 return max(0.0, (target - (now or datetime.now(UTC))).total_seconds())
             except (TypeError, ValueError, OverflowError):
                 pass
-    return min(300.0, 2 ** attempt + random.uniform(0, 1))
+    return min(300.0, 2**attempt + random.uniform(0, 1))
 
 
 def _run_recovery_job(source: GarminPersonalSource, job: SyncJob, private_dir: Path) -> str:
@@ -513,7 +650,7 @@ def _run_recovery_job(source: GarminPersonalSource, job: SyncJob, private_dir: P
                 records = source.fetch_recovery(job.dataset, cursor, end)
                 break
             except Exception as exc:
-                log.error('fetch_recovery failed job_id=%s %s', job.id, exception_summary(exc))
+                log.error("fetch_recovery failed job_id=%s %s", job.id, exception_summary(exc))
                 attempts += 1
                 delay = retry_delay(exc, attempts)
                 if delay is None or attempts >= 4:
@@ -537,8 +674,9 @@ def _run_recovery_job(source: GarminPersonalSource, job: SyncJob, private_dir: P
             batch.status = "complete"
             batch.finished_at = datetime.now(UTC)
             batch.counters = counts
-            current.counters = {key: current.counters.get(key, 0) + counts.get(key, 0)
-                                for key in set(current.counters) | set(counts)}
+            current.counters = {
+                key: current.counters.get(key, 0) + counts.get(key, 0) for key in set(current.counters) | set(counts)
+            }
             current.checkpoint = {"next_date": (end + timedelta(days=1)).isoformat(), "attempts": 0}
             current.heartbeat_at = datetime.now(UTC)
             state = _required(page_session.get(SyncState, job.dataset))
@@ -566,16 +704,24 @@ def _run_recovery_job(source: GarminPersonalSource, job: SyncJob, private_dir: P
         if not partial:
             state.last_success_at = datetime.now(UTC)
         state.fully_enumerated = True
-        final.add(CoverageInterval(dataset=job.dataset, start_date=first,
-            end_date=last, status="partial" if partial else "complete", completed_at=datetime.now(UTC),
-            reason="rejected_records" if partial else None,
-            fully_enumerated=True))
+        final.add(
+            CoverageInterval(
+                dataset=job.dataset,
+                start_date=first,
+                end_date=last,
+                status="partial" if partial else "complete",
+                completed_at=datetime.now(UTC),
+                reason="rejected_records" if partial else None,
+                fully_enumerated=True,
+            )
+        )
         final.commit()
     return "partial" if partial else "complete"
 
 
-def _ingest_fit_page(source: GarminPersonalSource, private_dir: Path,
-                     page: list[dict[str, Any]], session_factory=None) -> None:
+def _ingest_fit_page(
+    source: GarminPersonalSource, private_dir: Path, page: list[dict[str, Any]], session_factory=None
+) -> None:
     from app.services.fit_ingest import ingest_activity_fit
 
     factory = session_factory or SessionLocal
@@ -585,23 +731,28 @@ def _ingest_fit_page(source: GarminPersonalSource, private_dir: Path,
             continue
         with factory() as fit_session:
             owner = item.get("ownerId")
-            account = fit_session.scalar(select(SourceAccount).where(
-                SourceAccount.provider == "garmin",
-                SourceAccount.account_scope == f"garmin-owner:{owner}"))
+            account = fit_session.scalar(
+                select(SourceAccount).where(
+                    SourceAccount.provider == "garmin", SourceAccount.account_scope == f"garmin-owner:{owner}"
+                )
+            )
             if account is None:
                 continue
-            activity = fit_session.scalar(select(Activity).where(
-                Activity.source_account_id == account.id,
-                Activity.garmin_id == str(remote_id),
-                Activity.resolution_state == "resolved",
-                Activity.sport.in_(RUN_SPORTS)))
+            activity = fit_session.scalar(
+                select(Activity).where(
+                    Activity.source_account_id == account.id,
+                    Activity.garmin_id == str(remote_id),
+                    Activity.resolution_state == "resolved",
+                    Activity.sport.in_(RUN_SPORTS),
+                )
+            )
             if activity is None:
                 continue
             try:
                 ingest_activity_fit(fit_session, source, private_dir, activity)
                 fit_session.commit()
             except Exception as exc:
-                log.error('_ingest_fit_page failed activity_id=%s %s', remote_id, exception_summary(exc))
+                log.error("_ingest_fit_page failed activity_id=%s %s", remote_id, exception_summary(exc))
                 fit_session.rollback()
 
 
@@ -615,9 +766,15 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
         if not locked:
             return None
         try:
-            job = session.scalar(select(SyncJob).where(SyncJob.status.in_(("queued", "running", "retry_wait")),
-                (SyncJob.next_attempt_at.is_(None)) | (SyncJob.next_attempt_at <= datetime.now(UTC)))
-                .order_by(SyncJob.created_at).with_for_update(skip_locked=True))
+            job = session.scalar(
+                select(SyncJob)
+                .where(
+                    SyncJob.status.in_(("queued", "running", "retry_wait")),
+                    (SyncJob.next_attempt_at.is_(None)) | (SyncJob.next_attempt_at <= datetime.now(UTC)),
+                )
+                .order_by(SyncJob.created_at)
+                .with_for_update(skip_locked=True)
+            )
             if job is None:
                 return None
             job_id = job.id
@@ -648,7 +805,7 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                             page = source.search_page(offset, 50, first, last)
                             break
                         except Exception as exc:
-                            log.error('search_page failed job_id=%s %s', job_id, exception_summary(exc))
+                            log.error("search_page failed job_id=%s %s", job_id, exception_summary(exc))
                             attempts += 1
                             delay = retry_delay(exc, attempts)
                             if delay is None or attempts >= 4:
@@ -669,18 +826,24 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                     seen_pages.add(signature)
                     with SessionLocal() as page_session:
                         current = _required(page_session.get(SyncJob, job_id, with_for_update=True))
-                        batch = ImportBatch(source_kind="garmin_api", status="running",
-                                            adapter_version=PARSER_VERSION)
+                        batch = ImportBatch(source_kind="garmin_api", status="running", adapter_version=PARSER_VERSION)
                         page_session.add(batch)
                         page_session.flush()
-                        counts = import_activity_page(page_session, private_dir, page,
-                                                      account_scope=account_scope, batch=batch,
-                                                      timezone=timezone_name(page_session))
+                        counts = import_activity_page(
+                            page_session,
+                            private_dir,
+                            page,
+                            account_scope=account_scope,
+                            batch=batch,
+                            timezone=timezone_name(page_session),
+                        )
                         batch.status = "complete"
                         batch.finished_at = datetime.now(UTC)
                         batch.counters = counts
-                        current.counters = {key: current.counters.get(key, 0) + counts.get(key, 0)
-                                            for key in set(current.counters) | set(counts)}
+                        current.counters = {
+                            key: current.counters.get(key, 0) + counts.get(key, 0)
+                            for key in set(current.counters) | set(counts)
+                        }
                         offset += len(page)
                         current.checkpoint = {"offset": offset, "attempts": 0}
                         current.heartbeat_at = datetime.now(UTC)
@@ -710,22 +873,35 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                             if not partial:
                                 state.last_success_at = datetime.now(UTC)
                             state.fully_enumerated = True
-                            final.add(CoverageInterval(dataset="activities", start_date=first,
-                                end_date=last, status="partial" if partial else "complete",
-                                reason="rejected_records" if partial else None,
-                                completed_at=datetime.now(UTC),
-                                fully_enumerated=True))
+                            final.add(
+                                CoverageInterval(
+                                    dataset="activities",
+                                    start_date=first,
+                                    end_date=last,
+                                    status="partial" if partial else "complete",
+                                    reason="rejected_records" if partial else None,
+                                    completed_at=datetime.now(UTC),
+                                    fully_enumerated=True,
+                                )
+                            )
                             final.commit()
                         return "partial" if partial else "complete"
                 raise ValueError("activity_page_limit")
         except Exception as exc:
-            log.error('run_one_job failed job_id=%s %s', job_id, exception_summary(exc))
+            log.error("run_one_job failed job_id=%s %s", job_id, exception_summary(exc))
             if job_id is None:
                 raise
-            safe = "credential_attention" if getattr(exc, "status_code", None) in {401, 403} else (
-                str(exc) if isinstance(exc, ValueError) and str(exc) in {
-                    "unsupported_dataset", "repeated_activity_page", "activity_page_limit",
-                    "mixed_source_account"} else "remote_or_import_error")
+            safe = (
+                "credential_attention"
+                if getattr(exc, "status_code", None) in {401, 403}
+                else (
+                    str(exc)
+                    if isinstance(exc, ValueError)
+                    and str(exc)
+                    in {"unsupported_dataset", "repeated_activity_page", "activity_page_limit", "mixed_source_account"}
+                    else "remote_or_import_error"
+                )
+            )
             with SessionLocal() as failed:
                 current = _required(failed.get(SyncJob, job_id, with_for_update=True))
                 current.status = "failed"
@@ -735,9 +911,16 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                 state.status = "failed"
                 state.reason = safe
                 state.fully_enumerated = False
-                failed.add(CoverageInterval(dataset=current.dataset,
-                    start_date=_required(current.start_date), end_date=_required(current.end_date),
-                    status="failed", reason=safe, fully_enumerated=False))
+                failed.add(
+                    CoverageInterval(
+                        dataset=current.dataset,
+                        start_date=_required(current.start_date),
+                        end_date=_required(current.end_date),
+                        status="failed",
+                        reason=safe,
+                        fully_enumerated=False,
+                    )
+                )
                 failed.commit()
             return "failed"
         finally:
@@ -746,5 +929,5 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                 lock_connection.execute(text(f"SELECT pg_advisory_unlock({ADVISORY_LOCK})"))
                 lock_connection.commit()
             except Exception as exc:
-                log.error('advisory_unlock failed job_id=%s %s', job_id, exception_summary(exc))
+                log.error("advisory_unlock failed job_id=%s %s", job_id, exception_summary(exc))
                 lock_connection.rollback()

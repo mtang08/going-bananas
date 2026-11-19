@@ -17,6 +17,5 @@ def athlete_tz(session: Session) -> ZoneInfo:
     return ZoneInfo(name or DEFAULT_TIMEZONE)
 
 
-
 def athlete_today(session: Session, now: datetime | None = None) -> date:
     return date_in_zone(now if now is not None else datetime.now(UTC), athlete_tz(session))

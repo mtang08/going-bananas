@@ -1,4 +1,5 @@
 """Snapshot payload."""
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -200,7 +201,9 @@ def _completed_exposures(inputs: SnapshotInputs, operation: str) -> dict:
     ]
     lifts.sort(key=lambda row: (str(row["local_date"]), str(row["strong_workout_id"])))
     return {
-        "window_days": {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28, RACE: 14, EXCEPTION: 3, POST_EVENT: 14}[operation],
+        "window_days": {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28, RACE: 14, EXCEPTION: 3, POST_EVENT: 14}[
+            operation
+        ],
         "runs": runs,
         "lifts": lifts,
     }
@@ -294,7 +297,8 @@ def _prior_decisions(inputs: SnapshotInputs, operation: str) -> list[dict]:
     if operation in {ROLLING, QUALITY_OP}:
         decided = {"accepted", "partially_accepted", "rejected"}
         proposals = [p for p in proposals if p.get("operation") == ROLLING and p.get("status") in decided][:2] + [
-            p for p in proposals if p.get("operation") == EXCEPTION and p.get("status") in decided][:3]
+            p for p in proposals if p.get("operation") == EXCEPTION and p.get("status") in decided
+        ][:3]
     else:
         proposals = proposals[:3]
     result = []
@@ -352,9 +356,17 @@ def _rpe_rows(inputs: SnapshotInputs) -> list[dict]:
         cls = classify(planned["kind"], recipe, planned.get("intent")) if planned else None
         rpe = float(run["rpe"]) if run.get("rpe") is not None else None
         expected = expected_rpe(recipe, cls) if cls else None
-        rows.append({"activity_id": run["activity_id"], "local_date": run["local_date"], "class": cls, "rpe": rpe,
-                     "rpe_source": run.get("rpe_source"), "expected_rpe": list(expected) if expected else None,
-                     "mismatch": rpe_mismatch(cls, recipe, rpe) if cls else None})
+        rows.append(
+            {
+                "activity_id": run["activity_id"],
+                "local_date": run["local_date"],
+                "class": cls,
+                "rpe": rpe,
+                "rpe_source": run.get("rpe_source"),
+                "expected_rpe": list(expected) if expected else None,
+                "mismatch": rpe_mismatch(cls, recipe, rpe) if cls else None,
+            }
+        )
     rows.sort(key=lambda r: (str(r["local_date"]), str(r["activity_id"])), reverse=True)
     return rows
 
@@ -378,14 +390,16 @@ def _exceptions_section(inputs: SnapshotInputs) -> dict:
     ):
         cls = classify(row.get("kind") or "", row.get("recipe_id"), row.get("intent"))
         expected = expected_rpe(row.get("recipe_id"), cls)
-        upcoming.append({
-            "session_uid": row["session_uid"],
-            "local_date": row["local_date"],
-            "kind": row.get("kind"),
-            "class": cls,
-            "expected_rpe": list(expected) if expected else None,
-            "certainty": row.get("certainty"),
-        })
+        upcoming.append(
+            {
+                "session_uid": row["session_uid"],
+                "local_date": row["local_date"],
+                "kind": row.get("kind"),
+                "class": cls,
+                "expected_rpe": list(expected) if expected else None,
+                "certainty": row.get("certainty"),
+            }
+        )
     return {
         "rule_version": RULE_VERSION,
         "review_recommended": list(inputs.review_recommended),
@@ -408,15 +422,15 @@ def _exception_summary(inputs: SnapshotInputs) -> dict:
     ]
     findings = sorted(
         (
-            f for f in inputs.exception_findings
+            f
+            for f in inputs.exception_findings
             if f.get("status") in NON_TERMINAL_FINDING or parse_instant(f["first_seen_at"]) >= since
         ),
         key=lambda f: (str(f.get("first_seen_at")), str(f.get("id"))),
         reverse=True,
     )[:SUMMARY_FINDINGS_MAX]
     patches = [
-        p for p in inputs.exception_patches
-        if p.get("status") in LIVE_PATCH or parse_day(p["window_end"]) >= start
+        p for p in inputs.exception_patches if p.get("status") in LIVE_PATCH or parse_day(p["window_end"]) >= start
     ][:SUMMARY_PATCHES_MAX]
     mismatch = {"easy_above": 0, "long_above": 0, "quality_above": 0, "quality_below": 0}
     for row in _rpe_rows(inputs):
@@ -432,8 +446,16 @@ def _exception_summary(inputs: SnapshotInputs) -> dict:
         ({"site_key": key, "distinct_days_14": len(days)} for key, days in days_by_site.items() if len(days) >= 2),
         key=lambda s: (-s["distinct_days_14"], s["site_key"]),
     )
-    finding_keys = ("id", "rule_code", "category", "severity", "status", "first_seen_at", "summary",
-                    "is_new_since_last_review")
+    finding_keys = (
+        "id",
+        "rule_code",
+        "category",
+        "severity",
+        "status",
+        "first_seen_at",
+        "summary",
+        "is_new_since_last_review",
+    )
     patch_keys = ("id", "category", "severity", "window_start", "window_end", "status", "reassess_on")
     return {
         "window_start": start,
@@ -444,7 +466,8 @@ def _exception_summary(inputs: SnapshotInputs) -> dict:
         "rpe_mismatch": mismatch,
         "recurring_symptom_sites": sites,
         "open_escalations": sum(
-            1 for f in inputs.exception_findings
+            1
+            for f in inputs.exception_findings
             if f.get("status") in NON_TERMINAL_FINDING and f.get("severity") == "escalate"
         ),
     }
@@ -461,7 +484,9 @@ def _event_payload(inputs: SnapshotInputs, event: dict | None, day: date, activi
         start_at = run.get("start_at")
         matched = {
             "id": run["activity_id"],
-            "start_local": parse_instant(start_at).astimezone(ZoneInfo(inputs.timezone)).isoformat() if start_at else None,
+            "start_local": parse_instant(start_at).astimezone(ZoneInfo(inputs.timezone)).isoformat()
+            if start_at
+            else None,
             "distance_m": run.get("distance_m"),
             "duration_s": run.get("timer_s"),
             "rpe": run.get("rpe"),
@@ -521,16 +546,20 @@ def _quality_progression(inputs: SnapshotInputs, operation: str) -> list[dict]:
     cal_start, cal_end = section_window(operation, "calendar", inputs)
     ordered = sorted(inputs.sessions, key=lambda s: (str(s["local_date"]), s.get("slot", 0), str(s["session_uid"])))
     signatures = {str(s["session_uid"]): work_signature(s.get("structure")) for s in ordered if s.get("kind") == "run"}
-    wanted = list(dict.fromkeys(
-        sig for s in ordered
-        if (sig := signatures.get(str(s["session_uid"]))) and day_between(s.get("local_date"), cal_start, cal_end)
-    ))[:PROGRESSION_GROUPS_MAX]
+    wanted = list(
+        dict.fromkeys(
+            sig
+            for s in ordered
+            if (sig := signatures.get(str(s["session_uid"]))) and day_between(s.get("local_date"), cal_start, cal_end)
+        )
+    )[:PROGRESSION_GROUPS_MAX]
     if not wanted:
         return []
     completions = {str(c["session_uid"]): c for c in inputs.completions}
     runs = {str(r["activity_id"]): r for r in inputs.runs}
-    intervals = {str(m["subject_key"]): m for m in inputs.metric_results
-                 if m.get("metric_id") == "work_interval_execution"}
+    intervals = {
+        str(m["subject_key"]): m for m in inputs.metric_results if m.get("metric_id") == "work_interval_execution"
+    }
     points = []
     for s in ordered:
         if signatures.get(str(s["session_uid"])) not in wanted or parse_day(s["local_date"]) > inputs.as_of:
@@ -538,29 +567,55 @@ def _quality_progression(inputs: SnapshotInputs, operation: str) -> list[dict]:
         completion = completions.get(str(s["session_uid"]))
         run = runs.get(str(completion["activity_id"])) if completion and completion.get("activity_id") else None
         row = intervals.get(str(run["activity_id"])) if run else None
-        points.append(session_point(
-            {"session_uid": s["session_uid"], "local_date": parse_day(s["local_date"]), "recipe_id": s.get("recipe_id"),
-             "intent": s.get("intent"), "structure": s["structure"]},
-            completion,
-            {"id": run["activity_id"], "local_date": parse_day(run["local_date"]), "sport": run["sport"]} if run else None,
-            {"id": row["result_id"], "status": row["status"], "reason_codes": row["reason_codes"],
-             "value": row["value"]} if row else None,
-        ))
+        points.append(
+            session_point(
+                {
+                    "session_uid": s["session_uid"],
+                    "local_date": parse_day(s["local_date"]),
+                    "recipe_id": s.get("recipe_id"),
+                    "intent": s.get("intent"),
+                    "structure": s["structure"],
+                },
+                completion,
+                {"id": run["activity_id"], "local_date": parse_day(run["local_date"]), "sport": run["sport"]}
+                if run
+                else None,
+                {
+                    "id": row["result_id"],
+                    "status": row["status"],
+                    "reason_codes": row["reason_codes"],
+                    "value": row["value"],
+                }
+                if row
+                else None,
+            )
+        )
     groups = {g["signature"]: g for g in assemble_groups(points, "signature")}
     return [
-        {"signature": sig, "recipe_ids": groups[sig]["recipe_ids"],
-         "sessions_total": groups[sig]["sessions_total"],
-         "sessions_assessable": groups[sig]["sessions_assessable"],
-         "recent": [row_view(p, PROGRESSION_POINT_KEYS) for p in groups[sig]["points"]
-                    if p["status"] in ("available", "partial")][-PROGRESSION_POINTS_MAX:]}
-        for sig in wanted if sig in groups
+        {
+            "signature": sig,
+            "recipe_ids": groups[sig]["recipe_ids"],
+            "sessions_total": groups[sig]["sessions_total"],
+            "sessions_assessable": groups[sig]["sessions_assessable"],
+            "recent": [
+                row_view(p, PROGRESSION_POINT_KEYS)
+                for p in groups[sig]["points"]
+                if p["status"] in ("available", "partial")
+            ][-PROGRESSION_POINTS_MAX:],
+        }
+        for sig in wanted
+        if sig in groups
     ]
 
 
 def _aerobic_efficiency(inputs: SnapshotInputs) -> dict:
-    rows = {str(m["subject_key"]).split(":", 1)[0]: m for m in inputs.metric_results
-            if m.get("metric_id") == "aerobic_efficiency" and m.get("subject_type") == "window"
-            and m.get("subject_key") in {f"w28:{inputs.as_of.isoformat()}", f"w84:{inputs.as_of.isoformat()}"}}
+    rows = {
+        str(m["subject_key"]).split(":", 1)[0]: m
+        for m in inputs.metric_results
+        if m.get("metric_id") == "aerobic_efficiency"
+        and m.get("subject_type") == "window"
+        and m.get("subject_key") in {f"w28:{inputs.as_of.isoformat()}", f"w84:{inputs.as_of.isoformat()}"}
+    }
     section: dict[str, Any] = {"interpretation": "descriptive_only", "recent_runs": []}
     for key in ("w28", "w84"):
         row = rows.get(key)
@@ -608,14 +663,22 @@ def _key_view(row: dict) -> dict:
 
 
 def _digest_week_view(week: dict) -> dict:
-    rows = sorted(week.get("sessions") or [],
-                  key=lambda r: (str(r["local_date"]), r.get("slot") or 0, str(r["session_uid"])))
+    rows = sorted(
+        week.get("sessions") or [], key=lambda r: (str(r["local_date"]), r.get("slot") or 0, str(r["session_uid"]))
+    )
     key, key_omitted = _capped([_key_view(r) for r in rows if r["key"]], KEY_SESSIONS_MAX)
     not_done, not_done_omitted = _capped(
-        [{"session_uid": r["session_uid"], "local_date": r["local_date"], "kind": r["kind"],
-          "class": r["class"], "outcome": r["outcome"]}
-         for r in rows
-         if not r["key"] and r["kind"] in HEADLINE_KINDS and r["outcome"] in NOT_DONE_OUTCOMES],
+        [
+            {
+                "session_uid": r["session_uid"],
+                "local_date": r["local_date"],
+                "kind": r["kind"],
+                "class": r["class"],
+                "outcome": r["outcome"],
+            }
+            for r in rows
+            if not r["key"] and r["kind"] in HEADLINE_KINDS and r["outcome"] in NOT_DONE_OUTCOMES
+        ],
         NOT_DONE_MAX,
     )
     unplanned, unplanned_omitted = _capped(
@@ -737,11 +800,18 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             "history": _prior_decisions(inputs, BLOCK),
         }
     elif operation in {DAILY, EXCEPTION}:
-        payload["block"] = row_view(block, ("block_uid", "version_id", "objective", "benchmark", "benchmark_status")) if block else None
+        payload["block"] = (
+            row_view(block, ("block_uid", "version_id", "objective", "benchmark", "benchmark_status"))
+            if block
+            else None
+        )
     elif operation == CALIB:
         payload["block"] = (
-            {"objective": block["objective"], "benchmark": block.get("benchmark"),
-             "benchmark_status": block.get("benchmark_status")}
+            {
+                "objective": block["objective"],
+                "benchmark": block.get("benchmark"),
+                "benchmark_status": block.get("benchmark_status"),
+            }
             if block
             else None
         )
@@ -754,7 +824,8 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         payload["load_shape"] = [
             _metric_view(m)
             for m in inputs.metric_results
-            if m.get("subject_type") == "window" and m.get("subject_key") in keys
+            if m.get("subject_type") == "window"
+            and m.get("subject_key") in keys
             and m.get("metric_id") != "aerobic_efficiency"
         ]
     if operation not in {RACE}:

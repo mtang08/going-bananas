@@ -41,8 +41,9 @@ def submit_proposal(session: Session, raw: dict, *, now: datetime, resolve_kb: K
 
     lock_planning(session)
     input_hash = digest(raw)
-    existing = session.scalar(select(CoachProposal).where(CoachProposal.input_hash == input_hash)
-        .execution_options(populate_existing=True))
+    existing = session.scalar(
+        select(CoachProposal).where(CoachProposal.input_hash == input_hash).execution_options(populate_existing=True)
+    )
     if existing:
         return SubmitResult(
             existing.id,
@@ -53,14 +54,22 @@ def submit_proposal(session: Session, raw: dict, *, now: datetime, resolve_kb: K
                 for item in cast(list[dict], existing.validation_errors or [])
             ],
         )
-    active = session.scalar(select(CoachProposal).where(
-        CoachProposal.status.in_(("pending", "stale", "invalid")))
-        .with_for_update().execution_options(populate_existing=True))
+    active = session.scalar(
+        select(CoachProposal)
+        .where(CoachProposal.status.in_(("pending", "stale", "invalid")))
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if active is not None:
-        raise DecisionError("active_proposal_exists",
+        raise DecisionError(
+            "active_proposal_exists",
             f"Proposal {active.id} is still open. Review or discard it before submitting another.",
-            409, [ValidationIssue("active_proposal_id", "active_proposal_id", str(active.id)),
-                ValidationIssue("active_revision", "active_revision", str(active.revision))])
+            409,
+            [
+                ValidationIssue("active_proposal_id", "active_proposal_id", str(active.id)),
+                ValidationIssue("active_revision", "active_revision", str(active.revision)),
+            ],
+        )
     doc, issues = parse_document(raw)
     if doc is None:
         raise DecisionError("invalid_proposal", "Proposal schema invalid", 422, issues)
@@ -138,38 +147,62 @@ class RevisionRequest(Strict):
     document: dict[str, Any]
 
 
-def _store_revision(session: Session, proposal: Any, now: datetime, reason: str,
-                    changed_ids: list[str], changed_fields: list[str], request_hash: str | None) -> None:
+def _store_revision(
+    session: Session,
+    proposal: Any,
+    now: datetime,
+    reason: str,
+    changed_ids: list[str],
+    changed_fields: list[str],
+    request_hash: str | None,
+) -> None:
     from app.coach_v2_models import CoachProposalRevision
 
-    session.add(CoachProposalRevision(proposal_id=proposal.id, revision=proposal.revision,
-        saved_at=now, reason=reason, payload=proposal.payload,
-        changed_change_ids=changed_ids, changed_fields=changed_fields, request_hash=request_hash))
+    session.add(
+        CoachProposalRevision(
+            proposal_id=proposal.id,
+            revision=proposal.revision,
+            saved_at=now,
+            reason=reason,
+            payload=proposal.payload,
+            changed_change_ids=changed_ids,
+            changed_fields=changed_fields,
+            request_hash=request_hash,
+        )
+    )
     session.flush()
 
 
-def revise_proposal(session: Session, proposal_id: uuid.UUID, req: RevisionRequest,
-                    *, now: datetime, resolve_kb: KnowledgeResolver) -> SubmitResult:
+def revise_proposal(
+    session: Session, proposal_id: uuid.UUID, req: RevisionRequest, *, now: datetime, resolve_kb: KnowledgeResolver
+) -> SubmitResult:
     """Replace a draft atomically; keep its identity, prior versions and calendar untouched."""
     from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachProposalRevision, CoachSnapshot
 
     lock_planning(session)
-    proposal = session.scalar(select(CoachProposal).where(CoachProposal.id == proposal_id)
-        .with_for_update().execution_options(populate_existing=True))
+    proposal = session.scalar(
+        select(CoachProposal)
+        .where(CoachProposal.id == proposal_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if proposal is None:
         raise DecisionError("proposal_not_found", "Proposal not found", 404)
     if proposal.status in {"accepted", "partially_accepted", "rejected", "discarded"}:
-        raise DecisionError("proposal_decided", "This proposal has a decision. Propose changes to the current calendar instead.", 409)
+        raise DecisionError(
+            "proposal_decided", "This proposal has a decision. Propose changes to the current calendar instead.", 409
+        )
     if not req.reason.strip():
         raise DecisionError("invalid_revision", "Explain the requested revision", 422)
     request_hash = digest(req.model_dump(mode="json"))
     if req.expected_revision != proposal.revision:
         # A retry of the immediately preceding successful edit must not create another revision.
         latest = session.get(CoachProposalRevision, (proposal_id, proposal.revision))
-        if (req.expected_revision + 1 == proposal.revision and latest
-                and latest.request_hash == request_hash):
+        if req.expected_revision + 1 == proposal.revision and latest and latest.request_hash == request_hash:
             return SubmitResult(proposal.id, proposal.revision, proposal.status, [])
-        raise DecisionError("proposal_revision_conflict", "This proposal was revised. Read the latest draft before editing.", 409)
+        raise DecisionError(
+            "proposal_revision_conflict", "This proposal was revised. Read the latest draft before editing.", 409
+        )
     doc, issues = parse_document(req.document)
     if doc is None:
         raise DecisionError("invalid_proposal", "Revision schema invalid; existing draft unchanged", 422, issues)
@@ -180,21 +213,40 @@ def revise_proposal(session: Session, proposal_id: uuid.UUID, req: RevisionReque
     ctx = load_context(session, doc.snapshot_id, now=now, kb=kb)
     validated = validate_parsed(doc, ctx)
     if validated.status != "pending":
-        raise DecisionError("stale_evidence" if validated.status == "stale" else "invalid_proposal",
-            "Revision failed validation; existing draft unchanged", 409 if validated.status == "stale" else 422,
-            validated.issues)
+        raise DecisionError(
+            "stale_evidence" if validated.status == "stale" else "invalid_proposal",
+            "Revision failed validation; existing draft unchanged",
+            409 if validated.status == "stale" else 422,
+            validated.issues,
+        )
     payload = doc.model_dump(mode="json", exclude_unset=True)
     if payload == proposal.payload and proposal.status == "pending":
         return SubmitResult(proposal.id, proposal.revision, proposal.status, [])
     old_changes = {item["change_id"]: item for item in proposal.payload.get("changes", [])}
     new_changes = {item["change_id"]: item for item in payload.get("changes", [])}
-    changed_ids = sorted(key for key in old_changes.keys() | new_changes.keys()
-        if old_changes.get(key) != new_changes.get(key))
-    changed_fields = sorted(key for key in proposal.payload.keys() | payload.keys()
-        if key != "changes" and proposal.payload.get(key) != payload.get(key))
+    changed_ids = sorted(
+        key for key in old_changes.keys() | new_changes.keys() if old_changes.get(key) != new_changes.get(key)
+    )
+    changed_fields = sorted(
+        key
+        for key in proposal.payload.keys() | payload.keys()
+        if key != "changes" and proposal.payload.get(key) != payload.get(key)
+    )
     # Retain input_hash as the identity of the original submit, including its retries.
-    for name in ("operation", "snapshot_id", "base_calendar_version", "base_block_version_id", "summary",
-                 "rationale", "evidence_ids", "policy_ids", "recipe_ids", "follow_up", "escalation", "skill_version"):
+    for name in (
+        "operation",
+        "snapshot_id",
+        "base_calendar_version",
+        "base_block_version_id",
+        "summary",
+        "rationale",
+        "evidence_ids",
+        "policy_ids",
+        "recipe_ids",
+        "follow_up",
+        "escalation",
+        "skill_version",
+    ):
         setattr(proposal, name, getattr(doc, name))
     proposal.confidence = doc.confidence.model_dump()
     proposal.block_change = doc.block_change.model_dump(mode="json") if doc.block_change else None
@@ -209,14 +261,19 @@ def revise_proposal(session: Session, proposal_id: uuid.UUID, req: RevisionReque
     return SubmitResult(proposal.id, proposal.revision, proposal.status, [])
 
 
-def discard_proposal(session: Session, proposal_id: uuid.UUID, expected_revision: int,
-                     *, now: datetime) -> SubmitResult:
+def discard_proposal(
+    session: Session, proposal_id: uuid.UUID, expected_revision: int, *, now: datetime
+) -> SubmitResult:
     """Close an open proposal without changing calendar or source state."""
     from app.coach_v2_models import CoachProposal
 
     lock_planning(session)
-    proposal = session.scalar(select(CoachProposal).where(CoachProposal.id == proposal_id)
-        .with_for_update().execution_options(populate_existing=True))
+    proposal = session.scalar(
+        select(CoachProposal)
+        .where(CoachProposal.id == proposal_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if proposal is None:
         raise DecisionError("proposal_not_found", "Proposal not found", 404)
     if expected_revision != proposal.revision:

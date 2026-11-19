@@ -63,7 +63,9 @@ class Target(Strict):
     modality: Literal["speed", "hr", "effort"]
     low: float | None = Field(None, description="Numeric speed/HR lower bound; must be null for effort targets.")
     high: float | None = Field(None, description="Numeric speed/HR upper bound; must be null for effort targets.")
-    effort_cue: str | None = Field(None, max_length=200, description="Required nonblank cue for effort targets; include any RPE range here.")
+    effort_cue: str | None = Field(
+        None, max_length=200, description="Required nonblank cue for effort targets; include any RPE range here."
+    )
 
 
 class StructureStep(Strict):

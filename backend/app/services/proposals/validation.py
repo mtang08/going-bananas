@@ -94,16 +94,25 @@ def _exception_block_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Val
             issues.append(_issue("V17.reassess_out_of_range", "exception.reassess_on"))
         count = len(doc.changes)
         single = count == 1 or (count == 0 and exc.severity == "observe")
-        ladder_ok = {"current_session": single, "next_session": single, "next_days": length <= 3,
-                     "committed_window": exc.severity in {"hold", "escalate"},
-                     "block": exc.severity == "escalate" and doc.escalation == "review_training_block"}[exc.ladder_level]
+        ladder_ok = {
+            "current_session": single,
+            "next_session": single,
+            "next_days": length <= 3,
+            "committed_window": exc.severity in {"hold", "escalate"},
+            "block": exc.severity == "escalate" and doc.escalation == "review_training_block",
+        }[exc.ladder_level]
         if not ladder_ok:
             issues.append(_issue("V18.ladder_mismatch", "exception.ladder_level"))
         touched = {change.session_uid for change in doc.changes if change.session_uid}
         seen: set[uuid.UUID] = set()
         for j, item in enumerate(exc.unchanged):
             row = ctx.head_sessions.get(item.session_uid)
-            if row is None or not ctx.today <= row.local_date <= last or item.session_uid in touched or item.session_uid in seen:
+            if (
+                row is None
+                or not ctx.today <= row.local_date <= last
+                or item.session_uid in touched
+                or item.session_uid in seen
+            ):
                 issues.append(_issue("V19.unchanged_invalid", f"exception.unchanged.{j}"))
             seen.add(item.session_uid)
         for j, finding_id in enumerate(exc.finding_ids):
@@ -130,9 +139,12 @@ def _event_review_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Valida
     elif doc.operation == "review_training_block":
         if "BLOCK_BENCHMARK_COMPLETED" in ctx.open_rule_codes and (review is None or review.outcome is None):
             issues.append(_issue("V20.event_required", "event_review"))
-        if review is not None and (bench is None or bench.status != "completed"
-                                   or (review.activity_id is not None and review.activity_id != bench.activity_id)
-                                   or (review.event_id is not None and review.event_id != bench.event_id)):
+        if review is not None and (
+            bench is None
+            or bench.status != "completed"
+            or (review.activity_id is not None and review.activity_id != bench.activity_id)
+            or (review.event_id is not None and review.event_id != bench.event_id)
+        ):
             issues.append(_issue("V20.event_target_invalid", "event_review"))
     elif review is not None:
         issues.append(_issue("V20.event_forbidden", "event_review"))
@@ -150,8 +162,12 @@ def _benchmark_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
             if not fields.review_date - timedelta(days=6) <= planned.planned_date <= fields.review_date:
                 issues.append(_issue("V22.benchmark_date", "block_change.version_fields.benchmark.planned_date"))
             event = ctx.events.get(planned.event_id) if planned.event_id else None
-            bad_event = planned.kind == "event" and (event is None or event[0] == "cancelled" or event[1] != planned.planned_date)
-            bad_trial = planned.kind == "time_trial" and (planned.event_id is not None or "REC009" not in fields.eligible_recipe_ids)
+            bad_event = planned.kind == "event" and (
+                event is None or event[0] == "cancelled" or event[1] != planned.planned_date
+            )
+            bad_trial = planned.kind == "time_trial" and (
+                planned.event_id is not None or "REC009" not in fields.eligible_recipe_ids
+            )
             if bad_event or bad_trial:
                 issues.append(_issue("V22.benchmark_event", "block_change.version_fields.benchmark"))
     return issues
@@ -182,8 +198,9 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
     return issues
 
 
-def _recipe_issue(doc: ProposalDoc, ctx: ValidationContext, *, change: Change, result: dict[str, Any],
-                  fields: set[str], path: str) -> ValidationIssue | None:
+def _recipe_issue(
+    doc: ProposalDoc, ctx: ValidationContext, *, change: Change, result: dict[str, Any], fields: set[str], path: str
+) -> ValidationIssue | None:
     check_recipe = (change.op == "add" and result.get("kind") == "run") or (
         change.op == "modify"
         and result.get("kind") == "run"
@@ -207,8 +224,14 @@ def _recipe_issue(doc: ProposalDoc, ctx: ValidationContext, *, change: Change, r
     return None
 
 
-def _quality_pileup(change: Change, head: HeadSession | None, result_date: date | None, *,
-                    state: dict[str, dict], before: dict[str, dict]) -> bool:
+def _quality_pileup(
+    change: Change,
+    head: HeadSession | None,
+    result_date: date | None,
+    *,
+    state: dict[str, dict],
+    before: dict[str, dict],
+) -> bool:
     if (
         change.op == "move"
         and head
@@ -230,8 +253,14 @@ def _quality_pileup(change: Change, head: HeadSession | None, result_date: date 
     return False
 
 
-def _safety_violation(ctx: ValidationContext, change: Change, head: HeadSession | None, fields: set[str],
-                      result: dict[str, Any], result_date: date | None) -> bool:
+def _safety_violation(
+    ctx: ValidationContext,
+    change: Change,
+    head: HeadSession | None,
+    fields: set[str],
+    result: dict[str, Any],
+    result_date: date | None,
+) -> bool:
     if (
         safety_active(ctx.current_safety_guard)
         and result_date
@@ -251,33 +280,51 @@ def _safety_violation(ctx: ValidationContext, change: Change, head: HeadSession 
                 and "planned_duration_s" in fields
                 and head is not None
                 and (
-                    head.planned_duration_s is None
-                    or (result.get("planned_duration_s") or 0) > head.planned_duration_s
+                    head.planned_duration_s is None or (result.get("planned_duration_s") or 0) > head.planned_duration_s
                 )
             )
-            or (
-                change.op in {"add", "modify"}
-                and "recipe_id" in fields
-                and result.get("recipe_id") in QUALITY_RECIPES
-            )
+            or (change.op in {"add", "modify"} and "recipe_id" in fields and result.get("recipe_id") in QUALITY_RECIPES)
         )
         return bool(unsafe)
     return False
 
 
-def _change_rules(doc: ProposalDoc, ctx: ValidationContext, *, start: date, end: date,
-                  state: dict[str, dict]) -> list[ValidationIssue]:
+def _change_rules(
+    doc: ProposalDoc, ctx: ValidationContext, *, start: date, end: date, state: dict[str, dict]
+) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     before = {str(uid): dict(vars(row)) for uid, row in ctx.head_sessions.items()}
     seen_ids: set[str] = set()
     seen_uids: set[uuid.UUID] = set()
     for i, change in enumerate(doc.changes):
-        issues += _change_issues(doc, ctx, i, change, start=start, end=end, state=state, before=before,
-                                 seen_ids=seen_ids, seen_uids=seen_uids)
+        issues += _change_issues(
+            doc,
+            ctx,
+            i,
+            change,
+            start=start,
+            end=end,
+            state=state,
+            before=before,
+            seen_ids=seen_ids,
+            seen_uids=seen_uids,
+        )
     return issues
 
 
-def _change_issues(doc: ProposalDoc, ctx: ValidationContext, i: int, change: Change, *, start: date, end: date, state: dict[str, dict], before: dict[str, dict], seen_ids: set[str], seen_uids: set[uuid.UUID]) -> list[ValidationIssue]:
+def _change_issues(
+    doc: ProposalDoc,
+    ctx: ValidationContext,
+    i: int,
+    change: Change,
+    *,
+    start: date,
+    end: date,
+    state: dict[str, dict],
+    before: dict[str, dict],
+    seen_ids: set[str],
+    seen_uids: set[uuid.UUID],
+) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     path = f"changes.{i}"
     head = ctx.head_sessions.get(change.session_uid) if change.session_uid else None

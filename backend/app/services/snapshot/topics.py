@@ -1,4 +1,5 @@
 """Snapshot topics."""
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -48,7 +49,9 @@ def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[st
     sessions = _scope_sessions(inputs, operation)
     runs = [s for s in sessions if s.get("kind") == "run"]
     slots = {str(s["slot_id"]): s for s in inputs.strength_slots}
-    symptom_start, symptom_end = section_window(operation if operation not in {CALIB, RACE, POST_EVENT} else DAILY, "symptoms", inputs)
+    symptom_start, symptom_end = section_window(
+        operation if operation not in {CALIB, RACE, POST_EVENT} else DAILY, "symptoms", inputs
+    )
     recent_checkins = [c for c in inputs.checkins if day_between(c.get("local_date"), symptom_start, symptom_end)]
     ptt = any(c.get("symptoms") for c in recent_checkins) or any(
         p.get("kind") == "delayed_symptom"
@@ -57,7 +60,14 @@ def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[st
         for p in inputs.prompts
     )
     rec_start = inputs.as_of - timedelta(
-        days=(3 if operation in {DAILY, EXCEPTION} else 14 if operation in {CALIB, RACE, POST_EVENT, ROLLING, QUALITY_OP} else 28) - 1
+        days=(
+            3
+            if operation in {DAILY, EXCEPTION}
+            else 14
+            if operation in {CALIB, RACE, POST_EVENT, ROLLING, QUALITY_OP}
+            else 28
+        )
+        - 1
     )
     recovery = any(
         m.get("metric_id") == "recovery_multisignal_summary"

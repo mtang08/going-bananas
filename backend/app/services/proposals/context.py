@@ -117,7 +117,11 @@ def load_context(
         kb,
         findings={fid: status for fid, status in session.execute(select(ExceptionFinding.id, ExceptionFinding.status))},
         patches={pid: status for pid, status in session.execute(select(ExceptionPatch.id, ExceptionPatch.status))},
-        events={eid: (status, day) for eid, status, day in session.execute(select(Event.id, Event.status, Event.event_date))},
-        open_rule_codes=frozenset(session.scalars(select(ExceptionFinding.rule_code).where(ExceptionFinding.status == "open"))),
+        events={
+            eid: (status, day) for eid, status, day in session.execute(select(Event.id, Event.status, Event.event_date))
+        },
+        open_rule_codes=frozenset(
+            session.scalars(select(ExceptionFinding.rule_code).where(ExceptionFinding.status == "open"))
+        ),
         benchmark=benchmark_status(session, active_row, today) if active_row else None,
     )

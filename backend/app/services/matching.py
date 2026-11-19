@@ -1,4 +1,5 @@
 """Deterministic plan to actual matching; callers own the transaction."""
+
 from __future__ import annotations
 
 import math
@@ -34,15 +35,16 @@ MATCHING_RULES = {
 
 def sessions_at_head(session: Session, start: date, end_excl: date) -> list[CalendarSessionRevision]:
     rows = latest_revisions(session).values()
-    return sorted((r for r in rows if not r.deleted and start <= r.local_date < end_excl),
-                  key=lambda r: (r.local_date, r.kind, r.slot, str(r.session_uid)))
+    return sorted(
+        (r for r in rows if not r.deleted and start <= r.local_date < end_excl),
+        key=lambda r: (r.local_date, r.kind, r.slot, str(r.session_uid)),
+    )
 
 
 def _subject_key(row: dict) -> str | None:
     if row.get("subject_key"):
         return str(row["subject_key"])
-    for field, prefix in (("activity_id", ""), ("strong_workout_id", "strong:"),
-                          ("manual_session_id", "manual:")):
+    for field, prefix in (("activity_id", ""), ("strong_workout_id", "strong:"), ("manual_session_id", "manual:")):
         if row.get(field):
             return prefix + str(row[field])
     return None
@@ -82,7 +84,9 @@ def _pair_cost(plan: dict, subject: dict) -> float:
     return cost
 
 
-def _day_choice(plans: list[dict], subjects: list[dict], kind: str) -> tuple[list[tuple[dict, dict]], list[list[float]]]:
+def _day_choice(
+    plans: list[dict], subjects: list[dict], kind: str
+) -> tuple[list[tuple[dict, dict]], list[list[float]]]:
     if len(plans) == len(subjects) == 1:
         return [(plans[0], subjects[0])], []
     if kind != "run" or not (1 <= len(plans) <= 2 and 2 <= len(subjects) <= 3):
@@ -100,21 +104,38 @@ def _day_choice(plans: list[dict], subjects: list[dict], kind: str) -> tuple[lis
 
 
 def _candidate(subject: dict, reason: str) -> dict:
-    return {"subject_key": _subject_key(subject), "local_date": _day(subject["local_date"]).isoformat(),
-            "kind": _kind(subject), "reason": reason}
+    return {
+        "subject_key": _subject_key(subject),
+        "local_date": _day(subject["local_date"]).isoformat(),
+        "kind": _kind(subject),
+        "reason": reason,
+    }
 
 
-def plan_matches(days: list[date], planned: list[dict], runs: list[dict], completions: list[dict],
-                 *, context_days: list[date] | None = None) -> dict:
+def plan_matches(
+    days: list[date],
+    planned: list[dict],
+    runs: list[dict],
+    completions: list[dict],
+    *,
+    context_days: list[date] | None = None,
+) -> dict:
     """Return only unambiguous links; candidate lists explain every unresolved plan."""
     day_scope = set(days)
     context = set(context_days or days) | day_scope
-    plans = [p for p in planned if p.get("kind") in ELIGIBLE_KINDS and not p.get("deleted")
-             and not p.get("skipped") and _day(p["local_date"]) in context]
+    plans = [
+        p
+        for p in planned
+        if p.get("kind") in ELIGIBLE_KINDS
+        and not p.get("deleted")
+        and not p.get("skipped")
+        and _day(p["local_date"]) in context
+    ]
     plans.sort(key=lambda p: (_day(p["local_date"]), p["kind"], str(p["session_uid"])))
     context_subjects = [r for r in runs if _subject_key(r) and _day(r["local_date"]) in context]
-    subjects = [r for r in context_subjects if r.get("eligible", True)
-                and r.get("resolution_state", "resolved") == "resolved"]
+    subjects = [
+        r for r in context_subjects if r.get("eligible", True) and r.get("resolution_state", "resolved") == "resolved"
+    ]
     plan_by_uid = {str(p["session_uid"]): p for p in plans}
     subject_by_key = {_subject_key(r): r for r in context_subjects}
     eligible_keys = {_subject_key(r) for r in subjects}
@@ -134,8 +155,12 @@ def plan_matches(days: list[date], planned: list[dict], runs: list[dict], comple
         elif method == "auto_same_day":
             plan, subject = plan_by_uid.get(uid), subject_by_key.get(key)
             if plan is not None and subject is not None and _day(plan["local_date"]) in day_scope:
-                if (key not in eligible_keys or _fragment(subject) or _day(plan["local_date"]) != _day(subject["local_date"])
-                        or plan["kind"] != _kind(subject)):
+                if (
+                    key not in eligible_keys
+                    or _fragment(subject)
+                    or _day(plan["local_date"]) != _day(subject["local_date"])
+                    or plan["kind"] != _kind(subject)
+                ):
                     delete_auto.add(uid)
                 else:
                     recheck_auto[uid] = key
@@ -171,8 +196,11 @@ def plan_matches(days: list[date], planned: list[dict], runs: list[dict], comple
     for day in sorted(day_scope):
         for kind in ("run", "strength"):
             day_plans = [p for p in available_plans if _day(p["local_date"]) == day and p["kind"] == kind]
-            day_subjects = [r for r in available_subjects if _day(r["local_date"]) == day and _kind(r) == kind
-                            and _subject_key(r) not in linked_subjects]
+            day_subjects = [
+                r
+                for r in available_subjects
+                if _day(r["local_date"]) == day and _kind(r) == kind and _subject_key(r) not in linked_subjects
+            ]
             for plan in day_plans:
                 uid = str(plan["session_uid"])
                 if uid in winners:
@@ -184,9 +212,13 @@ def plan_matches(days: list[date], planned: list[dict], runs: list[dict], comple
                     reason = "AMBIGUOUS_MATCH" if len(day_plans) > 1 or len(day_subjects) > 1 else "SAME_DAY_CANDIDATE"
                     same = [_candidate(r, reason) for r in day_subjects]
                     if kind == "run" and not same:
-                        same = [_candidate(r, "MOVE_CANDIDATE") for r in available_subjects
-                                if _kind(r) == "run" and _subject_key(r) not in linked_subjects
-                                and abs((_day(r["local_date"]) - day).days) == 1]
+                        same = [
+                            _candidate(r, "MOVE_CANDIDATE")
+                            for r in available_subjects
+                            if _kind(r) == "run"
+                            and _subject_key(r) not in linked_subjects
+                            and abs((_day(r["local_date"]) - day).days) == 1
+                        ]
                     same.sort(key=lambda c: (c["local_date"], c["kind"], c["subject_key"]))
                 if kind == "run":
                     same.extend(_candidate(r, "FRAGMENT_CANDIDATE") for r in fragments if _day(r["local_date"]) == day)
@@ -201,19 +233,34 @@ def plan_matches(days: list[date], planned: list[dict], runs: list[dict], comple
             p["kind"] == _kind(subject) and abs((_day(p["local_date"]) - day).days) <= 1 for p in plans
         ):
             continue
-        extras.append({"session_uid": str(uuid.uuid5(EXTRA_NAMESPACE, f"extra:{key}")),
-                       "subject_key": key, "match_method": "none"})
+        extras.append(
+            {
+                "session_uid": str(uuid.uuid5(EXTRA_NAMESPACE, f"extra:{key}")),
+                "subject_key": key,
+                "match_method": "none",
+            }
+        )
     extras.sort(key=lambda e: e["subject_key"])
     # Existing extra rows may need replacement once a planned match becomes possible.
     delete_extra = sorted(existing_extra_subjects - {e["subject_key"] for e in extras})
-    return {"delete_auto_session_uids": sorted(delete_auto), "delete_extra_subject_keys": delete_extra,
-            "links": links, "extras": extras, "candidates": candidates}
+    return {
+        "delete_auto_session_uids": sorted(delete_auto),
+        "delete_extra_subject_keys": delete_extra,
+        "links": links,
+        "extras": extras,
+        "candidates": candidates,
+    }
 
 
 def _completion_dict(row: SessionCompletion) -> dict:
-    return {"session_uid": row.session_uid, "activity_id": row.activity_id,
-            "strong_workout_id": row.strong_workout_id, "manual_session_id": row.manual_session_id,
-            "status": row.status, "match_method": row.match_method}
+    return {
+        "session_uid": row.session_uid,
+        "activity_id": row.activity_id,
+        "strong_workout_id": row.strong_workout_id,
+        "manual_session_id": row.manual_session_id,
+        "status": row.status,
+        "match_method": row.match_method,
+    }
 
 
 def _subject_columns(key: str) -> dict:
@@ -231,9 +278,14 @@ def _matching_plan(plan: CalendarSessionRevision) -> dict:
             has_work_steps = any(step["type"] == "work" for step in expand_structure(cast(list[dict], plan.structure)))
         except StructureError:
             pass
-    return {"session_uid": plan.session_uid, "local_date": plan.local_date, "kind": plan.kind,
-            "planned_duration_s": plan.planned_duration_s, "planned_distance_m": plan.planned_distance_m,
-            "has_work_steps": has_work_steps}
+    return {
+        "session_uid": plan.session_uid,
+        "local_date": plan.local_date,
+        "kind": plan.kind,
+        "planned_duration_s": plan.planned_duration_s,
+        "planned_distance_m": plan.planned_distance_m,
+        "has_work_steps": has_work_steps,
+    }
 
 
 def _matching_runs(session: Session, start: date, end: date) -> list[dict]:
@@ -241,11 +293,22 @@ def _matching_runs(session: Session, start: date, end: date) -> list[dict]:
     if not runs:
         return []
     ids = [run.activity_id for run in runs]
-    with_steps = set(session.scalars(select(ActivityWorkoutStep.activity_id)
-                                     .where(ActivityWorkoutStep.activity_id.in_(ids)).distinct()))
-    return [{"subject_key": str(run.activity_id), "local_date": run.local_date, "kind": "run",
-             "timer_s": run.timer_s, "distance_m": run.distance_m, "has_workout_steps": run.activity_id in with_steps}
-            for run in runs]
+    with_steps = set(
+        session.scalars(
+            select(ActivityWorkoutStep.activity_id).where(ActivityWorkoutStep.activity_id.in_(ids)).distinct()
+        )
+    )
+    return [
+        {
+            "subject_key": str(run.activity_id),
+            "local_date": run.local_date,
+            "kind": "run",
+            "timer_s": run.timer_s,
+            "distance_m": run.distance_m,
+            "has_workout_steps": run.activity_id in with_steps,
+        }
+        for run in runs
+    ]
 
 
 def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
@@ -255,33 +318,51 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
     head = head_version(session)
     if head == 0:
         return set()
-    origin = session.scalar(select(func.min(CalendarSessionRevision.local_date)).where(
-        CalendarSessionRevision.calendar_version_number <= head))
+    origin = session.scalar(
+        select(func.min(CalendarSessionRevision.local_date)).where(
+            CalendarSessionRevision.calendar_version_number <= head
+        )
+    )
     if origin is None:
         return set()
-    days = sorted({d + timedelta(days=offset) for d in dates for offset in (-1, 0, 1) if d + timedelta(days=offset) >= origin})
+    days = sorted(
+        {d + timedelta(days=offset) for d in dates for offset in (-1, 0, 1) if d + timedelta(days=offset) >= origin}
+    )
     if not days:
         return set()
-    context_days = sorted({d + timedelta(days=offset) for d in days for offset in range(-2, 3)
-                           if d + timedelta(days=offset) >= origin})
+    context_days = sorted(
+        {d + timedelta(days=offset) for d in days for offset in range(-2, 3) if d + timedelta(days=offset) >= origin}
+    )
     context = set(context_days)
     first, last = context_days[0], context_days[-1] + timedelta(days=1)
     plans = sessions_at_head(session, first, last)
     planned = [_matching_plan(plan) for plan in plans]
     runs = _matching_runs(session, first, last)
-    strong = session.scalars(select(StrongWorkoutRow).where(StrongWorkoutRow.local_date >= first,
-                            StrongWorkoutRow.local_date < last,
-                            StrongWorkoutRow.resolution_state == "resolved")).all()
+    strong = session.scalars(
+        select(StrongWorkoutRow).where(
+            StrongWorkoutRow.local_date >= first,
+            StrongWorkoutRow.local_date < last,
+            StrongWorkoutRow.resolution_state == "resolved",
+        )
+    ).all()
     runs += [{"subject_key": f"strong:{r.id}", "local_date": r.local_date, "kind": "strength"} for r in strong]
-    manual = session.scalars(select(ManualSession).where(ManualSession.date >= first,
-                            ManualSession.date < last, ManualSession.kind == "strength",
-                            ManualSession.linked_activity_id.is_(None))).all()
+    manual = session.scalars(
+        select(ManualSession).where(
+            ManualSession.date >= first,
+            ManualSession.date < last,
+            ManualSession.kind == "strength",
+            ManualSession.linked_activity_id.is_(None),
+        )
+    ).all()
     runs += [{"subject_key": f"manual:{r.id}", "local_date": r.date, "kind": "strength"} for r in manual]
     existing = session.scalars(select(SessionCompletion)).all()
     context_plan_uids = {str(p["session_uid"]) for p in planned if p["local_date"] in context}
-    historical = session.scalars(select(CalendarSessionRevision.session_uid).where(
-        CalendarSessionRevision.local_date.in_(context_days),
-        CalendarSessionRevision.calendar_version_number <= head)).all()
+    historical = session.scalars(
+        select(CalendarSessionRevision.session_uid).where(
+            CalendarSessionRevision.local_date.in_(context_days),
+            CalendarSessionRevision.calendar_version_number <= head,
+        )
+    ).all()
     context_plan_uids.update(str(uid) for uid in historical)
     context_subject_keys = {str(r["subject_key"]) for r in runs if r["local_date"] in context}
     zone = athlete_tz(session)
@@ -303,10 +384,14 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
         if subject_day in context:
             context_subject_keys.add(key)
             runs.append({"subject_key": key, "local_date": subject_day, "eligible": False})
-    context_existing = [c for c in existing if str(c.session_uid) in context_plan_uids
-                       or _subject_key(_completion_dict(c)) in context_subject_keys]
-    result = plan_matches(days, planned, runs, [_completion_dict(c) for c in context_existing],
-                          context_days=context_days)
+    context_existing = [
+        c
+        for c in existing
+        if str(c.session_uid) in context_plan_uids or _subject_key(_completion_dict(c)) in context_subject_keys
+    ]
+    result = plan_matches(
+        days, planned, runs, [_completion_dict(c) for c in context_existing], context_days=context_days
+    )
     affected: set[UUID] = set()
     by_uid = {str(c.session_uid): c for c in context_existing}
     deleted_uids: set[str] = set()
@@ -343,9 +428,13 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
                 old.updated_at = now
                 affected.add(uid)
             continue
-        row = SessionCompletion(session_uid=uid, status="extra" if item in result["extras"] else "unknown",
-                                match_method=item["match_method"], updated_at=now,
-                                **_subject_columns(item["subject_key"]))
+        row = SessionCompletion(
+            session_uid=uid,
+            status="extra" if item in result["extras"] else "unknown",
+            match_method=item["match_method"],
+            updated_at=now,
+            **_subject_columns(item["subject_key"]),
+        )
         session.add(row)
         affected.add(uid)
     return affected
@@ -360,13 +449,22 @@ def candidates_for_session(session: Session, session_uid: UUID) -> list[dict]:
     first, last = days[0], days[-1] + timedelta(days=1)
     plans = [_matching_plan(plan) for plan in sessions_at_head(session, first, last)]
     runs = _matching_runs(session, first, last)
-    strong = session.scalars(select(StrongWorkoutRow).where(StrongWorkoutRow.local_date >= days[0],
-                            StrongWorkoutRow.local_date <= days[-1],
-                            StrongWorkoutRow.resolution_state == "resolved")).all()
+    strong = session.scalars(
+        select(StrongWorkoutRow).where(
+            StrongWorkoutRow.local_date >= days[0],
+            StrongWorkoutRow.local_date <= days[-1],
+            StrongWorkoutRow.resolution_state == "resolved",
+        )
+    ).all()
     runs += [{"subject_key": f"strong:{r.id}", "local_date": r.local_date, "kind": "strength"} for r in strong]
-    manual = session.scalars(select(ManualSession).where(ManualSession.date >= days[0],
-                            ManualSession.date <= days[-1], ManualSession.kind == "strength",
-                            ManualSession.linked_activity_id.is_(None))).all()
+    manual = session.scalars(
+        select(ManualSession).where(
+            ManualSession.date >= days[0],
+            ManualSession.date <= days[-1],
+            ManualSession.kind == "strength",
+            ManualSession.linked_activity_id.is_(None),
+        )
+    ).all()
     runs += [{"subject_key": f"manual:{r.id}", "local_date": r.date, "kind": "strength"} for r in manual]
     completions = [_completion_dict(c) for c in session.scalars(select(SessionCompletion)).all()]
     result = plan_matches(days, plans, runs, completions)

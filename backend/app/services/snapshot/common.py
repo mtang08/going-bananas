@@ -1,4 +1,5 @@
 """Snapshot common."""
+
 from __future__ import annotations
 
 import json
@@ -36,9 +37,21 @@ KEY_SESSIONS_MAX = 4
 NOT_DONE_MAX = 6
 UNPLANNED_MAX = 4
 WEEKLY_DIGEST_MAX_CHARS = 10_500
-PROGRESSION_POINT_KEYS = ("local_date", "activity_id", "status", "reason_codes", "n_planned", "n_completed",
-                          "work_speed_mps", "work_hr_bpm", "work_m_per_beat", "cv_speed",
-                          "last_first_change_pct", "target_coverage", "sport")
+PROGRESSION_POINT_KEYS = (
+    "local_date",
+    "activity_id",
+    "status",
+    "reason_codes",
+    "n_planned",
+    "n_completed",
+    "work_speed_mps",
+    "work_hr_bpm",
+    "work_m_per_beat",
+    "cv_speed",
+    "last_first_change_pct",
+    "target_coverage",
+    "sport",
+)
 
 
 def row_view(row: Any, keys: tuple[str, ...], *, names: dict[str, str] | None = None) -> dict:
