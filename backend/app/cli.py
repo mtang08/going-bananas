@@ -136,7 +136,7 @@ def _coach(args) -> int:
                 'revision': RevisionRequest.model_json_schema()})
             return 0
         if args.coach_command == 'snapshot':
-            from app.services.snapshot import build_snapshot
+            from app.services.snapshot.build import build_snapshot
             with SessionLocal.begin() as session:
                 result = build_snapshot(session, args.operation, args.as_of or date_in_zone(now, athlete_tz(session)), now=now)
             output(result)

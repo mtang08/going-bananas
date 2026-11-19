@@ -475,7 +475,7 @@ def test_projection_sections_per_operation() -> None:
 
 
 def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
-    from app.services import snapshot as module
+    import app.services.snapshot.build as module
     from app.services.decision_inputs import fingerprint
 
     source = minimal()
