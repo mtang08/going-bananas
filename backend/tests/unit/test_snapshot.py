@@ -12,7 +12,7 @@ from typing import Any, cast
 
 from app.services.decision_inputs import canonical_json
 from app.services.knowledge import POLICY_MAP, load_manifest, load_route
-from app.services.proposals import scope
+from app.services.proposals.schema import scope
 from app.services.snapshot import (
     BLOCK,
     CALIB,

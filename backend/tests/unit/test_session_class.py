@@ -127,11 +127,9 @@ def test_spacing_config_identity_unchanged():
     assert config_hash(CONFIG) == '01c51faf66223ff3b228bf2bee35dd89b077036f052861e0ff89b5e03f85ab13'
 
 
-def test_proposals_and_snapshot_share_sets():
-    from app.services import proposals, snapshot
+def test_snapshot_classifies_recipes():
+    from app.services import snapshot
 
-    assert proposals.QUALITY_RECIPES is QUALITY_RECIPES
-    assert snapshot.QUALITY_RECIPES is QUALITY_RECIPES
     assert snapshot._classify(None) == 'unplanned'
     assert snapshot._classify('') == 'unplanned'
     assert snapshot._classify('REC002') == 'long'

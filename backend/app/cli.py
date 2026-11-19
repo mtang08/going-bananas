@@ -118,6 +118,7 @@ def _coach(args) -> int:
     from app.errors import AppError
     from app.services import knowledge, proposals
     from app.services.decision_inputs import VerifiedKnowledge
+    from app.services.proposals.schema import DecisionError, ProposalDoc
     from app.services.timezone import athlete_tz
 
     def output(value, *, error=False):
@@ -130,7 +131,7 @@ def _coach(args) -> int:
         now = datetime.now(UTC)
         if args.coach_command == 'schema':
             output({'protocol': 'coach_proposal.v1', 'activation': 'manual', 'required_authority': 'calendar',
-                'proposal': proposals.ProposalDoc.model_json_schema(),
+                'proposal': ProposalDoc.model_json_schema(),
                 'revision': proposals.RevisionRequest.model_json_schema()})
             return 0
         if args.coach_command == 'snapshot':
@@ -193,7 +194,7 @@ def _coach(args) -> int:
     except knowledge.KnowledgeIntegrityError:
         output({'error': 'knowledge_unavailable'}, error=True)
         return 4
-    except proposals.DecisionError as exc:
+    except DecisionError as exc:
         if args.coach_command in {'submit', 'revise'}:
             output({'proposal_id': str(args.id) if args.coach_command == 'revise' else None,
                 'revision': None, 'status': 'invalid', 'error': exc.code,

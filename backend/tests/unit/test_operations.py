@@ -4,8 +4,9 @@ from pathlib import Path
 from typing import get_args
 
 from app.coach_v2_models import CoachProposal, CoachSnapshot
-from app.services import knowledge, proposals, snapshot
+from app.services import knowledge, snapshot
 from app.services.operations import OPERATIONS
+from app.services.proposals.schema import ProposalDoc
 
 NON_OPERATION_ROUTES = {"deep_evidence_audit", "evaluation"}
 CHECKS = ((CoachSnapshot, "ck_coach_snapshots_operation"), (CoachProposal, "ck_coach_proposals_operation"),
@@ -26,7 +27,7 @@ def test_backend_sites_match_operations():
     assert knowledge.SUPPORTED_OPERATIONS == OPERATIONS
     assert set(knowledge.POLICY_MAP) == ops
     assert set(knowledge.TOKEN_BUDGET) == ops
-    assert set(get_args(proposals.ProposalDoc.model_fields["operation"].annotation)) == ops
+    assert set(get_args(ProposalDoc.model_fields["operation"].annotation)) == ops
     assert {snapshot.DAILY, snapshot.ROLLING, snapshot.QUALITY_OP, snapshot.BLOCK, snapshot.CALIB, snapshot.RACE,
             snapshot.EXCEPTION, snapshot.POST_EVENT} == ops
 
