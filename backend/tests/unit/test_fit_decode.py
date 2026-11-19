@@ -14,7 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'fixtures' / 'fit')
 from synthetic import FIT_EPOCH_OFFSET, LAT_CANARY, START_FIT_TS, build_synthetic_fit, build_synthetic_zip  # noqa: E402
 
 from app.adapters.garmin.fit import (  # noqa: E402
+    DecodedSession,
     FitDecodeError,
+    _timer,
     decode_fit,
     decode_fit_zip,
     extract_fit,
@@ -26,6 +28,24 @@ def _code(call, expected):
     with pytest.raises(FitDecodeError) as error:
         call()
     assert error.value.code == expected
+
+
+def _timer_case(*events):
+    session = DecodedSession(datetime.fromtimestamp(START_FIT_TS + FIT_EPOCH_OFFSET, UTC), 'running', 600.0, 600.0)
+    return _timer([{'timestamp': START_FIT_TS + second, 'event': 'timer', 'event_type': kind}
+                   for second, kind in events], session)
+
+
+def test_timer_stop_disable_all_closes_segment():
+    assert _timer_case((0, 'start'), (600, 'stop_disable_all')) == (((0, 600),), set())
+
+
+def test_timer_marker_ignored():
+    assert _timer_case((0, 'start'), (100, 'marker'), (600, 'stop_all')) == (((0, 600),), set())
+
+
+def test_timer_unknown_type_still_ambiguous():
+    assert _timer_case((0, 'start'), (100, 'consecutive_depreciated')) == ((), {'TIMER_EVENTS_AMBIGUOUS'})
 
 
 def test_synthetic_contract_and_privacy():
@@ -221,6 +241,9 @@ def test_missing_ambiguous_session_and_stream_variants(monkeypatch):
     def treadmill(m):
         m['session_mesgs'][0]['sub_sport'] = 'treadmill'
     assert inject(treadmill).session.sport == 'treadmill_running'
+    def indoor_running(m):
+        m['session_mesgs'][0]['sub_sport'] = 'indoor_running'
+    assert inject(indoor_running).session.sport == 'treadmill_running'
     monkeypatch.setattr(fit.Decoder, 'read', original)
 
 

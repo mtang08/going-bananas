@@ -154,11 +154,12 @@ def _channel(row: dict, enhanced: str, fallback: str) -> float | None:
 
 def _timer(events: list[dict], session: DecodedSession) -> tuple[tuple[tuple[int, int], ...], set[str]]:
     flags: set[str] = set()
-    timer_events = [item for item in events if item.get('event') == 'timer']
+    timer_events = [item for item in events if item.get('event') == 'timer' and item.get('event_type') != 'marker']
     if not timer_events:
         return (), {'TIMER_EVENTS_MISSING'}
     try:
-        ordered = sorted(((_offset(item.get('timestamp'), session.start_at), item.get('event_type'))
+        ordered = sorted(((_offset(item.get('timestamp'), session.start_at),
+            {'stop_disable': 'stop', 'stop_disable_all': 'stop_all'}.get(item.get('event_type'), item.get('event_type')))
             for item in timer_events), key=lambda row: (row[0], 0 if row[1] in {'stop', 'stop_all'} else 1))
     except (FitDecodeError, TypeError):
         return (), {'TIMER_EVENTS_AMBIGUOUS'}
@@ -286,7 +287,7 @@ def decode_fit(fit_bytes: bytes) -> DecodedFit:
     if start is None:
         raise FitDecodeError('missing_start')
     sub_sport = session_row.get('sub_sport')
-    if session_row.get('sport') == 'running' and sub_sport in {'trail', 'treadmill', 'indoorRunning'}:
+    if session_row.get('sport') == 'running' and sub_sport in {'trail', 'treadmill', 'indoor_running'}:
         sport = 'trail_running' if sub_sport == 'trail' else 'treadmill_running'
     else:
         sport = str(sub_sport) if sub_sport in RUN_SPORTS else str(session_row.get('sport', 'unknown'))
