@@ -8,7 +8,7 @@ If the app is already running, just open http://127.0.0.1:8000; do not start a s
 
 ## Daily check-in
 
-Open [Home](#home) to see what needs attention, today's accepted session, weekly mileage, and the next two weeks. Open a session for its full prescription, including warm-up, intervals, recovery, targets, and notes. In a rolling proposal, days 1–7 are committed planning and days 8–14 are provisional. The grid uses Monday–Sunday rows, which may not match those seven-day windows; use each session’s saved provisional badge as the authority.
+Open [Home](#home) to see what needs attention, today's accepted session, weekly mileage, and the next two weeks. Open a session for its full prescription, including warm-up, intervals, recovery, targets, and notes. In a rolling proposal, days 1–7 are committed planning and days 8–14 are provisional. The grid uses Monday–Sunday rows, which may not match those seven-day windows; use each session’s saved provisional badge as the authority. Home also has a **Planned vs done** card for this week or last week (Monday–Sunday): sessions done against planned (so far, while the week is still running), time, running distance, how each key session went (quality, long, and benchmark runs, with steps completed and time in target), what was missed or not recorded, unplanned sessions, and sessions an accepted change removed. A value the app cannot know shows as unknown, never as zero. The coach reads the same numbers in your Sunday review.
 
 Record actual effort and post-run response when prompted. Report fatigue, illness, symptoms, or gait changes when relevant. Missing observations stay unknown, so a blank check-in does not mean everything was normal.
 
