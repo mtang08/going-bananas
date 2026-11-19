@@ -6,9 +6,23 @@ from collections import Counter
 from datetime import date, timedelta
 from typing import Literal, get_args
 
+from sqlalchemy import and_, or_, select, text
+from sqlalchemy.orm import Session
+
+from app.calendar_models import SessionCompletion
 from app.domain.session_class import HARD_CLASSES, classify
+from app.errors import fail
+from app.metric_models import MetricResult
+from app.metrics import intervals as interval_metric
+from app.metrics import planned_actual
+from app.metrics.contract import RunFact
+from app.metrics.engine import activities_coverage_complete, current_results, load_runs
+from app.models import Activity, ManualSession
+from app.services import calendar
 from app.services.calendar_structure import StructureError, expand_structure
-from app.services.weekly_projection import planned_distance
+from app.services.timezone import athlete_tz
+from app.services.weekly_projection import planned_distance, recent_pace_mps
+from app.strong_models import StrongWorkoutRow
 
 DIGEST_SCHEMA = 'weekly_digest.v1'
 Outcome = Literal['completed', 'modified', 'partial', 'moved', 'missed', 'recorded', 'not_recorded', 'planned']
@@ -19,6 +33,7 @@ HEADLINE_KINDS = ('run', 'strength', 'cross')
 REPORTED_KINDS = ('run', 'strength', 'cross', 'mobility')
 KEY_CLASSES = HARD_CLASSES
 PACE_WINDOW_DAYS = 28
+_DAY = timedelta(days=1)
 _STATUS_OUTCOME: dict[str, Outcome] = {'completed_as_planned': 'completed', 'completed_modified': 'modified',
     'partial': 'partial', 'moved': 'moved', 'skipped': 'missed'}
 _SUBJECT_FIELDS = (('activity_id', 'activity'), ('strong_workout_id', 'strong_workout'),
@@ -161,3 +176,91 @@ def assemble_week(*, week_start: date, today: date, timezone: str, calendar_vers
                              'actual_unknown': sum(sub['distance_m'] is None for sub in actual_runs)},
             'key_sessions': {**counts(key_rows), 'by_outcome': by_outcome(key_rows)}},
         'sessions': rows, 'unplanned': unplanned, 'removed': removed_rows}
+
+
+def _run_fact(run: RunFact) -> dict:
+    return {'activity_id': run.activity_id, 'local_date': run.local_date,
+            'timer_s': run.timer_s, 'distance_m': run.distance_m}
+
+
+def _rows(result: dict[str, MetricResult]) -> dict[str, dict]:
+    return {key: {'status': row.status, 'reason_codes': list(row.reason_codes or []),
+                  'quality_flags': list(row.quality_flags or []), 'value': row.value}
+            for key, row in result.items()}
+
+
+def load_week(session: Session, week_start: date, *, today: date) -> dict:
+    week_end = week_start + timedelta(days=6)
+    as_of = min(week_end, today)
+    timezone = athlete_tz(session)
+    head = calendar._head(session)
+    latest = [row for row in calendar._latest(session, head).values() if week_start <= row.local_date <= week_end]
+    sessions = [calendar._row_data(row) for row in latest if not row.deleted]
+    removed = [{'session_uid': row.session_uid, 'local_date': row.local_date, 'kind': row.kind}
+               for row in latest if row.deleted]
+    head_uids = {row['session_uid'] for row in sessions}
+
+    runs = {run.activity_id: _run_fact(run) for run in load_runs(session, week_start, week_end + _DAY)}
+    lift_fields = select(StrongWorkoutRow.id, StrongWorkoutRow.local_date, StrongWorkoutRow.duration_s).where(
+        StrongWorkoutRow.resolution_state == 'resolved')
+    lifts = {row.id: dict(row._mapping) for row in session.execute(lift_fields.where(
+        StrongWorkoutRow.local_date.between(week_start, week_end)))}
+    manual_fields = select(ManualSession.id, ManualSession.date, ManualSession.kind, ManualSession.duration_s,
+                           ManualSession.linked_activity_id)
+    manuals = {row.id: dict(row._mapping) for row in session.execute(manual_fields.where(
+        ManualSession.date.between(week_start, week_end)))}
+
+    completion = SessionCompletion
+    kept = session.execute(select(completion.session_uid, completion.status, completion.activity_id,
+        completion.strong_workout_id, completion.manual_session_id, completion.modification_reason).where(or_(
+            completion.session_uid.in_(head_uids),
+            and_(completion.status == 'extra', or_(completion.activity_id.in_(runs),
+                completion.strong_workout_id.in_(lifts), completion.manual_session_id.in_(manuals))),
+        ))).all()
+    for row in kept:
+        if row.session_uid not in head_uids:
+            continue
+        if row.activity_id is not None and row.activity_id not in runs:
+            start_at = session.scalar(select(Activity.start_at).where(Activity.id == row.activity_id))
+            if start_at is not None:
+                day = start_at.astimezone(timezone).date()
+                for run in load_runs(session, day, day + _DAY):
+                    if run.activity_id == row.activity_id:
+                        runs[run.activity_id] = _run_fact(run)
+        if row.strong_workout_id is not None and row.strong_workout_id not in lifts:
+            lift = session.execute(lift_fields.where(StrongWorkoutRow.id == row.strong_workout_id)).one_or_none()
+            if lift is not None:
+                lifts[lift.id] = dict(lift._mapping)
+        if row.manual_session_id is not None and row.manual_session_id not in manuals:
+            manual = session.execute(manual_fields.where(ManualSession.id == row.manual_session_id)).one_or_none()
+            if manual is not None:
+                manuals[manual.id] = dict(manual._mapping)
+
+    completions = {str(row.session_uid): {'status': row.status, 'activity_id': row.activity_id,
+        'strong_workout_id': row.strong_workout_id, 'manual_session_id': row.manual_session_id,
+        'modification_reason': row.modification_reason} for row in kept}
+    key_uids = [str(row['session_uid']) for row in sessions
+                if classify(row['kind'], row.get('recipe_id'), row.get('intent')) in KEY_CLASSES]
+    key_activity_ids = [str(completions[uid]['activity_id']) for uid in key_uids
+                        if uid in completions and completions[uid]['activity_id']]
+    pace_runs = load_runs(session, as_of - timedelta(days=PACE_WINDOW_DAYS - 1), as_of + _DAY)
+    pace, _ = recent_pace_mps(pace_runs, as_of, PACE_WINDOW_DAYS)
+    return assemble_week(
+        week_start=week_start, today=today, timezone=timezone.key, calendar_version=head,
+        sessions=sessions, removed=removed, completions=completions,
+        runs=list(runs.values()), lifts=list(lifts.values()), manuals=list(manuals.values()),
+        assessments=_rows(current_results(session, planned_actual.METRIC_ID, key_uids)),
+        intervals={key: row.value for key, row in
+                   current_results(session, interval_metric.METRIC_ID, key_activity_ids).items()
+                   if isinstance(row.value, dict)},
+        pace_mps=pace,
+        activity_coverage_complete=activities_coverage_complete(session, week_start, as_of + _DAY),
+    )
+
+
+def weekly_digest(session: Session, week_start: date | None) -> dict:
+    if week_start is not None and week_start.weekday() != 0:
+        fail('invalid_week_start', 'Week start must be a Monday')
+    session.execute(text('SELECT pg_advisory_xact_lock_shared(:key)'), {'key': calendar.LOCK_ID})
+    today = calendar._today(session)
+    return load_week(session, week_start or week_bounds(today)[0], today=today)
