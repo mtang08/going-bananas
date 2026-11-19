@@ -49,7 +49,7 @@ def demo_cli(monkeypatch, tmp_path):
             sessions = sessionmaker(bind=connection, expire_on_commit=False)
             monkeypatch.setattr(cli, 'SessionLocal', sessions)
             monkeypatch.setattr(cli, 'settings', SimpleNamespace(app_mode='demo', private_dir=tmp_path))
-            monkeypatch.setattr(cli, '_parse', lambda: argparse.Namespace(command='seed-demo', calendar_preview=True))
+            monkeypatch.setattr(cli, '_parse', lambda: argparse.Namespace(command='seed-demo'))
             yield sessions
     finally:
         with engine.begin() as connection:
@@ -64,13 +64,13 @@ def test_calendar_preview_initializes_fresh_migrated_database(demo_cli, capsys, 
     monkeypatch.setattr(calendar, '_today', lambda session, now=None: today)
     with demo_cli() as session:
         state = session.get(AppState, 1)
-        assert (state.planning_authority, state.calendar_head_version, state.data_revision) == ('legacy', 0, 0)
+        assert (state.calendar_head_version, state.data_revision) == (0, 0)
     assert cli.main() == 0
     totals = json.loads(capsys.readouterr().out)
     assert totals['activities'] > 0 and totals['calendar_session_revisions'] > 0
     with demo_cli() as session:
         state = session.get(AppState, 1)
-        assert state.planning_authority == 'calendar' and state.calendar_head_version > 0
+        assert state.calendar_head_version > 0
         first = session.scalar(select(CalendarVersion).where(CalendarVersion.number == 1))
         assert first.kind == 'bootstrap'
         assert session.scalar(select(func.count()).select_from(CalendarSessionRevision)) > 0
@@ -107,7 +107,7 @@ def test_calendar_preview_refuses_existing_legacy_data(demo_cli, capsys, existin
     assert json.loads(capsys.readouterr().err)['error'] == 'calendar_preview_requires_empty_database'
     with demo_cli() as session:
         state = session.get(AppState, 1)
-        assert (state.planning_authority, state.calendar_head_version) == ('legacy', 0)
+        assert state.calendar_head_version == 0
         assert session.scalar(select(func.count()).select_from(ProfileVersion)) == (existing == 'profile')
         assert session.scalar(select(func.count()).select_from(Activity)) == (existing == 'activity')
         assert session.scalar(select(func.count()).select_from(CalendarVersion)) == 0

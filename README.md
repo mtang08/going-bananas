@@ -243,7 +243,7 @@ Browser acceptance uses an isolated demo database and built frontend on port
 18000. Use a disposable demo environment, never real credentials or data:
 
 ```sh
-./scripts/with-mode demo bash -c 'cd backend && uv run alembic upgrade head && uv run python -m app.cli seed-demo --calendar-preview'
+./scripts/with-mode demo bash -c 'cd backend && uv run alembic upgrade head && uv run python -m app.cli seed-demo'
 make build
 APP_PORT=18000 ./scripts/with-mode demo bash -c 'cd backend && uv run uvicorn app.main:app --host 127.0.0.1 --port 18000'
 # In another terminal:
@@ -251,8 +251,7 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:18000 make test-e2e
 ```
 
 The demo database must be fresh; on an empty synthetic database,
-`seed-demo --calendar-preview` initializes calendar authority at head 0 before
-creating the preview data. It refuses databases that already contain user data.
+`seed-demo` seeds the calendar preview data. It refuses databases that already contain user data.
 
 The P0-A, P0-B, and P1 exception suites run in that order against one fresh
 calendar preview database. Browser and API requests use the same

@@ -49,7 +49,7 @@ def demo(monkeypatch, tmp_path, capsys):
             sessions = sessionmaker(bind=connection, expire_on_commit=False)
             monkeypatch.setattr(cli, 'SessionLocal', sessions)
             monkeypatch.setattr(cli, 'settings', SimpleNamespace(app_mode='demo', private_dir=tmp_path))
-            monkeypatch.setattr(cli, '_parse', lambda: argparse.Namespace(command='seed-demo', calendar_preview=True))
+            monkeypatch.setattr(cli, '_parse', lambda: argparse.Namespace(command='seed-demo'))
             monkeypatch.setattr(cli, 'local_date', lambda instant, zone: TODAY)
             monkeypatch.setattr(calendar, '_today', lambda session, now=None: TODAY)
             assert cli.main() == 0
