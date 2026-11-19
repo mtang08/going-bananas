@@ -632,11 +632,13 @@ def test_read_results_previews_without_writing_then_serves_stored(db, tmp_path):
         session.execute(text('UPDATE metric_results SET config_hash = :stale WHERE id = :id'),
                         {'stale': '0' * 64, 'id': stored['id']})
         session.commit()
+        session.expire_all()
         assert engine.read_results(session, metric, [key])[key] == preview
 
         session.execute(text("UPDATE metric_results SET method_version = 'obsolete', config_hash = :config WHERE id = :id"),
                         {'id': stored['id'], 'config': stored['config_hash']})
         session.commit()
+        session.expire_all()
         assert engine.read_results(session, metric, [key])[key] == preview
 
 
@@ -649,6 +651,7 @@ def test_metric_gets_write_nothing(db, tmp_path):
         session.execute(text('UPDATE metric_results SET config_hash = :stale WHERE id = :id'),
                         {'stale': '0' * 64, 'id': stale.id})
         session.commit()
+        session.expire_all()
         session.execute(text('SET TRANSACTION READ ONLY'))
         transaction = session.get_transaction()
         before, revision = counts(session), get_revision(session)
