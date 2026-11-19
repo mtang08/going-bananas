@@ -128,11 +128,11 @@ def test_spacing_config_identity_unchanged():
 
 
 def test_snapshot_classifies_recipes():
-    from app.services import snapshot
+    from app.services.snapshot.payload import _classify
 
-    assert snapshot._classify(None) == 'unplanned'
-    assert snapshot._classify('') == 'unplanned'
-    assert snapshot._classify('REC002') == 'long'
-    assert snapshot._classify('REC009') == 'quality'
-    assert snapshot._classify('REC010') == 'easy'
-    assert snapshot._classify('REC007') == 'easy'
+    assert _classify(None) == 'unplanned'
+    assert _classify('') == 'unplanned'
+    assert _classify('REC002') == 'long'
+    assert _classify('REC009') == 'quality'
+    assert _classify('REC010') == 'easy'
+    assert _classify('REC007') == 'easy'
