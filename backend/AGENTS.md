@@ -13,8 +13,9 @@ Paths below are relative to `backend/`.
 | Runtime | `app/config.py`, `app/db.py`, `app/cli.py`; root `scripts/serve.py` manages processes |
 | HTTP | `app/api/`: request validation, service calls, response envelopes |
 | Calendar | `app/calendar_models.py`, `app/services/calendar.py`: versioned session state and undo |
-| Proposals | `app/coach_v2_models.py`, `app/services/proposals.py`: payload schema, freshness, validation, decisions |
-| Coach context | `app/services/snapshot.py`, `decision_inputs.py`, `knowledge.py`: filtered evidence, fingerprints, verified KB |
+| Proposals | `app/coach_v2_models.py`, `app/services/proposals/` (schema, validation, context, lifecycle and decisions) |
+| Coach context | `app/services/snapshot/` (inputs, payload, topics and build), `decision_inputs.py`, `knowledge.py` |
+| Shared reads | `app/read/` (calendar head and revisions, eligible runs), `app/domain/sports.py`, `app/domain/local_time.py` |
 | Planning | `app/planning_models.py`, `app/api/planning.py`, `app/api/anchors.py`: blocks and calibration |
 | Feedback | `app/checkin_models.py`, `app/services/checkins.py`, `prompts.py` |
 | Metrics | `app/metrics/contract.py`, `engine.py` (registry, inputs, result storage and reads), `refresh.py` (recomputation), `app/services/derived.py` (commit-time and startup refresh), metric modules and `app/metric_models.py` |
@@ -27,6 +28,8 @@ changes → explicit app decision → versioned calendar → actual matching/che
 → next snapshot. Trace the relevant path rather than reading every service.
 
 ## Change conventions
+
+- Shared queries live in `app/read/`. The import boundaries and the documented matching exception are checked in `tests/unit/test_layering.py`.
 
 - Keep domain decisions in services/pure calculations so API and CLI share them.
   Use the existing envelope/error patterns; coordinate wire changes with

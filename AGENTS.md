@@ -34,7 +34,7 @@ all migrations, the full research library, or private data to orient yourself.
 | Task | First files to inspect |
 | --- | --- |
 | Athlete coaching | [.codex/skills/going-bananas-coach/SKILL.md](.codex/skills/going-bananas-coach/SKILL.md), then its selected workflow/reference |
-| Coaching snapshots, validation, proposals | `backend/app/api/coach.py`, `backend/app/services/{snapshot,decision_inputs,proposals}.py` |
+| Coaching snapshots, validation, proposals | `backend/app/api/coach.py`, `backend/app/services/snapshot/`, `backend/app/services/decision_inputs.py`, `backend/app/services/proposals/` |
 | Calendar, completion, undo | `backend/app/api/calendar.py`, `backend/app/services/{calendar,matching,weekly_digest}.py` |
 | Blocks, anchors, schedule configuration | `backend/app/api/{planning,anchors}.py`, `backend/app/planning_models.py` |
 | Check-ins and prompts | `backend/app/api/checkins.py`, `backend/app/services/{checkins,prompts}.py` |
