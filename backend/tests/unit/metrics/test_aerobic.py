@@ -1,8 +1,17 @@
 import math
+from datetime import date, timedelta
 
 import pytest
 
-from app.metrics.aerobic import AeroStream, Sample, aerobic_outcome, analysis_spans, run_class, speed_cv_pct
+from app.metrics.aerobic import (
+    AeroStream,
+    Sample,
+    aerobic_outcome,
+    analysis_spans,
+    run_class,
+    speed_cv_pct,
+    window_outcome,
+)
 
 
 def stream(n, hr, speed, alt=None, timer_on=None, flags=()):
@@ -249,3 +258,59 @@ def test_run_class():
     assert run_class(None, 0, 'quality') == ('quality', 'NOT_EASY_OR_LONG')
     assert run_class(None, 4, None) == ('structured', 'STRUCTURED_SESSION')
     assert run_class(None, 1, None) == ('unplanned', None)
+
+
+def test_window_outcome():
+    start = date(2026, 10, 19)
+
+    def entry(day, ef=None, dec=None, status='available', flags=(), reasons=()):
+        value = None if ef is None else {
+            'session_class': 'easy', 'ef_m_per_beat': ef, 'mean_speed_mps': 2.8,
+            'mean_hr_bpm': round(168 / ef, 1), 'decoupling': {'pct': dec},
+        }
+        return {
+            'activity_id': str(day),
+            'local_date': start + timedelta(days=day),
+            'result': None if status is None else {
+                'status': status, 'value': value, 'quality_flags': flags, 'reason_codes': reasons,
+            },
+        }
+
+    entries = [
+        entry(1, 1.15), entry(4, 1.16, 3.1), entry(8, 1.17),
+        entry(15, 1.20, 2.5), entry(18, 1.19), entry(22, 1.21),
+        entry(10, status='not_applicable', reasons=('STRUCTURED_SESSION',)),
+        entry(12, 1.3, flags=('TREADMILL',)),
+        entry(25, status=None),
+    ]
+
+    result = window_outcome(entries, start, 28, coverage_complete=True)
+
+    assert result['status'] == 'partial'
+    assert result['reason_codes'] == ['ACTIVITY_RESULT_MISSING']
+    assert result['quality_flags'] == []
+    value = result['value']
+    assert (value['runs_total'], value['runs_counted'], value['runs_without_result']) == (9, 6, 1)
+    assert value['not_counted'] == {'NO_RESULT': 1, 'STRUCTURED_SESSION': 1, 'TREADMILL': 1}
+    assert value['ef_median_m_per_beat'] == 1.18
+    assert value['ef_early_median_m_per_beat'] == 1.16
+    assert value['ef_late_median_m_per_beat'] == 1.2
+    assert value['ef_change_pct'] == 3.45
+    assert value['decoupling_runs_counted'] == 2
+    assert value['decoupling_median_pct'] == 2.8
+    assert [point['local_date'] for point in value['points']] == [
+        (start + timedelta(days=day)).isoformat() for day in (1, 4, 8, 15, 18, 22)
+    ]
+    assert window_outcome(list(reversed(entries)), start, 28, coverage_complete=True) == result
+
+    incomplete = window_outcome(entries[:4], start, 28, coverage_complete=False)
+    assert incomplete['status'] == 'partial'
+    assert incomplete['reason_codes'] == ['SYNC_COVERAGE_INCOMPLETE']
+    assert incomplete['quality_flags'] == ['TREND_TOO_FEW_RUNS']
+    assert incomplete['value']['ef_change_pct'] is None
+
+    no_eligible = window_outcome([entries[6]], start, 28, coverage_complete=True)
+    assert no_eligible['status'] == 'not_assessable'
+    assert no_eligible['reason_codes'] == ['NO_ELIGIBLE_RUNS']
+    assert no_eligible['value']['runs_counted'] == 0
+    assert no_eligible['value']['points'] == []

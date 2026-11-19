@@ -105,3 +105,24 @@ def test_demo_activity_results(demo):
         assert excluded.status == 'not_applicable'
         assert excluded.reason_codes == ['ACTIVITY_EXCLUDED']
         assert excluded.value is None
+
+
+def test_demo_windows(demo):
+    with demo() as session:
+        short_key = f'w28:{TODAY}'
+        long_key = f'w84:{TODAY}'
+        rows = engine.latest_results(session, aerobic.METRIC_ID, aerobic.METHOD_VERSION, [short_key, long_key])
+
+        row = rows[short_key]
+        assert row.status in ('available', 'partial')
+        value = row.value
+        assert value['runs_total'] == 13
+        assert value['runs_counted'] + sum(value['not_counted'].values()) == 13
+        assert value['not_counted']['SPEED_NOT_RECORDED'] == 1
+        assert value['ef_median_m_per_beat'] == 1.2
+        assert value['ef_change_pct'] == 0.0
+
+        assert rows[long_key].value['window_days'] == 84
+        assert rows[long_key].value['runs_total'] == 14
+        with pytest.raises(ValueError, match='^invalid_subject_key$'):
+            aerobic.compute(session, 'w7:2026-11-12')
