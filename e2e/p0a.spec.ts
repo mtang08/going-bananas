@@ -96,6 +96,7 @@ test('p0a: structured workout per-rep', async ({ page, request }) => {
     if (mismatch) await expect(page.getByText(/watch workout does not match the planned structure/)).toBeVisible()
     else await expect(page.getByRole('table',{name:/reps/i}).locator('tbody tr')).toHaveCount(4)
     if (offset === -14) {
+      await page.getByTestId('activity-data-quality').locator('summary').click()
       await expect(page.getByText('Split laps combined', {exact: true})).toBeVisible()
       const response = await request.get(`/api/v1/calendar?start=${day(current.today,-14)}&end=${current.today}`)
       const envelope = await response.json()
