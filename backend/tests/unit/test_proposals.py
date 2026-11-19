@@ -432,7 +432,7 @@ def test_derive_certainty() -> None:
 
 def test_fingerprint_fixture() -> None:
     fixture = json.loads(
-        (Path(__file__).parents[3] / "planning/remaining_mvp/contracts/coach-fingerprint.json").read_text()
+        (Path(__file__).parents[1] / "fixtures/coach-fingerprint.json").read_text()
     )
     vector = fixture["canonical_vector"]
     knowledge = vector["knowledge"]

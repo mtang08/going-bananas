@@ -216,7 +216,7 @@ def create_checkin(session: Session, body: dict) -> tuple[dict, bool]:
     if existing:
         original = session.scalar(select(CheckinRevision).where(CheckinRevision.checkin_id == existing.id)
             .order_by(CheckinRevision.version).limit(1))
-        original_data = {k: v for k, v in original.payload.items() if k != 'daily_guidance'} if original else checkin_data(session, existing)
+        original_data = dict(original.payload) if original else checkin_data(session, existing)
         if _hash(data) != _hash(original_data):
             fail('idempotency_conflict', 'Check-in key was used for a different body', 409)
         return original_data, False

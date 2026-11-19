@@ -14,7 +14,6 @@ from app.metrics.contract import (
     integrate_timer_on,
     plausible_hr,
     plausible_speed,
-    rolling_window,
 )
 from app.metrics.engine import parse_scope, recompute, register
 
@@ -55,7 +54,6 @@ def test_coverage_and_hashes() -> None:
     assert coverage_label(0, 0) is None
     with pytest.raises(ValueError):
         coverage_label(float('nan'), 10)
-    assert rolling_window(date(2026, 11, 12), 7) == (date(2026, 11, 6), date(2026, 11, 12))
     assert config_hash({'b': 1, 'a': 2}) == config_hash({'a': 2, 'b': 1})
     with pytest.raises(ValueError):
         config_hash({'x': float('inf')})

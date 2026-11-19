@@ -6,7 +6,7 @@ import math
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -110,12 +110,6 @@ def coverage_label(valid_s: float, eligible_s: float) -> QualityStatus | None:
     if ratio >= 0.7:
         return QualityStatus.limited
     return QualityStatus.insufficient
-
-
-def rolling_window(today: date, n: int) -> tuple[date, date]:
-    if n <= 0:
-        raise ValueError('invalid_window')
-    return today - timedelta(days=n - 1), today
 
 
 def plausible_hr(v: float | None) -> bool:

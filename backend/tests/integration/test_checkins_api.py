@@ -223,8 +223,8 @@ def test_rpe_autocompletion_allows_one_followup_note(api_fixture):
         activity_id=str(activity_id), prompt_id=str(delayed_id))).status_code == 422
 
 
-def test_routes_removed_and_replay_drops_stored_guidance(api_fixture):
-    client, connection = api_fixture
+def test_routes_removed_and_replay_retains_original_payload(api_fixture):
+    client, _ = api_fixture
     assert client.get('/api/v1/coach/v2/daily').status_code == 404
     assert client.post('/api/v1/coach/v2/daily/request', json={}).status_code in {404, 405}
     body = _body()
@@ -233,9 +233,6 @@ def test_routes_removed_and_replay_drops_stored_guidance(api_fixture):
     checkin_id = created.json()['data']['id']
     patched = client.patch(f'/api/v1/v2/checkins/{checkin_id}', json={'expected_version': 1, 'note': 'x'})
     assert patched.status_code == 200, patched.text
-    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
-        revision = session.scalar(select(CheckinRevision).where(CheckinRevision.checkin_id == uuid.UUID(checkin_id)))
-        revision.payload = {**revision.payload, 'daily_guidance': {'decision': 'proceed'}}
-        session.commit()
     replay = client.post('/api/v1/v2/checkins', json=body)
-    assert replay.status_code == 200 and 'daily_guidance' not in replay.json()['data']
+    assert replay.status_code == 200
+    assert replay.json()['data'] == created.json()['data']
