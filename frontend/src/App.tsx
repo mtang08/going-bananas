@@ -1,3 +1,4 @@
+import { qk } from './api/queryKeys'
 import { useEffect, useState } from 'react'
 import {
   BookOpen,
@@ -9,7 +10,8 @@ import {
   Settings2,
 } from 'lucide-react'
 import { dateLabel, localDate, type CheckinRequest, type Profile } from './api'
-import { useServer, type Unit } from './components/shared'
+import { useServer } from './components/shared'
+import type { Unit } from './lib/format'
 import { CheckinModalV2 } from './pages/CheckinModalV2'
 import { Home } from './pages/Home'
 import { Calendar } from './pages/Calendar'
@@ -71,8 +73,8 @@ export function App() {
     localStorage.setItem('gb-unit', u)
     setUnitState(u)
   }
-  const ready = useServer<{ status: string; database?: boolean }>(['ready'], '/health/ready')
-  const profile = useServer<Profile>(['profile'], '/profile')
+  const ready = useServer<{ status: string; database?: boolean }>(qk.ready, '/health/ready')
+  const profile = useServer<Profile>(qk.profile, '/profile')
   const mode = profile.data?.mode || ready.data?.mode
   useEffect(() => {
     const update = () => {

@@ -6,7 +6,7 @@ import { ProposalReview } from '../src/pages/ProposalReview'
 import type { ProposalDecision, ProposalDetail } from '../src/api/types/coach'
 import type { PlannedStep, SessionState } from '../src/api/types/calendar'
 
-const unchangedSession:SessionState={id:'s7-rev',session_uid:'s7',revision:1,calendar_version_number:2,deleted:false,local_date:'2026-11-18',slot:0,kind:'run',recipe_id:'REC001',custom:false,locked:false,legacy_unstructured:false,legacy_payload:null,placeholder:false,intent:'Easy',certainty:'committed',planned_duration_s:1800,planned_distance_m:null,structure:null,strength_slot_id:null,notes:null,is_original:true,changed_by_version:2}
+const unchangedSession:SessionState={id:'s7-rev',session_uid:'s7',revision:1,calendar_version_number:2,deleted:false,local_date:'2026-11-18',slot:0,kind:'run',recipe_id:'REC001',custom:false,locked:false,legacy_unstructured:false,legacy_payload:null,placeholder:false,intent:'Easy',certainty:'committed',planned_duration_s:1800,planned_distance_m:null,structure:null,strength_slot_id:null,notes:null,is_original:true,changed_by_version:2,exception_patch:null}
 const EXCEPTION:ProposalException={finding_ids:[],category:'accumulated_fatigue',severity:'caution',confidence:'moderate',triggering_evidence:'Fatigue 8 on two mornings',relevant_context:'Heat this week',ladder_level:'next_session',patch_window:{start:'2026-11-16',end:'2026-11-18'},unchanged:[{session_uid:'s7',reason:'Easy run stays'}],reassess_on:'2026-11-19',monitor:['Morning fatigue'],return_criteria:['Usual fatigue twice'],escalate_criteria:['High through Saturday']}
 let requests:string[]=[]
 let proposal:ProposalDetail
@@ -22,6 +22,7 @@ beforeEach(()=>{
     summary:'Adjust the next week',rationale:'Keep the run manageable',confidence:{decision:'moderate',evidence:'high',data:'moderate'},
     base_calendar_version:7,base_block_version_id:null,snapshot_id:'snapshot',head:7,is_current:true,revision:1,revisions:[],
     evidence_ids:['E-AER-01'],policy_ids:['P001'],recipe_ids:['REC001'],follow_up:'Review after the run',escalation:null,
+    decision_result:null,exception:null,event_review:null,patch_resolutions:[],patch:null,
     block_change:null,anchor_changes:[],validation_errors:[],skill_version:'running-coach.v1',
     changes:['c1','c2','c3'].map((id,index)=>({change_id:id,op:'modify',session_uid:`s${index}`,
       before:{intent:'Easy',planned_duration_s:1800,structure:null},after:{planned_duration_s:2100},current:{intent:'Easy'},

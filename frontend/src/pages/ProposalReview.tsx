@@ -1,7 +1,7 @@
-import { Badge, Button, Card, Disclosure } from '../components/ui'
+import { Button, Card } from '../components/ui'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { qk, type CalendarView, ApiError, api, post, RECIPE_LABELS } from '../api'
+import { qk, type CalendarView, ApiError, api, post } from '../api'
 import type {
   ProposalDecision,
   ProposalDecisionResult,
@@ -12,6 +12,9 @@ import { QueryState } from '../components/QueryState'
 import { readStructure, proposedSession, stripReferenceIds } from './proposal/helpers'
 import { CoachText, ExceptionCard, EventReviewCard, PatchUpdates } from './proposal/ProposalParts'
 import { ProposedChanges } from './proposal/ProposedChanges'
+import { ProposalIntro } from './proposal/ProposalIntro'
+import { AnchorChangeCard, BlockChangeCard } from './proposal/ChangeCards'
+import { DecisionActions } from './proposal/DecisionActions'
 
 export function ProposalReview({ proposalId }: { proposalId: string }) {
   return <ReviewForm key={proposalId} proposalId={proposalId} />
@@ -223,69 +226,13 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                 </Button>
               </div>
             )}
-            <Card className="proposal-intro">
-              <div className="proposal-intro-heading">
-                <h2>Plan focus</h2>
-                <Badge className="status-chip">
-                  Status:{' '}
-                  {isDiscarded
-                    ? 'discarded'
-                    : (result?.status.replaceAll('_', ' ') ??
-                      proposal.status.replaceAll('_', ' '))}{' '}
-                  · Revision {proposal.revision}
-                </Badge>
-              </div>
-              <CoachText text={plain(proposal.summary)} />
-              <div className="proposal-rationale">
-                <h3>Why this plan</h3>
-                <CoachText text={plain(proposal.rationale)} />
-              </div>
-              {proposal.revisions.length > 0 && (
-                <Disclosure className="proposal-revision-details">
-                  <summary>Revision history</summary>
-                  <ol>
-                    {proposal.revisions.map((entry) => {
-                      const removed = entry.changed_change_ids.filter(
-                        (id) => !proposal.changes.some((change) => change.change_id === id),
-                      )
-                      return (
-                        <li key={entry.revision}>
-                          <strong>Revision {entry.revision}</strong> ·{' '}
-                          {new Date(entry.saved_at).toLocaleString()}
-                          <p>{entry.reason}</p>
-                          {entry.changed_fields.length > 0 && (
-                            <small>
-                              Updated fields:{' '}
-                              {entry.changed_fields
-                                .map((field) => field.replaceAll('_', ' '))
-                                .join(', ')}
-                              .{' '}
-                            </small>
-                          )}
-                          {entry.changed_change_ids.length > 0 && (
-                            <small>
-                              Changed sessions: {entry.changed_change_ids.length - removed.length}
-                              {removed.length > 0 && `; removed sessions: ${removed.length}`}
-                            </small>
-                          )}
-                        </li>
-                      )
-                    })}
-                  </ol>
-                </Disclosure>
-              )}
-              <Disclosure className="proposal-confidence-details">
-                <summary>Confidence details</summary>
-                <dl className="proposal-confidence">
-                  {Object.entries(proposal.confidence).map(([key, value]) => (
-                    <div key={key}>
-                      <dt>{key}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </Disclosure>
-            </Card>
+            <ProposalIntro
+              proposal={proposal}
+              statusLabel={
+                isDiscarded ? 'discarded' : (result?.status ?? proposal.status).replaceAll('_', ' ')
+              }
+              plain={plain}
+            />
             {proposal.exception && (
               <ExceptionCard
                 exc={proposal.exception}
@@ -317,107 +264,32 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
               />
             )}
             {proposal.block_change && (
-              <Card>
-                <h2>Training block: {proposal.block_change.decision}</h2>
-                <p>{plain(proposal.block_change.version_fields.objective ?? '')}</p>
-                <p>{plain(proposal.block_change.version_fields.rationale ?? '')}</p>
-                <p>
-                  {proposal.block_change.version_fields.start_date} · Review{' '}
-                  {proposal.block_change.version_fields.review_date ?? 'Not specified'}
-                </p>
-                <p>
-                  Status: {proposal.block_change.version_fields.status} · Objective:{' '}
-                  {proposal.block_change.version_fields.objective_status?.replaceAll('_', ' ')}
-                </p>
-                <p>
-                  Progression:{' '}
-                  {proposal.block_change.version_fields.progression_dimension?.replaceAll('_', ' ')}
-                </p>
-                <p>
-                  Eligible sessions:{' '}
-                  {proposal.block_change.version_fields.eligible_recipe_ids
-                    ?.map((id) => RECIPE_LABELS[id] ?? 'Custom session')
-                    .join(', ') || 'Not specified'}
-                </p>
-                <p>
-                  Maintained qualities:{' '}
-                  {proposal.block_change.version_fields.maintained_qualities?.join(', ') ||
-                    'Not specified'}
-                </p>
-                <p>
-                  Outside this block:{' '}
-                  {proposal.block_change.version_fields.non_goals?.join(', ') || 'Not specified'}
-                </p>
-                <ul>
-                  {proposal.block_change.version_fields.constraints?.map((constraint, index) => (
-                    <li key={index}>
-                      {constraint.kind}: {plain(constraint.text)}
-                    </li>
-                  ))}
-                </ul>
-                <p>
-                  Completion indicators:{' '}
-                  {proposal.block_change.version_fields.completion_indicators?.join('; ') ||
-                    'Not specified'}
-                </p>
-                <p>
-                  Earlier review:{' '}
-                  {proposal.block_change.version_fields.early_review_triggers?.join('; ') ||
-                    'Not specified'}
-                </p>
-                {terminal ? (
-                  <p>
-                    {isDiscarded
-                      ? 'Block change not applied'
-                      : `Block decision: ${decision ? (decision.block_version_id ? 'accepted' : 'rejected') : 'Unavailable'}`}
-                  </p>
-                ) : (
-                  <label className="proposal-choice">
-                    <input
-                      type="checkbox"
-                      checked={block}
-                      disabled={disabled}
-                      onChange={(event) => {
-                        setBlock(event.target.checked)
-                        mutation.reset()
-                        frozen.current = null
-                      }}
-                    />
-                    Accept block change
-                  </label>
-                )}
-              </Card>
+              <BlockChangeCard
+                change={proposal.block_change}
+                terminal={terminal}
+                isDiscarded={isDiscarded}
+                decision={decision}
+                checked={block}
+                disabled={disabled}
+                plain={plain}
+                onChange={(value) => {
+                  setBlock(value)
+                  mutation.reset()
+                  frozen.current = null
+                }}
+              />
             )}
             {proposal.anchor_changes.map((anchor) => (
-              <Card key={anchor.anchor_key}>
-                <h2>{anchor.kind.replaceAll('_', ' ')}</h2>
-                <p>
-                  {anchor.value_low}
-                  {anchor.value_high != null ? `–${anchor.value_high}` : ''} {anchor.unit} ·{' '}
-                  {anchor.protocol.replaceAll('_', ' ')} · {anchor.confidence} confidence
-                </p>
-                <p>
-                  Calibrated {anchor.calibrated_at.slice(0, 10)}
-                  {anchor.supersedes_key ? ` · Replaces ${anchor.supersedes_key}` : ''}
-                </p>
-                {terminal ? (
-                  <p>
-                    {isDiscarded
-                      ? 'Anchor change not applied'
-                      : `Anchor decision: ${decision ? (decision.anchor_keys.includes(anchor.anchor_key) ? 'accepted' : 'rejected') : 'Unavailable'}`}
-                  </p>
-                ) : (
-                  <label className="proposal-choice">
-                    <input
-                      type="checkbox"
-                      checked={anchors.includes(anchor.anchor_key)}
-                      disabled={disabled}
-                      onChange={() => toggle(anchor.anchor_key, anchors, setAnchors)}
-                    />
-                    Accept anchor {anchor.anchor_key}
-                  </label>
-                )}
-              </Card>
+              <AnchorChangeCard
+                key={anchor.anchor_key}
+                anchor={anchor}
+                terminal={terminal}
+                isDiscarded={isDiscarded}
+                decision={decision}
+                checked={anchors.includes(anchor.anchor_key)}
+                disabled={disabled}
+                onToggle={() => toggle(anchor.anchor_key, anchors, setAnchors)}
+              />
             ))}
             {proposal.event_review && (
               <EventReviewCard
@@ -426,8 +298,8 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                 plain={plain}
               />
             )}
-            {(proposal.patch_resolutions?.length ?? 0) > 0 && (
-              <PatchUpdates items={proposal.patch_resolutions!} plain={plain} />
+            {proposal.patch_resolutions.length > 0 && (
+              <PatchUpdates items={proposal.patch_resolutions} plain={plain} />
             )}
             {(proposal.follow_up || proposal.escalation) && (
               <Card className="proposal-next-check">
@@ -487,62 +359,23 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
               </div>
             )}
             {!terminal && (
-              <div className="proposal-actions">
-                <Button
-                  disabled={
-                    disabled ||
-                    invalidSelection ||
-                    (hasChanges && selected.length === 0 && anchors.length === 0 && !block)
-                  }
-                  onClick={() => submit(false)}
-                >
-                  {hasChanges ? 'Accept selected' : 'Accept (no changes)'}
-                </Button>
-                {hasChanges && (
-                  <Button variant="outline" disabled={disabled} onClick={() => submit(true)}>
-                    Reject all
-                  </Button>
-                )}
-              </div>
-            )}
-            {!terminal && (
-              <div className="proposal-secondary" data-testid="proposal-secondary">
-                <p className="fineprint">
-                  Reject all keeps this proposal in history. Discard removes it without a decision.
-                </p>
-                {confirmDiscard ? (
-                  <div className="notice warning">
-                    <p>
-                      Discard this proposal? It will be removed from the open list. The calendar
-                      will not change.
-                    </p>
-                    <Button
-                      variant="outline"
-                      disabled={discardDisabled}
-                      onClick={() => {
-                        if (proposal && !discardDisabled) discard.mutate(proposal.revision)
-                      }}
-                    >
-                      Confirm discard
-                    </Button>{' '}
-                    <Button
-                      variant="outline"
-                      disabled={discard.isPending}
-                      onClick={() => setConfirmDiscard(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    variant="link"
-                    disabled={discardDisabled}
-                    onClick={() => setConfirmDiscard(true)}
-                  >
-                    Discard proposal
-                  </Button>
-                )}
-              </div>
+              <DecisionActions
+                hasChanges={hasChanges}
+                acceptDisabled={
+                  disabled ||
+                  invalidSelection ||
+                  (hasChanges && selected.length === 0 && anchors.length === 0 && !block)
+                }
+                rejectDisabled={disabled}
+                discardDisabled={discardDisabled}
+                discardPending={discard.isPending}
+                confirmDiscard={confirmDiscard}
+                onAccept={() => submit(false)}
+                onRejectAll={() => submit(true)}
+                onAskDiscard={() => setConfirmDiscard(true)}
+                onConfirmDiscard={() => discard.mutate(proposal.revision)}
+                onCancelDiscard={() => setConfirmDiscard(false)}
+              />
             )}
             <p>
               <a href="#calendar">Calendar history and protected undo</a>

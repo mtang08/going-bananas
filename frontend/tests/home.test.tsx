@@ -18,7 +18,7 @@ const session = (id: string, day: string, overrides: Partial<SessionState> = {})
   intent: 'Comfortable effort', placeholder: false, locked: false, planned_duration_s: 1800,
   planned_distance_m: null, structure: null, strength_slot_id: null, notes: null, certainty: 'committed',
   legacy_unstructured: false, legacy_payload: null, revision: 1, calendar_version_number: 2,
-  deleted: false, is_original: true, changed_by_version: 2, ...overrides,
+  deleted: false, is_original: true, changed_by_version: 2, exception_patch: null, ...overrides,
 })
 const baseSessions = () => [session('s1', '2026-11-11'), session('s2', '2026-11-13', { recipe_id: null, placeholder: true, is_original: false }),
   session('s3', '2026-11-19', { recipe_id: 'REC002', certainty: 'provisional' })]

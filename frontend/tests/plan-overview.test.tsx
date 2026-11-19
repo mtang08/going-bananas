@@ -27,6 +27,7 @@ const base = {
   notes: null,
   is_original: true,
   changed_by_version: 2,
+  exception_patch: null,
 } satisfies SessionState
 
 afterEach(() => cleanup())

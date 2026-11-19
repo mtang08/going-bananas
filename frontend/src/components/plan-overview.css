@@ -114,13 +114,6 @@
   .mileage-remaining {
     background: #afc99d;
   }
-  .mileage-legend {
-    display: inline-block;
-    width: 9px;
-    height: 9px;
-    border-radius: 2px;
-    margin-right: 5px;
-  }
   .weekly-mileage-parts > span:first-child:before {
     content: '';
     display: inline-block;
@@ -185,22 +178,6 @@
 
   .calendar-page .calendar-day.is-today {
     outline: 2px solid var(--primary, #426e42);
-  }
-  .home-quiet-state {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    padding: 5px 0;
-    color: #647260;
-    font-size: 0.85rem;
-  }
-  .home-quiet-state h2 {
-    font: inherit;
-    font-weight: 600;
-    margin: 0;
-  }
-  .home-quiet-state p {
-    margin: 0;
   }
 
   .digest-toggle {
