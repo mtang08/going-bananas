@@ -131,5 +131,7 @@ def put_completion(session_uid: uuid.UUID, body: CompletionInput,
     session.commit()
     run_detection(session, datetime.now(UTC))
     session.commit()
+    if row is None:
+        return envelope(session, None)
     session.refresh(row)
     return envelope(session, calendar.completion_data(session, row))

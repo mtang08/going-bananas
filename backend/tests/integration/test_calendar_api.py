@@ -22,6 +22,7 @@ from app.exception_models import ExceptionPatch
 from app.main import handle_http, handle_validation
 from app.models import Activity, AppState, ProfileVersion
 from app.services import calendar
+from app.services.matching import rematch_dates
 
 
 def _headers():
@@ -388,3 +389,113 @@ def test_calendar_sessions_carry_exception_patch(calendar_fixture):
         session.commit()
     head = client.get('/api/v1/calendar?start=2026-11-16&end=2026-11-29').json()['data']['sessions']
     assert next(item for item in head if item['session_uid'] == uid)['exception_patch']['status'] == 'resolved'
+
+
+def _completion_test_run(session, day):
+    start = datetime(day.year, day.month, day.day, 13, tzinfo=UTC)
+    activity_id = uuid.uuid4()
+    session.add(Activity(id=activity_id, start_at=start, original_start=start.isoformat(),
+        local_date=day, sport='running', timer_s=1800, distance_m=5000,
+        canonical_revision=1, resolution_state='resolved', field_provenance={}))
+    session.flush()
+    return activity_id
+
+
+@pytest.mark.parametrize('holder_method', ['none', 'auto_same_day', 'explicit'])
+def test_explicit_link_respects_existing_subject_holder(calendar_fixture, holder_method):
+    client, connection, api = calendar_fixture
+    _bootstrap(client)
+    runs = [row for row in client.get('/api/v1/calendar').json()['data']['sessions'] if row['kind'] == 'run']
+    target = runs[0]
+    holder = next(row for row in runs if row['local_date'] != target['local_date'])
+    is_extra = holder_method == 'none'
+    holder_uid = uuid.uuid4() if is_extra else uuid.UUID(holder['session_uid'])
+    activity_day = date.fromisoformat((target if is_extra else holder)['local_date'])
+    stamped_at = datetime(2026, 11, 16, 12, tzinfo=UTC)
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        activity_id = _completion_test_run(session, activity_day)
+        session.add(SessionCompletion(
+            session_uid=holder_uid, activity_id=activity_id,
+            status='extra' if is_extra else 'completed_modified', match_method=holder_method,
+            version=3, input_version=2, updated_at=stamped_at,
+        ))
+        session.commit()
+
+    endpoint = f"/api/v1/calendar/completions/{target['session_uid']}"
+    body = {'activity_id': str(activity_id)}
+
+    if is_extra:
+        def failing_assessor():
+            def assess(_session, _uid):
+                raise RuntimeError('synthetic assessment failure')
+            return assess
+
+        previous_assessor = api.dependency_overrides[get_completion_assessor]
+        api.dependency_overrides[get_completion_assessor] = failing_assessor
+        with TestClient(api, raise_server_exceptions=False) as failing_client:
+            failure = failing_client.put(endpoint, json=body, headers=_headers())
+        api.dependency_overrides[get_completion_assessor] = previous_assessor
+        assert failure.status_code == 500
+        with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+            held = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == holder_uid))
+            assert (held.activity_id, held.status) == (activity_id, 'extra')
+            assert session.scalar(select(SessionCompletion).where(
+                SessionCompletion.session_uid == uuid.UUID(target['session_uid']))) is None
+
+    response = client.put(endpoint, json=body, headers=_headers())
+    if holder_method == 'explicit':
+        assert response.status_code == 409
+        assert response.json()['error']['code'] == 'subject_already_linked'
+    else:
+        assert response.status_code == 200, response.text
+        assert response.json()['data']['activity_id'] == str(activity_id)
+        assert response.json()['data']['match_method'] == ('explicit' if is_extra else 'confirmed_move')
+
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        held = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == holder_uid))
+        if is_extra:
+            assert held is None
+        elif holder_method == 'auto_same_day':
+            assert (held.activity_id, held.strong_workout_id, held.manual_session_id) == (None, None, None)
+            assert (held.status, held.match_method) == ('unknown', 'none')
+            assert (held.version, held.input_version) == (4, 3)
+            assert held.updated_at > stamped_at
+        else:
+            assert (held.activity_id, held.match_method, held.version) == (activity_id, 'explicit', 3)
+
+
+def test_unskip_removes_completion_and_restores_auto_match(calendar_fixture):
+    client, connection, _ = calendar_fixture
+    _bootstrap(client)
+    plan = next(row for row in client.get('/api/v1/calendar').json()['data']['sessions'] if row['kind'] == 'run')
+    uid = uuid.UUID(plan['session_uid'])
+    day = date.fromisoformat(plan['local_date'])
+    endpoint = f'/api/v1/calendar/completions/{uid}'
+
+    skipped = client.put(endpoint, json={'status': 'skipped'}, headers=_headers())
+    assert skipped.status_code == 200, skipped.text
+    version = skipped.json()['data']['version']
+
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        activity_id = _completion_test_run(session, day)
+        assert uid not in rematch_dates(session, {day})
+        session.commit()
+
+    stale = client.put(endpoint, json={'status': 'unknown', 'expected_version': version + 1}, headers=_headers())
+    assert stale.status_code == 409
+    assert stale.json()['error']['code'] == 'version_conflict'
+
+    before = client.get('/api/v1/calendar').json()
+    unskipped = client.put(endpoint, json={'status': 'unknown', 'expected_version': version}, headers=_headers())
+    assert unskipped.status_code == 200, unskipped.text
+    assert unskipped.json()['data'] is None
+    assert unskipped.json()['data_revision'] == before['data_revision'] + 1
+
+    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
+        query = select(SessionCompletion).where(SessionCompletion.session_uid == uid)
+        assert session.scalar(query) is None
+        assert uid in rematch_dates(session, {day})
+        session.commit()
+        matched = session.scalar(query)
+        assert matched.activity_id == activity_id
+        assert matched.match_method == 'auto_same_day'
