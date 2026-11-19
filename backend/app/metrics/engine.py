@@ -481,6 +481,7 @@ def ensure_windows(session: Session, as_of: date) -> None:
         compute_subjects(session, 'symptom_response_timeline', [f'w28:{as_of}'])
         compute_subjects(session, 'recovery_multisignal_summary', [f'w7:{as_of}'])
         compute_subjects(session, 'hard_session_spacing', [f'w14:{as_of}'])
+        compute_subjects(session, 'aerobic_efficiency', [f'w{n}:{as_of}' for n in (28, 84)])
         session.flush()
 
 
