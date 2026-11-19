@@ -62,8 +62,7 @@ SERVICES_ALLOWED_BELOW = {'app.services.timezone'}
 METRICS_SERVICES_BASELINE = {
     'metrics/planned_actual.py: app.services.matching',  # candidates_for_session; see decisions.md
 }
-PRIVATE_IMPORT_BASELINE = {
-}
+PRIVATE_IMPORT_BASELINE: set[str] = set()
 RUN_SPORT_LITERAL_ALLOWED = {'domain/sports.py', 'metrics/volume.py', 'adapters/garmin/normalize.py',
                              'adapters/garmin/fit.py', 'demo_seed.py'}
 LOCAL_DATE_ALLOWED = {'domain/local_time.py', 'adapters/garmin/normalize.py'}
