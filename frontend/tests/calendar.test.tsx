@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Calendar } from '../src/pages/Calendar'
 import { weeklyWorkoutText } from '../src/components/weeklyWorkoutExport'
-import type { CalendarVersion, CalendarView, SessionState } from '../src/api'
+import type { CalendarVersion, CalendarView, SessionState } from '../src/api/types/calendar'
 
 const base = {
   id: '',
