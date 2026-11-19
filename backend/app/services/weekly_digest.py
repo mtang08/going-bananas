@@ -198,7 +198,7 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
     timezone = athlete_tz(session)
     head = head_version(session)
     latest = [row for row in latest_revisions(session, head).values() if week_start <= row.local_date <= week_end]
-    sessions = [calendar._row_data(row) for row in latest if not row.deleted]
+    sessions = [calendar.row_data(row) for row in latest if not row.deleted]
     removed = [{'session_uid': row.session_uid, 'local_date': row.local_date, 'kind': row.kind}
                for row in latest if row.deleted]
     head_uids = {row['session_uid'] for row in sessions}

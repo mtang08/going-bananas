@@ -40,7 +40,7 @@ def calendar_today(session: Session, now: datetime | None = None) -> date:
     return athlete_today(session, now)
 
 
-def _lock(session: Session, expected_head: int | None = None) -> AppState:
+def lock_calendar(session: Session, expected_head: int | None = None) -> AppState:
     global_write_lock(session)
     state = session.get(AppState, 1, with_for_update=True, populate_existing=True)
     assert state is not None
@@ -60,7 +60,7 @@ def _fields(row: CalendarSessionRevision) -> dict:
     return {field: getattr(row, field) for field in REVISION_FIELDS}
 
 
-def _row_data(row: CalendarSessionRevision, today: date | None = None) -> dict:
+def row_data(row: CalendarSessionRevision, today: date | None = None) -> dict:
     result = {'id': row.id, 'session_uid': row.session_uid,
         'revision': row.revision, 'calendar_version_number': row.calendar_version_number,
         'deleted': row.deleted, **_fields(row), 'is_original': row.revision == 1,
@@ -73,7 +73,7 @@ def _row_data(row: CalendarSessionRevision, today: date | None = None) -> dict:
 def state_at(session: Session, version: int) -> list[dict]:
     _check_version(session, version)
     today = calendar_today(session)
-    return [_row_data(row, today) for row in sorted(latest_revisions(session, version).values(),
+    return [row_data(row, today) for row in sorted(latest_revisions(session, version).values(),
         key=lambda row: (row.local_date, row.slot, str(row.session_uid))) if not row.deleted]
 
 
@@ -139,8 +139,8 @@ def _inverse(session: Session, current_version: int, target_version: int) -> tup
         if _protected(session, uid, before, after, today):
             protected.append(uid)
         else:
-            changes.append({'session_uid': uid, 'before': _row_data(before) if before and not before.deleted else None,
-                'after': _row_data(after) if after and not after.deleted else None})
+            changes.append({'session_uid': uid, 'before': row_data(before) if before and not before.deleted else None,
+                'after': row_data(after) if after and not after.deleted else None})
     return changes, protected
 
 
@@ -157,8 +157,8 @@ def calendar_diff(session: Session, from_version: int, to_version: int) -> dict:
                   'move' if left.local_date != right.local_date else 'modify')
             changes.append({'session_uid': uid,
                 'op': op,
-                'before': _row_data(left) if left and not left.deleted else None,
-                'after': _row_data(right) if right and not right.deleted else None})
+                'before': row_data(left) if left and not left.deleted else None,
+                'after': row_data(right) if right and not right.deleted else None})
     return {'changes': changes}
 
 
@@ -298,7 +298,7 @@ def apply_edits(session: Session, expected_head: int, edits: list[dict], reason:
                 *, kind: str = 'manual_edit', actor: str = 'user',
                 proposal_id: uuid.UUID | None = None,
                 block_version_id: uuid.UUID | None = None) -> dict:
-    state = _lock(session, expected_head)
+    state = lock_calendar(session, expected_head)
     if not isinstance(edits, list) or not edits:
         fail('edit_no_change', 'No calendar changes supplied')
     current = latest_revisions(session, expected_head)
@@ -373,7 +373,7 @@ def apply_edits(session: Session, expected_head: int, edits: list[dict], reason:
 
 def rollback_calendar(session: Session, expected_head: int, to_version: int,
                       reason: str | None) -> dict:
-    state = _lock(session, expected_head)
+    state = lock_calendar(session, expected_head)
     _check_version(session, to_version)
     if to_version >= expected_head:
         fail('rollback_no_change', 'No earlier version to restore')
@@ -512,7 +512,7 @@ def _bootstrap_locked(session: Session, state: AppState, *, anchor_date: date,
 
 
 def write_bootstrap(session: Session, anchor_date: date, start_date: date) -> dict:
-    state = _lock(session)
+    state = lock_calendar(session)
     if start_date < calendar_today(session):
         fail('protected_session', 'Ordinary bootstrap cannot create historical sessions')
     return _bootstrap_locked(session, state, anchor_date=anchor_date,
@@ -523,7 +523,7 @@ def seed_demo_calendar(session: Session, *, anchor_date: date, start_date: date,
                        now: datetime, history_edits: list[dict]) -> dict:
     if settings.app_mode not in {'demo', 'test'}:
         fail('demo_seed_forbidden', 'Demo seeding is unavailable', 403)
-    state = _lock(session)
+    state = lock_calendar(session)
     if state.calendar_head_version:
         fail('calendar_exists', 'Calendar already has a version', 409)
     seen = set()
@@ -562,7 +562,7 @@ def put_completion(session: Session, session_uid: uuid.UUID, body: dict,
                    *, assess: Callable[[Session, uuid.UUID], None]) -> SessionCompletion | None:
     if not callable(assess):
         raise RuntimeError('completion_assessor_missing')
-    _lock(session)
+    lock_calendar(session)
     if not isinstance(body, dict) or set(body) - {'expected_version', 'activity_id',
         'strong_workout_id', 'manual_session_id', 'status', 'modification_reason', 'reason_note'}:
         fail('invalid_completion', 'Invalid completion fields')

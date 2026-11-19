@@ -13,11 +13,14 @@ from app.api.core import envelope
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.checkin_models import SessionRpe
 from app.db import get_session, global_read_lock
+from app.domain.local_time import date_in_zone
+from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.fit_models import ActivityLap, ActivityWorkoutStep
 from app.metric_models import MetricConfig, MetricResult
 from app.metrics import engine, refresh
-from app.models import Activity, AppState
+from app.models import Activity
+from app.read.calendar import head_version
 from app.services import calendar, workout_progression
 from app.services.timezone import athlete_tz
 
@@ -49,7 +52,7 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
     activity = session.get(Activity, activity_id, populate_existing=True)
     if activity is None:
         fail('activity_not_found', 'Activity not found', 404)
-    if activity.sport not in ('running', 'trail_running', 'treadmill_running'):
+    if activity.sport not in RUN_SPORTS:
         fail('not_run_activity', 'Activity is not a run')
     completion = session.scalar(select(SessionCompletion).where(SessionCompletion.activity_id == activity_id))
     activity_key = str(activity_id)
@@ -60,7 +63,7 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
     if completion and completion.session_uid:
         session_key = str(completion.session_uid)
         planned_actual = engine.read_results(session, 'planned_actual_session', [session_key])[session_key]
-    head = session.scalar(select(AppState.calendar_head_version).where(AppState.id == 1)) or 0
+    head = head_version(session, populate_existing=True)
     planned = next((row for row in calendar.state_at(session, head)
                     if completion and row['session_uid'] == completion.session_uid), None) if head else None
     if planned is None and completion and completion.session_uid and head:
@@ -72,7 +75,7 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
             CalendarSessionRevision.deleted,
             CalendarSessionRevision.legacy_payload.is_not(None)))
         if historical is not None:
-            planned = calendar._row_data(historical)
+            planned = calendar.row_data(historical)
     def value(metric: str) -> dict:
         row = metrics[metric]
         return (row['value'] or {}) if row else {}
@@ -85,7 +88,7 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
         return [{column.key: getattr(row, column.key) for column in model.__table__.columns
                  if column.key not in {'id', 'activity_id'}} for row in rows]
     return {'activity': {'id': activity.id, 'start_at': activity.start_at, 'end_at': activity.end_at,
-        'local_date': activity.start_at.astimezone(athlete_tz(session)).date(),
+        'local_date': date_in_zone(activity.start_at, athlete_tz(session)),
         'sport': activity.sport, 'distance_m': activity.distance_m, 'timer_s': activity.timer_s,
         'elapsed_s': activity.elapsed_s, 'fit_status': activity.fit_status},
         'planned': planned, 'completion': calendar.completion_data(session, completion) if completion else None,
@@ -120,7 +123,6 @@ def long_run_history(session: Session, start: date, end: date) -> list[dict]:
     return sorted(rows, key=lambda row: (row['window_start'] is None, row['window_start'], row['subject_key']))
 
 
-RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
 
 
 def workout_progression_data(session: Session, start: date, end: date, group_by: str) -> dict:

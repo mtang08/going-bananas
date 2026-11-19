@@ -17,7 +17,7 @@ from app.db import get_session
 from app.domain.local_time import date_in_zone
 from app.errors import fail
 from app.metric_models import Prompt
-from app.services.calendar import _lock
+from app.services.calendar import lock_calendar
 from app.services.checkins import (
     CheckinCreate,
     CheckinPatch,
@@ -39,8 +39,8 @@ class RpeInput(BaseModel):
     @field_validator('rpe', mode='before')
     @classmethod
     def valid_rpe(cls, value: object) -> float:
-        from app.services.checkins import _measurement
-        return _measurement(value)
+        from app.services.checkins import measurement
+        return measurement(value)
 
 
 @router.post('/v2/checkins')
@@ -103,7 +103,7 @@ def get_prompts(session: Session = Depends(get_session)) -> dict:
 
 @router.post('/prompts/{prompt_id}/dismiss')
 def dismiss_prompt(prompt_id: uuid.UUID, session: Session = Depends(get_session)) -> dict:
-    _lock(session)
+    lock_calendar(session)
     row = session.get(Prompt, prompt_id)
     if row is None:
         fail('prompt_not_found', 'Prompt not found', 404)

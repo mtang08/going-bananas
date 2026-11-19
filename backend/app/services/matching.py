@@ -8,14 +8,16 @@ from itertools import permutations
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.domain.calendar_structure import StructureError, expand_structure
+from app.domain.local_time import date_in_zone
 from app.fit_models import ActivityWorkoutStep
 from app.metrics.engine import load_runs
-from app.models import Activity, AppState, ManualSession
-from app.domain.calendar_structure import StructureError, expand_structure
+from app.models import Activity, ManualSession
+from app.read.calendar import head_version, latest_revision, latest_revisions
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
@@ -31,16 +33,7 @@ MATCHING_RULES = {
 
 
 def sessions_at_head(session: Session, start: date, end_excl: date) -> list[CalendarSessionRevision]:
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
-    if head == 0:
-        return []
-    rows = session.scalars(select(CalendarSessionRevision)
-        .where(CalendarSessionRevision.calendar_version_number <= head)
-        .order_by(CalendarSessionRevision.session_uid,
-                  desc(CalendarSessionRevision.calendar_version_number),
-                  desc(CalendarSessionRevision.revision))
-        .distinct(CalendarSessionRevision.session_uid)).all()
+    rows = latest_revisions(session).values()
     return sorted((r for r in rows if not r.deleted and start <= r.local_date < end_excl),
                   key=lambda r: (r.local_date, r.kind, r.slot, str(r.session_uid)))
 
@@ -259,11 +252,11 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
     if not dates:
         return set()
     now = session.info.get("metrics_now") or datetime.now(UTC)
-    state = session.get(AppState, 1)
-    if state is None or state.calendar_head_version == 0:
+    head = head_version(session)
+    if head == 0:
         return set()
     origin = session.scalar(select(func.min(CalendarSessionRevision.local_date)).where(
-        CalendarSessionRevision.calendar_version_number <= state.calendar_head_version))
+        CalendarSessionRevision.calendar_version_number <= head))
     if origin is None:
         return set()
     days = sorted({d + timedelta(days=offset) for d in dates for offset in (-1, 0, 1) if d + timedelta(days=offset) >= origin})
@@ -288,7 +281,7 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
     context_plan_uids = {str(p["session_uid"]) for p in planned if p["local_date"] in context}
     historical = session.scalars(select(CalendarSessionRevision.session_uid).where(
         CalendarSessionRevision.local_date.in_(context_days),
-        CalendarSessionRevision.calendar_version_number <= state.calendar_head_version)).all()
+        CalendarSessionRevision.calendar_version_number <= head)).all()
     context_plan_uids.update(str(uid) for uid in historical)
     context_subject_keys = {str(r["subject_key"]) for r in runs if r["local_date"] in context}
     zone = athlete_tz(session)
@@ -300,7 +293,7 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
         subject_day = None
         if completion.activity_id:
             raw = session.get(Activity, completion.activity_id)
-            subject_day = raw.start_at.astimezone(zone).date() if raw else None
+            subject_day = date_in_zone(raw.start_at, zone) if raw else None
         elif completion.strong_workout_id:
             raw_strong = session.get(StrongWorkoutRow, completion.strong_workout_id)
             subject_day = raw_strong.local_date if raw_strong else None
@@ -359,13 +352,7 @@ def rematch_dates(session: Session, dates: set[date]) -> set[UUID]:
 
 
 def candidates_for_session(session: Session, session_uid: UUID) -> list[dict]:
-    state = session.get(AppState, 1)
-    if state is None or state.calendar_head_version == 0:
-        return []
-    revision = session.scalar(select(CalendarSessionRevision).where(
-        CalendarSessionRevision.session_uid == session_uid,
-        CalendarSessionRevision.calendar_version_number <= state.calendar_head_version)
-        .order_by(CalendarSessionRevision.calendar_version_number.desc(), CalendarSessionRevision.revision.desc()).limit(1))
+    revision = latest_revision(session, session_uid)
     if revision is None or revision.deleted:
         return []
     day = revision.local_date

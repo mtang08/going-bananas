@@ -11,13 +11,14 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.calendar_models import CalendarSessionRevision, SessionCompletion
+from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin, SessionRpe, SymptomReport
 from app.domain.local_time import date_in_zone
-from app.domain.sports import RUN_SPORTS
 from app.metric_models import Prompt
-from app.metrics.engine import current_results, load_runs
-from app.models import Activity, AppState, ManualSession
+from app.metrics.engine import current_results
+from app.models import ManualSession
+from app.read.activities import eligible_runs
+from app.read.calendar import latest_revisions
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
@@ -157,19 +158,10 @@ def prompt_changes(facts: dict, existing: list[dict], now: datetime) -> dict:
     return {'create': create, 'update': update, 'counts': counts}
 
 
-def _eligible_run_rows(session: Session, run_rows: list[Activity], zone: ZoneInfo) -> list[Activity]:
-    if not run_rows:
-        return []
-    dates = [row.start_at.astimezone(zone).date() for row in run_rows]
-    eligible_ids = {fact.activity_id for fact in load_runs(session, min(dates), max(dates) + timedelta(days=1))}
-    return [row for row in run_rows if row.id in eligible_ids]
-
-
 def _facts(session: Session, now: datetime) -> dict[str, Any]:
     zone: ZoneInfo = athlete_tz(session)
     today = date_in_zone(now, zone)
-    run_rows = _eligible_run_rows(session, list(session.scalars(select(Activity).where(
-        Activity.sport.in_(RUN_SPORTS))).all()), zone)
+    run_rows = [run.activity for run in eligible_runs(session)]
     ids = [str(row.id) for row in run_rows]
     long_by_id = current_results(session, 'long_run_exposure', ids)
     rpe_rows = list(session.scalars(select(SessionRpe).where(
@@ -199,17 +191,7 @@ def _facts(session: Session, now: datetime) -> dict[str, Any]:
         'prompt_id': str(row.prompt_id) if row.prompt_id else None,
         'symptoms': reports_by_checkin.get(row.id, []),
     } for row in checkin_rows]
-    state = session.get(AppState, 1)
-    head = state.calendar_head_version if state else 0
-    revisions: dict[uuid.UUID, CalendarSessionRevision] = {}
-    if head > 0:
-        rows = session.scalars(select(CalendarSessionRevision).where(
-            CalendarSessionRevision.calendar_version_number <= head)
-            .order_by(CalendarSessionRevision.session_uid,
-                      CalendarSessionRevision.calendar_version_number.desc(),
-                      CalendarSessionRevision.revision.desc())).all()
-        for revision_row in rows:
-            revisions.setdefault(revision_row.session_uid, revision_row)
+    revisions = latest_revisions(session)
     revisions = {uid: revision for uid, revision in revisions.items()
                  if today - timedelta(days=7) <= revision.local_date <= today}
     metric_keys = [str(uid) for uid in revisions]

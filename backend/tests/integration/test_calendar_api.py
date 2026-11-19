@@ -127,7 +127,7 @@ def test_advisory_lock_refreshes_cached_head(calendar_fixture):
         assert cached.calendar_head_version == 0
         connection.execute(text('UPDATE app_state SET calendar_head_version=1 WHERE id=1'))
         with pytest.raises(HTTPException) as error:
-            calendar._lock(session, expected_head=0)
+            calendar.lock_calendar(session, expected_head=0)
         assert error.value.detail['code'] == 'calendar_head_moved'
 
 

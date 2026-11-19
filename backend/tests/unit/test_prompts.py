@@ -1,13 +1,8 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
-from types import SimpleNamespace
-from uuid import UUID
 from zoneinfo import ZoneInfo
 
-import pytest
-
-from app.services import prompts
 from app.services.prompts import prompt_changes
 
 END = datetime(2026, 11, 15, 14, tzinfo=UTC)
@@ -140,17 +135,6 @@ def test_invalid_link_does_not_answer_or_reopen() -> None:
     changes = prompt_changes(facts(activities=[], planned_actual=[result], completions=[bad]), [], END)
     assert changes['create'][0]['status'] == 'open'
     assert changes['counts']['answered'] == 0
-
-
-def test_canonical_loader_excludes_conflicted_or_excluded_runs(monkeypatch: pytest.MonkeyPatch) -> None:
-    eligible = SimpleNamespace(id=UUID(ACTIVITY), start_at=END)
-    excluded = SimpleNamespace(id=UUID(SESSION), start_at=END)
-    def fake_load_runs(_session, start, end):
-        assert start == date(2026, 11, 15)
-        assert end == date(2026, 11, 16)
-        return [SimpleNamespace(activity_id=eligible.id)]
-    monkeypatch.setattr(prompts, 'load_runs', fake_load_runs)
-    assert prompts._eligible_run_rows(object(), [eligible, excluded], ZoneInfo('UTC')) == [eligible]
 
 
 def test_old_match_prompts_expire_when_plan_matches_or_disappears() -> None:
