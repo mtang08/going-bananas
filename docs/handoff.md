@@ -74,7 +74,7 @@ status and schema statements do not override the completion checkpoint above.
 # Current handoff — Strong and local coaching MVP
 
 > **Superseded product status, November 11, 2026:** the user says the app is not
-> usable as a running coach yet. Start with [live-progress.md](live-progress.md)
+> usable as a running coach yet. Start with [live-progress.md](archive/live-progress.md)
 > and [running-coach-workflow.md](running-coach-workflow.md). The release below
 > verified foundations, not the complete coaching workflow. The run anchor is
 > now confirmed (`2026-11-10`, live profile version 4 when inspected); an initial

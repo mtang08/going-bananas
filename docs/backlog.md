@@ -11,7 +11,7 @@ material changes, symptoms, or new goals. This describes a manual coaching
 cadence, not scheduled automation. This takes priority over further polishing
 of the separate local-rule cards. See the living implementation and acceptance
 plan in [running-coach-workflow.md](running-coach-workflow.md), and resume state
-in [live-progress.md](live-progress.md). Strength prescription remains outside
+in [live-progress.md](archive/live-progress.md). Strength prescription remains outside
 this phase; preserve the confirmed hybrid schedule as running context.
 
 Proposal presentation: start with a concise focus sentence, followed by one or

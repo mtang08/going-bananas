@@ -283,5 +283,5 @@ or interval structure. FIT-based detail is available where verified streams,
 workout matching, and calibration support it; route/weather adjustment remains
 outside this MVP. No model or wearable can diagnose or
 provide an injury guarantee. See [research scope](docs/research-integration.md),
-[contracts](docs/contracts.md), [P0 implementation](docs/p0-implementation.md),
+[contracts](docs/contracts.md), [P0 implementation, archived](docs/archive/p0-implementation.md),
 [release evidence](docs/release-checklist.md), and [handoff](docs/handoff.md).
