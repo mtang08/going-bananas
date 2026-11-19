@@ -38,6 +38,8 @@ import {
   statusText,
 } from '../api'
 import type {
+  AerobicPoint,
+  AerobicWindowValue,
   BenchmarkRecord,
   HardClass,
   MetricResult,
@@ -451,6 +453,59 @@ function WorkoutProgressionCard({ unit }: { unit: Unit }) {
   )
 }
 
+function aerobicLine(result: MetricResult<AerobicWindowValue> | null, days: 28 | 84): string {
+  if (result === null) return `${days} days: missing`
+  if (result.value === null) return `${days} days: ${statusText(result.status)}`
+  const v = result.value
+  if (v.runs_counted === 0) {
+    const why = Object.entries(v.not_counted)
+      .map(([code, count]) => `${reasonText(code)} ${count}`)
+      .join(', ')
+    return `${days} days: no steady easy or long runs${why ? ` (${why})` : ''}`
+  }
+  const median = v.ef_median_m_per_beat
+  const estimate = median === null ? 'median missing' : `median ${median.toFixed(2)} m/beat`
+  const parts = [
+    `${days} days: ${estimate} over ${v.runs_counted} ${v.runs_counted === 1 ? 'run' : 'runs'}`,
+  ]
+  if (v.ef_change_pct !== null) {
+    parts.push(`${v.ef_change_pct > 0 ? '+' : ''}${v.ef_change_pct.toFixed(1)}% early → late`)
+  }
+  if (v.decoupling_median_pct !== null) {
+    const count = v.decoupling_runs_counted
+    parts.push(
+      `median drift ${v.decoupling_median_pct.toFixed(1)}% (${count} ${count === 1 ? 'run' : 'runs'})`,
+    )
+  }
+  return parts.join(' · ')
+}
+
+function AerobicChart({ points }: { points: AerobicPoint[] }) {
+  const series = points.map((point) => ({ date: point.local_date, ef: point.ef_m_per_beat }))
+  return (
+    <div
+      className="chart"
+      role="img"
+      aria-label="Metres per heartbeat on steady runs, last 84 days"
+    >
+      <ResponsiveContainer width="100%" height={220}>
+        <LineChart data={series}>
+          <CartesianGrid vertical={false} stroke="#e9e7df" />
+          <XAxis dataKey="date" tickFormatter={(value: string) => dateLabel(value)} fontSize={11} />
+          <YAxis
+            domain={['auto', 'auto']}
+            tickFormatter={(value: number) => value.toFixed(2)}
+            fontSize={11}
+            width={40}
+          />
+          <Tooltip />
+          <Line dataKey="ef" name="m per heartbeat" stroke="#5b754d" />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 export function Trends({ unit }: { unit: Unit }) {
   const [days, setDays] = useState<WindowMetrics['days']>(28)
   const windows = useQuery({
@@ -476,6 +531,10 @@ export function Trends({ unit }: { unit: Unit }) {
   const srpe = selected?.srpe ?? null
   const intensity = selected?.intensity ?? null
   const spacing = data?.spacing ?? null
+  const aerobic = data?.aerobic ?? null
+  const aerobic28 = aerobic?.w28 ?? null
+  const aerobic84 = aerobic?.w84 ?? null
+  const aerobicPoints = aerobic84?.value?.points ?? []
   const longRunCard = (
     <Card data-testid="trend-long-run">
       <h2>Long-run exposure</h2>
@@ -555,6 +614,24 @@ export function Trends({ unit }: { unit: Unit }) {
       {partialContext(intensity)}
     </Card>
   )
+  const aerobicCard = (
+    <Card data-testid="trend-aerobic">
+      <h2>Aerobic efficiency</h2>
+      <small>
+        Steady easy and long runs · metres per heartbeat. Higher means faster at the same heart
+        rate.
+      </small>
+      {aerobicPoints.length >= 2 && <AerobicChart points={aerobicPoints} />}
+      <p>{aerobicLine(aerobic28, 28)}</p>
+      <p>{aerobicLine(aerobic84, 84)}</p>
+      <small>
+        Descriptive only. Heat, hills, fatigue, and sensor error change these numbers. Treadmill
+        runs are left out.
+      </small>
+      {coverage(aerobic28)}
+      {partialContext(aerobic28)}
+    </Card>
+  )
   const spacingCard = (
     <Card data-testid="trend-spacing">
       <h2>Hard-session spacing</h2>
@@ -595,6 +672,11 @@ export function Trends({ unit }: { unit: Unit }) {
       key: 'intensity',
       ok: assessable(intensity) && [intensity!.value!.hr, intensity!.value!.speed].some(zoneShown),
       node: intensityCard,
+    },
+    {
+      key: 'aerobic',
+      ok: assessable(aerobic84) && (aerobic84?.value?.runs_counted ?? 0) > 0,
+      node: aerobicCard,
     },
     { key: 'spacing', ok: assessable(spacing), node: spacingCard },
   ]
