@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import math
 import statistics
-from datetime import timedelta
+from collections.abc import Sequence
+from datetime import date, timedelta
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
+from app.metrics.contract import RunFact
 from app.metrics.engine import activities_coverage_complete, load_runs
 from app.models import AppState, ManualSession
 from app.services import calendar
@@ -80,6 +82,16 @@ def _recorded(completion: SessionCompletion) -> bool:
     ))
 
 
+def recent_pace_mps(runs: Sequence[RunFact], as_of: date, days: int = 28) -> tuple[float | None, int]:
+    """Median distance/timer speed of runs with positive values in [as_of - days + 1, as_of]."""
+    start = as_of - timedelta(days=days - 1)
+    speeds = [float(run.distance_m) / float(run.timer_s) for run in runs
+              if start <= run.local_date <= as_of
+              if run.distance_m is not None and run.timer_s is not None
+              and _positive(run.distance_m) is not None and _positive(run.timer_s) is not None]
+    return (statistics.median(speeds) if speeds else None), len(speeds)
+
+
 def weekly_projection(session: Session) -> dict:
     # Calendar writers use the exclusive variant of this transaction lock.
     session.execute(text('SELECT pg_advisory_xact_lock_shared(:key)'), {'key': calendar.LOCK_ID})
@@ -92,11 +104,7 @@ def weekly_projection(session: Session) -> dict:
     planned = calendar.state_at(session, head)
     plan_through = max((row['local_date'] for row in planned), default=None)
     recent = load_runs(session, min(week_start, today - timedelta(days=27)), today + timedelta(days=1))
-    speeds = [float(run.distance_m) / float(run.timer_s) for run in recent
-              if run.local_date >= today - timedelta(days=27)
-              if _positive(run.distance_m) is not None and _positive(run.timer_s) is not None
-              and run.distance_m is not None and run.timer_s is not None]
-    pace = statistics.median(speeds) if speeds else None
+    pace, pace_samples = recent_pace_mps(recent, today)
     actual = [run for run in recent if week_start <= run.local_date <= today]
     actual_distance = sum(run.distance_m or 0 for run in actual
                           if run.distance_m == 0 or _positive(run.distance_m) is not None)
@@ -144,6 +152,6 @@ def weekly_projection(session: Session) -> dict:
             'actual_runs': len(actual) + missing_manuals, 'remaining_runs': remaining_runs,
             'estimated_runs': estimated_runs, 'missing_actual_runs': missing_actual,
             'missing_planned_runs': missing_planned, 'unrecorded_past_runs': unrecorded_past,
-            'pace_sample_count': len(speeds), 'pace_mps': pace,
+            'pace_sample_count': pace_samples, 'pace_mps': pace,
             'plan_available': head > 0, 'plan_through': plan_through,
             'activity_coverage_complete': activities_coverage_complete(session, week_start, today + timedelta(days=1))}

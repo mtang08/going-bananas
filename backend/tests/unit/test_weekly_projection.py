@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import Mock
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -7,8 +7,32 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
+from app.metrics.contract import RunFact
 from app.services import weekly_projection as projection_service
-from app.services.weekly_projection import planned_distance
+from app.services.weekly_projection import planned_distance, recent_pace_mps
+
+
+def _run(day: int, distance: float | None, timer: float | None) -> RunFact:
+    return RunFact(
+        activity_id=uuid4(), start_at=datetime(2030, 1, day, 12, tzinfo=UTC),
+        end_at=None, local_date=date(2030, 1, day), sport='running',
+        timer_s=timer, distance_m=distance, workout_label=None,
+    )
+
+
+def test_recent_pace_uses_only_the_window_and_positive_values():
+    runs = [_run(1, 1000, 100), _run(5, 200, 100), _run(9, 400, 100),
+            _run(10, 0, 100), _run(11, 500, None)]
+    assert recent_pace_mps(runs, date(2030, 1, 30), 28) == (3.0, 2)
+
+
+def test_recent_pace_ignores_runs_after_as_of():
+    runs = [_run(5, 200, 100), _run(9, 1000, 100)]
+    assert recent_pace_mps(runs, date(2030, 1, 7)) == (2.0, 1)
+
+
+def test_recent_pace_empty_is_unknown():
+    assert recent_pace_mps([], date(2030, 1, 7)) == (None, 0)
 
 
 def test_explicit_distance_precedes_structure_and_duration():
