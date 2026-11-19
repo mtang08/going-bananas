@@ -3,7 +3,7 @@
 Current release: lifting remains tracked in Strong. The inspected CSV is an imported, separate source. Strength totals are recorded sessions with snapshot coverage, never evidence of skipped lifting. See `backlog.md`.
 
 Implementation specification; the Garmin export path described below is now implemented.
-Read with `implementation-plan.md`. Prefer explicit typed columns for core fields;
+Scope history is in [the archived implementation plan](archive/implementation-plan.md). Prefer explicit typed columns for core fields;
 JSONB is for provenance/raw references and versioned summary payloads, not a
 replacement for validation. All server inputs have bounds and typed validation.
 
