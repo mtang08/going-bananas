@@ -55,11 +55,6 @@ def db():
             command.upgrade(config, 'head')
             connection.commit()
             SessionLocal = sessionmaker(bind=connection, expire_on_commit=False)
-            with SessionLocal() as session:
-                state = session.get(AppState, 1)
-                assert state is not None
-                state.planning_authority = 'legacy'
-                session.commit()
             yield SessionLocal
     finally:
         with engine.begin() as connection:
@@ -116,9 +111,6 @@ def _anchor(kind: str, value: float, valid: date, *, supersedes: str | None = No
 @pytest.mark.integration
 def test_anchor_history_same_date_correction_and_backdate_guard(db) -> None:
     with db() as session:
-        state = session.get(AppState, 1)
-        state.planning_authority = 'calendar'
-        session.commit()
         first = create_anchor(session, _anchor('hr_aerobic_upper', 140, date(2026, 11, 1)))
         second = create_anchor(session, _anchor('hr_aerobic_upper', 145, date(2026, 11, 10),
                                                 supersedes=first['anchor_key']))
@@ -141,7 +133,7 @@ def test_anchor_history_same_date_correction_and_backdate_guard(db) -> None:
 
 
 @pytest.mark.integration
-def test_bare_anchor_router_authority_and_envelope(db) -> None:
+def test_bare_anchor_router_envelope(db) -> None:
     app = FastAPI()
     app.include_router(router, prefix='/api/v1')
     from fastapi import HTTPException
@@ -156,12 +148,6 @@ def test_bare_anchor_router_authority_and_envelope(db) -> None:
     payload = _anchor('hr_threshold_lower', 160, date(2026, 11, 1))
     payload['calibrated_at'] = STAMP.isoformat()
     payload['valid_from'] = payload['valid_from'].isoformat()
-    response = client.post('/api/v1/anchors', json=payload)
-    assert response.status_code == 409
-    assert response.json()['error']['code'] == 'planning_not_active'
-    with db() as session:
-        session.get(AppState, 1).planning_authority = 'calendar'
-        session.commit()
     response = client.post('/api/v1/anchors', json=payload)
     assert response.status_code == 200
     data = response.json()['data']

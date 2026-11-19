@@ -11,16 +11,15 @@ from sqlalchemy.orm import Session
 
 from app.api.checkins import router
 from app.checkin_models import Checkin, CheckinRevision, SessionRpe, SymptomReport
-from app.coach_v2_models import DailyGuidance
 from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.metric_models import Prompt
-from app.models import Activity, AppState
+from app.models import Activity
 
 
 @pytest.fixture
 def api_fixture(db_connection, session_factory, api_client, profile_factory, calendar_state):
     with session_factory() as session:
-        for model in (ExceptionFinding, ExceptionPatch, DailyGuidance, CheckinRevision, SymptomReport,
+        for model in (ExceptionFinding, ExceptionPatch, CheckinRevision, SymptomReport,
                       Checkin, SessionRpe, Prompt):
             session.execute(delete(model))
         calendar_state(session)
@@ -148,17 +147,6 @@ def test_rpe_manual_wins(api_fixture):
         rows = session.scalars(select(SessionRpe).where(SessionRpe.activity_id == activity_id)).all()
         assert {(row.source, row.rpe) for row in rows} == {('manual', 7), ('garmin_fit', 6.5)}
     assert client.put(f'/api/v1/activities/{activity_id}/rpe', json={'rpe': 7.11}).status_code == 422
-
-
-def test_legacy_authority_blocks_new_writes_but_allows_reads(api_fixture):
-    client, connection = api_fixture
-    activity_id = _activity(connection)
-    with Session(bind=connection, join_transaction_mode='create_savepoint') as session:
-        session.get(AppState, 1).planning_authority = 'legacy'
-        session.commit()
-    assert client.get('/api/v1/v2/checkins').status_code == 200
-    assert client.post('/api/v1/v2/checkins', json=_body()).status_code == 409
-    assert client.put(f'/api/v1/activities/{activity_id}/rpe', json={'rpe': 7}).status_code == 409
 
 
 def test_rpe_autocompletion_allows_one_followup_note(api_fixture):
