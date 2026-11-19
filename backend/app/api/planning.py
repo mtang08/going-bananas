@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.api.core import envelope
 from app.db import bump_data_revision, get_session, global_write_lock
+from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.models import Activity
@@ -252,7 +253,7 @@ def put_benchmark_activity(block_uid: uuid.UUID, body: BenchmarkActivityInput,
         row.event_id = spec.event_id
         row.protocol = spec.protocol
         row.distance_m = round(activity.distance_m) if activity.distance_m is not None else None
-        row.local_date = activity.start_at.astimezone(athlete_tz(session)).date()
+        row.local_date = date_in_zone(activity.start_at, athlete_tz(session))
         row.result_s = round(activity.timer_s) if activity.timer_s is not None else None
         row.updated_at = now
     elif row is not None:

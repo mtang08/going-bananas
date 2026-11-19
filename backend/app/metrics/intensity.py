@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.fit_models import ActivityStream
 from app.metrics.anchors import ActiveAnchor, active_anchors, anchor_set_hash
@@ -236,7 +237,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     activity = session.get(Activity, activity_id)
     if activity is None or activity.sport not in RUN_SPORTS:
         return []
-    day = activity.start_at.astimezone(tz).date()
+    day = date_in_zone(activity.start_at, tz)
     run = next((r for r in load_runs(session, day, day + timedelta(days=1)) if r.activity_id == activity_id), None)
     refs = {**metric_source_refs(session, activity_id), "activity_ids": [str(activity_id)]}
     if run is None:
