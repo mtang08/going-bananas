@@ -35,6 +35,7 @@ from app.planning_models import (
 )
 from app.services.block_benchmark import active_block_version
 from app.services.calendar import state_at
+from app.services.calendar_structure import work_signature
 from app.services.coverage import coverage
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, collect_decision_inputs
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION
@@ -43,6 +44,7 @@ from app.services.operations import OPERATIONS
 from app.services.proposals import DecisionError, derive_certainty, is_quality_slot, scope
 from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
+from app.services.workout_progression import assemble_groups, session_point
 from app.strong_models import StrongWorkoutRow
 
 RUN_SPORTS = {"running", "trail_running", "treadmill_running"}
@@ -67,6 +69,11 @@ SUMMARY_PATCHES_MAX = 10
 SUMMARY_DAYS = 14
 LIVE_PATCH = ("open", "escalated")
 BENCHMARK_HISTORY_MAX = 6
+PROGRESSION_GROUPS_MAX = 3
+PROGRESSION_POINTS_MAX = 4
+PROGRESSION_POINT_KEYS = ("local_date", "activity_id", "status", "reason_codes", "n_planned", "n_completed",
+                          "work_speed_mps", "work_hr_bpm", "work_m_per_beat", "cv_speed",
+                          "last_first_change_pct", "target_coverage", "sport")
 
 
 def _view(row: Any, keys: tuple[str, ...], *, names: dict[str, str] | None = None) -> dict:
@@ -684,6 +691,46 @@ def _benchmark_event(inputs: SnapshotInputs) -> dict | None:
     return _event_payload(inputs, event, _day(status["local_date"]), status.get("activity_id"))
 
 
+def _quality_progression(inputs: SnapshotInputs, operation: str) -> list[dict]:
+    cal_start, cal_end = _window(operation, "calendar", inputs)
+    ordered = sorted(inputs.sessions, key=lambda s: (str(s["local_date"]), s.get("slot", 0), str(s["session_uid"])))
+    signatures = {str(s["session_uid"]): work_signature(s.get("structure")) for s in ordered if s.get("kind") == "run"}
+    wanted = list(dict.fromkeys(
+        sig for s in ordered
+        if (sig := signatures.get(str(s["session_uid"]))) and _between(s.get("local_date"), cal_start, cal_end)
+    ))[:PROGRESSION_GROUPS_MAX]
+    if not wanted:
+        return []
+    completions = {str(c["session_uid"]): c for c in inputs.completions}
+    runs = {str(r["activity_id"]): r for r in inputs.runs}
+    intervals = {str(m["subject_key"]): m for m in inputs.metric_results
+                 if m.get("metric_id") == "work_interval_execution"}
+    points = []
+    for s in ordered:
+        if signatures.get(str(s["session_uid"])) not in wanted or _day(s["local_date"]) > inputs.as_of:
+            continue
+        completion = completions.get(str(s["session_uid"]))
+        run = runs.get(str(completion["activity_id"])) if completion and completion.get("activity_id") else None
+        row = intervals.get(str(run["activity_id"])) if run else None
+        points.append(session_point(
+            {"session_uid": s["session_uid"], "local_date": _day(s["local_date"]), "recipe_id": s.get("recipe_id"),
+             "intent": s.get("intent"), "structure": s["structure"]},
+            completion,
+            {"id": run["activity_id"], "local_date": _day(run["local_date"]), "sport": run["sport"]} if run else None,
+            {"id": row["result_id"], "status": row["status"], "reason_codes": row["reason_codes"],
+             "value": row["value"]} if row else None,
+        ))
+    groups = {g["signature"]: g for g in assemble_groups(points, "signature")}
+    return [
+        {"signature": sig, "recipe_ids": groups[sig]["recipe_ids"],
+         "sessions_total": groups[sig]["sessions_total"],
+         "sessions_assessable": groups[sig]["sessions_assessable"],
+         "recent": [_view(p, PROGRESSION_POINT_KEYS) for p in groups[sig]["points"]
+                    if p["status"] in ("available", "partial")][-PROGRESSION_POINTS_MAX:]}
+        for sig in wanted if sig in groups
+    ]
+
+
 def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
     if operation not in OPERATIONS:
         raise ValueError("unsupported_operation")
@@ -826,6 +873,8 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             if m.get("metric_id") == "work_interval_execution" and str(m.get("subject_key")) in exposure_ids
         ]
         payload["execution"] = execution
+    if operation in {ROLLING, QUALITY_OP, BLOCK}:
+        payload["quality_progression"] = _quality_progression(inputs, operation)
     if operation not in {CALIB}:
         payload["symptoms"] = _symptoms(inputs, operation)
     if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, EXCEPTION, POST_EVENT}:

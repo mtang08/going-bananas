@@ -19,6 +19,7 @@ from app.services.snapshot import (
     DAILY,
     EXCEPTION,
     POST_EVENT,
+    PROGRESSION_POINT_KEYS,
     QUALITY_OP,
     RACE,
     ROLLING,
@@ -407,6 +408,7 @@ def test_projection_sections_per_operation() -> None:
             "prior_decisions",
         },
         ROLLING: {
+            "quality_progression",
             "goals_and_constraints",
             "calendar",
             "load_shape",
@@ -417,6 +419,7 @@ def test_projection_sections_per_operation() -> None:
             "exception_summary",
         },
         QUALITY_OP: {
+            "quality_progression",
             "goals_and_constraints",
             "calendar",
             "load_shape",
@@ -426,6 +429,7 @@ def test_projection_sections_per_operation() -> None:
             "prior_decisions",
         },
         BLOCK: {
+            "quality_progression",
             "goals_and_constraints",
             "calendar",
             "load_shape",
@@ -825,3 +829,46 @@ def test_block_benchmark_sections() -> None:
         projected = build_payload(source, operation)["block"]
         assert projected["benchmark"]["protocol"] == "5 km solo time trial"
         assert projected["benchmark_status"]["status"] == "completed"
+
+
+def test_quality_progression_section() -> None:
+    structure = [
+        {'type': 'warmup', 'duration_type': 'time', 'duration_value': 600, 'target': None},
+        {'type': 'repeat', 'count': 4, 'steps': [
+            {'type': 'work', 'duration_type': 'time', 'duration_value': 300,
+             'target': {'modality': 'speed', 'low': 3.4, 'high': 3.8}},
+            {'type': 'recovery', 'duration_type': 'time', 'duration_value': 120, 'target': None}]},
+        {'type': 'cooldown', 'duration_type': 'time', 'duration_value': 600, 'target': None},
+    ]
+    old = {**session(AS_OF - timedelta(days=20), 'run', 'REC003'), 'structure': structure}
+    recent = {**session(AS_OF - timedelta(days=6), 'run', 'REC003'), 'structure': structure}
+    future = {**session(AS_OF + timedelta(days=3), 'run', 'REC003'), 'structure': structure}
+    easy = session(AS_OF - timedelta(days=2), 'run', 'REC001')
+    completions = [{'session_uid': row['session_uid'], 'activity_id': aid, 'status': 'completed_as_planned',
+                    'strong_workout_id': None, 'manual_session_id': None, 'match_method': None,
+                    'modification_reason': None, 'reason_note': None}
+                   for row, aid in [(old, 'a-old'), (recent, 'a-recent')]]
+    runs = [{'activity_id': aid, 'local_date': row['local_date'], 'sport': 'running', 'timer_s': 2880,
+             'distance_m': 8000, 'rpe': None, 'rpe_source': None}
+            for row, aid in [(old, 'a-old'), (recent, 'a-recent')]]
+    metrics = []
+    for aid, speed, hr in [('a-old', 3.5, 161), ('a-recent', 3.6, 158)]:
+        reps = [{'fully_completed': True, 'speed_status': 'available', 'mean_speed_mps': speed,
+                 'actual_timer_s': 300.0, 'hr_median_bpm': hr} for _ in range(4)]
+        metrics.append({'result_id': aid, 'metric_id': 'work_interval_execution', 'subject_type': 'activity',
+            'subject_key': aid, 'status': 'available', 'reason_codes': [], 'quality_flags': [],
+            'value': {'reps': reps, 'n_planned': 4, 'n_completed': 4, 'step_completion_ratio': 1.0,
+                      'cv_speed': 1.0, 'last_first_change_pct': 0.0, 'target_coverage': None}})
+    source = inputs(sessions=[old, recent, future, easy], completions=completions, runs=runs, metric_results=metrics)
+    groups = build_payload(source, ROLLING)['quality_progression']
+    assert len(groups) == 1
+    group = groups[0]
+    assert group['signature'] == 'ws1:4xt300' and group['recipe_ids'] == ['REC003']
+    assert (group['sessions_total'], group['sessions_assessable']) == (2, 2)
+    first, last = group['recent']
+    assert first['local_date'] == (AS_OF - timedelta(days=20)).isoformat()
+    assert (first['work_speed_mps'], first['work_hr_bpm'], first['work_m_per_beat']) == (3.5, 161.0, 1.304)
+    assert (last['activity_id'], last['work_m_per_beat'], last['status'], last['sport']) == ('a-recent', 1.367, 'available', 'running')
+    assert set(last) == set(PROGRESSION_POINT_KEYS)
+    assert build_payload(inputs(sessions=[easy]), ROLLING)['quality_progression'] == []
+    assert 'quality_progression' not in build_payload(source, DAILY)
