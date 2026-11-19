@@ -146,26 +146,28 @@ def test_source_refresh_history_and_rollback(db, tmp_path):
         assert current(session, 'run_volume_frequency', f'w7:{TODAY}').value['timer_duration_s'] == 9900
 
 
-def test_revision_nested_and_legacy(db):
+def test_revision_bump_once_per_transaction_with_savepoint_rollback(db):
     with db() as session:
-        before = get_revision(session)
-        assert bump_data_revision(session) == before+1
-        assert bump_data_revision(session) == before+2
+        initial = get_revision(session)
+        assert bump_data_revision(session) == initial + 1
+        assert bump_data_revision(session) == initial + 1
         session.commit()
         before = get_revision(session)
+        assert before == initial + 1
         savepoint = session.begin_nested()
-        assert bump_data_revision(session) == before+1
+        assert bump_data_revision(session) == before + 1
         savepoint.rollback()
         assert get_revision(session) == before
-        assert bump_data_revision(session) == before+1
+        assert bump_data_revision(session) == before + 1
         savepoint = session.begin_nested()
-        assert bump_data_revision(session) == before+1
+        assert bump_data_revision(session) == before + 1
         savepoint.rollback()
-        assert bump_data_revision(session) == before+1
+        assert bump_data_revision(session) == before + 1
         session.commit()
-        assert bump_data_revision(session) == before+2
+        assert bump_data_revision(session) == before + 2
         session.rollback()
-        assert bump_data_revision(session) == before+2
+        assert get_revision(session) == before + 1
+        assert bump_data_revision(session) == before + 2
         session.commit()
 
 
