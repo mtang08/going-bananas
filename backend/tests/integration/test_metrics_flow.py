@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
-from app.api.metrics import activity_execution, current, explain_metric, get_windows, recovery_nights
+from app.api.metrics import activity_execution, explain_metric, get_windows, long_run_history, recovery_nights
 from app.checkin_models import SessionRpe
 from app.config import settings
 from app.db import bump_data_revision, get_revision
@@ -85,6 +85,17 @@ def counts(session):
     return tuple(session.scalar(select(func.count()).select_from(model)) for model in (MetricResult, Prompt))
 
 
+def current(session, metric, key):
+    return engine.current_results(session, metric, [key]).get(key)
+
+
+def materialize(session):
+    """Store today's windows before testing reads of persisted results."""
+    refresh.ensure_windows(session, TODAY)
+    session.commit()
+
+
+
 def _statements(session, action) -> int:
     """SQL statements sent on this session's connection while `action` runs."""
     seen: list[str] = []
@@ -116,6 +127,7 @@ def test_four_runs_idempotent_reads_and_explanation(db, tmp_path):
     ids = seed(db, tmp_path)
     with db() as session:
         session.info['metrics_now'] = NOW
+        materialize(session)
         revision = get_revision(session)
         data = get_windows(TODAY, session)['data']
         assert set(data['aerobic']) == {'w28', 'w84'}
@@ -146,7 +158,7 @@ def test_source_refresh_history_and_rollback(db, tmp_path):
     ids = seed(db, tmp_path)
     with db() as session:
         session.info['metrics_now'] = NOW
-        get_windows(TODAY, session)
+        materialize(session)
         before = get_revision(session)
         old = current(session, 'run_volume_frequency', f'w7:{TODAY}')
         old_id = old.id
@@ -626,3 +638,28 @@ def test_read_results_previews_without_writing_then_serves_stored(db, tmp_path):
                         {'id': stored['id'], 'config': stored['config_hash']})
         session.commit()
         assert engine.read_results(session, metric, [key])[key] == preview
+
+
+def test_metric_gets_write_nothing(db, tmp_path):
+    ids = seed(db, tmp_path)
+    with db() as session:
+        session.info['metrics_now'] = NOW
+        materialize(session)
+        stale = current(session, 'run_volume_frequency', f'w7:{TODAY}')
+        session.execute(text('UPDATE metric_results SET config_hash = :stale WHERE id = :id'),
+                        {'stale': '0' * 64, 'id': stale.id})
+        session.commit()
+        session.execute(text('SET TRANSACTION READ ONLY'))
+        transaction = session.get_transaction()
+        before, revision = counts(session), get_revision(session)
+        windows = get_windows(TODAY, session)['data']['windows']
+        activity_execution(session, ids[-1])
+        recovery_nights(session, TODAY - timedelta(days=2), TODAY)
+        long_run_history(session, TODAY - timedelta(days=13), TODAY)
+        assert session.get_transaction() is transaction
+        assert counts(session) == before
+        assert get_revision(session) == revision
+        assert not session.dirty and not session.new
+        assert windows[0]['volume']['id'] is None
+        assert windows[0]['volume']['value']['run_count'] == 4
+        assert windows[1]['volume']['id'] is not None

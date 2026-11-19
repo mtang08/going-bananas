@@ -1,4 +1,4 @@
-"""Training metric read models. Refreshes persist derived data only."""
+"""Read stored metrics or compute missing and outdated metrics in memory."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -6,30 +6,23 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.core import envelope
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.checkin_models import SessionRpe
-from app.db import get_session
+from app.db import get_session, global_read_lock
 from app.errors import fail
 from app.fit_models import ActivityLap, ActivityWorkoutStep
 from app.metric_models import MetricConfig, MetricResult
-from app.metrics import engine, intervals, refresh
+from app.metrics import engine, refresh
 from app.models import Activity, AppState
 from app.services import calendar, workout_progression
 from app.services.timezone import athlete_tz
 
 router = APIRouter()
-
-
-def metric_data(row: MetricResult | None) -> dict | None:
-    return {column.key: getattr(row, column.key) for column in MetricResult.__table__.columns} if row else None
-
-
-def current(session: Session, metric: str, key: str) -> MetricResult | None:
-    return engine.current_results(session, metric, [key]).get(key)
+WINDOW_DAYS = (7, 14, 28, 56)
 
 
 def _window(start: date, end: date, limit: int | None = None) -> None:
@@ -39,30 +32,34 @@ def _window(start: date, end: date, limit: int | None = None) -> None:
 
 def recovery_nights(session: Session, start: date, end: date) -> dict:
     _window(start, end, 92)
-    refresh.ensure_nights(session, start, end)
+    global_read_lock(session)
+    keys = [f'night:{start + timedelta(days=offset)}' for offset in range((end - start).days + 1)]
+    results = engine.read_results(session, 'recovery_multisignal_summary', keys)
     nights = []
-    for offset in range((end - start).days + 1):
-        day = start + timedelta(days=offset)
-        row = current(session, 'recovery_multisignal_summary', f'night:{day}')
+    for offset, key in enumerate(keys):
+        row = results[key]
         assert row is not None
-        nights.append({**(row.value or {}), 'local_date': day, 'status': row.status,
-            'quality_status': row.quality_status, 'reason_codes': row.reason_codes, 'quality_flags': row.quality_flags})
+        nights.append({**(row['value'] or {}), 'local_date': start + timedelta(days=offset), 'status': row['status'],
+            'quality_status': row['quality_status'], 'reason_codes': row['reason_codes'], 'quality_flags': row['quality_flags']})
     return {'start': start, 'end': end, 'nights': nights}
 
 
 def activity_execution(session: Session, activity_id: UUID) -> dict:
-    session.execute(text('SELECT pg_advisory_xact_lock(71382413)'))
+    global_read_lock(session)
     activity = session.get(Activity, activity_id, populate_existing=True)
     if activity is None:
         fail('activity_not_found', 'Activity not found', 404)
     if activity.sport not in ('running', 'trail_running', 'treadmill_running'):
         fail('not_run_activity', 'Activity is not a run')
-    with refresh.refreshing(session):
-        refresh.refresh_runs(session, [activity_id])
-        completion = session.scalar(select(SessionCompletion).where(SessionCompletion.activity_id == activity_id))
-        if completion and completion.session_uid:
-            refresh.refresh_plans(session, [completion.session_uid])
-        session.flush()
+    completion = session.scalar(select(SessionCompletion).where(SessionCompletion.activity_id == activity_id))
+    activity_key = str(activity_id)
+    metrics = {metric: engine.read_results(session, metric, [activity_key])[activity_key] for metric in (
+        'work_interval_execution', 'intensity_time_distribution', 'aerobic_efficiency',
+        'session_rpe_load', 'symptom_response_timeline')}
+    planned_actual = None
+    if completion and completion.session_uid:
+        session_key = str(completion.session_uid)
+        planned_actual = engine.read_results(session, 'planned_actual_session', [session_key])[session_key]
     head = session.scalar(select(AppState.calendar_head_version).where(AppState.id == 1)) or 0
     planned = next((row for row in calendar.state_at(session, head)
                     if completion and row['session_uid'] == completion.session_uid), None) if head else None
@@ -77,8 +74,8 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
         if historical is not None:
             planned = calendar._row_data(historical)
     def value(metric: str) -> dict:
-        row = current(session, metric, str(activity_id))
-        return row.value or {} if row else {}
+        row = metrics[metric]
+        return (row['value'] or {}) if row else {}
     rpes = {row.source: row.rpe for row in session.scalars(select(SessionRpe).where(SessionRpe.activity_id == activity_id))}
     if 'garmin_fit' not in rpes and activity.workout_rpe is not None:
         rpes['garmin_fit'] = activity.workout_rpe
@@ -93,11 +90,10 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
         'elapsed_s': activity.elapsed_s, 'fit_status': activity.fit_status},
         'planned': planned, 'completion': calendar.completion_data(session, completion) if completion else None,
         'laps': decoded(ActivityLap, 'lap_index'), 'watch_steps': decoded(ActivityWorkoutStep, 'message_index'),
-        'planned_actual': metric_data(current(session, 'planned_actual_session', str(completion.session_uid)))
-            if completion and completion.session_uid else None,
-        'intervals': metric_data(current(session, 'work_interval_execution', str(activity_id))),
-        'intensity': metric_data(current(session, 'intensity_time_distribution', str(activity_id))),
-        'aerobic': metric_data(current(session, 'aerobic_efficiency', str(activity_id))),
+        'planned_actual': planned_actual,
+        'intervals': metrics['work_interval_execution'],
+        'intensity': metrics['intensity_time_distribution'],
+        'aerobic': metrics['aerobic_efficiency'],
         'rpe': {'effective': effective, 'source': 'manual' if 'manual' in rpes else 'garmin_fit' if 'garmin_fit' in rpes else None,
             'manual': rpes.get('manual'), 'garmin_fit': rpes.get('garmin_fit'),
             'srpe_load_au': value('session_rpe_load').get('load_au')},
@@ -110,68 +106,60 @@ def explain_metric(session: Session, result_id: UUID) -> dict:
         fail('metric_result_not_found', 'Metric result not found', 404)
     config = session.scalar(select(MetricConfig).where(MetricConfig.metric_id == row.metric_id,
         MetricConfig.method_version == row.method_version, MetricConfig.config_hash == row.config_hash))
-    return {**(metric_data(row) or {}), 'config': config.config if config else None,
+    return {**engine.result_data(row), 'config': config.config if config else None,
         'source_availability': {'config_available': config is not None,
             'provenance_complete': 'MISSING_PROVENANCE' not in row.reason_codes}}
 
 
 def long_run_history(session: Session, start: date, end: date) -> list[dict]:
     _window(start, end)
-    ids = refresh.activities_between(session, start, end)
-    with refresh.refreshing(session):
-        refresh.refresh_runs(session, ids)
-        session.flush()
-    rows = session.scalars(select(MetricResult).where(MetricResult.metric_id == 'long_run_exposure',
-        MetricResult.subject_type == 'activity', MetricResult.subject_key.in_([str(uid) for uid in ids]),
-        engine.current_result_filter()).order_by(MetricResult.window_start, MetricResult.subject_key))
-    return [metric_data(row) for row in rows if row.value and row.value.get('classification') == 'long']  # type: ignore[misc]
+    global_read_lock(session)
+    keys = [str(uid) for uid in refresh.activities_between(session, start, end)]
+    rows = [row for row in engine.read_results(session, 'long_run_exposure', keys).values()
+            if row and row['value'] and row['value'].get('classification') == 'long']
+    return sorted(rows, key=lambda row: (row['window_start'] is None, row['window_start'], row['subject_key']))
 
 
 RUN_SPORTS = ('running', 'trail_running', 'treadmill_running')
 
 
-def _refresh_intervals(session: Session, activity_ids: list[UUID]) -> None:
-    if not activity_ids:
-        return
-    with refresh.refreshing(session):
-        refresh.compute_subjects(session, intervals.METRIC_ID, [str(uid) for uid in activity_ids])
-        session.flush()
-
-
 def workout_progression_data(session: Session, start: date, end: date, group_by: str) -> dict:
     _window(start, end, 366)
-    _refresh_intervals(session, workout_progression.linked_run_ids(session, start, end))
+    global_read_lock(session)
     return {'start': start, 'end': end, 'group_by': group_by,
             'groups': workout_progression.progression_groups(session, start, end, group_by)}
 
 
 def activity_workout_history(session: Session, activity_id: UUID, limit: int) -> dict:
+    global_read_lock(session)
     activity = session.get(Activity, activity_id)
     if activity is None:
         fail('activity_not_found', 'Activity not found', 404)
     if activity.sport not in RUN_SPORTS:
         fail('not_run_activity', 'Activity is not a run')
-    start, end = workout_progression.history_window(session, activity)
-    _refresh_intervals(session, workout_progression.linked_run_ids(session, start, end))
     return workout_progression.workout_history(session, activity, limit)
 
 
 @router.get('/metrics/windows')
 def get_windows(as_of: date | None = None, session: Session = Depends(get_session)) -> dict:
+    global_read_lock(session)
     as_of = as_of or refresh.local_today(session)
-    refresh.ensure_windows(session, as_of)
-    def result(metric: str, key: str) -> dict | None:
-        return metric_data(current(session, metric, key))
-    windows = [{'days': n, 'volume': result('run_volume_frequency', f'w{n}:{as_of}'),
-        'srpe': result('session_rpe_load', f'w{n}:{as_of}:run'),
-        'srpe_strength': result('session_rpe_load', f'w{n}:{as_of}:strength'),
-        'intensity': result('intensity_time_distribution', f'w{n}:{as_of}'),
-        'long_run': result('long_run_exposure', f'w{n}:{as_of}')} for n in (7, 14, 28, 56)]
-    aerobic = {f'w{n}': result('aerobic_efficiency', f'w{n}:{as_of}') for n in (28, 84)}
+    window_keys = [f'w{n}:{as_of}' for n in WINDOW_DAYS]
+    volume = engine.read_results(session, 'run_volume_frequency', window_keys)
+    intensity = engine.read_results(session, 'intensity_time_distribution', window_keys)
+    long_run = engine.read_results(session, 'long_run_exposure', window_keys)
+    srpe = engine.read_results(session, 'session_rpe_load',
+        [f'{key}:{part}' for key in window_keys for part in ('run', 'strength')])
+    windows = [{'days': n, 'volume': volume[key], 'srpe': srpe[f'{key}:run'],
+        'srpe_strength': srpe[f'{key}:strength'], 'intensity': intensity[key], 'long_run': long_run[key]}
+        for n, key in zip(WINDOW_DAYS, window_keys, strict=True)]
+    spacing_key, symptoms_key = f'w14:{as_of}', f'w28:{as_of}'
+    aerobic_keys = {f'w{n}': f'w{n}:{as_of}' for n in (28, 84)}
+    aerobic = engine.read_results(session, 'aerobic_efficiency', list(aerobic_keys.values()))
     data = {'as_of': as_of, 'windows': windows,
-        'spacing': result('hard_session_spacing', f'w14:{as_of}'), 'aerobic': aerobic,
-        'symptoms': result('symptom_response_timeline', f'w28:{as_of}')}
-    session.commit()
+        'spacing': engine.read_results(session, 'hard_session_spacing', [spacing_key])[spacing_key],
+        'aerobic': {label: aerobic[key] for label, key in aerobic_keys.items()},
+        'symptoms': engine.read_results(session, 'symptom_response_timeline', [symptoms_key])[symptoms_key]}
     return envelope(session, data)
 
 
@@ -179,21 +167,18 @@ def get_windows(as_of: date | None = None, session: Session = Depends(get_sessio
 def get_recovery(start: date | None = None, end: date | None = None, session: Session = Depends(get_session)) -> dict:
     end = end or refresh.local_today(session)
     data = recovery_nights(session, start or end - timedelta(days=6), end)
-    session.commit()
     return envelope(session, data)
 
 
 @router.get('/activities/{activity_id}/execution')
 def get_execution(activity_id: UUID, session: Session = Depends(get_session)) -> dict:
     data = activity_execution(session, activity_id)
-    session.commit()
     return envelope(session, data)
 
 
 @router.get('/metrics/long-runs')
 def get_long_runs(start: date, end: date, session: Session = Depends(get_session)) -> dict:
     data = long_run_history(session, start, end)
-    session.commit()
     return envelope(session, data)
 
 
@@ -204,7 +189,6 @@ def get_workout_progression(start: date | None = None, end: date | None = None,
     today = refresh.local_today(session)
     end = min(end or today, today)
     data = workout_progression_data(session, start or end - timedelta(days=179), end, group_by)
-    session.commit()
     return envelope(session, data)
 
 
@@ -212,5 +196,4 @@ def get_workout_progression(start: date | None = None, end: date | None = None,
 def get_workout_history(activity_id: UUID, limit: int = Query(6, ge=2, le=20),
                         session: Session = Depends(get_session)) -> dict:
     data = activity_workout_history(session, activity_id, limit)
-    session.commit()
     return envelope(session, data)
