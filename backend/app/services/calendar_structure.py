@@ -8,6 +8,7 @@ from typing import cast
 STEP_TYPES = {'warmup', 'work', 'recovery', 'cooldown'}
 DURATION_TYPES = {'time', 'distance'}
 MODALITIES = {'speed', 'hr', 'effort'}
+SIGNATURE_VERSION = 'ws1'
 
 
 class StructureError(ValueError):
@@ -71,3 +72,26 @@ def expand_structure(structure: list[dict]) -> list[dict]:
         else:
             append(_step(item), str(index), None)
     return expanded
+
+
+def work_signature(structure: list[dict] | None) -> str | None:
+    """Identity of a session's work steps; targets and non-work steps are ignored (TI D1)."""
+    if not structure:
+        return None
+    tokens: list[str] = []
+    for step in expand_structure(structure):
+        if step['type'] != 'work':
+            continue
+        if step['duration_type'] == 'time':
+            tokens.append(f"t{int(5 * round(step['duration_value'] / 5))}")
+        else:
+            tokens.append(f"d{int(10 * round(step['duration_value'] / 10))}")
+    if not tokens:
+        return None
+    runs: list[list] = []
+    for token in tokens:
+        if runs and runs[-1][1] == token:
+            runs[-1][0] += 1
+        else:
+            runs.append([1, token])
+    return SIGNATURE_VERSION + ':' + '+'.join(f'{count}x{token}' for count, token in runs)
