@@ -60,7 +60,7 @@ def demo_cli(monkeypatch, tmp_path):
 @pytest.mark.parametrize('weekday', range(7))
 def test_calendar_preview_initializes_fresh_migrated_database(demo_cli, capsys, monkeypatch, weekday):
     today = date(2026, 11, 9) + timedelta(days=weekday)
-    monkeypatch.setattr(cli, 'local_date', lambda instant, zone: today)
+    monkeypatch.setattr(cli, 'date_in_zone', lambda instant, zone: today)
     monkeypatch.setattr(calendar, 'calendar_today', lambda session, now=None: today)
     with demo_cli() as session:
         state = session.get(AppState, 1)
