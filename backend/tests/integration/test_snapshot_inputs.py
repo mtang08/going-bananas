@@ -13,8 +13,8 @@ from app.metric_models import MetricResult
 from app.metrics.engine import REGISTRY, metric_modules
 from app.planning_models import Block, BlockVersion, Event, Goal
 from app.services import calendar, weekly_digest
-from app.services.snapshot import _load_metrics, load_inputs
 from app.services.snapshot.common import ROLLING
+from app.services.snapshot.inputs import _load_metrics, load_inputs
 from app.services.snapshot.payload import build_payload
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
