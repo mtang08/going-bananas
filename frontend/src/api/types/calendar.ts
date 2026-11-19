@@ -1,4 +1,5 @@
 import type { SessionPatchRef } from './exceptions'
+import type { PlannedActualValue } from './metrics'
 export type SessionKind = 'run' | 'strength' | 'cross' | 'rest' | 'mobility'
 export type Certainty = 'committed' | 'provisional'
 export type StepType = 'warmup' | 'work' | 'recovery' | 'cooldown'
@@ -207,4 +208,92 @@ export const MARKER_LABELS: Record<SessionMarker, string> = {
   missed: 'Missed',
   recorded: 'Recorded · comparison unavailable',
   not_recorded: 'Not recorded',
+}
+
+export type DigestOutcome = SessionMarker
+export type DigestSubject = 'activity' | 'strong_workout' | 'manual_session'
+export interface DigestCounts {
+  planned: number
+  planned_to_date: number
+  done: number
+}
+export interface DigestExecution {
+  assessment_status: 'available' | 'partial' | 'missing' | null
+  reason_codes: string[]
+  quality_flags: string[]
+  components: PlannedActualValue['components']
+  reps_planned: number | null
+  reps_completed: number | null
+}
+export interface DigestRow {
+  session_uid: string
+  local_date: string
+  slot: number
+  kind: SessionKind
+  class: string
+  recipe_id: string | null
+  custom: boolean
+  intent: string | null
+  key: boolean
+  changed: boolean
+  outcome: DigestOutcome
+  modification_reason: ModificationReason | null
+  planned_duration_s: number | null
+  planned_distance_m: number | null
+  planned_distance_estimated: boolean
+  actual: {
+    subject: DigestSubject
+    id: string
+    local_date: string
+    duration_s: number | null
+    distance_m: number | null
+  } | null
+  execution: DigestExecution | null
+}
+export interface DigestUnplanned {
+  subject: DigestSubject
+  id: string
+  local_date: string
+  kind: string
+  duration_s: number | null
+  distance_m: number | null
+}
+export interface WeeklyDigest {
+  schema: 'weekly_digest.v1'
+  week_start: string
+  week_end: string
+  today: string
+  days_elapsed: number
+  timezone: string
+  calendar_version: number
+  plan_available: boolean
+  activity_coverage_complete: boolean
+  totals: {
+    sessions: DigestCounts & {
+      by_outcome: Record<DigestOutcome, number>
+      removed: number
+      unplanned: number
+    }
+    by_kind: Record<'run' | 'strength' | 'cross' | 'mobility', DigestCounts>
+    time: {
+      planned_s: number
+      planned_to_date_s: number
+      planned_unknown: number
+      actual_s: number
+      actual_unknown: number
+      unplanned_s: number
+    }
+    run_distance: {
+      planned_m: number
+      planned_to_date_m: number
+      planned_estimated: number
+      planned_unknown: number
+      actual_m: number
+      actual_unknown: number
+    }
+    key_sessions: DigestCounts & { by_outcome: Record<DigestOutcome, number> }
+  }
+  sessions: DigestRow[]
+  unplanned: DigestUnplanned[]
+  removed: { session_uid: string; local_date: string; kind: SessionKind }[]
 }

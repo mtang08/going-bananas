@@ -1,3 +1,22 @@
+import type { ComponentName } from '../api'
+
+export const COMPONENT_LABELS: Record<ComponentName, string> = {
+  duration_ratio: 'Duration vs plan',
+  distance_ratio: 'Distance vs plan',
+  step_completion_ratio: 'Steps completed',
+  target_coverage: 'Time in target',
+}
+
+export const COMPONENT_STATUS_LABELS: Record<
+  'met' | 'partially_met' | 'not_met' | 'not_assessable',
+  string
+> = {
+  met: 'Met',
+  partially_met: 'Partly met',
+  not_met: 'Not met',
+  not_assessable: 'Not assessable',
+}
+
 export const REASON_LABELS: Record<string, string> = {
   ACTIVITY_EXCLUDED: 'Activity excluded or unresolved',
   STRUCTURED_SESSION: 'Structured workout',
@@ -51,6 +70,7 @@ export const REASON_LABELS: Record<string, string> = {
   INCOMPLETE_WORK_STEP: 'Some reps were shorter than planned',
   INCOMPLETE_WORK_STEPS: 'Some reps were shorter than planned',
   COMPONENT_NOT_ASSESSABLE: 'Part of the comparison is unavailable',
+  ASSESSMENT_MISSING: 'Not assessed yet',
   WORK_MEASUREMENT_MISSING: 'Some rep measurements are missing',
   COMPLETION_VALUE_MISSING: 'Time or distance is missing for a rep',
   LOW_COVERAGE: 'Limited pace data',
