@@ -100,10 +100,9 @@ def profile_factory() -> Callable[..., ProfileVersion]:
 @pytest.fixture
 def calendar_state() -> Callable[..., AppState]:
     def apply(session: Session, *, reset_head: bool = False) -> AppState:
-        """Put AppState in the calendar state the suites expect; ARCH-03c deletes the planning_authority line."""
+        """Put AppState in the calendar state the suites expect."""
         state = session.get(AppState, 1, with_for_update=True)
         assert state is not None
-        state.planning_authority = 'calendar'
         if reset_head:
             state.calendar_head_version = 0
         return state

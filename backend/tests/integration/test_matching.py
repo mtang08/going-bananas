@@ -68,7 +68,6 @@ def _seed(session) -> None:
     state = session.get(AppState, 1)
     assert state is not None
     state.calendar_head_version = 1
-    state.planning_authority = "calendar"
     session.add(CalendarVersion(number=1, kind="bootstrap", actor="system"))
     session.flush()
 
