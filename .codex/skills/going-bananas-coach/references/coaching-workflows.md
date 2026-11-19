@@ -11,6 +11,8 @@ Other requests, only when asked for exactly: `select_quality_session`, `recalibr
 
 Use the fresh snapshot's actual scope and server schema as authority. Keep the first week committed and the second week provisional. Explain dose, spacing, strength interaction, and uncertainty from the returned facts and research. A missing stream, RPE, recovery night, or calibration is not a normal value. Do not merge HR and speed into a single physiology score.
 
+Two snapshot sections describe trends. `quality_progression` lists recent sessions with the same work steps (`signature`, for example `ws1:4xt300` = 4 × 5 min). Use it to repeat, progress, or consolidate a workout: compare work pace, work HR, rep variation, and last-versus-first change only across `available` or `partial` points, and say how many sessions the comparison rests on. HR is absent for reps under 3 minutes; that is unknown, not normal. `aerobic_efficiency` reports metres per heartbeat and heart-rate drift on steady easy and long runs, always next to mean pace and HR. It is a descriptive trend under comparable conditions, not a fitness score, readiness gate, or threshold (KB E-DATA-02, policy P015); heat, hills, fatigue, and sensor error change it. Do not change training because of one run's value.
+
 If recent symptoms, altered gait, illness, or clinical restrictions are present, honor the snapshot safety guard and avoid increasing near-term running load. Describe uncertainty and escalation without inventing a diagnosis or clearance. If an accepted target depends on a proposed anchor, the app requires reviewing that anchor alongside its target changes.
 
 ## One Sunday entrypoint

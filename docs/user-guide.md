@@ -108,7 +108,7 @@ Missing data and incomplete plan coverage are labeled. Treat the projection as a
 
 - [Home](#home): sync status, **Needs attention** (open proposals, coach recommendations, findings, patch reassessments, and check-in prompts), today's plan, the next two weeks, weekly mileage, the block line, and **Logged for Sunday review**.
 - [Calendar](#calendar): accepted sessions, workout details, patch and benchmark badges, and revision history with a link to the proposal behind each coach change. Completed, historical, and locked sessions are protected during undo.
-- [Trends](#trends): volume, effort load, long runs, intensity, recovery, and benchmark history. Panels without enough data wait under **Not yet assessable**.
+- [Trends](#trends): volume, effort load, long runs, intensity, aerobic efficiency on steady runs, workout progression, recovery, and benchmark history. Panels without enough data wait under **Not yet assessable**.
 - [Training block](#block): the current objective, timeline, review indicators, and block benchmark.
 - [Settings](#settings): sync, setup or strength routine, display timezone and units, weekly review day, goals, events, and intensity anchors.
 
