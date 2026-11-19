@@ -2,10 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Trends } from '../src/pages/Trends'
-import type {
-  AerobicWindowValue, BenchmarkRecord, IntensityValue, LongRunValue, MetricResult, MetricWindows, RecoveryNight,
-  RecoveryNights, RecoverySignal, SpacingValue, SrpeValue, VolumeValue, ZoneDistribution,
-} from '../src/api'
+import type { AerobicWindowValue, IntensityValue, LongRunValue, MetricResult, MetricWindows, RecoveryNight, RecoveryNights, RecoverySignal, SpacingValue, SrpeValue, VolumeValue, ZoneDistribution } from '../src/api/types/metrics'
+import type { BenchmarkRecord } from '../src/api/types/blocks'
 
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

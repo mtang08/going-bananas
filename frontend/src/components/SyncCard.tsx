@@ -7,14 +7,13 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
-import { api, dateLabel, post } from '../api'
+import { api, post } from '../api/client'
+import { dateLabel } from '../lib/format'
+import { invalidateKeys, qk, refreshAfterSync } from '../api/queryKeys'
 import type { SyncJob, SyncStatus } from '../api/types/sync'
 import { QueryState } from './QueryState'
 import { relativeTime, stateLabel } from './shared'
 import { Badge, Button, Card } from './ui'
-
-const PENDING = ['sync', 'pending'] as const
-const OUTCOME = ['sync', 'outcome'] as const
 
 function useCached<T>(key: readonly unknown[], fallback: T): T {
   const qc = useQueryClient()
@@ -31,15 +30,15 @@ function useCached<T>(key: readonly unknown[], fallback: T): T {
 export function SyncCard({ compact = false }: { compact?: boolean }) {
   const qc = useQueryClient()
   const status = useQuery({
-    queryKey: ['sync'],
+    queryKey: qk.sync,
     queryFn: () => api<SyncStatus>('/sync/status'),
     placeholderData: keepPreviousData,
   })
-  const pending = useCached<string[]>(PENDING, [])
-  const outcome = useCached<string | null>(OUTCOME, null)
+  const pending = useCached<string[]>(qk.syncPending, [])
+  const outcome = useCached<string | null>(qk.syncOutcome, null)
   const jobs = useQueries({
     queries: pending.map((id) => ({
-      queryKey: ['sync', 'job', id],
+      queryKey: qk.syncJob(id),
       queryFn: () => api<SyncJob>(`/sync/jobs/${id}`),
       refetchInterval: 2000,
     })),
@@ -47,12 +46,12 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
   const start = useMutation({
     mutationFn: () => post<{ jobs: SyncJob[] }>('/sync', {}),
     onSuccess: (r) => {
-      qc.setQueryData(OUTCOME, null)
+      qc.setQueryData(qk.syncOutcome, null)
       qc.setQueryData(
-        PENDING,
+        qk.syncPending,
         r.data.jobs.map((j) => j.id),
       )
-      void qc.invalidateQueries({ queryKey: ['sync'], exact: true })
+      void qc.invalidateQueries({ queryKey: qk.sync, exact: true })
     },
   })
   const finished =
@@ -61,15 +60,15 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     if (!finished) return
     const failed = jobs.some((j) => j.data?.data.status === 'failed')
-    qc.setQueryData(PENDING, [])
+    qc.setQueryData(qk.syncPending, [])
     qc.setQueryData(
-      OUTCOME,
+      qk.syncOutcome,
       failed
         ? 'One or more datasets failed. Check the dataset status and retry.'
         : 'Sync finished. Training data has been refreshed.',
     )
-    void qc.invalidateQueries({ queryKey: ['sync'], exact: true })
-    void qc.invalidateQueries({ queryKey: ['v2'] })
+    void qc.invalidateQueries({ queryKey: qk.sync, exact: true })
+    invalidateKeys(qc, refreshAfterSync)
   }, [finished, jobs, qc])
 
   const real = status.data?.mode === 'real'

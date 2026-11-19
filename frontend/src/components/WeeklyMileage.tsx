@@ -1,5 +1,5 @@
 import { Badge, Card } from './ui'
-import { dateLabel, fmtDistance, type Unit } from '../api'
+import { dateLabel, fmtDistance, type Unit } from '../lib/format'
 import './plan-overview.css'
 import type { WeeklyProjection } from '../api/types/calendar'
 

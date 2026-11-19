@@ -1,19 +1,14 @@
 import { Badge, Button, Card, Disclosure } from './ui'
 import type { ReactNode } from 'react'
+import { addDays, dateLabel, fmtDistance, fmtDuration, type Unit } from '../lib/format'
 import {
-  addDays,
-  dateLabel,
-  fmtDistance,
-  fmtDuration,
   MARKER_LABELS,
-  pageHref,
-  sessionMarker,
-  sessionTitle,
   type CalendarView,
   type Completion,
   type SessionState,
-  type Unit,
-} from '../api'
+} from '../api/types/calendar'
+import { pageHref } from '../lib/routes'
+import { sessionMarker, sessionTitle } from '../lib/session'
 import { WorkoutStructure } from './WorkoutStructure'
 import './plan-overview.css'
 

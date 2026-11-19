@@ -1,3 +1,4 @@
+import { qk } from '../src/api/queryKeys'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -81,10 +82,11 @@ it('shows the latest successful sync and hides Sync now outside real mode', asyn
   expect(await screen.findByText('Last sync 5 min ago')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Sync now' })).toBeNull()
 })
-it('real-mode sync posts once, polls the job, and refreshes v2 data', async () => {
+it('real-mode sync posts once, polls the job, and refreshes plan data', async () => {
   mode = 'real'
   const client = mount()
-  client.setQueryData(['v2', 'sentinel'], 1)
+  client.setQueryData(qk.calendar, 1)
+  client.setQueryData(qk.goals, 1)
   fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }))
   expect(
     await screen.findByText('Sync finished. Training data has been refreshed.'),
@@ -95,7 +97,8 @@ it('real-mode sync posts once, polls the job, and refreshes v2 data', async () =
   expect(posts[0].body).toEqual({})
   expect(posts[0].headers.get('X-Local-Request')).toBe('1')
   expect(requests.some((r) => r.method === 'GET' && r.url.includes('/sync/jobs/job-1'))).toBe(true)
-  expect(client.getQueryState(['v2', 'sentinel'])?.isInvalidated).toBe(true)
+  expect(client.getQueryState(qk.calendar)?.isInvalidated).toBe(true)
+  expect(client.getQueryState(qk.goals)?.isInvalidated).toBe(false)
 })
 it('reports a failed job', async () => {
   mode = 'real'

@@ -4,7 +4,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CheckinModalV2 } from '../src/pages/CheckinModalV2'
-import { qk, type CheckinRequest } from '../src/api'
+import { qk } from '../src/api/queryKeys'
+import type { CheckinRequest } from '../src/api/types/checkins'
 
 const rec = { operation: 'exception_review', reason: 'Open findings at caution or hold need an exception review', finding_ids: ['f1'], prompt: EXCEPTION_PROMPT }
 let checkinExceptions: { new_finding_ids: string[]; review_recommended: (typeof rec)[] }

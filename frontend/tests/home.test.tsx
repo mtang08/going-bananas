@@ -5,7 +5,9 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Home } from '../src/pages/Home'
 import type { ProposalSummary } from '../src/api/types/coach'
-import { addDays, type BlockVersion, type CalendarView, type SessionState, type WeeklyDigest } from '../src/api'
+import { addDays } from '../src/lib/format'
+import type { BlockVersion } from '../src/api/types/blocks'
+import type { CalendarView, SessionState, WeeklyDigest } from '../src/api/types/calendar'
 
 const finding = (id: string, severity: Severity, summary: string, version = 1): Finding => ({ id, rule_code: 'FATIGUE_PERSISTING', category: 'accumulated_fatigue', severity, status: 'open', entity_key: `fatigue:${id}`, summary, evidence: [], evidence_at: '2026-11-11T12:00:00Z', first_seen_at: '2026-11-11T12:00:00Z', last_seen_at: '2026-11-11T12:00:00Z', patch_id: null, version, is_new_since_last_review: true })
 const pa1: Patch = { id: 'pa1', proposal_id: 'p9', calendar_version_number: 2, category: 'accumulated_fatigue', severity: 'caution', ladder_level: 'next_days', window_start: '2026-11-11', window_end: '2026-11-13', reassess_on: '2026-11-11', monitor: ['Morning fatigue'], return_criteria: ['Fatigue below 6'], escalate_criteria: ['Fatigue rising'], unchanged: [], status: 'open', resolved_at: null, resolved_by: null, resolution_note: null, created_at: '2026-11-10T12:00:00Z', version: 1, session_uids: [], reassess_due: true }

@@ -1,37 +1,26 @@
 import { Badge, Button, Card, Disclosure, Input, NativeSelect, Textarea } from '../components/ui'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ApiError, api, post, put, query } from '../api/client'
+import { REASON_LABELS } from '../api/types/checkins'
 import {
-  ApiError,
-  REASON_LABELS,
   RECIPE_LABELS,
-  addDays,
-  api,
-  dateLabel,
-  fmtDistance,
-  fmtDuration,
-  invalidateKeys,
-  pageHref,
-  post,
-  put,
-  qk,
-  query,
-} from '../api'
-import type {
-  Activity,
-  CalendarDiff,
-  CalendarEditsRequest,
-  CalendarRollbackRequest,
-  CalendarVersion,
-  CalendarView,
-  CalendarWriteResult,
-  Completion,
-  CompletionPut,
-  SessionFields,
-  SessionKind,
-  SessionState,
-  Unit,
-} from '../api'
+  type CalendarDiff,
+  type CalendarEditsRequest,
+  type CalendarRollbackRequest,
+  type CalendarVersion,
+  type CalendarView,
+  type CalendarWriteResult,
+  type Completion,
+  type CompletionPut,
+  type SessionFields,
+  type SessionKind,
+  type SessionState,
+} from '../api/types/calendar'
+import { addDays, dateLabel, fmtDistance, fmtDuration, type Unit } from '../lib/format'
+import { invalidateKeys, qk } from '../api/queryKeys'
+import { pageHref } from '../lib/routes'
+import type { Activity } from '../api/types/activity'
 import { mondayOfWeek, SessionSummary } from '../components/PlanOverview'
 import { downloadWeeklyWorkouts } from '../components/weeklyWorkoutExport'
 import { Modal } from '../components/Modal'
@@ -106,7 +95,7 @@ export function Calendar({ unit }: { unit: Unit }) {
   const edits = useMutation({
     mutationFn: (body: CalendarEditsRequest) => post<CalendarWriteResult>('/calendar/edits', body),
     onSuccess: (response) => {
-      invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.coach])
+      invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.proposals])
       setEditor(null)
       setConfirmDelete(null)
       setWriteError(null)
@@ -124,7 +113,7 @@ export function Calendar({ unit }: { unit: Unit }) {
     mutationFn: (body: CalendarRollbackRequest) =>
       post<CalendarWriteResult>('/calendar/rollback', body),
     onSuccess: (response, body) => {
-      invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.coach])
+      invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.proposals])
       setConfirmRestore(null)
       setViewVersion(null)
       setWriteError(null)

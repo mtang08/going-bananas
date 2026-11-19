@@ -25,23 +25,22 @@ import {
 } from 'recharts'
 import {
   MISSING,
-  RECIPE_LABELS,
   addDays,
-  api,
   dateLabel,
   fmtDistance,
   fmtDuration,
   fmtPaceFromSpeed,
   fmtPercent,
-  qk,
   signatureLabel,
-  query,
   statusText,
-} from '../api'
+  type Unit,
+} from '../lib/format'
+import { RECIPE_LABELS } from '../api/types/calendar'
+import { api, query } from '../api/client'
+import { qk } from '../api/queryKeys'
 import type {
   AerobicPoint,
   AerobicWindowValue,
-  BenchmarkRecord,
   HardClass,
   MetricResult,
   MetricWindows,
@@ -49,10 +48,10 @@ import type {
   RecoveryNights,
   ProgressionGroup,
   WorkoutProgression,
-  Unit,
   WindowMetrics,
   ZoneDistribution,
-} from '../api'
+} from '../api/types/metrics'
+import type { BenchmarkRecord } from '../api/types/blocks'
 import { QueryState } from '../components/QueryState'
 import { WorkoutProgressionChart, WorkoutProgressionTable } from '../components/WorkoutProgression'
 import './TrainingDesign.css'

@@ -1,4 +1,4 @@
-import type { ComponentName } from '../api'
+import type { ComponentName } from '../api/types/metrics'
 
 export const COMPONENT_LABELS: Record<ComponentName, string> = {
   duration_ratio: 'Duration vs plan',

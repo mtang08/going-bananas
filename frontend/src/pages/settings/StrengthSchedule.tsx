@@ -1,7 +1,10 @@
 import { Button, Input, NativeSelect } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { put, qk, invalidateKeys, validDate, type Profile } from '../../api'
+import { put } from '../../api/client'
+import { qk, invalidateKeys } from '../../api/queryKeys'
+import { validDate } from '../../lib/format'
+import type { Profile } from '../../api/types/profile'
 import { ErrorText, profileBody } from './shared'
 
 const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -84,7 +87,7 @@ export function StrengthSchedule({ profile }: { profile: Profile }) {
         mobility_week_b_days: mobilityB,
         mobility_optional_days: optionalMobility,
       }),
-    onSuccess: () => invalidateKeys(qc, [qk.profile, qk.strengthRoutine, qk.coach]),
+    onSuccess: () => invalidateKeys(qc, [qk.profile, qk.strengthRoutine, qk.proposals]),
   })
   return (
     <form

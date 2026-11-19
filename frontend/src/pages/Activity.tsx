@@ -14,9 +14,6 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import {
   MISSING,
-  SIDE_LABELS,
-  TIMING_LABELS,
-  api,
   dateLabel,
   distance,
   fmtClock,
@@ -24,21 +21,22 @@ import {
   fmtPaceFromSpeed,
   fmtPercent,
   fmtRpe,
-  pageHref,
-  qk,
-  sessionTitle,
   signatureLabel,
   statusText,
-} from '../api'
+  type Unit,
+} from '../lib/format'
+import { SIDE_LABELS, TIMING_LABELS, type CheckinRequest } from '../api/types/checkins'
+import { api } from '../api/client'
+import { pageHref } from '../lib/routes'
+import { qk } from '../api/queryKeys'
+import { sessionTitle } from '../lib/session'
 import type {
   ActivityExecution,
   WorkoutHistory,
-  CheckinRequest,
-  SessionKind,
-  Unit,
   WatchStep,
   ZoneDistribution,
-} from '../api'
+} from '../api/types/metrics'
+import type { SessionKind } from '../api/types/calendar'
 import { QueryState } from '../components/QueryState'
 import { WorkoutProgressionTable } from '../components/WorkoutProgression'
 import { WorkoutStructure } from '../components/WorkoutStructure'

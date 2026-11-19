@@ -1,16 +1,9 @@
 import { Button, Card, Input } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  api,
-  post,
-  patch,
-  qk,
-  invalidateKeys,
-  HORIZON_LABELS,
-  type Goal,
-  type GoalHorizon,
-} from '../../api'
+import { api, post, patch } from '../../api/client'
+import { qk, invalidateKeys } from '../../api/queryKeys'
+import { HORIZON_LABELS, type Goal, type GoalHorizon } from '../../api/types/blocks'
 import { QueryState } from '../../components/QueryState'
 import { ErrorText, Select } from './shared'
 
@@ -41,7 +34,7 @@ export function Goals() {
           })
         : post('/goals', { text: text.trim(), horizon, priority }),
     onSuccess: () => {
-      invalidateKeys(qc, [qk.goals, qk.coach])
+      invalidateKeys(qc, [qk.goals, qk.proposals])
       reset()
     },
   })

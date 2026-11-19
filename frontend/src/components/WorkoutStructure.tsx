@@ -1,10 +1,6 @@
-import {
-  flattenStructure,
-  formatStep,
-  type PlannedStep,
-  type StructureItem,
-  type Unit,
-} from '../api'
+import { flattenStructure, formatStep } from '../lib/structure'
+import type { PlannedStep, StructureItem } from '../api/types/calendar'
+import type { Unit } from '../lib/format'
 
 export interface WorkoutGroup {
   steps: PlannedStep[]

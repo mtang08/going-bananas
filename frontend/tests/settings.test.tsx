@@ -2,7 +2,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PlanningSettings } from '../src/pages/PlanningSettings'
-import { qk, type Profile, type StrengthRoutine, type IntensityAnchor, type RaceEvent } from '../src/api'
+import { qk } from '../src/api/queryKeys'
+import type { Profile } from '../src/api/types/profile'
+import type { StrengthRoutine, RaceEvent } from '../src/api/types/blocks'
+import type { IntensityAnchor } from '../src/api/types/anchors'
 
 let profile: Profile, routine: StrengthRoutine, head: number, anchors: IntensityAnchor[], events: RaceEvent[], conflict: string | null
 let requests: { url: string; method: string; body: Record<string, unknown> | null }[]

@@ -12,25 +12,19 @@ import {
 } from '../coachLabels'
 import { Badge, Button, Card, Disclosure } from '../components/ui'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  addDays,
-  api,
-  dateLabel,
-  fmtDistance,
-  invalidateKeys,
-  pageHref,
-  post,
-  qk,
-  sessionTitle,
-  type Activity,
-  type BlockVersion,
-  type CalendarView,
-  type CheckinRequest,
-  type PromptList,
-  type SessionState,
-  type Unit,
-  type WeeklyDigest as WeeklyDigestData,
-} from '../api'
+import { addDays, dateLabel, fmtDistance, type Unit } from '../lib/format'
+import { api, post } from '../api/client'
+import { invalidateKeys, qk } from '../api/queryKeys'
+import { pageHref } from '../lib/routes'
+import { sessionTitle } from '../lib/session'
+import type { Activity } from '../api/types/activity'
+import type { BlockVersion } from '../api/types/blocks'
+import type {
+  CalendarView,
+  SessionState,
+  WeeklyDigest as WeeklyDigestData,
+} from '../api/types/calendar'
+import type { CheckinRequest, PromptList } from '../api/types/checkins'
 import type { ProposalSummary } from '../api/types/coach'
 import { QueryState } from '../components/QueryState'
 import { mondayOfWeek, SessionSummary, WeekOverview } from '../components/PlanOverview'

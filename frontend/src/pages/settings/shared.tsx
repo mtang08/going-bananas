@@ -1,5 +1,6 @@
 import { NativeSelect } from '../../components/ui'
-import { ApiError, type Profile } from '../../api'
+import { ApiError } from '../../api/client'
+import type { Profile } from '../../api/types/profile'
 
 export function profileBody(profile: Profile) {
   const keys = [

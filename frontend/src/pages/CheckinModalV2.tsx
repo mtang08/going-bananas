@@ -5,28 +5,24 @@ import { Badge, Button, Input, NativeSelect, Textarea } from '../components/ui'
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Modal } from '../components/Modal'
+import { api, post, put } from '../api/client'
+import { qk, invalidateKeys } from '../api/queryKeys'
 import {
-  api,
-  post,
-  put,
-  qk,
-  invalidateKeys,
   SIDE_LABELS,
   TIMING_LABELS,
   REASON_LABELS,
-  type ActivityExecution,
   type CheckinCreate,
   type CheckinRequest,
   type CheckinV2,
-  type Completion,
   type ContextTag,
   type GaitChange,
   type Illness,
-  type ModificationReason,
   type RpeResult,
   type Side,
   type SymptomTiming,
-} from '../api'
+} from '../api/types/checkins'
+import type { ActivityExecution } from '../api/types/metrics'
+import type { Completion, ModificationReason } from '../api/types/calendar'
 
 const LABEL = {
   exception: 'Record check-in',
@@ -288,7 +284,7 @@ export function CheckinModalV2({
       return (await post<CheckinV2>('/v2/checkins', submission.body)).data
     },
     onSuccess: (data) => {
-      invalidateKeys(qc, [qk.checkins, qk.prompts, qk.metrics, qk.calendar, qk.exceptions])
+      invalidateKeys(qc, [qk.prompts, qk.metrics, qk.calendar, qk.exceptions])
       if (kind === 'exception') {
         setResult(data?.exceptions ?? { new_finding_ids: [], review_recommended: [] })
       } else {

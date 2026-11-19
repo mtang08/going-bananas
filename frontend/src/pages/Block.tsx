@@ -1,23 +1,11 @@
 import { Button, Card, Disclosure, NativeSelect } from '../components/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  RUN_SPORTS,
-  addDays,
-  api,
-  dateLabel,
-  fmtDistance,
-  fmtDuration,
-  fmtRpe,
-  invalidateKeys,
-  put,
-  qk,
-  query,
-  RECIPE_LABELS,
-  type Activity,
-  type BlockVersion,
-  type CalendarView,
-  type Unit,
-} from '../api'
+import { RUN_SPORTS, type BlockVersion } from '../api/types/blocks'
+import { addDays, dateLabel, fmtDistance, fmtDuration, fmtRpe, type Unit } from '../lib/format'
+import { api, put, query } from '../api/client'
+import { invalidateKeys, qk } from '../api/queryKeys'
+import { RECIPE_LABELS, type CalendarView } from '../api/types/calendar'
+import type { Activity } from '../api/types/activity'
 import { benchmarkStatusLabel } from '../coachLabels'
 import { QueryState } from '../components/QueryState'
 import './TrainingDesign.css'

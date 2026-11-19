@@ -12,7 +12,6 @@ export const qk = {
   weeklyDigest: (weekStart: string | 'current') =>
     ['v2', 'calendar', 'weekly-digest', weekStart] as const,
   prompts: ['v2', 'prompts'] as const,
-  checkins: ['v2', 'checkins'] as const,
   metrics: ['v2', 'metrics'] as const,
   metricsWindows: ['v2', 'metrics', 'windows'] as const,
   metricsRecovery: (start: string, end: string) =>
@@ -24,7 +23,6 @@ export const qk = {
   activity: (id: string) => ['v2', 'activity', id] as const,
   activitiesNear: (start: string, end: string) =>
     ['v2', 'activities', start, end, 'running', null] as const,
-  coach: ['v2', 'coach'] as const,
   exceptions: ['v2', 'exceptions'] as const,
   goals: ['v2', 'goals'] as const,
   events: ['v2', 'events'] as const,
