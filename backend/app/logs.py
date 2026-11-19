@@ -24,9 +24,13 @@ def get(name: str) -> logging.Logger:
     return logging.getLogger(f'{LOGGER_NAME}.{name}')
 
 
-def request_error(request_id: str, method: str, path: str, exc: Exception) -> None:
+def exception_summary(exc: Exception) -> str:
     # Driver and validation exception messages can contain bound values or whole request bodies.
     frames = traceback.extract_tb(exc.__traceback__)
     locations = '\n'.join(f'  {frame.filename}:{frame.lineno} in {frame.name}' for frame in frames)
-    get('api').error('unhandled request_id=%s method=%s path=%s %s\n%s',
-                     request_id, method, path, type(exc).__name__, locations)
+    return f'{type(exc).__name__}\n{locations}'
+
+
+def request_error(request_id: str, method: str, path: str, exc: Exception) -> None:
+    get('api').error('unhandled request_id=%s method=%s path=%s %s',
+                     request_id, method, path, exception_summary(exc))

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.adapters.garmin.normalize import InvalidRecord, parse_activity
 from app.adapters.garmin.personal import GarminPersonalSource
 from app.db import SessionLocal, bump_data_revision, engine
+from app.logs import exception_summary, get
 from app.models import (
     Activity,
     ActivitySource,
@@ -33,6 +34,8 @@ from app.models import (
     SyncState,
 )
 from app.services.timezone import athlete_tz
+
+log = get('sync')
 
 PARSER_VERSION = "garmin-personal-v1"
 ADVISORY_LOCK = 837150921
@@ -510,6 +513,7 @@ def _run_recovery_job(source: GarminPersonalSource, job: SyncJob, private_dir: P
                 records = source.fetch_recovery(job.dataset, cursor, end)
                 break
             except Exception as exc:
+                log.error('fetch_recovery failed job_id=%s %s', job.id, exception_summary(exc))
                 attempts += 1
                 delay = retry_delay(exc, attempts)
                 if delay is None or attempts >= 4:
@@ -596,7 +600,8 @@ def _ingest_fit_page(source: GarminPersonalSource, private_dir: Path,
             try:
                 ingest_activity_fit(fit_session, source, private_dir, activity)
                 fit_session.commit()
-            except Exception:
+            except Exception as exc:
+                log.error('_ingest_fit_page failed activity_id=%s %s', remote_id, exception_summary(exc))
                 fit_session.rollback()
 
 
@@ -643,6 +648,7 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                             page = source.search_page(offset, 50, first, last)
                             break
                         except Exception as exc:
+                            log.error('search_page failed job_id=%s %s', job_id, exception_summary(exc))
                             attempts += 1
                             delay = retry_delay(exc, attempts)
                             if delay is None or attempts >= 4:
@@ -713,6 +719,7 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                         return "partial" if partial else "complete"
                 raise ValueError("activity_page_limit")
         except Exception as exc:
+            log.error('run_one_job failed job_id=%s %s', job_id, exception_summary(exc))
             if job_id is None:
                 raise
             safe = "credential_attention" if getattr(exc, "status_code", None) in {401, 403} else (
@@ -738,5 +745,6 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
             try:
                 lock_connection.execute(text(f"SELECT pg_advisory_unlock({ADVISORY_LOCK})"))
                 lock_connection.commit()
-            except Exception:
+            except Exception as exc:
+                log.error('advisory_unlock failed job_id=%s %s', job_id, exception_summary(exc))
                 lock_connection.rollback()

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import SessionLocal, bump_data_revision, engine
+from app.logs import configure
 from app.models import Activity, AppState, ProfileVersion
 from app.services.backup import BackupError, create_backup, restore_backup
 from app.services.export_import import import_export
@@ -234,6 +235,7 @@ def _coach(args) -> int:
 
 def main() -> int:
     args = _parse()
+    configure(settings.private_dir)
     from app.metrics.engine import install_triggers
     install_triggers()
     try:

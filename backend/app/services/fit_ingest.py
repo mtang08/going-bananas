@@ -16,7 +16,10 @@ from app.adapters.garmin.fit import DECODER_VERSION, RUN_SPORTS, FitDecodeError,
 from app.checkin_models import SessionRpe
 from app.db import bump_data_revision
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep, FitFile
+from app.logs import exception_summary, get
 from app.models import Activity, ActivitySource, RawObject, SourceRecord
+
+log = get('fit_ingest')
 
 
 class FitSource(Protocol):
@@ -121,6 +124,7 @@ def ingest_activity_fit(session: Session, source: FitSource, private_dir: Path,
     try:
         zip_bytes = source.download_activity(remote_id)
     except Exception as exc:
+        log.error('download_activity failed activity_id=%s %s', activity.id, exception_summary(exc))
         code = 'fit_http_404' if getattr(exc, 'status_code', None) == 404 else 'fit_download_error'
         locked, fit = _locked_rows(session, activity.id)
         return _set_error(locked, fit, code, now)
@@ -234,7 +238,8 @@ def backfill_fit(session_factory, source: FitSource, private_dir: Path, since: d
                     continue
                 outcome = ingest_activity_fit(session, source, private_dir, activity)
                 session.commit()
-            except Exception:
+            except Exception as exc:
+                log.error('backfill_fit failed activity_id=%s %s', activity_id, exception_summary(exc))
                 session.rollback()
                 outcome = 'failed'
         if outcome in counts:
