@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.checkin_models import Checkin, SessionRpe, SymptomReport
+from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.metric_models import Prompt
 from app.metrics.engine import current_results, load_runs
@@ -166,7 +167,7 @@ def _eligible_run_rows(session: Session, run_rows: list[Activity], zone: ZoneInf
 
 def _facts(session: Session, now: datetime) -> dict[str, Any]:
     zone: ZoneInfo = athlete_tz(session)
-    today = now.astimezone(zone).date()
+    today = date_in_zone(now, zone)
     run_rows = _eligible_run_rows(session, list(session.scalars(select(Activity).where(
         Activity.sport.in_(RUN_SPORTS))).all()), zone)
     ids = [str(row.id) for row in run_rows]

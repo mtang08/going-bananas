@@ -22,6 +22,7 @@ from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachSnapshot
 from app.db import global_write_lock
 from app.domain.athlete_facts import clinical_restriction
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
 from app.metric_models import MetricResult, Prompt
 from app.models import Activity, AppState, ProfileVersion
@@ -570,7 +571,7 @@ def _exception_summary(inputs: SnapshotInputs) -> dict:
     return {
         "window_start": start,
         "window_end": inputs.as_of,
-        "since_last_review": max(reviews).astimezone(ZoneInfo(inputs.timezone)).date() if reviews else None,
+        "since_last_review": date_in_zone(max(reviews), ZoneInfo(inputs.timezone)) if reviews else None,
         "findings": [_view(f, finding_keys) for f in findings],
         "patches": [dict(_view(p, patch_keys), changes_count=len(p.get("session_uids") or [])) for p in patches],
         "rpe_mismatch": mismatch,
@@ -1147,7 +1148,7 @@ def _load_checkins(session: Session, now: datetime, zone: ZoneInfo) -> list[dict
         dict(
             _view(row, ("kind", "observed_at", "fatigue", "illness", "gait_change", "activity_id")),
             checkin_id=row.id,
-            local_date=row.observed_at.astimezone(zone).date(),
+            local_date=date_in_zone(row.observed_at, zone),
             symptoms=symptoms.get(row.id, []),
         )
         for row in checkin_rows

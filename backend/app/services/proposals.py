@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.db import global_write_lock
 from app.domain.cycle import opportunity
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.services.block_benchmark import BenchmarkOutcome, active_block_version
 from app.services.calendar_structure import StructureError, expand_structure
@@ -374,7 +375,7 @@ def derive_certainty(day: date, today: date) -> str:
 
 
 def anchor_key(item: AnchorChange, tz: ZoneInfo) -> str:
-    return f"{item.kind}-{item.calibrated_at.astimezone(tz).date().isoformat()}"
+    return f"{item.kind}-{date_in_zone(item.calibrated_at, tz).isoformat()}"
 
 
 def _issue(code: str, path: str, message: str | None = None) -> ValidationIssue:
@@ -957,7 +958,7 @@ def load_context(
 
     snapshot = session.get(CoachSnapshot, snapshot_id)
     tz = athlete_tz(session)
-    today = now.astimezone(tz).date()
+    today = date_in_zone(now, tz)
     state = session.get(AppState, 1)
     head = state.calendar_head_version if state else 0
     rows = state_at(session, head)
@@ -1455,7 +1456,7 @@ def decide_proposal(
         raise DecisionError("proposal_stale", "Proposal base changed", 409, commit=True)
     from app.services.timezone import athlete_tz
 
-    today = now.astimezone(athlete_tz(session)).date()
+    today = date_in_zone(now, athlete_tz(session))
     from app.coach_v2_models import CoachSnapshot
 
     snapshot = session.get(CoachSnapshot, proposal.snapshot_id)
@@ -1501,7 +1502,7 @@ def decide_proposal(
             fields.update(
                 proposal_id=proposal_id,
                 valid_from=today,
-                review_after=item.calibrated_at.astimezone(ctx.tz).date() + timedelta(days=84),
+                review_after=date_in_zone(item.calibrated_at, ctx.tz) + timedelta(days=84),
             )
             anchor_keys.append(create_anchor(session, fields)["anchor_key"])
             changed = True

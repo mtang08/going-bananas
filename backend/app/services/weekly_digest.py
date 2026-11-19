@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
 from app.db import global_read_lock
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import HARD_CLASSES, classify
 from app.errors import fail
 from app.metric_models import MetricResult
@@ -224,7 +225,7 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
         if row.activity_id is not None and row.activity_id not in runs:
             start_at = session.scalar(select(Activity.start_at).where(Activity.id == row.activity_id))
             if start_at is not None:
-                day = start_at.astimezone(timezone).date()
+                day = date_in_zone(start_at, timezone)
                 for run in load_runs(session, day, day + _DAY):
                     if run.activity_id == row.activity_id:
                         runs[run.activity_id] = _run_fact(run)
