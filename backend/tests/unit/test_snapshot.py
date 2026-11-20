@@ -1272,7 +1272,18 @@ def test_weekly_digest_week_view_caps_and_shape() -> None:
         "reps_planned": 6,
         "reps_completed": 5,
     }
-    actual = {"subject": "activity", "id": "a5", "local_date": "2026-11-14", "duration_s": 2900.0, "distance_m": 7900.0}
+    actual = {
+        "subject": "activity",
+        "id": "a5",
+        "local_date": "2026-11-14",
+        "duration_s": 2900.0,
+        "distance_m": 7900.0,
+        "sport": "treadmill_running",
+        "avg_hr_bpm": 148.0,
+        "moving_pace_s_per_km": 330.0,
+        "rpe": 6.0,
+        "rpe_source": "manual",
+    }
     rows = [digest_row(n, key=True, day=n) for n in range(5)]
     rows.append(digest_row(5, key=True, day=5, execution=execution, actual=actual))
     rows += [digest_row(n, outcome="missed") for n in range(10, 19)]
@@ -1295,11 +1306,15 @@ def test_weekly_digest_week_view_caps_and_shape() -> None:
     assessed = week["key_sessions"][-1]
     assert assessed["activity_id"] == "a5"
     assert assessed["actual_duration_s"] == 2900.0
+    activity_fields = ("sport", "avg_hr_bpm", "moving_pace_s_per_km", "rpe")
+    assert {field: assessed[field] for field in activity_fields} == {field: actual[field] for field in activity_fields}
+    assert "rpe_source" not in assessed
     assert assessed["assessment_status"] == "available"
     assert assessed["components"] == [component]
     assert assessed["reps_planned"] == 6 and assessed["reps_completed"] == 5
     assert assessed["quality_flags"] == ["MOVED"]
     unassessed = week["key_sessions"][0]
+    assert all(unassessed[field] is None for field in activity_fields)
     assert unassessed["assessment_status"] is None
     assert unassessed["reason_codes"] == []
     assert unassessed["components"] == []
@@ -1332,7 +1347,18 @@ def test_weekly_digest_budget() -> None:
         "reps_planned": 6,
         "reps_completed": 5,
     }
-    actual = {"subject": "activity", "id": "a5", "local_date": "2026-11-14", "duration_s": 2900.0, "distance_m": 7900.0}
+    actual = {
+        "subject": "activity",
+        "id": "a5",
+        "local_date": "2026-11-14",
+        "duration_s": 2900.0,
+        "distance_m": 7900.0,
+        "sport": "treadmill_running",
+        "avg_hr_bpm": 148.0,
+        "moving_pace_s_per_km": 330.0,
+        "rpe": 6.0,
+        "rpe_source": "manual",
+    }
     rows = [digest_row(n, key=True, execution=execution, actual=actual) for n in range(4)]
     rows += [digest_row(n, outcome="missed") for n in range(4, 12)]
     rows += [digest_row(12), digest_row(13)]

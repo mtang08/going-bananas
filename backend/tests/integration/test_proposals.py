@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
 from app.exception_models import ExceptionFinding, ExceptionPatch
-from app.models import AppState, ProfileVersion
+from app.models import Activity, AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
@@ -231,6 +231,61 @@ def test_source_only_drift_marks_pending_stale(proposal_session: Session) -> Non
     stored = session.get(CoachProposal, proposal.proposal_id)
     assert stored is not None and stored.status == "stale"
     assert session.scalar(select(func.count(CalendarVersion.number))) == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("sport", "treadmill_running"), ("avg_hr_bpm", 150.0), ("moving_s", 1750.0), ("workout_rpe", 6.0)],
+)
+def test_key_run_activity_fact_drift_marks_pending_stale(proposal_session: Session, field: str, value: object) -> None:
+    session = proposal_session
+    head_rows = calendar.state_at(session, 1)
+    easy_uid = next(row["session_uid"] for row in head_rows if row["kind"] == "run")
+    key_uid = uuid.uuid4()
+    finished_at = NOW - timedelta(days=1)
+    session.add(
+        CalendarSessionRevision(
+            session_uid=key_uid,
+            revision=1,
+            calendar_version_number=1,
+            local_date=finished_at.date(),
+            slot=0,
+            kind="run",
+            recipe_id="REC002",
+            intent="Long run",
+            certainty="committed",
+            planned_duration_s=1800,
+        )
+    )
+    activity = Activity(
+        start_at=finished_at,
+        original_start=finished_at.isoformat(),
+        local_date=finished_at.date(),
+        sport="running",
+        distance_m=4000.0,
+        moving_s=1800.0,
+        timer_s=1800.0,
+        resolution_state="resolved",
+    )
+    session.add(activity)
+    session.flush()
+    session.add(
+        SessionCompletion(
+            session_uid=key_uid,
+            activity_id=activity.id,
+            status="completed_as_planned",
+            match_method="explicit",
+            updated_at=NOW,
+        )
+    )
+    snapshot, _ = _snapshot(session)
+    proposal = submit_proposal(session, _doc(snapshot, easy_uid), now=NOW, resolve_kb=_resolve)
+
+    setattr(activity, field, value)
+    session.flush()
+    with pytest.raises(DecisionError) as caught:
+        decide_proposal(session, proposal.proposal_id, _req(1, "fact-drift", ["c1"]), now=NOW, resolve_kb=_resolve)
+    assert (caught.value.code, caught.value.commit) == ("stale_evidence", True)
 
 
 def test_accepted_add_records_server_session_uid(proposal_session: Session) -> None:
