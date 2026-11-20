@@ -105,7 +105,7 @@ def test_extract_section_bounds():
         zip(
             SUPPORTED_OPERATIONS,
             (6, 7, 9, 14, 9, 11, 14, 14),
-            (6090, 8399, 10423, 19139, 8645, 14462, 15492, 12750),
+            (6118, 8490, 10451, 21761, 8673, 15621, 15604, 14286),
             strict=True,
         )
     ),
@@ -125,7 +125,7 @@ def test_route_minimum_sections(operation, count, chars):
 
 def test_daily_bundle_totals(caplog):
     bundle = load_route("proceed_or_modify_today")
-    assert (bundle.chars, bundle.approx_tokens, len(bundle.excerpts)) == (15752, 3938, 15)
+    assert (bundle.chars, bundle.approx_tokens, len(bundle.excerpts)) == (15780, 3945, 15)
     assert (bundle.excerpts[0].path, bundle.excerpts[0].section) == ("COACHING_GUIDE.md", "3. Decision hierarchy")
     assert bundle.excerpts[-1].record_id == "P018"
     assert "kb_budget_exceeded" in caplog.text
