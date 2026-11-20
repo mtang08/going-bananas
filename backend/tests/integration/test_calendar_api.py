@@ -62,6 +62,57 @@ def _bootstrap(client):
     return response.json()["data"]
 
 
+def test_calendar_week_defaults_to_current_week(calendar_fixture):
+    client, _, _ = calendar_fixture
+    _bootstrap(client)
+
+    response = client.get("/api/v1/calendar/week")
+    assert response.status_code == 200, response.text
+    week = response.json()["data"]
+    start, end = "2026-11-16", "2026-11-22"
+    assert (week["start"], week["end"], week["today"]) == (start, end, start)
+    assert week["sessions"]
+    assert all(start <= row["local_date"] <= end for row in week["sessions"])
+
+    bounded = client.get(f"/api/v1/calendar?start={start}&end={end}").json()["data"]
+    for field in ("sessions", "completions", "last_planned_date", "recorded_runs"):
+        assert week[field] == bounded[field]
+
+
+@pytest.mark.parametrize("start", ["2026-11-09", "2026-12-28"])
+def test_calendar_week_before_and_after_the_plan(calendar_fixture, start):
+    client, _, _ = calendar_fixture
+    _bootstrap(client)
+
+    response = client.get("/api/v1/calendar/week", params={"start": start})
+    assert response.status_code == 200, response.text
+    week = response.json()["data"]
+    assert week["sessions"] == []
+    assert week["head"] == 1
+    assert week["last_planned_date"] is not None
+
+
+@pytest.mark.parametrize(("start", "code"), [("2026-11-17", "invalid_week_start"), ("not-a-date", "validation_error")])
+def test_calendar_week_rejects_non_monday(calendar_fixture, start, code):
+    client, _, _ = calendar_fixture
+
+    response = client.get("/api/v1/calendar/week", params={"start": start})
+    assert response.status_code == 422, response.text
+    assert response.json()["error"]["code"] == code
+
+
+def test_calendar_week_reads_requested_version(calendar_fixture):
+    client, _, _ = calendar_fixture
+    _bootstrap(client)
+
+    response = client.get("/api/v1/calendar/week?start=2026-11-16&version=1")
+    assert response.status_code == 200, response.text
+    week = response.json()["data"]
+    assert week["version"] == 1
+    bounded = client.get("/api/v1/calendar?start=2026-11-16&end=2026-11-22&version=1").json()["data"]
+    assert week["sessions"] == bounded["sessions"]
+
+
 def test_recorded_runs_before_plan_are_visible_without_creating_completions(calendar_fixture):
     client, connection, _ = calendar_fixture
     _bootstrap(client)
