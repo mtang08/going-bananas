@@ -42,6 +42,7 @@ export const qk = {
   proposal: (id: string) => ['v2', 'proposals', id] as const,
   blocks: ['v2', 'blocks'] as const,
   blockHistory: (uid: string | undefined) => ['v2', 'blocks', 'history', uid] as const,
+  eventBlocks: (id: string) => ['v2', 'blocks', 'events', id] as const,
   ready: ['ready'] as const,
   sync: ['sync'] as const,
   syncJob: (id: string) => ['sync', 'job', id] as const,
