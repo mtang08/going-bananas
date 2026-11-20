@@ -641,8 +641,8 @@
     {
       "path": "workflows/block_review.md",
       "status": "added",
-      "bytes": 12662,
-      "sha256": "c83c6543cfccb9d306b6b2f63ff1b5b58e0ce940deed3d82e115c0b85c308c0a"
+      "bytes": 13995,
+      "sha256": "ed22b022fc61e2e6d8d4740ef9402981531c6badb5f40244f0928b45964e0936"
     },
     {
       "path": "workflows/daily_recommendation.md",
@@ -653,8 +653,8 @@
     {
       "path": "workflows/weekly_review.md",
       "status": "unchanged_from_1.0.0+privacy1",
-      "bytes": 6508,
-      "sha256": "ec791b290722433fe4ffd22f326b9941ffd8b44b28f354be5dc2c5682f0174f3"
+      "bytes": 6927,
+      "sha256": "7b5c38e7c6caeb95a2bf67f52a759eb3b425b5b394882ec96bdde3b3091c24f6"
     },
     {
       "path": "research/coaching_web_intake.md",
@@ -665,14 +665,14 @@
     {
       "path": "adaptive_coaching/exception_policy.md",
       "status": "added",
-      "bytes": 10473,
-      "sha256": "df5098dfd6f3c950aee646711b07013664cc7622c0ee9fa82f5d3a25eb9d0bd6"
+      "bytes": 10466,
+      "sha256": "e816bc7e45d2cbcbcf6bd6a5d24ec82946f4ee5320293bee8c9256c2a80b5d18"
     },
     {
       "path": "adaptive_coaching/race_and_benchmark_policy.md",
       "status": "added",
-      "bytes": 5160,
-      "sha256": "538e8c45f212cee4f4c7a55b0b621741cd4fa8a84ea107af5cb5c6c5bfb4dca6"
+      "bytes": 6652,
+      "sha256": "f876ac7b76d304f4cc574b47ede49c8a095d413ad08bb66ce6f53df63b6df12c"
     },
     {
       "path": "workflows/exception_review.md",

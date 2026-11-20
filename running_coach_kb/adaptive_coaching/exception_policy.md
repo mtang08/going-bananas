@@ -12,7 +12,7 @@ The application's deterministic detector creates findings with category, severit
 - `training_response`: RPE above the intended session class or failed quality sessions. (product heuristic)
 - `accumulated_fatigue`: repeated high fatigue or converging signals. (product heuristic)
 - `calendar_disruption`: missed key sessions, adjacent demanding sessions, travel, and `BLOCK_BENCHMARK_MISSED`. (product heuristic)
-- `post_event` marks a due race review (`POST_EVENT_REVIEW_DUE`) or block-benchmark step (`BLOCK_BENCHMARK_MISSING`, `BLOCK_BENCHMARK_COMPLETED`); it is not a problem category. (product heuristic)
+- `post_event` marks a due race review (`POST_EVENT_REVIEW_DUE`) or block-benchmark step (`BLOCK_BENCHMARK_COMPLETED`); it is not a problem category. (product heuristic)
 - `observe`: log it for the Sunday review; no plan change is needed. (coaching convention)
 - `caution`: patch the next affected session or sessions. (coaching convention)
 - `hold`: hold demanding work for the patch window, up to the committed window. (coaching convention)
@@ -38,10 +38,10 @@ Severity `escalate` is a finding severity. It is not the proposal field `escalat
 ## Minimal-change ladder
 
 - Choose the lowest useful level: current session → next session → next days (at most 3) → committed window (days 1–7) → block, reached only through `escalation: review_training_block`. (coaching convention)
-- Day labels are ordinal: committed days 1–7 map to internal offsets `today+0…+6`; provisional days 8–14 map to `today+7…+13`. Window arithmetic uses these offsets. (product heuristic)
+- Day labels are ordinal: committed days 1–7 map to internal offsets `today+0…+6`; provisional days (day 8 onward) map to `today+7` and later. Window arithmetic uses these offsets. (product heuristic)
 - Typical mapping: `observe` → no change or current session only; `caution` → current session, next session, or next days, at most 3 days; `hold` → next days or committed window, at most 7 days; `escalate` → block via `escalation`, with protective changes only inside the committed window. (coaching convention)
 - For how to modify, see `topics/recovery_and_daily_adaptation.md` › Modify and `workflows/daily_recommendation.md` › Step 5: Choose the smallest effective action.
-- Never edit provisional days 8–14; the next weekly review owns them. (product heuristic)
+- Never edit provisional days (day 8 onward); the next weekly review owns them. (product heuristic)
 - List committed sessions deliberately left unchanged, each with a reason. (product heuristic)
 - In an exception review, do not add sessions, change run frequency, or move, add, or delete strength sessions. (coaching convention)
 - Every accepted patch records a patch window, a reassess date within 7 days, what to monitor, return-to-plan criteria, and escalation criteria. (product heuristic)
