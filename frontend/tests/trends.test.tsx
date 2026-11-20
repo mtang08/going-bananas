@@ -538,7 +538,9 @@ describe('Trends', () => {
     mount()
     const card = await screen.findByTestId('trend-benchmarks')
     expect(
-      await within(card).findByText('No benchmark results yet. Each training block ends with one.'),
+      await within(card).findByText(
+        'No benchmark results yet. A block review sets one about every 6 weeks.',
+      ),
     ).toBeInTheDocument()
     expect(card.closest('details')).toBeNull()
   })

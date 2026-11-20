@@ -168,10 +168,10 @@ it('labels review due today without a completion percentage', async () => {
   expect(screen.getByRole('list', { name: 'Block elapsed time' })).toBeInTheDocument()
 })
 
-it('shows a missing benchmark', async () => {
+it('shows a block without a benchmark', async () => {
   mount()
   expect(await screen.findByTestId('block-benchmark')).toHaveTextContent(
-    'Status: Not set. The next block review sets the ending benchmark.',
+    'No benchmark in this block. Its review judges the completion indicators above.',
   )
   expect(screen.queryByLabelText('Choose activity')).toBeNull()
 })
