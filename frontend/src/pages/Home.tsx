@@ -136,6 +136,15 @@ export function Home({
             86400000,
         )
       : null
+  const target = b?.target_event
+  const targetDays =
+    target && today ? (Date.parse(target.event_date) - Date.parse(today)) / 86400000 : null
+  const targetWhen =
+    targetDays === null
+      ? ''
+      : targetDays < 14
+        ? `, ${Math.max(targetDays, 0)} d`
+        : `, ${Math.floor(targetDays / 7)} wk`
   const openProposals = pending.data?.data.items ?? []
   const attentionCount =
     openProposals.length + recommended.length + flagged.length + due.length + open.length
@@ -439,7 +448,12 @@ export function Home({
                 </>
               ) : (
                 'No benchmark this block · judged on training indicators'
-              )}{' '}
+              )}
+              {b.target_event_status === 'current' &&
+                target &&
+                ` · Building toward ${target.name} (${dateLabel(target.event_date)}${targetWhen})`}
+              {(b.target_event_status === 'changed' || b.target_event_status === 'unset') &&
+                ' · Goal race changed; next review re-targets'}{' '}
               · <a href="#block">View training block</a>
             </>
           ) : (

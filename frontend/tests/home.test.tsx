@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Home } from '../src/pages/Home'
 import type { ProposalSummary } from '../src/api/types/coach'
 import { addDays } from '../src/lib/format'
-import type { BlockVersion } from '../src/api/types/blocks'
+import type { BlockVersion, TargetEvent } from '../src/api/types/blocks'
 import type { CalendarView, DigestRow, SessionState, WeeklyDigest } from '../src/api/types/calendar'
 
 const finding = (id: string, severity: Severity, summary: string, version = 1): Finding => ({
@@ -364,6 +364,50 @@ describe('training home', () => {
       'Block: Build consistency · No benchmark this block · judged on training indicators',
     )
   })
+  const half: TargetEvent = {
+    id: 'e1',
+    name: 'NYC Half',
+    event_date: '2027-03-14',
+    distance_m: 21098,
+    purpose: 'pr',
+    goal_time_s: 6300,
+    rank: 1,
+  }
+
+  it.each([
+    ['2027-03-14', 'Mar 14, 17 wk'],
+    ['2026-11-20', 'Nov 20, 9 d'],
+  ])('names a current goal race on %s and gives the time remaining', async (date, when) => {
+    blockData = {
+      ...activeBlock('2026-11-14'),
+      target_event: { ...half, event_date: date },
+      target_event_status: 'current',
+    }
+    mount()
+    expect(await screen.findByTestId('block-line')).toHaveTextContent(
+      `Pending · Building toward NYC Half (${when}) · View training block`,
+    )
+  })
+
+  it.each(['changed', 'unset'] as const)(
+    'says the goal race changed when the target is %s',
+    async (status) => {
+      blockData = { ...activeBlock('2026-11-14'), target_event: half, target_event_status: status }
+      mount()
+      const line = await screen.findByTestId('block-line')
+      expect(line).toHaveTextContent('Goal race changed; next review re-targets')
+      expect(line).not.toHaveTextContent('Building toward')
+    },
+  )
+
+  it('adds nothing for a block with no goal race', async () => {
+    blockData = { ...activeBlock('2026-11-14'), target_event_status: 'none' }
+    mount()
+    const line = await screen.findByTestId('block-line')
+    expect(line).toHaveTextContent('Pending · View training block')
+    expect(line).not.toHaveTextContent(/Building toward|Goal race changed/)
+  })
+
   it('shows setup without a calendar', async () => {
     calendar = { ...calendar, head: 0, sessions: [] }
     mount()
