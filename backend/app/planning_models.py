@@ -61,6 +61,8 @@ class BlockVersion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     proposal_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     benchmark: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    target_event_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"))
+    build_outline: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     __table_args__ = (
         UniqueConstraint("block_uid", "version"),
         CheckConstraint(
@@ -119,14 +121,17 @@ class Event(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     event_date: Mapped[date] = mapped_column(Date, nullable=False)
     distance_m: Mapped[int | None] = mapped_column(Integer)
-    priority: Mapped[str] = mapped_column(String(20), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(12), nullable=False)
+    goal_time_s: Mapped[int | None] = mapped_column(Integer)
+    rank: Mapped[int | None] = mapped_column(SmallInteger)
     status: Mapped[str] = mapped_column(String(12), nullable=False)
     result_s: Mapped[int | None] = mapped_column(Integer)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     __table_args__ = (
-        CheckConstraint(
-            "priority IN ('target','supported_exposure','benchmark','optional')", name="ck_events_priority"
-        ),
+        CheckConstraint("purpose IN ('pr','benchmark','training')", name="ck_events_purpose"),
+        CheckConstraint("goal_time_s IS NULL OR goal_time_s > 0", name="ck_events_goal_time"),
+        CheckConstraint("rank IS NULL OR rank >= 1", name="ck_events_rank"),
+        UniqueConstraint("rank", name="uq_events_rank", deferrable=True, initially="DEFERRED"),
         CheckConstraint("status IN ('planned','registered','completed','cancelled')", name="ck_events_status"),
     )
 

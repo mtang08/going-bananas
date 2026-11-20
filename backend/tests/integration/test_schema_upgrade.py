@@ -942,3 +942,128 @@ def test_exception_schema_constraints_and_downgrade_guard(isolated_schema):
     _migration(connection, HEAD)
     connection.commit()
     assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
+
+
+def test_race_goals_upgrade_deletes_events_keeps_references_and_guards_downgrade(isolated_schema):
+    connection = isolated_schema
+    _migration(connection, "0021_self_reported_completion")
+    event_id = _insert(
+        connection, "events", name="Old race", event_date=STAMP.date(), priority="target", status="planned"
+    )
+    block_uid = uuid.uuid4()
+    _insert(connection, "blocks", block_uid=block_uid)
+    benchmark_id = _insert(
+        connection,
+        "block_benchmarks",
+        block_uid=block_uid,
+        block_version=1,
+        match_method="manual",
+        protocol="5 km solo",
+        event_id=event_id,
+    )
+    anchor_id = _insert(
+        connection,
+        "intensity_anchors",
+        anchor_key="a5k",
+        kind="performance_5k",
+        value_low=1500,
+        unit="s",
+        protocol="race_5k",
+        confidence="high",
+        status="active",
+        calibrated_at=STAMP,
+        valid_from=STAMP.date(),
+        review_after=STAMP.date(),
+        source_event_id=event_id,
+    )
+    finding = dict(
+        rule_code="POST_EVENT_REVIEW_DUE",
+        rule_version="exceptions.v1",
+        category="post_event",
+        severity="observe",
+        summary="synthetic",
+        evidence="[]",
+        evidence_at=STAMP,
+        first_seen_at=STAMP,
+        last_seen_at=STAMP,
+    )
+    open_id = _insert(connection, "exception_findings", **finding, entity_key=f"event:{event_id}")
+    done_id = _insert(
+        connection, "exception_findings", **finding, entity_key="event:other", status="dismissed", closed_at=STAMP
+    )
+    connection.commit()
+    _migration(connection, HEAD)
+    connection.commit()
+    assert connection.execute(text("SELECT count(*) FROM events")).scalar_one() == 0
+    assert connection.execute(
+        text("SELECT event_id, protocol FROM block_benchmarks WHERE id=:id"), {"id": benchmark_id}
+    ).one() == (None, "5 km solo")
+    assert connection.execute(
+        text("SELECT source_event_id, anchor_key FROM intensity_anchors WHERE id=:id"), {"id": anchor_id}
+    ).one() == (None, "a5k")
+    rows = connection.execute(text("SELECT id, status, version, close_note FROM exception_findings")).all()
+    by_id = {row.id: row for row in rows}
+    assert (by_id[open_id].status, by_id[open_id].version) == ("expired", 2)
+    assert "0022_race_goals" in by_id[open_id].close_note
+    assert (by_id[done_id].status, by_id[done_id].version) == ("dismissed", 1)
+
+    first = _insert(connection, "events", name="Half", event_date=STAMP.date(), purpose="pr", status="planned", rank=1)
+    _insert(connection, "events", name="10k", event_date=STAMP.date(), purpose="training", status="planned", rank=2)
+    connection.commit()
+    connection.execute(text("UPDATE events SET rank = 3 - rank"))
+    connection.commit()
+    connection.execute(text("UPDATE events SET rank = 1"))
+    with pytest.raises(IntegrityError) as caught:
+        connection.commit()
+    assert caught.value.orig.diag.constraint_name == "uq_events_rank"
+    connection.rollback()
+    for column, value, name in [
+        ("purpose", "'complete'", "ck_events_purpose"),
+        ("goal_time_s", "0", "ck_events_goal_time"),
+    ]:
+        _expect_integrity(
+            connection,
+            f"UPDATE events SET {column} = {value} WHERE id = :id",
+            constraint=name,
+            id=first,
+        )
+    _expect_integrity(connection, "UPDATE events SET rank = 0 WHERE id = :id", constraint="ck_events_rank", id=first)
+    connection.rollback()
+
+    with pytest.raises(RuntimeError, match="restore_required_nonempty_race_goals"):
+        _migration(connection, "0021_self_reported_completion", down=True)
+    connection.rollback()
+    connection.execute(text("DELETE FROM events"))
+    version = dict(
+        block_uid=block_uid,
+        version=1,
+        status="active",
+        objective="o",
+        rationale="r",
+        progression_dimension="none",
+        constraints="{}",
+        start_date=STAMP.date(),
+        review_date=STAMP.date(),
+        objective_status="unresolved",
+    )
+    _insert(connection, "block_versions", **version, build_outline='[{"emphasis":"x","weeks":3}]')
+    connection.commit()
+    with pytest.raises(RuntimeError, match="restore_required_nonempty_race_goals"):
+        _migration(connection, "0021_self_reported_completion", down=True)
+    connection.rollback()
+    connection.execute(text("UPDATE block_versions SET build_outline = '[]'::jsonb"))
+    connection.commit()
+    _migration(connection, "0021_self_reported_completion", down=True)
+    connection.commit()
+    columns = {
+        row[0]
+        for row in connection.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name='events' AND table_schema=current_schema()"
+            )
+        )
+    }
+    assert "priority" in columns and not columns & {"purpose", "goal_time_s", "rank"}
+    _migration(connection, HEAD)
+    connection.commit()
+    assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
