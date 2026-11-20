@@ -182,7 +182,7 @@ def _ev_event(inputs: DetectionInputs, e: EventFact) -> Item:
         {
             "name": e.name,
             "event_date": e.event_date.isoformat(),
-            "priority": e.priority,
+            "purpose": e.purpose,
             "status": e.status,
             "run_on_date": e.has_run_on_date,
         },
@@ -868,7 +868,7 @@ def _block_benchmark_missed(inputs: DetectionInputs) -> list[Candidate]:
     ]
 
 
-_REVIEW_PRIORITIES = frozenset({"target", "benchmark", "supported_exposure"})
+_REVIEW_PURPOSES = frozenset({"pr", "benchmark"})
 
 
 def _post_event_review_due(inputs: DetectionInputs) -> list[Candidate]:
@@ -886,7 +886,7 @@ def _post_event_review_due(inputs: DetectionInputs) -> list[Candidate]:
         )
         for e in sorted(inputs.events, key=lambda x: (x.event_date, x.id))
         if (excluded is None or e.id != excluded)
-        and e.priority in _REVIEW_PRIORITIES
+        and e.purpose in _REVIEW_PURPOSES
         and e.status != "cancelled"
         and today - timedelta(days=EVENT_REVIEW_DAYS) <= e.event_date <= today - timedelta(days=1)
         and (e.status == "completed" or e.has_run_on_date)
