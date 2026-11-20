@@ -16,6 +16,7 @@ from app.models import AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
+from app.services.proposals.context import load_context
 from app.services.proposals.decision import DecisionRequest, decide_proposal
 from app.services.proposals.lifecycle import discard_proposal, submit_proposal
 from app.services.proposals.schema import DecisionError
@@ -1108,3 +1109,80 @@ def test_empty_week_four_is_accepted_after_partial_rejection(proposal_session):
     result = _decide_block(session, prop, "empty-horizon", [], ["c1", "c2"], block=True)
     assert result.status == "accepted"
     assert session.get(BlockVersion, result.block_version_id).review_date == date(2026, 12, 14)
+
+
+def test_block_handoff_plans_past_the_old_review_date(proposal_session):
+    session = proposal_session
+    first = _block_review(session, "2026-11-23", "2026-11-16", ())
+    result = _decide_block(session, first, "handoff-start", [], [], block=True)
+    block = session.get(BlockVersion, result.block_version_id)
+    snapshot, uid = _snapshot(session, "review_training_block")
+    raw = _doc(snapshot, uid)
+    raw["changes"] = _strength_adds("2026-12-01", "2026-12-03", "2026-12-08", "2026-12-10")
+    raw["block_change"] = {
+        "decision": "transition",
+        "block_uid": str(block.block_uid),
+        "version_fields": {
+            **_block_fields("2026-12-22", "2026-12-12"),
+            "start_date": "2026-11-24",
+            "objective": "Next block",
+        },
+    }
+    prop = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert prop.status == "pending"
+    result = _decide_block(session, prop, "handoff-accept", ["c1", "c2", "c3", "c4"], [], block=True)
+    assert result.status == "accepted" and result.calendar_version == 2
+    versions = session.scalars(
+        select(BlockVersion).where(BlockVersion.block_uid == block.block_uid).order_by(BlockVersion.version)
+    ).all()
+    assert len(versions) == 2 and versions[-1].version == 2
+    assert versions[-1].start_date == date(2026, 11, 24)
+    assert date(2026, 12, 10) in session.scalars(select(CalendarSessionRevision.local_date)).all()
+
+
+def test_block_may_skip_benchmark_after_recent_credible_result(proposal_session):
+    session = proposal_session
+    old, other = uuid.uuid4(), uuid.uuid4()
+    session.add_all([Block(block_uid=old), Block(block_uid=other)])
+    session.flush()
+    session.add_all(
+        [
+            BlockBenchmarkResult(
+                block_uid=old,
+                block_version=1,
+                match_method="manual",
+                protocol="5 km solo time trial",
+                local_date=date(2026, 10, 20),
+                outcome="progress",
+            ),
+            BlockBenchmarkResult(
+                block_uid=other,
+                block_version=1,
+                match_method="manual",
+                protocol="5 km solo time trial",
+                local_date=date(2026, 11, 14),
+                outcome="inconclusive",
+            ),
+        ]
+    )
+    session.flush()
+    snapshot, uid = _snapshot(session, "review_training_block")
+    assert load_context(session, snapshot.id, now=NOW, kb=KB).last_benchmark_date == date(2026, 10, 20)
+    raw = _doc(snapshot, uid)
+    raw["changes"] = []
+    raw["block_change"] = {
+        "decision": "start",
+        "block_uid": None,
+        "version_fields": {
+            **_block_fields("2026-12-06", "2026-11-23"),
+            "benchmark": None,
+            "completion_indicators": ["Quality reps hold at RPE 7 or lower"],
+        },
+    }
+    proposal = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert proposal.status == "pending", [(i.code, i.path) for i in proposal.issues]
+    result = decide_proposal(
+        session, proposal.proposal_id, _block_req("cadence-accept", [], [], block=True), now=NOW, resolve_kb=_resolve
+    )
+    assert result.status == "accepted"
+    assert session.get(BlockVersion, result.block_version_id).benchmark is None
