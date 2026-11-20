@@ -301,7 +301,7 @@ test('p0b: block start',async ({page,request})=>{
   const blockChange={decision:'start',block_uid:null,version_fields:{
     status:'active',objective:'Synthetic aerobic base',rationale:'Review the current plan and build steadily.',
     maintained_qualities:['easy volume'],non_goals:['racing'],eligible_recipe_ids:['REC001','REC002','REC003','REC009'],
-    progression_dimension:'duration',constraints:[],start_date:before.today,review_date:day(before.today,6),
+    progression_dimension:'duration',constraints:[],start_date:before.today,review_date:day(before.today,7),
     completion_indicators:['consistent sessions'],early_review_triggers:['symptoms'],objective_status:'unresolved',
     benchmark:{kind:'time_trial',event_id:null,protocol:'5 km solo time trial, flat loop',distance_m:5000,planned_date:before.today,progress_if:'Faster than the previous 5 km time trial',consolidate_if:'Within 20 seconds of the previous 5 km time trial'},
   }}
