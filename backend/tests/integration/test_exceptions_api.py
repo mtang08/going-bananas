@@ -352,9 +352,8 @@ def test_block_benchmark_rules_and_event_exclusion(exc_fixture):
         session.add(version)
         session.flush()
         result = run_detection(session, NOW)
-        missing = findings(session, "BLOCK_BENCHMARK_MISSING")[0]
-        assert missing.status == "open" and missing.entity_key == f"block_benchmark_missing:{uid}"
-        assert any(r["reason"] == REASON_BENCHMARK["BLOCK_BENCHMARK_MISSING"] for r in wire(result))
+        assert findings(session, "BLOCK_BENCHMARK_MISSING") == []
+        assert not any(r["operation"] == "review_training_block" for r in wire(result))
         event = Event(name="Synthetic 10K", event_date=TODAY - timedelta(days=5), priority="target", status="completed")
         session.add(event)
         session.flush()
@@ -376,7 +375,6 @@ def test_block_benchmark_rules_and_event_exclusion(exc_fixture):
             "caution",
         )
         assert not any(r.entity_key == f"event:{event.id}" for r in findings(session, "POST_EVENT_REVIEW_DUE"))
-        assert missing.status == "open"
         assert any(r["reason"] == REASON_BENCHMARK["BLOCK_BENCHMARK_MISSED"] for r in wire(result))
 
 
