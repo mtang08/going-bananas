@@ -32,6 +32,7 @@ from app.read.calendar import head_version
 from app.services.block_benchmark import active_block_version
 from app.services.calendar import state_at
 from app.services.coverage import coverage
+from app.services.events import goal_pace_s_per_km, ranked_upcoming, target_status
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING
 from app.services.profile import current_profile
 from app.services.proposals.schema import HORIZON_MAX_DAYS, derive_certainty
@@ -282,7 +283,9 @@ def _load_anchors(session: Session) -> list[dict]:
     return anchors
 
 
-def _load_active_block(session: Session, as_of: date) -> tuple[Sequence[BlockVersion], dict | None]:
+def _load_active_block(
+    session: Session, as_of: date, top_event_id: uuid.UUID | None
+) -> tuple[Sequence[BlockVersion], dict | None]:
     block_rows = session.scalars(
         select(BlockVersion).order_by(BlockVersion.block_uid, BlockVersion.version.desc())
     ).all()
@@ -302,6 +305,8 @@ def _load_active_block(session: Session, as_of: date) -> tuple[Sequence[BlockVer
         "early_review_triggers",
         "objective_status",
         "benchmark",
+        "target_event_id",
+        "build_outline",
     )
     from app.services.block_benchmark import benchmark_status, status_data
 
@@ -312,6 +317,7 @@ def _load_active_block(session: Session, as_of: date) -> tuple[Sequence[BlockVer
             version_id=active_row.id,
             version=active_row.version,
             benchmark_status=status_data(benchmark_status(session, active_row, as_of)),
+            target_event_status=target_status(active_row.target_event_id, top_event_id),
         )
         if active_row
         else None
@@ -380,15 +386,27 @@ def _load_goals(session: Session) -> list[dict]:
 
 
 def _load_events(session: Session, as_of: date) -> list[dict]:
-    events = [
-        row_view(
-            row, ("id", "name", "event_date", "distance_m", "priority", "status", "result_s"), names={"id": "event_id"}
-        )
-        for row in session.scalars(
+    rows = list(
+        session.scalars(
             select(Event).where(Event.event_date >= as_of - timedelta(days=28)).order_by(Event.event_date, Event.id)
         )
+    )
+    ranks = {row.id: rank for rank, row in ranked_upcoming(rows, as_of)}
+    return [
+        {
+            "event_id": row.id,
+            "name": row.name,
+            "event_date": row.event_date,
+            "distance_m": row.distance_m,
+            "purpose": row.purpose,
+            "goal_time_s": row.goal_time_s,
+            "goal_pace_s_per_km": goal_pace_s_per_km(row.distance_m, row.goal_time_s),
+            "rank": ranks.get(row.id),
+            "status": row.status,
+            "result_s": row.result_s,
+        }
+        for row in rows
     ]
-    return events
 
 
 def _load_exception_state(session: Session, as_of: date, now: datetime) -> tuple[list[dict], list[dict]]:
@@ -478,11 +496,12 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     prompts = _load_prompts(session, now)
     metrics = _load_metrics(session, as_of, runs)
     anchors = _load_anchors(session)
-    block_rows, active_block = _load_active_block(session, as_of)
+    events = _load_events(session, as_of)
+    top_event_id = next((event["event_id"] for event in events if event["rank"] == 1), None)
+    block_rows, active_block = _load_active_block(session, as_of, top_event_id)
     decisions = _load_block_decisions(session)
     proposals = _load_proposals(session)
     goals = _load_goals(session)
-    events = _load_events(session, as_of)
     exception_findings, exception_patches = _load_exception_state(session, as_of, now)
     benchmark_history = _load_benchmark_history(session, block_rows)
     this_monday = week_bounds(as_of)[0]
