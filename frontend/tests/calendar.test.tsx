@@ -524,6 +524,52 @@ describe('Calendar', () => {
       ).toBeGreaterThanOrEqual(2),
     )
   })
+  describe('move window', () => {
+    async function openMove(lastPlannedDate: string | null) {
+      head = { ...view, last_planned_date: lastPlannedDate }
+      mount()
+      await screen.findByText('Version 2')
+      fireEvent.click(within(row('2026-11-12')).getByRole('button', { name: 'Move' }))
+      return screen.getByLabelText('New date')
+    }
+
+    it.each([
+      ['allows a move to the last planned date', '2026-12-11', '2026-12-11'],
+      ['keeps the 14-day minimum for a short plan', '2026-11-16', '2026-11-24'],
+    ])('%s', async (_name, planEnd, max) => {
+      const input = await openMove(planEnd)
+      expect(input).toHaveAttribute('max', max)
+      fireEvent.change(input, { target: { value: max } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save move' }))
+      await waitFor(() => expect(writes()).toHaveLength(1))
+      expect(writes()[0].body).toMatchObject({
+        edits: [{ op: 'move', session_uid: 's1', fields: { local_date: max } }],
+      })
+    })
+
+    it.each([
+      [
+        'rejects a move one day past the last planned date',
+        '2026-12-11',
+        '2026-12-11',
+        '2026-12-12',
+        'Dec 11',
+      ],
+      ['caps the window at 42 days', '2026-12-31', '2026-12-23', '2026-12-24', 'Dec 23'],
+    ])('%s', async (_name, planEnd, max, value, date) => {
+      const input = await openMove(planEnd)
+      expect(input).toHaveAttribute('max', max)
+      fireEvent.change(input, { target: { value } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save move' }))
+      expect(screen.getByRole('alert')).toHaveTextContent(`Pick a date between today and ${date}.`)
+      expect(writes()).toHaveLength(0)
+    })
+
+    it('uses the 14-day window when there is no last planned date', async () => {
+      expect(await openMove(null)).toHaveAttribute('max', '2026-11-24')
+    })
+  })
+
   it('edits changed fields only and omits empty reason', async () => {
     mount()
     await screen.findByText('Version 2')
