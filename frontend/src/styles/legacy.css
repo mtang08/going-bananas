@@ -522,21 +522,6 @@
   margin: 10px 0 0;
 }
 
-.strip-day {
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid #e0e5d9;
-  border-radius: 12px;
-  background: var(--card);
-  text-align: left;
-}
-
-.strip-day.today {
-  border-color: #667f55;
-  background: #f2f7eb;
-}
-
-.strip-day small,
 .session-row small {
   display: block;
   color: #647260;
