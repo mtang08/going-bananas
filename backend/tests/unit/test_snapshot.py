@@ -1073,6 +1073,72 @@ def test_exception_sections_size_bounded() -> None:
     assert len(canonical_json(build_payload(large, ROLLING))) <= 11_000
 
 
+QUALITY_STRUCTURE = [
+    {"type": "warmup", "duration_type": "time", "duration_value": 600, "target": None},
+    {
+        "type": "repeat",
+        "count": 5,
+        "steps": [
+            {
+                "type": "work",
+                "duration_type": "time",
+                "duration_value": 240,
+                "target": {"modality": "speed", "low": 3.4, "high": 3.8},
+            },
+            {"type": "recovery", "duration_type": "time", "duration_value": 120, "target": None},
+        ],
+    },
+    {"type": "cooldown", "duration_type": "time", "duration_value": 600, "target": None},
+]
+# offset within the 14-day cycle -> (kind, recipe, slot_id)
+CYCLE = {
+    0: ("strength", None, "slot-1"),
+    1: ("run", "REC003", None),
+    2: ("mobility", None, None),
+    3: ("run", "REC001", None),
+    4: ("strength", None, "slot-1"),
+    5: ("run", "REC006", None),
+    7: ("strength", None, "slot-1"),
+    8: ("run", "REC003", None),
+    9: ("mobility", None, None),
+    10: ("run", "REC001", None),
+    11: ("strength", None, "slot-1"),
+    12: ("run", "REC006", None),
+    13: ("run", "REC001", None),
+}
+
+
+def horizon_sessions(first: int, last: int) -> list[dict]:
+    rows = []
+    for offset in range(first, last + 1):
+        spec = CYCLE.get(offset % 14)
+        if spec is None:
+            continue
+        kind, recipe, slot_id = spec
+        row = session(AS_OF + timedelta(days=offset), kind, recipe, slot_id=slot_id)
+        row["intent"] = "Build aerobic durability with controlled effort and an easy finish"
+        row["planned_duration_s"] = 3000
+        if recipe == "REC003" and offset <= 14:
+            row["structure"] = QUALITY_STRUCTURE
+        rows.append(row)
+    return rows
+
+
+def test_horizon_snapshot_size_ceilings() -> None:
+    source = inputs(
+        sessions=horizon_sessions(-28, 35),
+        active_block=horizon_block(AS_OF + timedelta(days=35)),
+    )
+    sizes = {}
+    for operation in (ROLLING, BLOCK):
+        payload = build_payload(source, operation)
+        sizes[operation] = (len(canonical_json(payload["calendar"])), len(canonical_json(payload)))
+    assert sizes[ROLLING][0] <= 24_000
+    assert sizes[ROLLING][1] <= 26_750
+    assert sizes[BLOCK][0] <= 31_250
+    assert sizes[BLOCK][1] <= 34_000
+
+
 def test_block_benchmark_sections() -> None:
     block = {
         "block_uid": "block-1",
