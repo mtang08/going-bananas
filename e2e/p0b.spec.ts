@@ -175,7 +175,7 @@ test('p0b: protected undo',async ({page,request})=>{
   const wideBefore=await data(await request.get(`/api/v1/calendar?start=${day(current.today,-14)}&end=${day(current.today,13)}`))
   const protectedRows=wideBefore.sessions.filter((row:any)=>row.locked || row.local_date<current.today)
   await page.goto('/#calendar')
-  await page.getByText('Calendar history', {exact:true}).click()
+  await page.getByText('Plan versions', {exact:true}).click()
   const target=weekly!.before.head
   const version=page.getByTestId('version-row').filter({hasText:`v${target} ·`})
   await version.getByRole('button',{name:'Restore',exact:true}).click()

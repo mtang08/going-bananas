@@ -16,7 +16,7 @@ test.beforeEach(async ({ request }) => {
   expect(envelope.mode).toBe('demo')
 })
 
-test('p0a: home shows today and 14-day strip', async ({ page, request }) => {
+test('p0a: home shows today and the gauges; calendar shows the current week', async ({ page, request }) => {
   const calendar = await data(await request.get('/api/v1/calendar'))
   const history = await data(await request.get(`/api/v1/calendar?start=${day(calendar.today,-2)}&end=${calendar.today}`))
   const completedLong = history.sessions.find((s: {local_date:string;recipe_id:string}) =>
@@ -31,15 +31,18 @@ test('p0a: home shows today and 14-day strip', async ({ page, request }) => {
     metric.value.activity_id === linked.activity_id && metric.value.classification === 'long')).toBe(true)
   await page.goto('/')
   await expect(page.getByTestId('today-card')).toBeVisible()
-  const cells = page.getByTestId('strip-day')
-  await expect(cells).toHaveCount(14)
+  await expect(page.getByTestId('today-card').getByText(/No session|Committed|Provisional/).first()).toBeVisible()
+  for (const id of ['weekly-mileage','weekly-digest','week-sessions']) {
+    await expect(page.getByTestId(id)).toBeVisible()
+  }
+  await page.goto('/#calendar')
+  const cells = page.getByTestId('calendar-day')
+  await expect(cells).toHaveCount(7)
   const weekday = new Date(`${calendar.today}T12:00:00Z`).getUTCDay()
   const monday = day(calendar.today, -((weekday + 6) % 7))
   expect(await cells.evaluateAll(nodes => nodes.map(node => node.getAttribute('data-date'))))
-    .toEqual(Array.from({length:14}, (_, i) => day(monday, i)))
-  await expect(page.locator(`[data-testid="strip-day"][data-date="${calendar.today}"]`)
-    .getByText('Today', {exact:true})).toBeVisible()
-  await expect(page.getByTestId('today-card').getByText(/No session|Committed|Provisional/).first()).toBeVisible()
+    .toEqual(Array.from({length:7}, (_, i) => day(monday, i)))
+  await expect(page.locator(`[data-testid="calendar-day"][data-date="${calendar.today}"]`)).toHaveClass(/is-today/)
 })
 
 test('p0a: prompts on schedule', async ({ page, request }) => {
@@ -72,7 +75,7 @@ test('p0a: manual edit versions', async ({ page, request }) => {
   const after = await data(await request.get('/api/v1/calendar'))
   expect(after.sessions.find((s: {session_uid:string}) => s.session_uid === original.session_uid)?.local_date).toBe(movedDate)
   await page.goto('/#calendar')
-  await page.getByText('Calendar history', {exact:true}).click()
+  await page.getByText('Plan versions', {exact:true}).click()
   await expect(page.getByTestId('version-row').filter({hasText:`v${edited.version} · Manual edit`})).toBeVisible()
   const rollback = await request.post('/api/v1/calendar/rollback', {headers:{'X-Local-Request':'1'}, data:{expected_head:edited.version,to_version:before.head}})
   expect(rollback.status()).toBe(201)
@@ -101,12 +104,7 @@ test('p0a: structured workout per-rep', async ({ page, request }) => {
       const envelope = await response.json()
       const assessed = envelope.data.completions.find((c: {session_uid:string}) => c.session_uid === session.session_uid)
       expect(assessed.status).toBe('completed_as_planned')
-      // Show the seeded session within Calendar's seven-day history viewport.
-      await page.route('**/api/v1/calendar', route => route.fulfill({
-        json: {...envelope, data: {...envelope.data, today: day(current.today,-7)}},
-      }))
-      await page.goto('/#calendar')
-      await page.getByText('Calendar history', {exact:true}).click()
+      await page.goto('/#calendar/' + session.local_date)
       const row = page.getByTestId('session-row').filter({has: page.locator(`a[href="#activity/${completion.activity_id}"]`)})
       await expect(row.getByText('Completed', {exact:true})).toBeVisible()
       await expect(row.getByText('Recorded · comparison unavailable')).toHaveCount(0)
