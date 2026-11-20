@@ -37,7 +37,7 @@ Strength totals are observed counts only. When `profile.preferences.strength_sou
 
 ## Calendar and reviewed coaching API
 
-Calendar authority enables `/calendar`, `/calendar/versions`, `/calendar/diff`,
+Calendar authority enables `/calendar`, `/calendar/week` (one Monday–Sunday week, defaulting to the current week), `/calendar/versions`, `/calendar/diff`,
 `/calendar/edits`, `/calendar/rollback`, and explicit completion links. All source
 writes serialize before app-state row locks. One successful source transaction
 increments `data_revision` once and refreshes affected metrics/prompts atomically.
