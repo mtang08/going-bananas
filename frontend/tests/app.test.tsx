@@ -218,6 +218,12 @@ beforeEach(() => {
         return { ok: true, status: 200, json: async () => wrap(weeklyProjection) } as Response
       if (url.endsWith('/calendar/weekly-digest'))
         return { ok: true, status: 200, json: async () => wrap(weeklyDigest) } as Response
+      if (url.endsWith('/calendar/week'))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => wrap({ ...calendarView, start: '2026-11-09', end: '2026-11-15' }),
+        } as Response
       if (url.includes('/profile') && method === 'PUT')
         profileRecord = {
           ...profileRecord,
@@ -340,11 +346,12 @@ describe('authority shell', () => {
   it('opens calendar Home, follows navigation hashes, and uses the v2 check-in', async () => {
     mount()
     expect(await screen.findByTestId('today-card')).toBeInTheDocument()
-    expect(screen.getAllByTestId('strip-day')).toHaveLength(14)
+    expect(await screen.findByTestId('week-sessions')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cycle' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
     expect(window.location.hash).toBe('#calendar')
     expect(await screen.findByRole('heading', { name: 'Calendar.' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Previous week' })).toBeInTheDocument()
     window.location.hash = '#unknown'
     fireEvent(window, new Event('hashchange'))
     expect(await screen.findByTestId('today-card')).toBeInTheDocument()

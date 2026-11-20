@@ -27,7 +27,8 @@ import type {
 import type { CheckinRequest, PromptList } from '../api/types/checkins'
 import type { ProposalSummary } from '../api/types/coach'
 import { QueryState } from '../components/QueryState'
-import { mondayOfWeek, SessionSummary, WeekOverview } from '../components/PlanOverview'
+import { mondayOfWeek, SessionSummary } from '../components/PlanOverview'
+import { WeekSessions } from '../components/WeekSessions'
 import { WeeklyMileage } from '../components/WeeklyMileage'
 import { WeeklyDigest, type DigestWeek } from '../components/WeeklyDigest'
 import type { WeeklyProjection } from '../api/types/calendar'
@@ -152,11 +153,45 @@ export function Home({
           <h1>
             {today ? dateLabel(today, { weekday: 'long', month: 'long', day: 'numeric' }) : 'Today'}
           </h1>
-          <p>Planned training, open prompts, and the next two weeks.</p>
+          <p>Planned training and open prompts.</p>
         </div>
       </div>
       <div className="home-status" data-testid="home-status">
         <SyncCard compact />
+      </div>
+      <div className="home-gauges">
+        <QueryState
+          loading={projection.isPending}
+          error={projection.error}
+          stale={!!projection.data}
+          retry={() => {
+            void projection.refetch()
+          }}
+        >
+          {projection.data?.data && <WeeklyMileage projection={projection.data.data} unit={unit} />}
+        </QueryState>
+        <QueryState
+          loading={digest.isPending}
+          error={digest.error}
+          stale={!!digest.data}
+          retry={() => {
+            void digest.refetch()
+          }}
+        >
+          {digest.data?.data && (
+            <WeeklyDigest
+              digest={digest.data.data}
+              unit={unit}
+              week={digestWeek}
+              onWeekChange={setDigestWeek}
+            />
+          )}
+        </QueryState>
+        {digestWeek === 'last' && !digestLast.data && (
+          <Button variant="outline" size="sm" onClick={() => setDigestWeek('this')}>
+            Back to this week
+          </Button>
+        )}
       </div>
       {showAttention && (
         <Card className="needs-attention" data-testid="needs-attention">
@@ -379,38 +414,8 @@ export function Home({
           </>
         )}
       </QueryState>
-      {view && view.head !== 0 && today && <WeekOverview view={view} unit={unit} />}
-      <QueryState
-        loading={projection.isPending}
-        error={projection.error}
-        stale={!!projection.data}
-        retry={() => {
-          void projection.refetch()
-        }}
-      >
-        {projection.data?.data && <WeeklyMileage projection={projection.data.data} unit={unit} />}
-      </QueryState>
-      <QueryState
-        loading={digest.isPending}
-        error={digest.error}
-        stale={!!digest.data}
-        retry={() => {
-          void digest.refetch()
-        }}
-      >
-        {digest.data?.data && (
-          <WeeklyDigest
-            digest={digest.data.data}
-            unit={unit}
-            week={digestWeek}
-            onWeekChange={setDigestWeek}
-          />
-        )}
-      </QueryState>
-      {digestWeek === 'last' && !digestLast.data && (
-        <Button variant="outline" size="sm" onClick={() => setDigestWeek('this')}>
-          Back to this week
-        </Button>
+      {digest.data?.data && (
+        <WeekSessions digest={digest.data.data} unit={unit} week={digestWeek} />
       )}
       <QueryState
         loading={block.isPending}
