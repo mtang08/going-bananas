@@ -13,10 +13,12 @@ let profile: Profile,
   anchors: IntensityAnchor[],
   events: RaceEvent[],
   conflict: string | null
+let orderConflict: boolean
 let requests: { url: string; method: string; body: Record<string, unknown> | null }[]
 const clients: QueryClient[] = []
 beforeEach(() => {
   requests = []
+  orderConflict = false
   head = 0
   anchors = []
   events = []
@@ -83,6 +85,25 @@ beforeEach(() => {
           status: 409,
           json: async () => ({ error: { code: conflict, message: 'exists' } }),
         }
+      if (method === 'PUT' && url.endsWith('/events/order')) {
+        if (orderConflict) {
+          return {
+            ok: false,
+            status: 409,
+            json: async () => ({
+              error: {
+                code: 'event_order_stale',
+                message: 'Events changed; reload before reordering',
+              },
+            }),
+          }
+        }
+        const ids = body.items.map((item: { id: string }) => item.id) as string[]
+        events = events.map((event) => {
+          const index = ids.indexOf(event.id)
+          return index === -1 ? event : { ...event, rank: index + 1 }
+        })
+      }
       const data = url.endsWith('/profile')
         ? profile
         : url.endsWith('/calendar')
@@ -91,7 +112,7 @@ beforeEach(() => {
             ? routine
             : url.endsWith('/anchors')
               ? { items: anchors }
-              : url.endsWith('/events')
+              : url.endsWith('/events') || url.endsWith('/events/order')
                 ? { items: events }
                 : url.endsWith('/calendar/bootstrap')
                   ? { version: 1, kind: 'bootstrap', stale_proposals: [] }
@@ -233,34 +254,38 @@ it('creates active goals through the actual GoalCreate contract', async () => {
   expect(writes()[0].body).not.toHaveProperty('status')
 })
 
-it('saves the selected standard race distance in exact metres', async () => {
+it('saves the selected standard race distance in whole metres', async () => {
   mount()
   await screen.findByLabelText('Event')
   input('event-name', 'NYC Half')
   input('event-date', '2027-03-15')
-  input('event-distance', '21097.5')
-  input('event-priority', 'target')
+  input('event-distance', '21098')
+  input('event-purpose', 'pr')
+  input('event-goal-time', '1:45:00')
   input('event-status', 'registered')
   fireEvent.click(screen.getByRole('button', { name: 'Add event' }))
   await screen.findByText('Event saved.')
   expect(writes()[0].body).toEqual({
     name: 'NYC Half',
     event_date: '2027-03-15',
-    distance_m: 21097.5,
-    priority: 'target',
+    distance_m: 21098,
+    purpose: 'pr',
+    goal_time_s: 6300,
     status: 'registered',
     result_s: null,
   })
 })
 
-it('preserves exact stored distance when editing other event fields', async () => {
+it('preserves stored distance and goal time when editing other event fields', async () => {
   events = [
     {
       id: 'e1',
       name: 'Half',
       event_date: '2027-03-15',
-      distance_m: 21097.5,
-      priority: 'target',
+      distance_m: 21098,
+      purpose: 'pr',
+      goal_time_s: 6300,
+      rank: 1,
       status: 'registered',
       result_s: null,
       version: 3,
@@ -268,11 +293,14 @@ it('preserves exact stored distance when editing other event fields', async () =
   ]
   mount()
   fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+  expect(screen.getByLabelText('Distance')).toHaveValue('21098')
   input('event-name', 'Updated Half')
   fireEvent.click(screen.getByRole('button', { name: 'Save event' }))
   await screen.findByText('Event saved.')
   expect(writes()[0].body).toMatchObject({
-    distance_m: 21097.5,
+    distance_m: 21098,
+    goal_time_s: 6300,
+    purpose: 'pr',
     expected_version: 3,
     name: 'Updated Half',
   })
@@ -503,4 +531,121 @@ it('opens the strength schedule editor from the schedule link', async () => {
   mount()
   fireEvent.click(await screen.findByText('Edit confirmed strength schedule'))
   expect(screen.getByTestId('strength-schedule')).toHaveAttribute('open')
+})
+
+it('rejects a malformed goal time without saving', async () => {
+  mount()
+  await screen.findByLabelText('Event')
+  input('event-name', 'NYC Half')
+  input('event-date', '2027-03-15')
+  input('event-goal-time', 'fast')
+  fireEvent.click(screen.getByRole('button', { name: 'Add event' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Enter the goal time as h:mm:ss or m:ss.',
+  )
+  expect(writes()).toHaveLength(0)
+})
+
+it('offers only whole-metre standard distances', async () => {
+  mount()
+  await screen.findByLabelText('Event')
+  const distance = screen.getByLabelText<HTMLSelectElement>('Distance')
+  expect(Array.from(distance.options, (option) => option.value)).toEqual([
+    '',
+    '1609',
+    '5000',
+    '8000',
+    '10000',
+    '15000',
+    '16093',
+    '21098',
+    '42195',
+  ])
+})
+
+const rankedEvent = (
+  id: string,
+  name: string,
+  rank: number | null,
+  extra: Partial<RaceEvent> = {},
+): RaceEvent => ({
+  id,
+  name,
+  event_date: `2027-0${rank ?? 1}-15`,
+  distance_m: 10000,
+  purpose: 'pr',
+  goal_time_s: null,
+  rank,
+  status: 'planned',
+  result_s: null,
+  version: rank ?? 1,
+  ...extra,
+})
+
+const rankedEvents = () => [
+  rankedEvent('e2', 'Ten K', 2),
+  rankedEvent('e1', 'Half', 1),
+  rankedEvent('e3', 'Five K', 3),
+  rankedEvent('e4', 'Old', null, { status: 'completed', result_s: 2700, goal_time_s: 2800 }),
+]
+const moveButton = (name: string) => screen.getByRole('button', { name })
+
+it('lists upcoming events by rank with the goal race first', async () => {
+  events = rankedEvents()
+  mount()
+  const rows = await screen.findAllByTestId('event-row')
+  expect(rows[0]).toHaveTextContent('Goal race Half')
+  expect(rows[1]).toHaveTextContent('Ten K')
+  expect(rows[2]).toHaveTextContent('Five K')
+  expect(screen.getAllByText('Goal race', { exact: true })).toHaveLength(1)
+  expect(moveButton('Move Half up')).toBeDisabled()
+  expect(moveButton('Move Half down')).toBeEnabled()
+  expect(moveButton('Move Five K down')).toBeDisabled()
+  expect(screen.getByTestId('event-row-past')).toHaveTextContent('goal 46:40 · result 45:00')
+  expect(screen.queryByRole('button', { name: 'Move Old up' })).toBeNull()
+})
+
+it('reorders the events with their versions and restores focus after reload', async () => {
+  events = rankedEvents()
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Move Half down' }))
+  expect(await screen.findByText('Half moved to rank 2')).toBeInTheDocument()
+  expect(writes()[0]).toEqual({
+    method: 'PUT',
+    url: '/api/v1/events/order',
+    body: {
+      items: [
+        { id: 'e2', expected_version: 2 },
+        { id: 'e1', expected_version: 1 },
+        { id: 'e3', expected_version: 3 },
+      ],
+    },
+  })
+  await waitFor(() => expect(moveButton('Move Half down')).toHaveFocus())
+  expect(screen.getAllByTestId('event-row').map((row) => row.dataset.eventId)).toEqual([
+    'e2',
+    'e1',
+    'e3',
+  ])
+})
+
+it('focuses the other move button when the moved event reaches the end', async () => {
+  events = rankedEvents().slice(0, 2)
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Move Half down' }))
+  await waitFor(() => expect(moveButton('Move Half up')).toHaveFocus())
+  expect(moveButton('Move Half down')).toBeDisabled()
+})
+
+it('shows a stale order error and reloads the events', async () => {
+  events = rankedEvents()
+  orderConflict = true
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Move Half down' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Events changed; reload before reordering',
+  )
+  expect(
+    requests.filter(({ method, url }) => method === 'GET' && url.endsWith('/events')).length,
+  ).toBeGreaterThanOrEqual(2)
 })

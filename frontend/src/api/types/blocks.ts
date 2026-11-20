@@ -9,19 +9,40 @@ export interface Goal {
   version: number
 }
 export type GoalCreate = Omit<Goal, 'id' | 'version' | 'status'>
-export type EventPriority = 'target' | 'supported_exposure' | 'benchmark' | 'optional'
+export type EventPurpose = 'pr' | 'benchmark' | 'training'
 export type EventStatus = 'planned' | 'registered' | 'completed' | 'cancelled'
 export interface RaceEvent {
   id: string
   name: string
   event_date: string
   distance_m: number | null
-  priority: EventPriority
+  purpose: EventPurpose
+  goal_time_s: number | null
+  rank: number | null
   status: EventStatus
   result_s: number | null
   version: number
 }
-export type RaceEventCreate = Omit<RaceEvent, 'id' | 'version'>
+export type RaceEventCreate = Omit<RaceEvent, 'id' | 'version' | 'rank'>
+export interface OutlineStep {
+  emphasis: string
+  weeks: number
+}
+export type TargetEventStatus = 'current' | 'changed' | 'unset' | 'none'
+export type TargetEvent = Pick<
+  RaceEvent,
+  'id' | 'name' | 'event_date' | 'distance_m' | 'purpose' | 'goal_time_s' | 'rank'
+>
+export interface EventBlock {
+  block_uid: string
+  version: number
+  status: BlockVersion['status']
+  objective: string
+  start_date: string
+  review_date: string
+  benchmark: BlockBenchmark | null
+  build_outline: OutlineStep[]
+}
 export interface StrengthRoutineSlot {
   id: string | null
   label: string
@@ -70,17 +91,20 @@ export interface BlockVersion {
   proposal_id: string | null
   benchmark?: BlockBenchmark | null
   benchmark_status?: BenchmarkStatus | null
+  target_event_id?: string | null
+  build_outline?: OutlineStep[]
+  target_event?: TargetEvent | null
+  target_event_status?: TargetEventStatus
 }
 export const HORIZON_LABELS: Record<GoalHorizon, string> = {
   '3_6_months': '3–6 months',
   season: 'Season',
   long_term: 'Long term',
 }
-export const EVENT_PRIORITY_LABELS: Record<EventPriority, string> = {
-  target: 'Target',
-  supported_exposure: 'Supported exposure',
-  benchmark: 'Benchmark',
-  optional: 'Optional',
+export const EVENT_PURPOSE_LABELS: Record<EventPurpose, string> = {
+  pr: 'Race it (PR attempt)',
+  benchmark: 'Benchmark effort',
+  training: 'Training run',
 }
 export const WEEKDAY_LABELS = [
   'Monday',

@@ -8,6 +8,7 @@ import { RECIPE_LABELS, type CalendarView } from '../api/types/calendar'
 import type { Activity } from '../api/types/activity'
 import { benchmarkStatusLabel } from '../coachLabels'
 import { QueryState } from '../components/QueryState'
+import { GoalRaceTimeline } from '../components/GoalRaceTimeline'
 import './TrainingDesign.css'
 export function Block({ unit = 'mi' }: { unit?: Unit }) {
   const active = useQuery({
@@ -78,6 +79,7 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
         )}
         {block && (
           <>
+            <GoalRaceTimeline block={block} today={today} unit={unit} />
             <Card className="block-direction">
               <span className="eyebrow">CURRENT OBJECTIVE</span>
               <h2>{block.objective}</h2>
