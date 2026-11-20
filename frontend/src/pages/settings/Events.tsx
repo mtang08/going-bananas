@@ -5,22 +5,22 @@ import { api, post, patch } from '../../api/client'
 import { qk, invalidateKeys } from '../../api/queryKeys'
 import { dateLabel, fmtDistance, fmtClock, clockToSeconds, type Unit } from '../../lib/format'
 import {
-  EVENT_PRIORITY_LABELS,
+  EVENT_PURPOSE_LABELS,
   type RaceEvent,
-  type EventPriority,
+  type EventPurpose,
   type EventStatus,
 } from '../../api/types/blocks'
 import { QueryState } from '../../components/QueryState'
 import { ErrorText, Select } from './shared'
 
 const RACE_DISTANCES: Record<string, string> = {
-  '1609.344': '1 mile',
+  '1609': '1 mile',
   '5000': '5K',
   '8000': '8K',
   '10000': '10K',
   '15000': '15K',
-  '16093.44': '10 miles',
-  '21097.5': 'Half marathon',
+  '16093': '10 miles',
+  '21098': 'Half marathon',
   '42195': 'Marathon',
 }
 export function Events({ unit }: { unit: Unit }) {
@@ -31,7 +31,9 @@ export function Events({ unit }: { unit: Unit }) {
     [day, setDay] = useState(''),
     [distance, setDistance] = useState(''),
     [distanceEdited, setDistanceEdited] = useState(false)
-  const [priority, setPriority] = useState<EventPriority>('optional'),
+  const [purpose, setPurpose] = useState<EventPurpose>('training'),
+    [goalTime, setGoalTime] = useState(''),
+    [goalEdited, setGoalEdited] = useState(false),
     [status, setStatus] = useState<EventStatus>('planned'),
     [result, setResult] = useState(''),
     [resultEdited, setResultEdited] = useState(false)
@@ -43,7 +45,9 @@ export function Events({ unit }: { unit: Unit }) {
     setDistanceEdited(false)
     setResult('')
     setResultEdited(false)
-    setPriority('optional')
+    setPurpose('training')
+    setGoalTime('')
+    setGoalEdited(false)
     setStatus('planned')
   }
   const save = useMutation({
@@ -60,7 +64,19 @@ export function Events({ unit }: { unit: Unit }) {
         editing && !distanceEdited ? editing.distance_m : distance === '' ? null : Number(distance)
       if (distance_m !== null && (!Number.isFinite(distance_m) || distance_m <= 0))
         throw new Error('Enter a positive distance.')
-      const body = { name: name.trim(), event_date: day, distance_m, priority, status, result_s }
+      const goal_time_s =
+        editing && !goalEdited ? editing.goal_time_s : clockToSeconds(goalTime.trim())
+      if (goalEdited && goalTime.trim() && goal_time_s === null)
+        throw new Error('Enter the goal time as h:mm:ss or m:ss.')
+      const body = {
+        name: name.trim(),
+        event_date: day,
+        distance_m,
+        purpose,
+        goal_time_s,
+        status,
+        result_s,
+      }
       return editing
         ? patch(`/events/${encodeURIComponent(editing.id)}`, {
             expected_version: editing.version,
@@ -69,14 +85,18 @@ export function Events({ unit }: { unit: Unit }) {
         : post('/events', body)
     },
     onSuccess: () => {
-      invalidateKeys(qc, [qk.events, qk.proposals])
+      invalidateKeys(qc, [qk.events, qk.blocks, qk.proposals])
       reset()
     },
   })
   return (
     <Card>
       <h2>Events</h2>
-      <p>Events feed the next coach review; the calendar does not change automatically.</p>
+      <p>
+        Rank 1 is your goal race. Every training block builds toward it. Each event’s purpose guides
+        how you prepare for and run it. Changes feed the next coach review. The calendar updates
+        when you accept a proposal.
+      </p>
       <QueryState
         loading={query.isPending}
         error={query.error}
@@ -91,7 +111,8 @@ export function Events({ unit }: { unit: Unit }) {
             {event.name} ·{' '}
             {dateLabel(event.event_date, { month: 'short', day: 'numeric', year: 'numeric' })} ·{' '}
             {event.distance_m === null ? 'distance not set' : fmtDistance(event.distance_m, unit)} ·{' '}
-            {EVENT_PRIORITY_LABELS[event.priority]} · {event.status}
+            {EVENT_PURPOSE_LABELS[event.purpose]} · {event.status}
+            {event.goal_time_s !== null && ` · goal ${fmtClock(event.goal_time_s)}`}
             {event.result_s !== null && ` · result ${fmtClock(event.result_s)}`}{' '}
             <Button
               variant="link"
@@ -101,7 +122,9 @@ export function Events({ unit }: { unit: Unit }) {
                 setDay(event.event_date)
                 setDistance(event.distance_m === null ? '' : String(event.distance_m))
                 setDistanceEdited(false)
-                setPriority(event.priority)
+                setPurpose(event.purpose)
+                setGoalTime(event.goal_time_s === null ? '' : fmtClock(event.goal_time_s))
+                setGoalEdited(false)
                 setStatus(event.status)
                 setResult(event.result_s === null ? '' : fmtClock(event.result_s))
                 setResultEdited(false)
@@ -158,11 +181,20 @@ export function Events({ unit }: { unit: Unit }) {
               )}
             </NativeSelect>
             <Select
-              id="event-priority"
-              label="Priority"
-              value={priority}
-              options={EVENT_PRIORITY_LABELS}
-              onChange={(v) => setPriority(v as EventPriority)}
+              id="event-purpose"
+              label="Purpose"
+              value={purpose}
+              options={EVENT_PURPOSE_LABELS}
+              onChange={(v) => setPurpose(v as EventPurpose)}
+            />
+            <label htmlFor="event-goal-time">Goal time (h:mm:ss or m:ss, optional)</label>
+            <Input
+              id="event-goal-time"
+              value={goalTime}
+              onChange={(e) => {
+                setGoalTime(e.target.value)
+                setGoalEdited(true)
+              }}
             />
             <Select
               id="event-status"

@@ -233,34 +233,38 @@ it('creates active goals through the actual GoalCreate contract', async () => {
   expect(writes()[0].body).not.toHaveProperty('status')
 })
 
-it('saves the selected standard race distance in exact metres', async () => {
+it('saves the selected standard race distance in whole metres', async () => {
   mount()
   await screen.findByLabelText('Event')
   input('event-name', 'NYC Half')
   input('event-date', '2027-03-15')
-  input('event-distance', '21097.5')
-  input('event-priority', 'target')
+  input('event-distance', '21098')
+  input('event-purpose', 'pr')
+  input('event-goal-time', '1:45:00')
   input('event-status', 'registered')
   fireEvent.click(screen.getByRole('button', { name: 'Add event' }))
   await screen.findByText('Event saved.')
   expect(writes()[0].body).toEqual({
     name: 'NYC Half',
     event_date: '2027-03-15',
-    distance_m: 21097.5,
-    priority: 'target',
+    distance_m: 21098,
+    purpose: 'pr',
+    goal_time_s: 6300,
     status: 'registered',
     result_s: null,
   })
 })
 
-it('preserves exact stored distance when editing other event fields', async () => {
+it('preserves stored distance and goal time when editing other event fields', async () => {
   events = [
     {
       id: 'e1',
       name: 'Half',
       event_date: '2027-03-15',
-      distance_m: 21097.5,
-      priority: 'target',
+      distance_m: 21098,
+      purpose: 'pr',
+      goal_time_s: 6300,
+      rank: 1,
       status: 'registered',
       result_s: null,
       version: 3,
@@ -268,11 +272,14 @@ it('preserves exact stored distance when editing other event fields', async () =
   ]
   mount()
   fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+  expect(screen.getByLabelText('Distance')).toHaveValue('21098')
   input('event-name', 'Updated Half')
   fireEvent.click(screen.getByRole('button', { name: 'Save event' }))
   await screen.findByText('Event saved.')
   expect(writes()[0].body).toMatchObject({
-    distance_m: 21097.5,
+    distance_m: 21098,
+    goal_time_s: 6300,
+    purpose: 'pr',
     expected_version: 3,
     name: 'Updated Half',
   })
@@ -503,4 +510,34 @@ it('opens the strength schedule editor from the schedule link', async () => {
   mount()
   fireEvent.click(await screen.findByText('Edit confirmed strength schedule'))
   expect(screen.getByTestId('strength-schedule')).toHaveAttribute('open')
+})
+
+it('rejects a malformed goal time without saving', async () => {
+  mount()
+  await screen.findByLabelText('Event')
+  input('event-name', 'NYC Half')
+  input('event-date', '2027-03-15')
+  input('event-goal-time', 'fast')
+  fireEvent.click(screen.getByRole('button', { name: 'Add event' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Enter the goal time as h:mm:ss or m:ss.',
+  )
+  expect(writes()).toHaveLength(0)
+})
+
+it('offers only whole-metre standard distances', async () => {
+  mount()
+  await screen.findByLabelText('Event')
+  const distance = screen.getByLabelText<HTMLSelectElement>('Distance')
+  expect(Array.from(distance.options, (option) => option.value)).toEqual([
+    '',
+    '1609',
+    '5000',
+    '8000',
+    '10000',
+    '15000',
+    '16093',
+    '21098',
+    '42195',
+  ])
 })
