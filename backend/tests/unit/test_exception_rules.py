@@ -421,9 +421,7 @@ def test_travel_reported():
 def test_block_benchmark_rules():
     missing, completed, missed = ("BLOCK_BENCHMARK_" + suffix for suffix in ("MISSING", "COMPLETED", "MISSED"))
     inputs = inp(block_benchmark=bb("not_set"))
-    assert hits(inputs, missing) == [("block_benchmark_missing:b1", "observe")]
-    assert one(inputs, missing).evidence_at == at(40)
-    assert one(inputs, missing).evidence[0]["type"] == "block"
+    assert [c.rule_code for c in detect(inputs) if c.rule_code.startswith("BLOCK_BENCHMARK")] == []
     for block in (bb("pending"), None):
         for code in (missing, completed, missed):
             assert hits(inp(block_benchmark=block), code) == []
@@ -488,7 +486,6 @@ TABLE = [
     ("RUNS_MISSED_REPEATED", "calendar_disruption"),
     ("HARD_SPACING_TIGHT", "calendar_disruption"),
     ("TRAVEL_REPORTED", "calendar_disruption"),
-    ("BLOCK_BENCHMARK_MISSING", "post_event"),
     ("BLOCK_BENCHMARK_COMPLETED", "post_event"),
     ("BLOCK_BENCHMARK_MISSED", "calendar_disruption"),
     ("POST_EVENT_REVIEW_DUE", "post_event"),

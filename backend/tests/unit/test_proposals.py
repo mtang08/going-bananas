@@ -23,6 +23,7 @@ from app.services.proposals.schema import (
     ValidationContext,
     anchor_key,
     derive_certainty,
+    parse_document,
     scope,
 )
 from app.services.proposals.validation import proposal_freshness, validate_document, validate_subset
@@ -92,7 +93,11 @@ def context(op: str = "review_rolling_plan", *, guard: dict | None = None, block
         KB.digest,
         guard or {"max_symptom_severity": None},
     )
-    active = ActiveBlock(U(100), U(101), 1, ("REC001", "REC002", "REC003", "REC007")) if block else None
+    active = (
+        ActiveBlock(U(100), U(101), 1, ("REC001", "REC002", "REC003", "REC007"), TODAY + timedelta(days=13))
+        if block
+        else None
+    )
     return ValidationContext(
         NOW,
         TODAY,
@@ -204,7 +209,7 @@ EVENT = {
 BENCH = {
     "kind": "time_trial",
     "protocol": "5 km solo time trial",
-    "planned_date": "2026-12-26",
+    "planned_date": "2026-12-20",
     "progress_if": "Under 22:00",
     "consolidate_if": "Over 22:30",
 }
@@ -610,6 +615,36 @@ def test_scope_by_operation(op: str, days: int) -> None:
     assert scope(op, TODAY) == (TODAY, TODAY + timedelta(days=days))
 
 
+@pytest.mark.parametrize(
+    "op,review_offset,days",
+    [
+        ("review_rolling_plan", 28, 28),
+        ("review_rolling_plan", 7, 13),
+        ("review_rolling_plan", 60, 42),
+        ("review_rolling_plan", -3, 13),
+        ("review_rolling_plan", None, 13),
+        ("review_training_block", 35, 35),
+        ("handle_goal_or_race_change", 20, 20),
+        ("exception_review", 28, 6),
+        ("post_event_review", 28, 6),
+        ("proceed_or_modify_today", 28, 3),
+        ("select_quality_session", 28, 13),
+        ("recalibrate_intensity", 28, 13),
+    ],
+)
+def test_scope_horizon_clamp(op: str, review_offset: int | None, days: int) -> None:
+    review = None if review_offset is None else TODAY + timedelta(days=review_offset)
+    assert scope(op, TODAY, review) == (TODAY, TODAY + timedelta(days=days))
+
+
+def test_changes_limit_is_eighty() -> None:
+    doc = valid_doc()
+    doc["changes"] = [change(f"c{i}", "delete", 1) for i in range(1, 81)]
+    assert parse_document(doc)[1] == []
+    doc["changes"].append(change("c81", "delete", 1))
+    assert [(issue.code, issue.path) for issue in parse_document(doc)[1]] == [("V1.schema", "changes")]
+
+
 def test_exception_schema_errors() -> None:
     for doc in (
         exception_doc(monitor=[]),
@@ -817,9 +852,9 @@ def test_block_benchmark_round_trips_through_benchmark_spec() -> None:
     cases = [
         (
             {**BENCH, "kind": "event", "event_id": str(U(500)), "distance_m": 5000},
-            BenchmarkSpec("event", U(500), "5 km solo time trial", 5000, date(2026, 12, 26)),
+            BenchmarkSpec("event", U(500), "5 km solo time trial", 5000, date(2026, 12, 20)),
         ),
-        (BENCH, BenchmarkSpec("time_trial", None, "5 km solo time trial", None, date(2026, 12, 26))),
+        (BENCH, BenchmarkSpec("time_trial", None, "5 km solo time trial", None, date(2026, 12, 20))),
     ]
     for raw, expected in cases:
         dumped = BlockBenchmark.model_validate(raw).model_dump(mode="json")
@@ -833,6 +868,13 @@ def test_event_review_outcome_vocabulary() -> None:
     status, issues = outcome(doc)
     assert status == "invalid"
     assert issues and all(code == "V1.schema" for code, _ in issues)
+
+
+def week_adds() -> list[dict]:
+    return [
+        change("c1", "add", None, {"local_date": "2026-12-01", "kind": "strength", "intent": "Full body"}),
+        change("c2", "add", None, {"local_date": "2026-12-03", "kind": "strength", "intent": "Full body"}),
+    ]
 
 
 def block_start_doc(**field_overrides) -> dict:
@@ -895,12 +937,103 @@ def test_benchmark_issues_precede_patch_resolution_issues() -> None:
     )
 
 
-def test_v22_benchmark_date_in_last_seven_days() -> None:
-    doc = block_start_doc(benchmark={**BENCH, "planned_date": "2026-12-20"})
-    assert outcome(doc, context("review_training_block", block=False)) == (
-        "invalid",
-        [("V22.benchmark_date", "block_change.version_fields.benchmark.planned_date")],
+@pytest.mark.parametrize(
+    "planned,ok",
+    [("2026-12-14", False), ("2026-12-15", True), ("2026-12-21", True), ("2026-12-22", False)],
+)
+def test_v22_benchmark_date_window(planned: str, ok: bool) -> None:
+    doc = block_start_doc(benchmark={**BENCH, "planned_date": planned})
+    expected = (
+        ("pending", [])
+        if ok
+        else (
+            "invalid",
+            [("V22.benchmark_date", "block_change.version_fields.benchmark.planned_date")],
+        )
     )
+    assert outcome(doc, context("review_training_block", block=False)) == expected
+
+
+def test_horizon_follows_active_block_review_date() -> None:
+    doc = valid_doc()
+    doc["changes"] = week_adds()
+    ctx = context()
+    assert outcome(doc, ctx) == (
+        "invalid",
+        [("V5.out_of_scope", "changes.0"), ("V5.out_of_scope", "changes.1")],
+    )
+    far = replace(ctx, active_block=replace(ctx.active_block, review_date=TODAY + timedelta(days=28)))
+    assert outcome(doc, far) == ("pending", [])
+    messages = [issue.message for issue in validate_document(doc, ctx).issues]
+    assert all("block review date" in message for message in messages)
+
+
+def block_review_doc(review_date: str, benchmark_date: str) -> dict:
+    doc = block_start_doc(review_date=review_date, benchmark={**BENCH, "planned_date": benchmark_date})
+    doc["base_block_version_id"] = str(U(101))
+    doc["block_change"].update(decision="continue", block_uid=str(U(100)))
+    doc["changes"] = week_adds()
+    return doc
+
+
+def test_block_review_scope_uses_proposed_review_date_and_partial_accept_is_strict() -> None:
+    ctx = context("review_training_block")
+    doc = block_review_doc("2026-12-14", "2026-12-05")
+    result = validate_document(doc, ctx)
+    assert (result.status, result.issues) == ("pending", [])
+    assert validate_subset(result.doc, {"c1", "c2"}, True, set(), ctx) == []
+    rejected = validate_subset(result.doc, {"c1", "c2"}, False, set(), ctx)
+    assert [(i.code, i.path) for i in rejected] == [("V5.out_of_scope", "changes.0"), ("V5.out_of_scope", "changes.1")]
+    assert validate_subset(result.doc, set(), False, set(), ctx) == []
+
+
+def test_ended_block_gives_minimum_horizon() -> None:
+    doc = block_start_doc(status="ended")
+    doc["base_block_version_id"] = str(U(101))
+    doc["block_change"].update(decision="end", block_uid=str(U(100)))
+    doc["changes"] = week_adds()
+    issues = outcome(doc, context("review_training_block"))[1]
+    assert ("V5.out_of_scope", "changes.0") in issues
+
+
+def test_v9_skips_empty_weeks_but_not_partial_weeks() -> None:
+    ctx = context("review_training_block", block=False)
+    assert outcome(block_start_doc(), ctx) == ("pending", [])
+    doc = block_start_doc()
+    doc["changes"] = week_adds()[:1]
+    assert outcome(doc, ctx) == ("invalid", [("V9.strength_count", "changes")])
+    doc["changes"] = week_adds()
+    assert outcome(doc, ctx) == ("pending", [])
+
+
+def test_v22_benchmark_optional_after_recent_credible_result() -> None:
+    doc = block_start_doc(benchmark=None, completion_indicators=["REC002 reps hold at RPE 7 or lower"])
+    ctx = context("review_training_block", block=False)
+    required = ("invalid", [("V22.benchmark_required", "block_change.version_fields.benchmark")])
+    assert outcome(doc, replace(ctx, last_benchmark_date=date(2026, 11, 10))) == ("pending", [])
+    assert outcome(doc, replace(ctx, last_benchmark_date=date(2026, 11, 9))) == required
+    assert outcome(doc, ctx) == required
+    message = validate_document(doc, replace(ctx, last_benchmark_date=date(2026, 11, 9))).issues[0].message
+    assert "2026-11-09" in message and "2026-12-27" in message
+    doc["block_change"]["version_fields"]["completion_indicators"] = []
+    assert outcome(doc, replace(ctx, last_benchmark_date=date(2026, 11, 10))) == (
+        "invalid",
+        [("V22.indicators_required", "block_change.version_fields.completion_indicators")],
+    )
+
+
+def test_v22_result_recorded_in_this_review_counts_unless_inconclusive() -> None:
+    doc = block_review_doc("2026-12-14", "2026-12-05")
+    doc["changes"] = []
+    doc["block_change"]["version_fields"].update(benchmark=None, completion_indicators=["Easy runs stay at RPE 3"])
+    doc["event_review"] = {**EVENT, "event_id": None, "activity_id": str(U(600)), "outcome": "progress"}
+    ctx = replace(
+        bench_ctx(),
+        benchmark=SimpleNamespace(status="completed", activity_id=U(600), event_id=None, local_date=date(2026, 11, 14)),
+    )
+    assert outcome(doc, ctx) == ("pending", [])
+    doc["event_review"]["outcome"] = "inconclusive"
+    assert outcome(doc, ctx) == ("invalid", [("V22.benchmark_required", "block_change.version_fields.benchmark")])
 
 
 def test_v22_time_trial_needs_rec009() -> None:
@@ -911,7 +1044,7 @@ def test_v22_time_trial_needs_rec009() -> None:
 def test_v22_event_benchmark() -> None:
     ctx_e = replace(
         context("review_training_block", block=False),
-        events={U(500): ("completed", date(2026, 12, 26)), U(501): ("completed", date(2026, 11, 14))},
+        events={U(500): ("completed", date(2026, 12, 20)), U(501): ("completed", date(2026, 11, 14))},
     )
     assert outcome(block_start_doc(benchmark={**BENCH, "kind": "event", "event_id": str(U(500))}), ctx_e) == (
         "pending",
@@ -995,7 +1128,11 @@ def test_rule_issue_order_is_pinned() -> None:
         ("V6.unknown_recipe", "changes.0.after.recipe_id", "V6.unknown_recipe"),
         ("V4.duplicate_change_id", "changes.1.change_id", "V4.duplicate_change_id"),
         ("V9.strength_move_flag", "changes.1", "V9.strength_move_flag"),
-        ("V5.out_of_scope", "changes.2", "V5.out_of_scope"),
+        (
+            "V5.out_of_scope",
+            "changes.2",
+            "beyond the block review date; accept the block change or reject this session",
+        ),
         ("V4.unknown_session", "changes.3.session_uid", "V4.unknown_session"),
         ("V4.session_in_multiple_changes", "changes.4.session_uid", "V4.session_in_multiple_changes"),
         ("V4.unknown_preserved", "preserved.0", "V4.unknown_preserved"),

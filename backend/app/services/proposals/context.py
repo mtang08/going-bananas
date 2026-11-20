@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.db import global_write_lock
 from app.domain.local_time import date_in_zone
 from app.read.calendar import head_version
-from app.services.block_benchmark import active_block_version
+from app.services.block_benchmark import active_block_version, last_credible_result_date
 from app.services.decision_inputs import (
     VerifiedKnowledge,
     collect_decision_inputs,
@@ -53,7 +53,11 @@ def snapshot_ref(row: Any) -> SnapshotRef:
 
 def active_block(session: Session) -> ActiveBlock | None:
     row = active_block_version(session)
-    return ActiveBlock(row.block_uid, row.id, row.version, tuple(row.eligible_recipe_ids)) if row else None
+    return (
+        ActiveBlock(row.block_uid, row.id, row.version, tuple(row.eligible_recipe_ids), row.review_date)
+        if row
+        else None
+    )
 
 
 def load_context(
@@ -124,4 +128,5 @@ def load_context(
             session.scalars(select(ExceptionFinding.rule_code).where(ExceptionFinding.status == "open"))
         ),
         benchmark=benchmark_status(session, active_row, today) if active_row else None,
+        last_benchmark_date=last_credible_result_date(session),
     )

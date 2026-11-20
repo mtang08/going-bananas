@@ -43,7 +43,6 @@ REASON_PATCH = "Patch reassessment due"
 REASON_BENCHMARK = {
     "BLOCK_BENCHMARK_COMPLETED": "Block benchmark complete — review the block and recalibrate",
     "BLOCK_BENCHMARK_MISSED": "Block benchmark missed — review the block to reschedule it or extend the block",
-    "BLOCK_BENCHMARK_MISSING": "Training block has no ending benchmark — set one in a block review",
 }
 RECENT_FINDING_DAYS = 28
 RECENT_PATCH_DAYS = 14

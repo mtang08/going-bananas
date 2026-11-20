@@ -832,22 +832,6 @@ def _travel_reported(inputs: DetectionInputs) -> list[Candidate]:
     ]
 
 
-def _block_benchmark_missing(inputs: DetectionInputs) -> list[Candidate]:
-    b = inputs.block_benchmark
-    if b is None or b.status != "not_set":
-        return []
-    return [
-        _candidate(
-            "BLOCK_BENCHMARK_MISSING",
-            "post_event",
-            "observe",
-            f"block_benchmark_missing:{b.block_uid}",
-            [_ev_block(b, b.version_created_at)],
-            "Training block has no ending benchmark.",
-        )
-    ]
-
-
 def _block_benchmark_completed(inputs: DetectionInputs) -> list[Candidate]:
     b = inputs.block_benchmark
     if b is None or b.status != "completed" or b.evidence_at is None or b.local_date is None:
@@ -934,7 +918,6 @@ RULES: tuple[tuple[str, Rule], ...] = (
     ("RUNS_MISSED_REPEATED", _runs_missed_repeated),
     ("HARD_SPACING_TIGHT", _hard_spacing_tight),
     ("TRAVEL_REPORTED", _travel_reported),
-    ("BLOCK_BENCHMARK_MISSING", _block_benchmark_missing),
     ("BLOCK_BENCHMARK_COMPLETED", _block_benchmark_completed),
     ("BLOCK_BENCHMARK_MISSED", _block_benchmark_missed),
     ("POST_EVENT_REVIEW_DUE", _post_event_review_due),

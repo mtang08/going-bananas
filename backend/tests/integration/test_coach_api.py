@@ -359,7 +359,7 @@ def test_accept_block_change_appends_decision(api):
             "benchmark": {
                 "kind": "time_trial",
                 "protocol": "5 km solo time trial",
-                "planned_date": str(TODAY + timedelta(days=40)),
+                "planned_date": str(TODAY + timedelta(days=35)),
                 "progress_if": "Under 22:00",
                 "consolidate_if": "Over 22:30",
             },
