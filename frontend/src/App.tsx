@@ -240,7 +240,7 @@ export function App() {
         {profile.data && (
           <>
             {page === 'home' && <Home unit={unit} onCheckin={openCheckin} />}
-            {page === 'calendar' && <Calendar unit={unit} />}
+            {page === 'calendar' && <Calendar unit={unit} weekStart={route.id} />}
             {page === 'trends' && <Trends unit={unit} />}
             {page === 'block' && <Block unit={unit} />}
             {page === 'guide' && <Guide />}

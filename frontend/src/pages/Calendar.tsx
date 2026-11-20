@@ -47,7 +47,7 @@ const meters = (value: string, unit: Unit): number | null =>
 const seconds = (value: string): number | null =>
   value.trim() ? Math.round(Number(value) * 60) : null
 
-export function Calendar({ unit }: { unit: Unit }) {
+export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: string | null }) {
   const qc = useQueryClient()
   const [viewVersion, setViewVersion] = useState<number | null>(null)
   const [editor, setEditor] = useState<EditorState | null>(null)
@@ -59,9 +59,13 @@ export function Calendar({ unit }: { unit: Unit }) {
   const [message, setMessage] = useState<string | null>(null)
   const [preservedIds, setPreservedIds] = useState<string[]>([])
   const [writeError, setWriteError] = useState<Error | null>(null)
+  const requested = weekStart ? mondayOfWeek(weekStart) : null
   const view = useQuery({
-    queryKey: qk.calendarView(viewVersion ?? 'head'),
-    queryFn: () => api<CalendarView>(`/calendar${query({ version: viewVersion ?? undefined })}`),
+    queryKey: qk.calendarWeek(requested ?? 'current', viewVersion ?? 'head'),
+    queryFn: () =>
+      api<CalendarView>(
+        `/calendar/week${query({ start: requested ?? undefined, version: viewVersion ?? undefined })}`,
+      ),
   })
   const versions = useQuery({
     queryKey: qk.calendarVersions,
@@ -344,6 +348,63 @@ export function Calendar({ unit }: { unit: Unit }) {
       </div>
     )
   }
+  const renderWeek = () => {
+    if (!data) return null
+    const start = data.start
+    const currentStart = mondayOfWeek(today)
+    const nextStart = addDays(currentStart, 7)
+    const lastStart = mondayOfWeek(data.last_planned_date ?? today)
+    const maxStart = lastStart > nextStart ? lastStart : nextStart
+    const go = (target: string) => {
+      window.location.hash =
+        target === currentStart ? pageHref.calendar : pageHref.calendarWeek(target)
+    }
+    return (
+      <Card>
+        <div className="panel-head flex-wrap items-center">
+          <Button
+            variant="outline"
+            size="icon"
+            type="button"
+            aria-label="Previous week"
+            onClick={() => go(addDays(start, -7))}
+          >
+            ‹
+          </Button>
+          <h2>
+            {dateLabel(start)}–{dateLabel(data.end)}
+            {start === currentStart && ' · This week'}
+            {start === nextStart && ' · Next week'}
+          </h2>
+          <Button
+            variant="outline"
+            size="icon"
+            type="button"
+            aria-label="Next week"
+            disabled={start >= maxStart}
+            onClick={() => go(addDays(start, 7))}
+          >
+            ›
+          </Button>
+          {start !== currentStart && (
+            <Button variant="outline" type="button" onClick={() => go(currentStart)}>
+              This week
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => downloadWeeklyWorkouts(data.sessions, start, unit)}
+          >
+            Download week
+          </Button>
+        </div>
+        <div className="calendar-week-grid">
+          {Array.from({ length: 7 }, (_, i) => renderDay(addDays(start, i)))}
+        </div>
+      </Card>
+    )
+  }
   return (
     <section className="page-content calendar-page space-y-5">
       <div className="page-heading">
@@ -402,36 +463,9 @@ export function Calendar({ unit }: { unit: Unit }) {
                   </ul>
                 </Card>
               )}
-              {[0, 1].map((week) => (
-                <Card key={week}>
-                  <div className="panel-head">
-                    <h2>{week === 0 ? 'This week' : 'Next week'}</h2>
-                    <span>Monday–Sunday</span>
-                    <Button
-                      variant="outline"
-                      type="button"
-                      onClick={() =>
-                        downloadWeeklyWorkouts(
-                          data.sessions,
-                          addDays(mondayOfWeek(today), week * 7),
-                          unit,
-                        )
-                      }
-                    >
-                      Download {week === 0 ? 'this' : 'next'} week
-                    </Button>
-                  </div>
-                  <div className="calendar-week-grid">
-                    {Array.from({ length: 7 }, (_, i) =>
-                      renderDay(addDays(mondayOfWeek(today), week * 7 + i)),
-                    )}
-                  </div>
-                </Card>
-              ))}
+              {renderWeek()}
               <Disclosure variant="card" className="calendar-history">
                 <summary>Calendar history</summary>
-                <h2>Past 7 days</h2>
-                {Array.from({ length: 7 }, (_, i) => renderDay(addDays(today, i - 7)))}
                 <h2>Version history</h2>
                 {versions.error && (
                   <p role="alert" className="error-text">

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Calendar } from '../src/pages/Calendar'
 import { weeklyWorkoutText } from '../src/components/weeklyWorkoutExport'
 import type { CalendarVersion, CalendarView, SessionState } from '../src/api/types/calendar'
+import { addDays } from '../src/lib/format'
 
 const base = {
   id: '',
@@ -40,9 +41,9 @@ const session = (uid: string, date: string, changes: Partial<SessionState> = {})
 })
 const sessions: SessionState[] = [
   session('s1', '2026-11-12'),
-  session('s2', '2026-11-19', { recipe_id: 'REC002', certainty: 'provisional', intent: 'Long' }),
+  session('s2', '2026-11-15', { recipe_id: 'REC002', certainty: 'provisional', intent: 'Long' }),
   session('s3', '2026-11-09'),
-  session('s4', '2026-11-08', {
+  session('s4', '2026-11-10', {
     recipe_id: null,
     custom: true,
     planned_duration_s: null,
@@ -75,13 +76,13 @@ const completion = {
   reason_note: null,
   version: 1,
   updated_at: '2026-11-11T12:00:00Z',
-  local_date: '2026-11-08',
+  local_date: '2026-11-10',
 } as const
 const view: CalendarView = {
   today: '2026-11-11',
   timezone: 'America/New_York',
-  start: '2026-11-04',
-  end: '2026-11-24',
+  start: '2026-11-09',
+  end: '2026-11-15',
   head: 2,
   version: 2,
   last_planned_date: '2026-11-19',
@@ -136,15 +137,15 @@ let nextWrite = {
 }
 let writeError: number | null = null
 const wrap = (data: unknown) => ({ schema_version: 'v1', data_revision: 2, mode: 'demo', data })
-function mount() {
+function mount(weekStart?: string) {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    defaultOptions: { queries: { retry: false, staleTime: 30_000 }, mutations: { retry: false } },
   })
-  return render(
-    <QueryClientProvider client={client}>
-      <Calendar unit="mi" />
-    </QueryClientProvider>,
-  )
+  return render(<Calendar unit="mi" weekStart={weekStart} />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  })
 }
 const day = (date: string) =>
   document.querySelector(`[data-testid="calendar-day"][data-date="${date}"]`) as HTMLElement
@@ -177,6 +178,23 @@ beforeEach(() => {
           }),
           { status: writeError },
         )
+      if (url.includes('/calendar/week')) {
+        const params = new URLSearchParams(url.split('?')[1])
+        const start = params.get('start') ?? view.start
+        const end = addDays(start, 6)
+        const inWeek = ({ local_date }: { local_date: string | null }) =>
+          local_date !== null && local_date >= start && local_date <= end
+        const week = {
+          ...head,
+          start,
+          end,
+          version: params.has('version') ? Number(params.get('version')) : head.version,
+          sessions: head.sessions.filter(inWeek),
+          completions: head.completions.filter(inWeek),
+          recorded_runs: head.recorded_runs.filter(inWeek),
+        }
+        return new Response(JSON.stringify(wrap(week)), { status: 200 })
+      }
       const data = url.includes('/calendar/versions')
         ? { items: versions }
         : url.includes('/calendar/diff')
@@ -187,9 +205,7 @@ beforeEach(() => {
               ? { ...completion, session_uid: 's3', status: 'skipped' }
               : url.includes('/calendar/edits') || url.includes('/calendar/rollback')
                 ? nextWrite
-                : url.includes('/calendar?version=1')
-                  ? { ...head, version: 1 }
-                  : head
+                : head
       return new Response(JSON.stringify(wrap(data)), { status: method === 'GET' ? 200 : 201 })
     }),
   )
@@ -213,9 +229,9 @@ describe('Calendar', () => {
     ) {
       clicked.push(this)
     })
-    mount()
+    const { rerender } = mount()
     await screen.findByText('Version 2')
-    fireEvent.click(screen.getByRole('button', { name: 'Download this week' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Download week' }))
     expect(create).toHaveBeenCalledOnce()
     const link = clicked[0]
     expect(link.download).toBe('workouts-2026-11-09.txt')
@@ -230,8 +246,10 @@ describe('Calendar', () => {
     expect(text).toContain('Workouts: 2026-11-09 to 2026-11-15')
     expect(text).toContain('2026-11-09')
     expect(text).toContain('Easy')
-    expect(text).not.toContain('2026-11-19')
-    fireEvent.click(screen.getByRole('button', { name: 'Download next week' }))
+    expect(text).not.toContain('2026-11-16')
+    rerender(<Calendar unit="mi" weekStart="2026-11-16" />)
+    await screen.findByRole('heading', { name: /Next week/ })
+    fireEvent.click(screen.getByRole('button', { name: 'Download week' }))
     expect(clicked[1].download).toBe('workouts-2026-11-16.txt')
     click.mockRestore()
   })
@@ -288,20 +306,20 @@ describe('Calendar', () => {
     head = {
       ...view,
       recorded_runs: [
-        { activity_id: 'tuesday-run', local_date: '2026-11-10', distance_m: 6740, timer_s: 2400 },
+        { activity_id: 'early-run', local_date: '2026-11-05', distance_m: 6740, timer_s: 2400 },
       ],
     }
-    mount()
+    mount('2026-11-02')
     await screen.findByText('Version 2')
-    const tuesday = within(day('2026-11-10'))
-    expect(tuesday.getByText('Recorded run')).toBeInTheDocument()
-    expect(tuesday.getByText(/4.2 mi/)).toBeInTheDocument()
-    expect(tuesday.getByRole('link', { name: 'Open run' })).toHaveAttribute(
+    const thursday = within(day('2026-11-05'))
+    expect(thursday.getByText('Recorded run')).toBeInTheDocument()
+    expect(thursday.getByText(/4.2 mi/)).toBeInTheDocument()
+    expect(thursday.getByRole('link', { name: 'Open run' })).toHaveAttribute(
       'href',
-      '#activity/tuesday-run',
+      '#activity/early-run',
     )
-    expect(tuesday.queryByText('No session')).not.toBeInTheDocument()
-    expect(tuesday.queryByText(/Extra run|Missed|Not recorded/)).not.toBeInTheDocument()
+    expect(thursday.queryByText('No session')).not.toBeInTheDocument()
+    expect(thursday.queryByText(/Extra run|Missed|Not recorded/)).not.toBeInTheDocument()
     expect(writes()).toHaveLength(0)
   })
 
@@ -350,24 +368,24 @@ describe('Calendar', () => {
   it('renders days, markers, repeated steps and history', async () => {
     mount()
     expect(await screen.findByText('Version 2')).toBeInTheDocument()
-    expect(within(row('2026-11-19')).getByText('Provisional')).toBeInTheDocument()
-    expect(row('2026-11-19')).toHaveClass('certainty-provisional')
+    expect(within(row('2026-11-15')).getByText('Provisional')).toBeInTheDocument()
+    expect(row('2026-11-15')).toHaveClass('certainty-provisional')
     expect(within(row('2026-11-09')).getByText('Not recorded')).toBeInTheDocument()
     expect(
       within(row('2026-11-09')).getByRole('button', { name: 'Record outcome' }),
     ).toBeInTheDocument()
-    expect(within(row('2026-11-08')).getByRole('link', { name: 'Open run' })).toHaveAttribute(
+    expect(within(row('2026-11-10')).getByRole('link', { name: 'Open run' })).toHaveAttribute(
       'href',
       '#activity/a9',
     )
     expect(
-      within(row('2026-11-08')).getByText('Work 800 m · 6:42 /mi–7:04 /mi'),
+      within(row('2026-11-10')).getByText('Work 800 m · 6:42 /mi–7:04 /mi'),
     ).toBeInTheDocument()
-    expect(within(row('2026-11-08')).getByText('4 ×')).toBeInTheDocument()
+    expect(within(row('2026-11-10')).getByText('4 ×')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Calendar history'))
     expect(screen.getByText('v2 · Manual edit')).toBeInTheDocument()
     expect(screen.getByText('v1 · Setup')).toBeInTheDocument()
-    expect(screen.getAllByTestId('calendar-day')).toHaveLength(21)
+    expect(screen.getAllByTestId('calendar-day')).toHaveLength(7)
   })
   it('moves one session with an exact versioned edit', async () => {
     mount()
@@ -390,7 +408,7 @@ describe('Calendar', () => {
     })
     await waitFor(() =>
       expect(
-        requests.filter((r) => r.url === '/api/v1/calendar' && r.method === 'GET').length,
+        requests.filter((r) => r.url === '/api/v1/calendar/week' && r.method === 'GET').length,
       ).toBeGreaterThanOrEqual(2),
     )
   })
@@ -441,9 +459,9 @@ describe('Calendar', () => {
   it('confirms deletion before writing', async () => {
     mount()
     await screen.findByText('Version 2')
-    fireEvent.click(within(row('2026-11-19')).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(row('2026-11-15')).getByRole('button', { name: 'Delete' }))
     expect(writes()).toHaveLength(0)
-    fireEvent.click(within(row('2026-11-19')).getByRole('button', { name: 'Confirm delete' }))
+    fireEvent.click(within(row('2026-11-15')).getByRole('button', { name: 'Confirm delete' }))
     await waitFor(() => expect(writes()).toHaveLength(1))
     expect(writes()[0].body).toEqual({
       expected_head: 2,
@@ -460,7 +478,7 @@ describe('Calendar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reload calendar' }))
     await waitFor(() =>
       expect(
-        requests.filter((r) => r.url === '/api/v1/calendar' && r.method === 'GET').length,
+        requests.filter((r) => r.url === '/api/v1/calendar/week' && r.method === 'GET').length,
       ).toBeGreaterThanOrEqual(2),
     )
   })
@@ -503,7 +521,9 @@ describe('Calendar', () => {
       within(screen.getAllByTestId('version-row')[1]).getByRole('button', { name: 'View' }),
     )
     expect(await screen.findByText(/Viewing version 1 \(read-only\)/)).toBeInTheDocument()
-    expect(requests.some((r) => r.url.includes('/calendar?version=1'))).toBe(true)
+    expect(
+      requests.some((r) => r.url.includes('/calendar/week') && r.url.includes('version=1')),
+    ).toBe(true)
     expect(screen.queryByRole('button', { name: 'Move' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add session' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Record outcome' })).not.toBeInTheDocument()
@@ -511,7 +531,7 @@ describe('Calendar', () => {
   it('marks a past workout complete without attaching a recording', async () => {
     mount()
     await screen.findByText('Version 2')
-    expect(within(row('2026-11-19')).queryByRole('button', { name: 'Mark complete' })).toBeNull()
+    expect(within(row('2026-11-15')).queryByRole('button', { name: 'Mark complete' })).toBeNull()
     fireEvent.click(within(row('2026-11-09')).getByRole('button', { name: 'Mark complete' }))
     await waitFor(() => expect(writes()).toHaveLength(1))
     expect(writes()[0]).toMatchObject({
@@ -540,6 +560,7 @@ describe('Calendar', () => {
           ...completion,
           id: 'c3',
           session_uid: 's3',
+          local_date: '2026-11-09',
           activity_id: null,
           status: 'unknown',
           match_method: 'none',
@@ -613,25 +634,40 @@ describe('Calendar', () => {
           ...completion,
           id: 'c1',
           session_uid: 's1',
+          local_date: '2026-11-12',
           activity_id: null,
           status: 'unknown',
           match_method: 'none',
         },
-        { ...completion, id: 'c2', session_uid: 's2', activity_id: 'a2', status: 'unknown' },
+        {
+          ...completion,
+          id: 'c2',
+          session_uid: 's2',
+          local_date: '2026-11-15',
+          activity_id: 'a2',
+          status: 'unknown',
+        },
       ],
     }
     mount()
     await screen.findByText('Version 2')
     expect(within(row('2026-11-12')).getByRole('button', { name: 'Edit' })).toBeInTheDocument()
     expect(
-      within(row('2026-11-19')).queryByRole('button', { name: 'Edit' }),
+      within(row('2026-11-15')).queryByRole('button', { name: 'Edit' }),
     ).not.toBeInTheDocument()
   })
   it('offers outcome recording only for the unlinked unknown past session', async () => {
     head = {
       ...view,
       completions: [
-        { ...completion, id: 'c3', session_uid: 's3', activity_id: 'a1', status: 'unknown' },
+        {
+          ...completion,
+          id: 'c3',
+          session_uid: 's3',
+          local_date: '2026-11-09',
+          activity_id: 'a1',
+          status: 'unknown',
+        },
         { ...completion, id: 'c4', activity_id: null, status: 'unknown', match_method: 'none' },
       ],
     }
@@ -642,7 +678,7 @@ describe('Calendar', () => {
     expect(linked.queryByText('Not recorded')).not.toBeInTheDocument()
     expect(linked.queryByRole('button', { name: 'Record outcome' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Record outcome' })).not.toBeInTheDocument()
-    fireEvent.click(within(row('2026-11-08')).getByRole('button', { name: 'Record outcome' }))
+    fireEvent.click(within(row('2026-11-10')).getByRole('button', { name: 'Record outcome' }))
     expect(screen.getByRole('dialog', { name: 'Record outcome' })).toBeInTheDocument()
   })
   it('shows mutation errors inside the open editor', async () => {
@@ -667,7 +703,7 @@ describe('Calendar', () => {
     expect(screen.queryByRole('dialog', { name: 'Edit session' })).not.toBeInTheDocument()
     await waitFor(() =>
       expect(
-        requests.filter((r) => r.url === '/api/v1/calendar' && r.method === 'GET').length,
+        requests.filter((r) => r.url === '/api/v1/calendar/week' && r.method === 'GET').length,
       ).toBeGreaterThanOrEqual(2),
     )
     fireEvent.click(within(row('2026-11-12')).getByRole('button', { name: 'Edit' }))
@@ -678,7 +714,7 @@ describe('Calendar', () => {
       ...view,
       sessions: [
         session('s1', '2026-11-12', { kind: 'mobility', intent: 'Easy mobility' }),
-        session('s4', '2026-11-08', {
+        session('s4', '2026-11-10', {
           recipe_id: null,
           legacy_unstructured: true,
           intent: 'Old easy prescription',
@@ -688,9 +724,9 @@ describe('Calendar', () => {
     }
     mount()
     await screen.findByText('Version 2')
-    expect(within(row('2026-11-08')).getByText('Imported run')).toBeInTheDocument()
-    expect(within(row('2026-11-08')).getByText('Old easy prescription')).toBeInTheDocument()
-    expect(within(row('2026-11-08')).getByText('Keep this plan prose')).toBeInTheDocument()
+    expect(within(row('2026-11-10')).getByText('Imported run')).toBeInTheDocument()
+    expect(within(row('2026-11-10')).getByText('Old easy prescription')).toBeInTheDocument()
+    expect(within(row('2026-11-10')).getByText('Keep this plan prose')).toBeInTheDocument()
     fireEvent.click(within(row('2026-11-12')).getByRole('button', { name: 'Edit' }))
     expect(screen.getByRole('option', { name: 'Mobility' })).toBeInTheDocument()
     expect(screen.getByLabelText('Type')).toHaveValue('mobility')
