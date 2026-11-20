@@ -22,11 +22,11 @@ from app.services.snapshot.common import (
     parse_day,
     parse_instant,
 )
-from app.services.snapshot.payload import section_window
+from app.services.snapshot.payload import active_review_date, section_window
 
 
 def _scope_sessions(inputs: SnapshotInputs, operation: str) -> list[dict]:
-    start, end = scope(operation, inputs.as_of)
+    start, end = scope(operation, inputs.as_of, active_review_date(inputs))
     return [s for s in inputs.sessions if day_between(s.get("local_date"), start, end)]
 
 
