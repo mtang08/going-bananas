@@ -438,7 +438,7 @@ export function Home({
                   · {benchmarkStatusLabel(b.benchmark_status, null)}
                 </>
               ) : (
-                'No ending benchmark — run a block review'
+                'No benchmark this block · judged on training indicators'
               )}{' '}
               · <a href="#block">View training block</a>
             </>
