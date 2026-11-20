@@ -239,8 +239,8 @@ def test_expiry_and_post_event(exc_fixture):
             rule_version="exceptions.v1",
             version=1,
         )
-        old_event = Event(name="Old 5K", event_date=TODAY - timedelta(days=8), priority="target", status="completed")
-        event = Event(name="Synthetic 10K", event_date=TODAY - timedelta(days=3), priority="target", status="completed")
+        old_event = Event(name="Old 5K", event_date=TODAY - timedelta(days=8), purpose="pr", status="completed")
+        event = Event(name="Synthetic 10K", event_date=TODAY - timedelta(days=3), purpose="pr", status="completed")
         session.add_all([travel, gait, old_event, event])
         session.flush()
         stale_event = ExceptionFinding(
@@ -354,7 +354,7 @@ def test_block_benchmark_rules_and_event_exclusion(exc_fixture):
         result = run_detection(session, NOW)
         assert findings(session, "BLOCK_BENCHMARK_MISSING") == []
         assert not any(r["operation"] == "review_training_block" for r in wire(result))
-        event = Event(name="Synthetic 10K", event_date=TODAY - timedelta(days=5), priority="target", status="completed")
+        event = Event(name="Synthetic 10K", event_date=TODAY - timedelta(days=5), purpose="pr", status="completed")
         session.add(event)
         session.flush()
         version.benchmark = {

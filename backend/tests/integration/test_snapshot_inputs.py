@@ -7,6 +7,7 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 
 from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin, SymptomReport
@@ -40,7 +41,15 @@ def seeded(proposal_session):
     session.add(SymptomReport(checkin_id=checkin.id, site="Achilles", side="left", severity=3.0, timing="during"))
     session.add(Goal(text="Synthetic goal", horizon="season", priority=1, status="active"))
     session.add(
-        Event(name="Synthetic 10K", event_date=TODAY + timedelta(days=20), priority="target", status="registered")
+        Event(
+            name="Synthetic 10K",
+            event_date=TODAY + timedelta(days=20),
+            distance_m=10000,
+            purpose="pr",
+            goal_time_s=2700,
+            rank=1,
+            status="registered",
+        )
     )
     session.add(
         BlockVersion(
@@ -76,6 +85,18 @@ def test_load_inputs_sections(seeded):
     assert inputs.events[0]["name"] == "Synthetic 10K"
     assert inputs.active_block["status"] == "active"
     assert inputs.timezone == "America/New_York"
+
+
+def test_load_inputs_goal_race_and_block_target(seeded):
+    inputs = load_inputs(seeded, TODAY, now=NOW)
+    event = inputs.events[0]
+    assert (event["purpose"], event["rank"], event["goal_time_s"], event["goal_pace_s_per_km"]) == ("pr", 1, 2700, 270)
+    assert inputs.active_block["target_event_status"] == "unset"
+    assert inputs.active_block["build_outline"] == []
+    row = seeded.scalars(select(BlockVersion)).one()
+    row.target_event_id = event["event_id"]
+    seeded.commit()
+    assert load_inputs(seeded, TODAY, now=NOW).active_block["target_event_status"] == "current"
 
 
 def test_snapshot_metrics_ignore_other_current_versions(seeded, monkeypatch):

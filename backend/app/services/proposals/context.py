@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -17,9 +17,11 @@ from app.services.decision_inputs import (
     VerifiedKnowledge,
     collect_decision_inputs,
 )
+from app.services.events import ranked_upcoming
 from app.services.profile import current_profile
 from app.services.proposals.schema import (
     ActiveBlock,
+    EventRef,
     HeadSession,
     SnapshotRef,
     ValidationContext,
@@ -60,12 +62,20 @@ def active_block(session: Session) -> ActiveBlock | None:
     )
 
 
+def _event_refs(session: Session, today: date) -> dict[uuid.UUID, EventRef]:
+    from app.planning_models import Event
+
+    rows = list(session.scalars(select(Event)))
+    ranks = {row.id: rank for rank, row in ranked_upcoming(rows, today)}
+    return {row.id: EventRef(row.status, row.event_date, ranks.get(row.id), row.purpose) for row in rows}
+
+
 def load_context(
     session: Session, snapshot_id: uuid.UUID, *, now: datetime, kb: VerifiedKnowledge
 ) -> ValidationContext:
     from app.coach_v2_models import CoachSnapshot
     from app.exception_models import ExceptionFinding, ExceptionPatch
-    from app.planning_models import BlockVersion, Event
+    from app.planning_models import BlockVersion
     from app.services.block_benchmark import benchmark_status
     from app.services.calendar import state_at
     from app.services.timezone import athlete_tz
@@ -121,9 +131,7 @@ def load_context(
         kb,
         findings={fid: status for fid, status in session.execute(select(ExceptionFinding.id, ExceptionFinding.status))},
         patches={pid: status for pid, status in session.execute(select(ExceptionPatch.id, ExceptionPatch.status))},
-        events={
-            eid: (status, day) for eid, status, day in session.execute(select(Event.id, Event.status, Event.event_date))
-        },
+        events=_event_refs(session, today),
         open_rule_codes=frozenset(
             session.scalars(select(ExceptionFinding.rule_code).where(ExceptionFinding.status == "open"))
         ),

@@ -80,7 +80,7 @@ class EventFact:
     id: str
     name: str
     event_date: date
-    priority: str
+    purpose: str
     status: str
     has_run_on_date: bool
     run_end_at: datetime | None

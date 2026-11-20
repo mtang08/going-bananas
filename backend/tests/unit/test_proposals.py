@@ -17,6 +17,7 @@ from app.services.decision_inputs import VerifiedKnowledge, canonical_json, fing
 from app.services.proposals.schema import (
     ActiveBlock,
     BlockBenchmark,
+    EventRef,
     EventReview,
     HeadSession,
     SnapshotRef,
@@ -189,7 +190,10 @@ def exc_ctx(op: str = "exception_review") -> ValidationContext:
         context(op),
         findings={U(300): "open", U(301): "dismissed"},
         patches={U(400): "open", U(401): "resolved"},
-        events={U(500): ("completed", date(2026, 11, 14)), U(501): ("cancelled", date(2026, 11, 13))},
+        events={
+            U(500): EventRef("completed", date(2026, 11, 14), None),
+            U(501): EventRef("cancelled", date(2026, 11, 13), None),
+        },
     )
 
 
@@ -1044,7 +1048,10 @@ def test_v22_time_trial_needs_rec009() -> None:
 def test_v22_event_benchmark() -> None:
     ctx_e = replace(
         context("review_training_block", block=False),
-        events={U(500): ("completed", date(2026, 12, 20)), U(501): ("completed", date(2026, 11, 14))},
+        events={
+            U(500): EventRef("completed", date(2026, 12, 20), None),
+            U(501): EventRef("completed", date(2026, 11, 14), None),
+        },
     )
     assert outcome(block_start_doc(benchmark={**BENCH, "kind": "event", "event_id": str(U(500))}), ctx_e) == (
         "pending",
@@ -1054,6 +1061,109 @@ def test_v22_event_benchmark() -> None:
         BENCHMARK_EVENT_ISSUE
     )
     assert outcome(block_start_doc(benchmark={**BENCH, "event_id": str(U(500))}), ctx_e) == BENCHMARK_EVENT_ISSUE
+
+
+GOAL = U(510)
+RACE = date(2026, 12, 20)  # inside the fixture block, on or before its review date
+TARGET_PATH = "block_change.version_fields.target_event_id"
+
+
+def target_ctx(**events: EventRef) -> ValidationContext:
+    refs = {U(int(key.removeprefix("e"))): ref for key, ref in events.items()}
+    return replace(context("review_training_block", block=False), events=refs)
+
+
+def target_doc(target: uuid.UUID | None = GOAL, **fields) -> dict:
+    return block_start_doc(target_event_id=str(target) if target else None, **fields)
+
+
+def goal(rank: int = 1, day: date = RACE) -> EventRef:
+    return EventRef("registered", day, rank)
+
+
+def test_v23_active_or_consolidating_block_targets_the_goal_race() -> None:
+    ctx = target_ctx(e510=goal())
+    assert outcome(target_doc(), ctx) == ("pending", [])
+    assert outcome(target_doc(status="consolidating"), ctx) == ("pending", [])
+
+
+def test_v23_target_required_only_for_active_or_consolidating_blocks() -> None:
+    ctx = target_ctx(e510=goal())
+    required = ("invalid", [("V23.target_event_required", TARGET_PATH)])
+    assert outcome(target_doc(None), ctx) == required
+    assert outcome(target_doc(None, status="consolidating"), ctx) == required
+    assert outcome(target_doc(None, status="ended"), ctx) == ("pending", [])
+
+
+def test_v23_no_upcoming_event_means_no_target() -> None:
+    ctx = target_ctx(e500=EventRef("completed", date(2026, 11, 14), None))
+    assert outcome(target_doc(None), ctx) == ("pending", [])
+
+
+@pytest.mark.parametrize(
+    "events",
+    [
+        {},  # unknown id, and no upcoming event
+        {"e510": EventRef("completed", date(2026, 11, 14), None)},  # past
+        {"e510": EventRef("cancelled", RACE, None)},
+    ],
+)
+def test_v23_target_invalid(events: dict) -> None:
+    assert outcome(target_doc(), target_ctx(**events)) == ("invalid", [("V23.target_event_invalid", TARGET_PATH)])
+
+
+def test_v23_target_must_be_rank_one() -> None:
+    ctx = target_ctx(e510=goal(rank=2), e511=goal(rank=1))
+    assert outcome(target_doc(), ctx) == ("invalid", [("V23.target_event_not_top", TARGET_PATH)])
+
+
+def test_v23_block_cannot_start_after_the_goal_race() -> None:
+    ctx = target_ctx(e510=goal(day=date(2026, 11, 20)))
+    assert outcome(target_doc(start_date="2026-11-21"), ctx) == ("invalid", [("V23.target_event_date", TARGET_PATH)])
+    assert outcome(target_doc(start_date="2026-11-20"), ctx) == ("pending", [])  # race on the start day
+
+
+REVIEW = date(2026, 12, 28)
+FAR = date(2027, 3, 14)  # 76 days after the review date
+OUTLINE = [
+    {"emphasis": "threshold durability", "weeks": 4},
+    {"emphasis": "half-marathon-specific endurance", "weeks": 5},
+    {"emphasis": "sharpening and taper", "weeks": 2},
+]  # W = 11, last step 2 weeks: the race must fall in (REVIEW + 63 days, REVIEW + 77 days]
+OUTLINE_PATH = "block_change.version_fields.build_outline"
+
+
+def test_v23_outline_reaching_a_far_goal_race_passes() -> None:
+    ctx = target_ctx(e510=goal(day=FAR))
+    assert outcome(target_doc(build_outline=OUTLINE), ctx) == ("pending", [])
+    assert outcome(target_doc(build_outline=OUTLINE, status="consolidating"), ctx) == ("pending", [])
+
+
+def test_v23_outline_must_be_empty_without_a_target() -> None:
+    ctx = target_ctx(e500=EventRef("completed", date(2026, 11, 14), None))
+    assert outcome(target_doc(None, build_outline=OUTLINE), ctx) == (
+        "invalid",
+        [("V23.build_outline_span", OUTLINE_PATH)],
+    )
+
+
+@pytest.mark.parametrize(
+    "race_offset,outline,ok",
+    [
+        (63, OUTLINE, False),  # race before the last step starts
+        (64, OUTLINE, True),  # first day of the last step
+        (77, OUTLINE, True),  # last day of the outline
+        (78, OUTLINE, False),
+        (76, [], False),  # race beyond the review date, no outline
+        (28, [{"emphasis": "taper", "weeks": 2}], False),  # outline ends before race day
+        (-7, OUTLINE, False),  # race on or before the review date: outline must be empty
+        (-7, [], True),
+    ],
+)
+def test_v23_build_outline_span(race_offset: int, outline: list, ok: bool) -> None:
+    ctx = target_ctx(e510=goal(day=REVIEW + timedelta(days=race_offset)))
+    v23 = [issue for issue in outcome(target_doc(build_outline=outline), ctx)[1] if issue[0].startswith("V23")]
+    assert v23 == ([] if ok else [("V23.build_outline_span", OUTLINE_PATH)])
 
 
 def test_v20_event_target_and_outcome_scope() -> None:

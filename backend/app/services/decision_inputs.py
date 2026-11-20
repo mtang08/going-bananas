@@ -260,7 +260,9 @@ def collect_decision_inputs(
     )
     events = _sorted(session, Event, Event.id)
     if events:
-        source_versions["events"] = _project(events, ("id", "version", "event_date", "status", "priority"))
+        source_versions["events"] = _project(
+            events, ("id", "version", "event_date", "status", "purpose", "rank", "goal_time_s")
+        )
     block = active_block_version(session)
     if block:
         source_versions["block"] = {"id": block.id, "version": block.version, "status": block.status}

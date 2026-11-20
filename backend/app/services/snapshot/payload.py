@@ -56,6 +56,19 @@ from app.services.snapshot.common import (
 from app.services.weekly_digest import DIGEST_SCHEMA, HEADLINE_KINDS, NOT_DONE_OUTCOMES
 from app.services.workout_progression import assemble_groups, session_point
 
+EVENT_KEYS = (
+    "event_id",
+    "name",
+    "event_date",
+    "distance_m",
+    "purpose",
+    "goal_time_s",
+    "goal_pace_s_per_km",
+    "rank",
+    "status",
+    "result_s",
+)
+
 
 def active_review_date(inputs: SnapshotInputs) -> date | None:
     block = inputs.active_block
@@ -533,9 +546,8 @@ def _event_payload(inputs: SnapshotInputs, event: dict | None, day: date, activi
         and str(m.get("subject_key", "")).startswith("night:")
         and day_between(str(m["subject_key"]).split(":", 1)[1], day - timedelta(days=1), last)
     ]
-    event_keys = ("event_id", "name", "event_date", "distance_m", "priority", "status", "result_s")
     return {
-        "event": row_view(event, event_keys, names={"event_id": "id"}) if event else None,
+        "event": row_view(event, EVENT_KEYS, names={"event_id": "id"}) if event else None,
         "matched_activity": matched,
         "checkins_after": checkins,
         "recovery_nights": nights,
@@ -787,10 +799,7 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         }
     if operation != CALIB:
         goals = [row_view(g, ("goal_id", "text", "horizon", "priority", "status")) for g in inputs.goals]
-        events = [
-            row_view(e, ("event_id", "name", "event_date", "distance_m", "priority", "status", "result_s"))
-            for e in inputs.events
-        ]
+        events = [row_view(e, EVENT_KEYS) for e in inputs.events]
         slots = [
             row_view(
                 s,
@@ -813,7 +822,13 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             "clinical_restriction": inputs.clinical_restriction,
         }
         if operation not in {DAILY, EXCEPTION}:
-            goals_view.update(goals=goals, events=events)
+            top = next((e for e in events if e["rank"] == 1), None)
+            goal_race = (
+                {"event_id": top["event_id"], "days_until": (parse_day(top["event_date"]) - inputs.as_of).days}
+                if top
+                else None
+            )
+            goals_view.update(goals=goals, events=events, goal_race=goal_race)
         payload["goals_and_constraints"] = goals_view
         cal_start, cal_end = section_window(operation, "calendar", inputs)
         completions = {str(c["session_uid"]): c for c in inputs.completions}

@@ -974,7 +974,10 @@ def test_event_section() -> None:
             "name": name,
             "event_date": AS_OF - timedelta(days=days),
             "distance_m": 10000,
-            "priority": "target",
+            "purpose": "pr",
+            "goal_time_s": None,
+            "goal_pace_s_per_km": None,
+            "rank": None,
             "status": "completed",
             "result_s": 2700,
         }
@@ -1045,6 +1048,7 @@ def test_event_section() -> None:
     assert section["event"]["id"] == "e1" and section["event"]["name"] == "Synthetic 10K"
     assert section["matched_activity"]["distance_m"] == 10000
     assert section["matched_activity"]["start_local"] == "2026-11-14T08:00:00-05:00"
+    assert section["event"]["purpose"] == "pr"
     assert len(section["checkins_after"]) == 2
     assert section["checkins_after"][0]["symptoms"] == [
         {"site_key": "calf|left", "severity": 2.0, "timing": "next_morning"}
@@ -1053,6 +1057,31 @@ def test_event_section() -> None:
         f"night:{AS_OF - timedelta(days=d)}" for d in (3, 2, 1, 0)
     }
     assert build_payload(inputs(), POST_EVENT)["event"] is None
+
+
+def upcoming_event(event_id: str, days: int, rank: int) -> dict:
+    return {
+        "event_id": event_id,
+        "name": f"Race {event_id}",
+        "event_date": AS_OF + timedelta(days=days),
+        "distance_m": 21097,
+        "purpose": "pr",
+        "goal_time_s": 6000,
+        "goal_pace_s_per_km": 284,
+        "rank": rank,
+        "status": "registered",
+        "result_s": None,
+    }
+
+
+def test_goal_race_is_the_rank_one_event() -> None:
+    source = inputs(events=[upcoming_event("e2", 30, 2), upcoming_event("e1", 120, 1)])
+    view = build_payload(source, ROLLING)["goals_and_constraints"]
+    assert view["goal_race"] == {"event_id": "e1", "days_until": 120}
+    assert [(e["event_id"], e["rank"]) for e in view["events"]] == [("e2", 2), ("e1", 1)]
+    assert view["events"][0]["goal_pace_s_per_km"] == 284
+    assert build_payload(inputs(events=[]), ROLLING)["goals_and_constraints"]["goal_race"] is None
+    assert "goal_race" not in build_payload(source, DAILY)["goals_and_constraints"]
 
 
 def test_exception_sections_size_bounded() -> None:
@@ -1127,7 +1156,13 @@ def horizon_sessions(first: int, last: int) -> list[dict]:
 def test_horizon_snapshot_size_ceilings() -> None:
     source = inputs(
         sessions=horizon_sessions(-28, 35),
-        active_block=horizon_block(AS_OF + timedelta(days=35)),
+        events=[upcoming_event(f"e{n}", 20 * n, n) for n in range(1, 5)],
+        active_block={
+            **horizon_block(AS_OF + timedelta(days=35)),
+            "target_event_id": "e1",
+            "build_outline": [{"emphasis": "half-marathon-specific endurance " * 3, "weeks": 5}] * 4,
+            "target_event_status": "current",
+        },
     )
     sizes = {}
     for operation in (ROLLING, BLOCK):
