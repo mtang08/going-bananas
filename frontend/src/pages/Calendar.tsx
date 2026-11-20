@@ -330,7 +330,13 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
         ))}
         {extra.map((c) => (
           <div className="session-row extra" data-testid="session-row" data-date={day} key={c.id}>
-            Extra run (not in the plan){' '}
+            {c.activity_id && <strong>Recorded run</strong>}
+            <p>Extra run (not in the plan)</p>
+            {c.activity_id && (
+              <p>
+                {fmtDistance(c.distance_m, unit)} · {fmtDuration(c.timer_s)}
+              </p>
+            )}
             {c.activity_id && <a href={pageHref.activity(c.activity_id)}>Open run</a>}
           </div>
         ))}

@@ -73,6 +73,8 @@ export interface Completion {
   strong_workout_id: string | null
   manual_session_id: string | null
   status: CompletionStatus
+  distance_m?: number | null
+  timer_s?: number | null
   match_method: MatchMethod
   modification_reason: ModificationReason | null
   reason_note: string | null

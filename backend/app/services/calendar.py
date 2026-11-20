@@ -264,6 +264,10 @@ def calendar_view(session: Session, start: date, end: date, version: int | None 
     # Actual history also exists before planning starts, and while a match is
     # awaiting confirmation. Display it without inventing a plan/completion.
     represented = {row["activity_id"] for row in completions if row["activity_id"]}
+    runs = {run.activity_id: run for run in load_runs(session, start, end + timedelta(days=1))}
+    for completion in completions:
+        if completion["status"] == "extra" and (run := runs.get(completion["activity_id"])):
+            completion.update(distance_m=run.distance_m, timer_s=run.timer_s)
     recorded_runs = [
         {
             "activity_id": run.activity_id,
@@ -271,7 +275,7 @@ def calendar_view(session: Session, start: date, end: date, version: int | None 
             "distance_m": run.distance_m,
             "timer_s": run.timer_s,
         }
-        for run in load_runs(session, start, end + timedelta(days=1))
+        for run in runs.values()
         if run.activity_id not in represented
     ]
     undo = None

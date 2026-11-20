@@ -45,6 +45,19 @@ test('p0a: home shows today and the gauges; calendar shows the current week', as
   await expect(page.locator(`[data-testid="calendar-day"][data-date="${calendar.today}"]`)).toHaveClass(/is-today/)
 })
 
+test('p0a: a recorded treadmill run preserves unknown distance', async ({page,request}) => {
+  const activities = await data(await request.get('/api/v1/activities?sport=treadmill_running'))
+  const run = activities.items.find((item: {distance_m:number|null}) => item.distance_m === null)
+  expect(run).toBeTruthy()
+  await page.goto('/#calendar/' + run.local_date)
+  const row = page.getByTestId('session-row').filter({has: page.locator(`a[href="#activity/${run.id}"]`)})
+  await expect(row).toHaveCount(1)
+  await expect(row).toContainText('Recorded run')
+  await expect(row).toContainText(/missing · (?:\d+h )?\d+m/)
+  await row.getByRole('link', {name:'Open run'}).click()
+  await expect(page.getByRole('heading',{name:/Treadmill run/})).toBeVisible()
+})
+
 test('p0a: prompts on schedule', async ({ page, request }) => {
   const current = await data(await request.get('/api/v1/calendar'))
   const calendar = await data(await request.get(`/api/v1/calendar?start=${day(current.today,-7)}&end=${day(current.today,13)}`))
