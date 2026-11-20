@@ -87,6 +87,74 @@ def _doc(snapshot: CoachSnapshot, uid: uuid.UUID) -> dict:
     }
 
 
+def _block_fields(review_date: str, benchmark_date: str) -> dict:
+    return {
+        "status": "active",
+        "objective": "Build",
+        "rationale": "Ready",
+        "maintained_qualities": [],
+        "non_goals": [],
+        "eligible_recipe_ids": ["REC001", "REC009"],
+        "progression_dimension": "duration",
+        "constraints": [],
+        "start_date": "2026-11-16",
+        "review_date": review_date,
+        "completion_indicators": [],
+        "early_review_triggers": [],
+        "objective_status": "unresolved",
+        "benchmark": {
+            "kind": "time_trial",
+            "protocol": "5 km solo time trial",
+            "planned_date": benchmark_date,
+            "progress_if": "Under 22:00",
+            "consolidate_if": "Over 22:30",
+        },
+    }
+
+
+def _strength_adds(*dates: str) -> list[dict]:
+    return [
+        {
+            "change_id": f"c{i}",
+            "op": "add",
+            "after": {"local_date": day, "kind": "strength", "intent": "Full body"},
+            "reason": "Plan the week",
+        }
+        for i, day in enumerate(dates, start=1)
+    ]
+
+
+def _block_review(session: Session, review_date: str, benchmark_date: str, adds: tuple[str, ...]):
+    snapshot, uid = _snapshot(session, "review_training_block")
+    raw = _doc(snapshot, uid)
+    raw["changes"] = _strength_adds(*adds)
+    raw["block_change"] = {
+        "decision": "start",
+        "block_uid": None,
+        "version_fields": _block_fields(review_date, benchmark_date),
+    }
+    proposal = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert proposal.status == "pending", [(i.code, i.path) for i in proposal.issues]
+    return proposal
+
+
+def _block_req(key: str, accepted: list[str], rejected: list[str], *, block: bool) -> DecisionRequest:
+    return DecisionRequest(
+        idempotency_key=key,
+        expected_head=1,
+        expected_revision=1,
+        accept_change_ids=accepted,
+        reject_change_ids=rejected,
+        accept_block_change=block,
+    )
+
+
+def _decide_block(session, proposal, key, accepted, rejected, *, block):
+    return decide_proposal(
+        session, proposal.proposal_id, _block_req(key, accepted, rejected, block=block), now=NOW, resolve_kb=_resolve
+    )
+
+
 def _req(head: int, key: str, accepted: list[str] | None = None, rejected: list[str] | None = None) -> DecisionRequest:
     return DecisionRequest(
         idempotency_key=key,
@@ -329,7 +397,7 @@ def test_block_same_state_acceptance_is_noop(proposal_session: Session) -> None:
         "benchmark": {
             "kind": "time_trial",
             "protocol": "5 km solo time trial",
-            "planned_date": "2026-12-26",
+            "planned_date": "2026-12-20",
             "progress_if": "Under 22:00",
             "consolidate_if": "Over 22:30",
         },
@@ -905,7 +973,7 @@ def test_block_review_accept_upserts_benchmark_row(proposal_session: Session, mo
         "benchmark": {
             "kind": "time_trial",
             "protocol": "5 km solo time trial",
-            "planned_date": "2026-12-26",
+            "planned_date": "2026-12-20",
             "progress_if": "Under 22:00",
             "consolidate_if": "Over 22:30",
         },
@@ -1000,3 +1068,43 @@ def test_block_review_accept_upserts_benchmark_row(proposal_session: Session, mo
             submitted.proposal_id,
             "5 km solo time trial",
         )
+
+
+def test_block_review_accepts_sessions_through_review_date(proposal_session):
+    session = proposal_session
+    days = ("2026-12-08", "2026-12-11")
+    prop = _block_review(session, "2026-12-14", "2026-12-05", days)
+    result = _decide_block(session, prop, "accept-horizon", ["c1", "c2"], [], block=True)
+    assert result.status == "accepted" and result.calendar_version == 2
+    assert session.get(BlockVersion, result.block_version_id).review_date == date(2026, 12, 14)
+    dates = session.scalars(select(CalendarSessionRevision.local_date)).all()
+    assert {date.fromisoformat(day) for day in days}.issubset(dates)
+
+
+def test_rolling_change_on_day_twenty_is_accepted(proposal_session):
+    session = proposal_session
+    prop = _block_review(session, "2026-12-14", "2026-12-05", ())
+    _decide_block(session, prop, "start-horizon", [], [], block=True)
+    snapshot, uid = _snapshot(session)
+    raw = _doc(snapshot, uid)
+    raw["changes"] = _strength_adds("2026-12-02", "2026-12-06")
+    prop = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert prop.status == "pending"
+    assert _decide_block(session, prop, "roll-horizon", ["c1", "c2"], [], block=False).status == "accepted"
+
+
+def test_rejected_block_change_keeps_later_session_out_of_scope(proposal_session):
+    session = proposal_session
+    prop = _block_review(session, "2026-12-14", "2026-12-05", ("2026-12-08", "2026-12-11"))
+    with pytest.raises(DecisionError) as caught:
+        _decide_block(session, prop, "reject-horizon", ["c1", "c2"], [], block=False)
+    assert caught.value.code == "proposal_invalid_subset"
+    assert ("V5.out_of_scope", "changes.0") in [(i.code, i.path) for i in caught.value.fields]
+
+
+def test_empty_week_four_is_accepted_after_partial_rejection(proposal_session):
+    session = proposal_session
+    prop = _block_review(session, "2026-12-14", "2026-12-05", ("2026-12-08", "2026-12-11"))
+    result = _decide_block(session, prop, "empty-horizon", [], ["c1", "c2"], block=True)
+    assert result.status == "accepted"
+    assert session.get(BlockVersion, result.block_version_id).review_date == date(2026, 12, 14)
