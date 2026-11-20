@@ -18,7 +18,7 @@ from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
 from app.services.proposals.context import load_context
 from app.services.proposals.decision import DecisionRequest, decide_proposal
-from app.services.proposals.lifecycle import discard_proposal, submit_proposal
+from app.services.proposals.lifecycle import SubmitResult, discard_proposal, submit_proposal
 from app.services.proposals.schema import DecisionError
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
@@ -148,6 +148,67 @@ def _block_req(key: str, accepted: list[str], rejected: list[str], *, block: boo
         reject_change_ids=rejected,
         accept_block_change=block,
     )
+
+
+OUTLINE = [
+    {"emphasis": "threshold durability", "weeks": 4},
+    {"emphasis": "half-marathon-specific endurance", "weeks": 5},
+    {"emphasis": "race-specific sharpening, taper, race", "weeks": 4},
+]
+
+
+def _goal_event(session: Session, day: date, *, status: str = "registered") -> Event:
+    event = Event(
+        name="Synthetic half marathon",
+        event_date=day,
+        distance_m=21097,
+        purpose="pr",
+        goal_time_s=6000,
+        rank=1,
+        status=status,
+    )
+    session.add(event)
+    session.flush()
+    return event
+
+
+def _target_review(
+    session: Session,
+    *,
+    decision: str = "start",
+    block_uid: uuid.UUID | None = None,
+    target: Event | None = None,
+    outline: list[dict] | None = None,
+    **fields: object,
+) -> SubmitResult:
+    snapshot, uid = _snapshot(session, "review_training_block")
+    raw = _doc(snapshot, uid)
+    raw["changes"] = []
+    raw["block_change"] = {
+        "decision": decision,
+        "block_uid": str(block_uid) if block_uid else None,
+        "version_fields": {
+            **_block_fields("2026-12-14", "2026-12-05"),
+            "target_event_id": str(target.id) if target else None,
+            "build_outline": outline if outline is not None else [],
+            **fields,
+        },
+    }
+    return submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+
+
+def _issues(proposal: SubmitResult) -> list[tuple[str, str]]:
+    return [(issue.code, issue.path) for issue in proposal.issues]
+
+
+def _accept_block(session: Session, proposal: SubmitResult, key: str) -> BlockVersion:
+    result = decide_proposal(
+        session, proposal.proposal_id, _block_req(key, [], [], block=True), now=NOW, resolve_kb=_resolve
+    )
+    assert result.status == "accepted" and result.block_version_id is not None
+    block = session.get(BlockVersion, result.block_version_id)
+    assert block is not None
+    return block
 
 
 def _decide_block(session, proposal, key, accepted, rejected, *, block):
@@ -1241,3 +1302,80 @@ def test_block_may_skip_benchmark_after_recent_credible_result(proposal_session)
     )
     assert result.status == "accepted"
     assert session.get(BlockVersion, result.block_version_id).benchmark is None
+
+
+def test_block_review_stores_target_and_outline(proposal_session: Session) -> None:
+    session = proposal_session
+    goal = _goal_event(session, date(2027, 3, 14))
+    proposal = _target_review(session, target=goal, outline=OUTLINE)
+    assert proposal.status == "pending", _issues(proposal)
+    block = _accept_block(session, proposal, "rg-start")
+    assert block.target_event_id == goal.id and block.build_outline == OUTLINE
+
+
+def test_continue_adds_the_target_to_an_untargeted_block(proposal_session: Session) -> None:
+    session = proposal_session
+    started = _accept_block(session, _target_review(session), "rg-first")
+    assert started.target_event_id is None and started.build_outline == []
+    goal = _goal_event(session, date(2027, 3, 14))
+    proposal = _target_review(session, decision="continue", block_uid=started.block_uid, target=goal, outline=OUTLINE)
+    assert proposal.status == "pending", _issues(proposal)
+    continued = _accept_block(session, proposal, "rg-continue")
+    assert continued.version == 2 and continued.target_event_id == goal.id and continued.build_outline == OUTLINE
+
+
+def test_goal_race_on_the_block_start_day_needs_an_empty_outline(proposal_session: Session) -> None:
+    session = proposal_session
+    goal = _goal_event(session, TODAY)
+    invalid = _target_review(session, target=goal, outline=OUTLINE)
+    assert invalid.status == "invalid"
+    assert ("V23.build_outline_span", "block_change.version_fields.build_outline") in _issues(invalid)
+    discard_proposal(session, invalid.proposal_id, invalid.revision, now=NOW)
+    proposal = _target_review(session, target=goal, outline=[])
+    assert proposal.status == "pending", _issues(proposal)
+    assert _accept_block(session, proposal, "rg-race-day").target_event_id == goal.id
+
+
+def test_cancelled_goal_race_invalidates_a_block_that_targets_it(proposal_session: Session) -> None:
+    session = proposal_session
+    goal = _goal_event(session, date(2027, 3, 14))
+    started = _accept_block(session, _target_review(session, target=goal, outline=OUTLINE), "rg-before")
+    goal.status = "cancelled"
+    session.flush()
+    proposal = _target_review(session, decision="continue", block_uid=started.block_uid, target=goal, outline=OUTLINE)
+    assert proposal.status == "invalid"
+    assert ("V23.target_event_invalid", "block_change.version_fields.target_event_id") in _issues(proposal)
+
+
+def test_block_starting_after_its_goal_race_is_invalid(proposal_session: Session) -> None:
+    session = proposal_session
+    goal = _goal_event(session, date(2026, 12, 20))
+    proposal = _target_review(
+        session,
+        target=goal,
+        start_date="2026-12-21",
+        review_date="2027-01-11",
+        benchmark=_block_fields("2027-01-11", "2027-01-02")["benchmark"],
+    )
+    assert proposal.status == "invalid"
+    assert _issues(proposal) == [("V23.target_event_date", "block_change.version_fields.target_event_id")]
+
+
+def test_consolidating_block_must_still_target_the_goal_race(proposal_session: Session) -> None:
+    session = proposal_session
+    goal = _goal_event(session, date(2027, 3, 14))
+    started = _accept_block(session, _target_review(session, target=goal, outline=OUTLINE), "rg-consolidate-start")
+    block_fields = {
+        "decision": "consolidate",
+        "block_uid": started.block_uid,
+        "status": "consolidating",
+        "outline": OUTLINE,
+    }
+    invalid = _target_review(session, **block_fields)
+    assert invalid.status == "invalid"
+    assert ("V23.target_event_required", "block_change.version_fields.target_event_id") in _issues(invalid)
+    discard_proposal(session, invalid.proposal_id, invalid.revision, now=NOW)
+    proposal = _target_review(session, target=goal, **block_fields)
+    assert proposal.status == "pending", _issues(proposal)
+    block = _accept_block(session, proposal, "rg-consolidate")
+    assert block.status == "consolidating" and block.target_event_id == goal.id
