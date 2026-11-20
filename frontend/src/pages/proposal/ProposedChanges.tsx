@@ -1,3 +1,6 @@
+import { Fragment } from 'react'
+import { mondayOfWeek } from '../../components/PlanOverview'
+import { addDays, dateLabel } from '../../lib/format'
 import type { ProposalChange } from '../../api/types/coach'
 import {
   Badge,
@@ -16,6 +19,7 @@ import { CoachText, SessionView } from './ProposalParts'
 
 export function ProposedChanges({
   changes,
+  today,
   revision,
   firstRevisionChangeIds,
   terminal,
@@ -30,6 +34,7 @@ export function ProposedChanges({
   plain,
 }: {
   changes: ProposalChange[]
+  today: string | null
   revision: number
   firstRevisionChangeIds: string[]
   terminal: boolean
@@ -43,6 +48,27 @@ export function ProposedChanges({
   onToggle: (id: string) => void
   plain: (text: string) => string
 }) {
+  const weeks = changes.map((change) => {
+    const date = (proposedSession(change) ?? change.before)?.local_date
+    return date ? mondayOfWeek(date) : null
+  })
+  const committedThrough = today ? addDays(today, 6) : null
+  const weekStatus = new Map<string, Set<string>>()
+  changes.forEach((change, index) => {
+    const week = weeks[index]
+    const date = (proposedSession(change) ?? change.before)?.local_date
+    if (!week || !date || !committedThrough) return
+    const statuses = weekStatus.get(week) ?? new Set<string>()
+    statuses.add(date <= committedThrough ? 'Committed' : 'Provisional')
+    weekStatus.set(week, statuses)
+  })
+  const weekHeading = (week: string) => {
+    const label = `Week of ${dateLabel(week)}`
+    const statuses = weekStatus.get(week)
+    if (!statuses) return label
+    const status = statuses.size === 2 ? 'Committed and provisional' : [...statuses][0]
+    return `${label} · ${status}`
+  }
   return (
     <>
       <Card className="proposal-plan">
@@ -96,91 +122,100 @@ export function ProposedChanges({
               {changes.map((change, index) => {
                 const after = proposedSession(change),
                   session = after ?? change.before
+                const week = weeks[index]
                 return (
-                  <TableRow
-                    key={change.change_id}
-                    className={
-                      revision > 1 && firstRevisionChangeIds.includes(change.change_id)
-                        ? 'proposal-revised-row'
-                        : undefined
-                    }
-                  >
-                    <TableHead scope="row">
-                      <a
-                        href={`#proposal-reason-${index + 1}`}
-                        onClick={(event) => {
-                          event.preventDefault()
-                          const reason = document.getElementById(`proposal-reason-${index + 1}`)
-                          const disclosure = reason?.closest<HTMLDetailsElement>(
-                            'details.proposal-reasons',
-                          )
-                          if (disclosure) disclosure.open = true
-                          reason?.scrollIntoView({ behavior: 'smooth' })
-                        }}
-                        aria-label={`Read reason ${index + 1}`}
-                      >
-                        {index + 1}
-                      </a>
-                    </TableHead>
-                    <TableCell>
-                      {sessionDate(session)}
-                      {change.before?.local_date &&
-                        after?.local_date &&
-                        change.before.local_date !== after.local_date && (
-                          <small>Previously {sessionDate(change.before)}</small>
+                  <Fragment key={change.change_id}>
+                    {week && week !== weeks[index - 1] && (
+                      <TableRow className="proposal-week-row">
+                        <TableHead scope="colgroup" colSpan={5}>
+                          {weekHeading(week)}
+                        </TableHead>
+                      </TableRow>
+                    )}
+                    <TableRow
+                      className={
+                        revision > 1 && firstRevisionChangeIds.includes(change.change_id)
+                          ? 'proposal-revised-row'
+                          : undefined
+                      }
+                    >
+                      <TableHead scope="row">
+                        <a
+                          href={`#proposal-reason-${index + 1}`}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            const reason = document.getElementById(`proposal-reason-${index + 1}`)
+                            const disclosure = reason?.closest<HTMLDetailsElement>(
+                              'details.proposal-reasons',
+                            )
+                            if (disclosure) disclosure.open = true
+                            reason?.scrollIntoView({ behavior: 'smooth' })
+                          }}
+                          aria-label={`Read reason ${index + 1}`}
+                        >
+                          {index + 1}
+                        </a>
+                      </TableHead>
+                      <TableCell>
+                        {sessionDate(session)}
+                        {change.before?.local_date &&
+                          after?.local_date &&
+                          change.before.local_date !== after.local_date && (
+                            <small>Previously {sessionDate(change.before)}</small>
+                          )}
+                      </TableCell>
+                      <TableCell>
+                        <strong>{sessionName(session)}</strong>
+                        <Badge className="status-chip">{ACTION_LABELS[change.op]}</Badge>
+                        {change.material_flags.length > 0 && (
+                          <small>
+                            Review carefully:{' '}
+                            {change.material_flags
+                              .map((flag) => flag.replaceAll('_', ' '))
+                              .join(', ')}
+                          </small>
                         )}
-                    </TableCell>
-                    <TableCell>
-                      <strong>{sessionName(session)}</strong>
-                      <Badge className="status-chip">{ACTION_LABELS[change.op]}</Badge>
-                      {change.material_flags.length > 0 && (
-                        <small>
-                          Review carefully:{' '}
-                          {change.material_flags
-                            .map((flag) => flag.replaceAll('_', ' '))
-                            .join(', ')}
-                        </small>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {after ? (
-                        <SessionView value={after} empty="" compact plain={plain} />
-                      ) : (
-                        <>
-                          <p>Remove this session from the plan.</p>
-                          <SessionView value={change.before} empty="" compact plain={plain} />
-                        </>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isDiscarded ? (
-                        <span>Not applied</span>
-                      ) : terminal ? (
-                        <span>
-                          Decision:{' '}
-                          {acceptedChangeIds
-                            ? acceptedChangeIds.includes(change.change_id)
-                              ? 'accepted'
-                              : 'rejected'
-                            : change.decision}
-                        </span>
-                      ) : (
-                        <label className="proposal-choice">
-                          <input
-                            type="checkbox"
-                            aria-label={`Accept change ${change.change_id}`}
-                            checked={selected.includes(change.change_id)}
-                            disabled={disabled || invalidChangeIds.has(change.change_id)}
-                            onChange={() => onToggle(change.change_id)}
-                          />
-                          <span className="sr-only">Include session {index + 1}</span>
-                          <span className="proposal-choice-mobile" aria-hidden="true">
-                            Accept
+                      </TableCell>
+                      <TableCell>
+                        {after ? (
+                          <SessionView value={after} empty="" compact plain={plain} />
+                        ) : (
+                          <>
+                            <p>Remove this session from the plan.</p>
+                            <SessionView value={change.before} empty="" compact plain={plain} />
+                          </>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isDiscarded ? (
+                          <span>Not applied</span>
+                        ) : terminal ? (
+                          <span>
+                            Decision:{' '}
+                            {acceptedChangeIds
+                              ? acceptedChangeIds.includes(change.change_id)
+                                ? 'accepted'
+                                : 'rejected'
+                              : change.decision}
                           </span>
-                        </label>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                        ) : (
+                          <label className="proposal-choice">
+                            <input
+                              type="checkbox"
+                              aria-label={`Accept change ${change.change_id}`}
+                              checked={selected.includes(change.change_id)}
+                              disabled={disabled || invalidChangeIds.has(change.change_id)}
+                              onChange={() => onToggle(change.change_id)}
+                            />
+                            <span className="sr-only">Include session {index + 1}</span>
+                            <span className="proposal-choice-mobile" aria-hidden="true">
+                              Accept
+                            </span>
+                          </label>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  </Fragment>
                 )
               })}
             </TableBody>

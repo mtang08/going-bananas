@@ -357,11 +357,11 @@ describe('training home', () => {
     expect(line).toHaveTextContent('on Nov 11 · Pending')
     expect(line).not.toHaveTextContent('days)')
   })
-  it('asks for a benchmark when the block has none', async () => {
+  it('says a block without a benchmark is judged on training indicators', async () => {
     blockData = activeBlock(null)
     mount()
     expect(await screen.findByTestId('block-line')).toHaveTextContent(
-      'Block: Build consistency · No ending benchmark — run a block review',
+      'Block: Build consistency · No benchmark this block · judged on training indicators',
     )
   })
   it('shows setup without a calendar', async () => {

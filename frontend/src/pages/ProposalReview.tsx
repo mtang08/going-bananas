@@ -39,10 +39,8 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
   const [reviewedRevision, setReviewedRevision] = useState<number | null>(null)
   const frozen = useRef<{ signature: string; body: ProposalDecision } | null>(null)
   const proposal = detail.data?.data
-  const needsSessions = (proposal?.exception?.unchanged.length ?? 0) > 0
   const head = useQuery({
     queryKey: qk.calendarView('head'),
-    enabled: needsSessions,
     queryFn: () => api<CalendarView>('/calendar'),
   })
 
@@ -253,6 +251,7 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
             {changes.length > 0 && (
               <ProposedChanges
                 changes={changes}
+                today={head.data?.data.today ?? null}
                 revision={proposal.revision}
                 firstRevisionChangeIds={proposal.revisions[0]?.changed_change_ids ?? []}
                 terminal={terminal}

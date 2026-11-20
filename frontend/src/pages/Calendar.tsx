@@ -561,6 +561,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
           editor={editor}
           unit={unit}
           today={today}
+          lastPlannedDate={data.last_planned_date}
           sessions={data.sessions}
           pending={edits.isPending}
           onCancel={() => setEditor(null)}
@@ -641,6 +642,7 @@ function SessionEditor({
   editor,
   unit,
   today,
+  lastPlannedDate,
   sessions,
   pending,
   onCancel,
@@ -650,6 +652,7 @@ function SessionEditor({
   editor: EditorState
   unit: Unit
   today: string
+  lastPlannedDate: string | null
   sessions: SessionState[]
   pending: boolean
   onCancel: () => void
@@ -672,6 +675,10 @@ function SessionEditor({
   const [distance, setDistance] = useState(initialDistance)
   const [notes, setNotes] = useState(session?.notes ?? '')
   const [reason, setReason] = useState('')
+  const floorDate = addDays(today, 13)
+  const planEnd = lastPlannedDate && lastPlannedDate > floorDate ? lastPlannedDate : floorDate
+  const capDate = addDays(today, 42)
+  const moveMax = planEnd < capDate ? planEnd : capDate
   const [moveDate, setMoveDate] = useState(session?.local_date ?? today)
   const [localError, setLocalError] = useState<string | null>(null)
   const submit = () => {
@@ -680,8 +687,8 @@ function SessionEditor({
         setLocalError('Pick a different date.')
         return
       }
-      if (moveDate < today || moveDate > addDays(today, 13)) {
-        setLocalError('Pick a date in the next 14 days.')
+      if (moveDate < today || moveDate > moveMax) {
+        setLocalError(`Pick a date between today and ${dateLabel(moveMax)}.`)
         return
       }
       onSave({
@@ -784,7 +791,7 @@ function SessionEditor({
             type="date"
             required
             min={today}
-            max={addDays(today, 13)}
+            max={moveMax}
             value={moveDate}
             onChange={(e) => setMoveDate(e.target.value)}
           />

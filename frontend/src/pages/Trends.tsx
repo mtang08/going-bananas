@@ -305,7 +305,8 @@ function Recovery({ nights }: { nights: RecoveryNight[] }) {
   )
 }
 function BenchmarkHistory({ items, unit }: { items: BenchmarkRecord[]; unit: Unit }) {
-  if (!items.length) return <p>No benchmark results yet. Each training block ends with one.</p>
+  if (!items.length)
+    return <p>No benchmark results yet. A block review sets one about every 6 weeks.</p>
   const groups = new Map<number, BenchmarkRecord[]>()
   for (const item of items)
     if (item.distance_m != null && item.local_date && item.result_s != null)

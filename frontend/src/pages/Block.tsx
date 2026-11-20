@@ -180,7 +180,11 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
             <Card className="block-benchmark" data-testid="block-benchmark">
               <h2>Block benchmark</h2>
               {!bm ? (
-                <p>Status: Not set. The next block review sets the ending benchmark.</p>
+                <p>
+                  No benchmark in this block. Its review judges the completion indicators above. A
+                  block gets a benchmark when the last result is about 6 weeks old or a race falls
+                  in it.
+                </p>
               ) : (
                 <>
                   <p>{bm.protocol}</p>
