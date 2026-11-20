@@ -50,7 +50,7 @@ Use **Dismiss** on a finding that is wrong or already handled. A finding never c
 
 ## After a race
 
-A completed target, benchmark, or supported-exposure race puts a race review on Home for 7 days. Treat the 1–3 days after it as an observation window, not a fixed rest prescription. Copy the prompt from Home, which names the race, or use:
+A completed PR or benchmark race puts a race review on Home for 7 days. A training run at an event gets no race review. Treat the 1–3 days after it as an observation window, not a fixed rest prescription. Copy the prompt from Home, which names the race, or use:
 
 > Use $going-bananas-coach for a post-race review of … on ….
 
@@ -81,6 +81,22 @@ To establish your first block now:
 The proposed block becomes active only after you select and accept its block change in the app. Creating or revising the draft does not activate it.
 
 Open [Training block](#block) to inspect the current direction, review timing, and block benchmark. The timeline shows elapsed calendar time; it does not prove that you have achieved the objective. A block review considers actual response and indicators before continuing, consolidating, or changing direction. A regular weekly review cannot silently change the block.
+
+## Events and your goal race
+
+Add every upcoming race or event under [Settings](#settings), **Events**, with its date, distance, a purpose, and, if you want one, a goal time. The purpose says how the event is run and prepared for:
+
+- **Race it (PR attempt):** you are racing for a result. The coach plans a taper sized to the event.
+- **Benchmark effort:** a quality effort. The coach reduces the load around it only enough for an interpretable result, with no full taper.
+- **Training run:** a session that happens to fall at an event. No taper, you do not run it maximally, and it gets no race review.
+
+Your upcoming events are listed in priority order. Rank 1 is your **goal race**, marked with a badge. Use **Move up** and **Move down** on each row to reorder them; both work from the keyboard. Every training block builds toward the goal race, so the [Training block](#block) page shows the earlier blocks, the current block, the emphases the coach expects between now and race day, your other events by date, and race day. The emphases are direction only: the coach sets them again at each block review. Home's block line names the goal race.
+
+Rank decides what the blocks build toward. Purpose decides how each event is prepared for and run. A Race it 10K ranked third still gets its own taper inside the current block, and the coach says what that costs the goal-race build in its proposal. Accept the proposal, or change the event's purpose, to decide.
+
+Your goal time is a target, not a prediction. The coach judges whether it is plausible from your recent evidence and says how confident it is.
+
+When the goal race changes (you move it up or down, cancel it, or its date passes), the Training block page and Home say the block was planned for another race, and the next Sunday review is a block review. Nothing on the calendar changes until you accept a proposal. Events entered after a block was planned have the same effect once.
 
 ## Review and revise a proposal
 
