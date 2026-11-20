@@ -1,7 +1,7 @@
-import { Button, Card, Input, NativeSelect } from '../../components/ui'
-import { useState } from 'react'
+import { Badge, Button, Card, Input, NativeSelect } from '../../components/ui'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, post, patch } from '../../api/client'
+import { api, post, patch, put } from '../../api/client'
 import { qk, invalidateKeys } from '../../api/queryKeys'
 import { dateLabel, fmtDistance, fmtClock, clockToSeconds, type Unit } from '../../lib/format'
 import {
@@ -37,6 +37,48 @@ export function Events({ unit }: { unit: Unit }) {
     [status, setStatus] = useState<EventStatus>('planned'),
     [result, setResult] = useState(''),
     [resultEdited, setResultEdited] = useState(false)
+  const items = query.data?.data.items ?? []
+  const upcoming = items
+    .filter((event) => event.rank !== null)
+    .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
+  const past = items
+    .filter((event) => event.rank === null)
+    .sort((a, b) => b.event_date.localeCompare(a.event_date))
+  const rankList = useRef<HTMLOListElement>(null)
+  const focusTarget = useRef<{ id: string; direction: 'up' | 'down' } | null>(null)
+  const [moved, setMoved] = useState('')
+  const move = useMutation({
+    mutationFn: ({ event, to }: { event: RaceEvent; direction: 'up' | 'down'; to: number }) => {
+      const next = upcoming.filter((item) => item.id !== event.id)
+      next.splice(to, 0, event)
+      return put('/events/order', {
+        items: next.map((item) => ({ id: item.id, expected_version: item.version })),
+      })
+    },
+    onMutate: ({ event, direction }) => {
+      setMoved('')
+      focusTarget.current = { id: event.id, direction }
+    },
+    onSuccess: (_result, { event, to }) => setMoved(`${event.name} moved to rank ${to + 1}`),
+    onSettled: () =>
+      Promise.all(
+        [qk.events, qk.blocks, qk.proposals].map((queryKey) => qc.invalidateQueries({ queryKey })),
+      ),
+  })
+  const busy = move.isPending || query.isFetching
+  useEffect(() => {
+    const target = focusTarget.current
+    if (!target || busy) return
+    const row = Array.from(rankList.current?.children ?? []).find(
+      (child) => child.getAttribute('data-event-id') === target.id,
+    )
+    const buttons = Array.from(
+      row?.querySelectorAll<HTMLButtonElement>('button[data-move]:enabled') ?? [],
+    )
+    const button = buttons.find((item) => item.dataset.move === target.direction) ?? buttons[0]
+    button?.focus()
+    focusTarget.current = null
+  }, [busy])
   const reset = () => {
     setEditing(null)
     setName('')
@@ -89,6 +131,37 @@ export function Events({ unit }: { unit: Unit }) {
       reset()
     },
   })
+  const summary = (event: RaceEvent) => (
+    <>
+      {event.name} ·{' '}
+      {dateLabel(event.event_date, { month: 'short', day: 'numeric', year: 'numeric' })} ·{' '}
+      {event.distance_m === null ? 'distance not set' : fmtDistance(event.distance_m, unit)} ·{' '}
+      {EVENT_PURPOSE_LABELS[event.purpose]} · {event.status}
+      {event.goal_time_s !== null && ` · goal ${fmtClock(event.goal_time_s)}`}
+      {event.result_s !== null && ` · result ${fmtClock(event.result_s)}`}{' '}
+    </>
+  )
+  const editButton = (event: RaceEvent) => (
+    <Button
+      variant="link"
+      onClick={() => {
+        setEditing(event)
+        setName(event.name)
+        setDay(event.event_date)
+        setDistance(event.distance_m === null ? '' : String(event.distance_m))
+        setDistanceEdited(false)
+        setPurpose(event.purpose)
+        setGoalTime(event.goal_time_s === null ? '' : fmtClock(event.goal_time_s))
+        setGoalEdited(false)
+        setStatus(event.status)
+        setResult(event.result_s === null ? '' : fmtClock(event.result_s))
+        setResultEdited(false)
+        save.reset()
+      }}
+    >
+      Edit
+    </Button>
+  )
   return (
     <Card>
       <h2>Events</h2>
@@ -105,43 +178,66 @@ export function Events({ unit }: { unit: Unit }) {
           void query.refetch()
         }}
       >
-        {!query.data?.data.items.length && <p>No events yet.</p>}
-        {query.data?.data.items.map((event) => (
-          <div key={event.id}>
-            {event.name} ·{' '}
-            {dateLabel(event.event_date, { month: 'short', day: 'numeric', year: 'numeric' })} ·{' '}
-            {event.distance_m === null ? 'distance not set' : fmtDistance(event.distance_m, unit)} ·{' '}
-            {EVENT_PURPOSE_LABELS[event.purpose]} · {event.status}
-            {event.goal_time_s !== null && ` · goal ${fmtClock(event.goal_time_s)}`}
-            {event.result_s !== null && ` · result ${fmtClock(event.result_s)}`}{' '}
-            <Button
-              variant="link"
-              onClick={() => {
-                setEditing(event)
-                setName(event.name)
-                setDay(event.event_date)
-                setDistance(event.distance_m === null ? '' : String(event.distance_m))
-                setDistanceEdited(false)
-                setPurpose(event.purpose)
-                setGoalTime(event.goal_time_s === null ? '' : fmtClock(event.goal_time_s))
-                setGoalEdited(false)
-                setStatus(event.status)
-                setResult(event.result_s === null ? '' : fmtClock(event.result_s))
-                setResultEdited(false)
-                save.reset()
-              }}
+        {!items.length && <p>No events yet.</p>}
+        {upcoming.length > 0 && (
+          <>
+            <h3>Upcoming, in priority order</h3>
+            <ol
+              ref={rankList}
+              className="event-rank-list"
+              aria-label="Upcoming events in priority order"
             >
-              Edit
-            </Button>
-          </div>
-        ))}
+              {upcoming.map((event, index) => (
+                <li key={event.id} data-testid="event-row" data-event-id={event.id}>
+                  <strong>#{index + 1}</strong> {index === 0 && <Badge>Goal race</Badge>}{' '}
+                  {summary(event)}{' '}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    data-move="up"
+                    aria-label={`Move ${event.name} up`}
+                    disabled={busy || save.isPending || index === 0}
+                    onClick={() => move.mutate({ event, direction: 'up', to: index - 1 })}
+                  >
+                    Up
+                  </Button>{' '}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    data-move="down"
+                    aria-label={`Move ${event.name} down`}
+                    disabled={busy || save.isPending || index === upcoming.length - 1}
+                    onClick={() => move.mutate({ event, direction: 'down', to: index + 1 })}
+                  >
+                    Down
+                  </Button>{' '}
+                  {editButton(event)}
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
+        <p role="status">{moved}</p>
+        <ErrorText error={move.error} />
+        {past.length > 0 && (
+          <>
+            <h3>Past and cancelled</h3>
+            <ul className="event-past-list">
+              {past.map((event) => (
+                <li key={event.id} data-testid="event-row-past">
+                  {summary(event)} {editButton(event)}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault()
             save.mutate()
           }}
         >
-          <fieldset disabled={save.isPending}>
+          <fieldset disabled={save.isPending || move.isPending}>
             <label htmlFor="event-name">Event</label>
             <Input
               id="event-name"
