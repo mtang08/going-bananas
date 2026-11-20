@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mondayOfWeek, SessionSummary } from '../src/components/PlanOverview'
 import type { SessionState } from '../src/api/types/calendar'
@@ -79,6 +79,47 @@ describe('session status badges', () => {
     cleanup()
     renderSession({ recipe_id: 'REC001' })
     expect(screen.queryByText('Benchmark')).toBeNull()
+  })
+})
+
+describe('session notes', () => {
+  const notes = 'Stop if form deteriorates'
+
+  it('shows notes as plain text inside Session details', () => {
+    render(<SessionSummary session={{ ...base, notes }} today="2026-11-11" unit="mi" />)
+    fireEvent.click(screen.getByText('Session details'))
+    const paragraph = screen.getByText(notes)
+    expect(paragraph).toBeVisible()
+    expect(paragraph.closest('details')).toHaveClass('plan-session-details')
+    expect(screen.queryByText('Session notes')).not.toBeInTheDocument()
+  })
+
+  it('shows notes under the intent on the Today card', () => {
+    render(<SessionSummary session={{ ...base, notes }} today="2026-11-11" unit="mi" showWorkout />)
+    const paragraph = screen.getByText(notes)
+    expect(paragraph).toBeVisible()
+    expect(paragraph.closest('details')).toBeNull()
+  })
+
+  it('shows imported notes the same way', () => {
+    render(
+      <SessionSummary
+        session={{ ...base, legacy_unstructured: true, notes: 'Old easy prescription' }}
+        today="2026-11-11"
+        unit="mi"
+        showWorkout
+      />,
+    )
+    const paragraph = screen.getByText('Old easy prescription')
+    expect(paragraph).toBeVisible()
+    expect(paragraph.closest('details')).toBeNull()
+  })
+
+  it('omits blank notes', () => {
+    const { container } = render(
+      <SessionSummary session={{ ...base, notes: '   ' }} today="2026-11-11" unit="mi" />,
+    )
+    expect(container.querySelector('.plan-session-notes')).toBeNull()
   })
 })
 

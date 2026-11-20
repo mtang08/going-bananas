@@ -464,11 +464,8 @@ describe('training home', () => {
     const card = await screen.findByTestId('today-card')
     expect(within(card).getByText('2 ×')).toBeVisible()
     expect(within(card).getByText('2 ×').closest('details')).toBeNull()
-    expect(
-      within(card).getByText('Stop if form deteriorates').closest('details'),
-    ).not.toHaveAttribute('open')
     expect(within(card).queryByText('Session details')).not.toBeInTheDocument()
-    fireEvent.click(within(card).getByText('Session notes'))
+    expect(within(card).queryByText('Session notes')).not.toBeInTheDocument()
     expect(within(card).getByText('Stop if form deteriorates')).toBeVisible()
     expect(within(card).getByText('Original prescribed easy progression')).toBeVisible()
     expect(within(card).getByText('Work 1:00 · effort')).toBeInTheDocument()

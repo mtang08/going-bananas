@@ -76,15 +76,7 @@ export function SessionSummary({
       {showWorkout ? (
         <>
           {s.intent && s.intent !== title && <p>{s.intent}</p>}
-          {s.notes?.trim() &&
-            (s.legacy_unstructured ? (
-              <p className="plan-session-notes">{s.notes}</p>
-            ) : (
-              <Disclosure className="workout-notes">
-                <summary>Session notes</summary>
-                <p className="plan-session-notes">{s.notes}</p>
-              </Disclosure>
-            ))}
+          {s.notes?.trim() && <p className="plan-session-notes">{s.notes}</p>}
           {s.legacy_unstructured && <small>Structured comparison unavailable</small>}
         </>
       ) : (
@@ -103,12 +95,7 @@ export function SessionSummary({
             {!showWorkout && s.structure && (
               <WorkoutStructure structure={s.structure} unit={unit} />
             )}
-            {s.notes?.trim() && (
-              <Disclosure className="workout-notes">
-                <summary>Session notes</summary>
-                <p className="plan-session-notes">{s.notes}</p>
-              </Disclosure>
-            )}
+            {s.notes?.trim() && <p className="plan-session-notes">{s.notes}</p>}
             {s.legacy_unstructured && <small>Structured comparison unavailable</small>}
             {children}
             <Button
