@@ -34,10 +34,13 @@ from app.services import calendar
 @pytest.fixture
 def db_connection() -> Iterator[Connection]:
     parsed = urlsplit(settings.database_url)
-    assert settings.app_mode == "test"
-    assert parsed.hostname in {"127.0.0.1", "localhost"}
-    assert parsed.port == int(os.environ.get("TEST_DATABASE_PORT", "55439"))
-    assert parsed.path == "/garmin_test"
+    if (
+        settings.app_mode != "test"
+        or parsed.hostname not in {"127.0.0.1", "localhost"}
+        or parsed.port != int(os.environ.get("TEST_DATABASE_PORT", "55439"))
+        or parsed.path != "/garmin_test"
+    ):
+        pytest.fail("Use the isolated PostgreSQL cluster via make test-integration.", pytrace=False)
     with engine.connect() as connection:
         outer = connection.begin()
         try:
