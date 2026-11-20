@@ -131,6 +131,54 @@ def test_excluded_link_stays_linked_unknown() -> None:
     assert result["reason_codes"][0] == "ACTIVITY_EXCLUDED"
 
 
+def test_treadmill_interval_pace_not_scored() -> None:
+    actual = {"kind": "run", "sport": "treadmill_running", "timer_s": 3000}
+    intervals = {"step_completion_ratio": 1, "target_coverage": 0.1}
+    result = assess(plan(), linked(), actual, intervals)
+    assert result["derived_completion_status"] == "completed_as_planned"
+    assert [c["name"] for c in result["value"]["components"]] == ["duration_ratio", "step_completion_ratio"]
+    assert "TREADMILL_PACE_NOT_SCORED" in result["quality_flags"]
+
+    outdoor = assess(plan(), linked(), {**actual, "sport": "running"}, intervals)
+    assert outdoor["derived_completion_status"] == "partial"
+    target = next(c for c in outdoor["value"]["components"] if c["name"] == "target_coverage")
+    assert target["status"] == "not_met"
+
+
+def test_treadmill_easy_run_by_duration_ignores_short_watch_distance() -> None:
+    prescription = plan(
+        planned_duration_s=1800,
+        planned_distance_m=5000,
+        structure=[
+            {
+                "type": "work",
+                "duration_type": "time",
+                "duration_value": 1800,
+                "target": {"modality": "effort", "effort_cue": "easy"},
+            }
+        ],
+    )
+    actual = {"kind": "run", "sport": "treadmill_running", "timer_s": 1800, "distance_m": 4000}
+    result = assess(prescription, linked(), actual)
+    assert result["derived_completion_status"] == "completed_as_planned"
+    assert [c["name"] for c in result["value"]["components"]] == ["duration_ratio"]
+    assert "TREADMILL_PACE_NOT_SCORED" in result["quality_flags"]
+
+    outdoor = assess(prescription, linked(), {**actual, "sport": "running"})
+    assert outdoor["derived_completion_status"] == "completed_modified"
+
+
+def test_treadmill_distance_only_plan_keeps_distance_ratio() -> None:
+    prescription = plan(planned_duration_s=None, planned_distance_m=5000, structure=None)
+    actual = {"kind": "run", "sport": "treadmill_running", "timer_s": 1800, "distance_m": 4000}
+    result = assess(prescription, linked(), actual)
+    outdoor = assess(prescription, linked(), {**actual, "sport": "running"})
+    assert [(c["name"], c["status"]) for c in result["value"]["components"]] == [("distance_ratio", "partially_met")]
+    assert result["value"]["components"] == outdoor["value"]["components"]
+    assert result["derived_completion_status"] == outdoor["derived_completion_status"] == "completed_modified"
+    assert "TREADMILL_PACE_NOT_SCORED" in result["quality_flags"]
+
+
 def test_target_coverage_rebuilt_before_threshold() -> None:
     intervals = _interval_components(
         {

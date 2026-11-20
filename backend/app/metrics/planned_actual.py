@@ -29,7 +29,7 @@ from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
 METRIC_ID = "planned_actual_session"
-METHOD_VERSION = "v1"
+METHOD_VERSION = "v2"
 WINDOW_DAYS: tuple[int, ...] = ()
 DEPENDS_ON = ("work_interval_execution",)
 CONFIG: dict = {
@@ -121,6 +121,9 @@ def planned_actual_outcome(
     }
     reasons: list[str] = []
     flags: list[str] = []
+    treadmill = linked and activity is not None and activity.get("sport") == "treadmill_running"
+    if treadmill:
+        flags.append("TREADMILL_PACE_NOT_SCORED")
     if prior_status == "skipped" and match_method in {"explicit", "user_marked", "confirmed_move"}:
         values["overall_status"] = "skipped"
     elif prior_status == "extra" and match_method != "confirmed_move" and linked and activity is not None:
@@ -152,6 +155,8 @@ def planned_actual_outcome(
                 ("duration_ratio", "planned_duration_s", "timer_s"),
                 ("distance_ratio", "planned_distance_m", "distance_m"),
             ):
+                if treadmill and name == "distance_ratio" and plan.get("planned_duration_s"):
+                    continue
                 item = component(name, activity.get(actual_field) if activity else None, plan.get(planned_field))
                 if item["status"] != "omitted":
                     components.append(item)
@@ -159,7 +164,7 @@ def planned_actual_outcome(
                 components.append(
                     component("step_completion_ratio", intervals.get("step_completion_ratio") if intervals else None, 1)
                 )
-            if need_target:
+            if need_target and not treadmill:
                 components.append(
                     component("target_coverage", intervals.get("target_coverage") if intervals else None, 1)
                 )
@@ -266,6 +271,7 @@ def _activity(session: Session, completion: SessionCompletion) -> tuple[dict | N
             "kind": "run",
             "timer_s": activity_row.timer_s,
             "distance_m": activity_row.distance_m,
+            "sport": activity_row.sport,
             "activity_id": str(activity_row.id),
         }, refs
     if completion.strong_workout_id:
