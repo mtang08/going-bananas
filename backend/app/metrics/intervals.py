@@ -34,7 +34,7 @@ from app.models import Activity, ActivityAnnotation, ActivitySource, RawObject, 
 from app.read.calendar import head_version, latest_revision
 
 METRIC_ID = "work_interval_execution"
-METHOD_VERSION = "v1"
+METHOD_VERSION = "v2"
 WINDOW_DAYS: tuple[int, ...] = ()
 DEPENDS_ON: tuple[str, ...] = ()
 CONFIG = {
@@ -245,7 +245,11 @@ def _complete(duration_type: str, actual: float, planned: float) -> bool:
 
 
 def execution_outcome(
-    plan_steps: list[PlanStep], fit_steps: list[FitStep], laps: list[LapIn], stream: ExecStream | None
+    plan_steps: list[PlanStep],
+    fit_steps: list[FitStep],
+    laps: list[LapIn],
+    stream: ExecStream | None,
+    sport: str | None = None,
 ) -> dict[str, Any]:
     work = [step for step in plan_steps if step.type == "work"]
     if not work:
@@ -527,6 +531,8 @@ def execution_outcome(
             change = 100 * (last_rep["_mean"] - first_rep["_mean"]) / first_rep["_mean"]
         else:
             flags.add("ZERO_SPEED_DENOMINATOR")
+    if sport == "treadmill_running":
+        flags.add("TREADMILL")
     quality = coverage_label(required_valid, required_eligible) if required_eligible else None
     if required_unassessable and quality == QualityStatus.good:
         quality = QualityStatus.limited
@@ -645,7 +651,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
                     if stream_row
                     else None
                 )
-                outcome = execution_outcome(plan, fit, laps, stream)
+                outcome = execution_outcome(plan, fit, laps, stream, activity.sport)
     value = outcome["value"]
     if value is not None:
         value["session_uid"] = str(session_uid) if session_uid else None
