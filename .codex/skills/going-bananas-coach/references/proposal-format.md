@@ -101,6 +101,12 @@ concisely, and give each later Monday–Sunday week one line naming its key
 sessions and purpose; the app shows every session's details. Omit a section the
 proposal does not reach.
 
+For a block change, name the goal race with its date and the weeks to race day,
+and give the build outline as one line, for example "4 wk threshold durability,
+then 5 wk half-marathon-specific endurance, then 4 wk race-specific sharpening,
+taper, race". When the block has no target, say there is no upcoming event, or
+why the target is unchanged.
+
 Keep the table limited to the actual scope: list proposed changes for a change
 proposal, or the complete schedule when the proposal supplies the full plan.
 Identify moved or removed sessions in the prescription where relevant. Omit

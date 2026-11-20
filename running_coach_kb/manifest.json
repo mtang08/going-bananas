@@ -521,8 +521,8 @@
     {
       "path": "policies/periodization_policy_candidates.json",
       "status": "added",
-      "bytes": 29351,
-      "sha256": "7149464d31bf1a7344243ba306df1a5d47fe582a5884cdf8566b52f11742ab8c"
+      "bytes": 29440,
+      "sha256": "74a670aaaf09e09d28f0cb8d4eae0de58712ccb629a79b75987376791513caea"
     },
     {
       "path": "recipes/running_session_families.json",
@@ -611,8 +611,8 @@
     {
       "path": "topics/periodization_and_training_blocks.md",
       "status": "added",
-      "bytes": 13571,
-      "sha256": "57151cc18944d3c1cb8102da37081e136a6a72ae4873da26e913ee8ce6d941a4"
+      "bytes": 13622,
+      "sha256": "da4993d640e453b6bab2d118f083f6cdfcb67767c9ea491e2afbb7f06ad65129"
     },
     {
       "path": "topics/ptt_and_load_tolerance.md",
@@ -623,8 +623,8 @@
     {
       "path": "topics/races_tapers_and_transitions.md",
       "status": "added",
-      "bytes": 9026,
-      "sha256": "bec8802ef548ba7da3c3cae4d7d840994414c825bb3d2d3da70d9af738cd5585"
+      "bytes": 11450,
+      "sha256": "f7d31071cc9c3019073fcddae6b5fc189d11113d669967963d10427f48bdc3a4"
     },
     {
       "path": "topics/recovery_and_daily_adaptation.md",
@@ -641,8 +641,8 @@
     {
       "path": "workflows/block_review.md",
       "status": "added",
-      "bytes": 13995,
-      "sha256": "ed22b022fc61e2e6d8d4740ef9402981531c6badb5f40244f0928b45964e0936"
+      "bytes": 14705,
+      "sha256": "a760068fa0d1b1dbb9ce7ba934ee211983422c1938479a092e6f6401df8ada51"
     },
     {
       "path": "workflows/daily_recommendation.md",
@@ -671,8 +671,8 @@
     {
       "path": "adaptive_coaching/race_and_benchmark_policy.md",
       "status": "added",
-      "bytes": 6652,
-      "sha256": "f876ac7b76d304f4cc574b47ede49c8a095d413ad08bb66ce6f53df63b6df12c"
+      "bytes": 7208,
+      "sha256": "cb8e458a5fa2dddae2dd9982d6ec88acf86c6824523aa8ef067ecdf21dc03c13"
     },
     {
       "path": "workflows/exception_review.md",
@@ -683,8 +683,8 @@
     {
       "path": "workflows/post_event_review.md",
       "status": "added",
-      "bytes": 3516,
-      "sha256": "cdd934096f9116cce86167ec346c43abd2e50870e3f8066c165371302e4f1e8e"
+      "bytes": 3598,
+      "sha256": "d6774a349f0dcd7490d7dcce1eb410bfb4655a43d0b3e5aa727ef26345bc03bc"
     }
   ],
   "manifest_self": {

@@ -12,6 +12,8 @@
 - The block review places the time trial as a provisional REC009 session on the benchmark date; weekly reviews keep it and protect the easy days around it. If the review date is more than 42 days away, the weekly review places it once the date falls inside the plan window. The app checks only the date window; the block records the intended benchmark and the calendar gives it a concrete session. (product heuristic)
 - A block without a benchmark records `benchmark: null` and names in `completion_indicators` the training indicators its review will judge: repeatable workout execution in the same recipe, aerobic efficiency on comparable easy runs (descriptive only), completion of key sessions, and RPE versus intent. Judge them together with symptoms and recovery, and keep the anchors (P020, P028). Set a benchmark early only when it answers a decision question, for example when comparable workouts persistently disagree with the anchors (P020). (coaching convention)
 
+- A `pr` or `benchmark` race inside a block, including a lower-ranked one, serves as that block's benchmark under the benchmark rule above; a `training` event never does. For the block that contains the goal race (the rank-1 event every block targets), choose the review date so that race day falls in the benchmark window stated in the first bullet of this section. With `[review_date−13, review_date−7]`, the review date is 7–13 days after race day. See `topics/races_tapers_and_transitions.md` › Purpose and rank. (product heuristic)
+
 ## Interpreting a benchmark
 
 - Use exactly one outcome: `progress`, `consolidate`, `recalibrate_only`, or `inconclusive`. Judge against the `progress_if` and `consolidate_if` set in advance; record the chosen outcome in the block review rather than changing the criteria to fit the result. (product heuristic)
@@ -21,10 +23,10 @@
 
 ## Post-event review
 
-- After a `target`, `benchmark`, or `supported_exposure` event, record pacing, effort and limiter, conditions, symptoms, recovery observation, a recalibration decision, and one training implication. The block's culminating benchmark is handled in the block review. (product heuristic)
+- After a `pr` or `benchmark` event, record pacing, effort and limiter, conditions, symptoms, recovery observation, a recalibration decision, and one training implication. The block's culminating benchmark is handled in the block review. (product heuristic)
 - Treat the 1–3 days after the event as an observation window. Record next-day and delayed symptoms, gait, function, fatigue, and sleep before deciding. Easy movement, rest, and cross-training are all valid; choose from the observed response. See `topics/races_tapers_and_transitions.md` › Post-race transition. (coaching convention)
 - A result is one piece of evidence (P027). If it is poor and confounded, defer recalibration; the result's interpretation depends on conditions and execution as well as the recorded performance. (research: E-CAL-04)
-- A target event usually costs most; a supported exposure is a training stimulus, so do not over-read it. For the exposure/observation distinction, see `topics/races_tapers_and_transitions.md` › Core position. (coaching convention)
+- A `pr` event usually costs most; a `training` event is a training stimulus, so do not over-read it, and it gets no post-event review (P027). For the exposure/observation distinction, see `topics/races_tapers_and_transitions.md` › Core position. (coaching convention)
 
 ## Missed or compromised benchmark
 
