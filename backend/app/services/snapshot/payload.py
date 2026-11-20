@@ -11,7 +11,13 @@ from app.domain.local_time import date_in_zone
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES, classify, expected_rpe, rpe_mismatch
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING, RULE_VERSION
 from app.services.operations import OPERATIONS
-from app.services.proposals.schema import scope
+from app.services.proposals.schema import (
+    BLOCK_REVIEW_LEAD_DAYS,
+    HORIZON_MAX_DAYS,
+    HORIZON_MIN_DAYS,
+    HORIZON_OPS,
+    scope,
+)
 from app.services.snapshot.common import (
     AEROBIC_RECENT_MAX,
     BLOCK,
@@ -51,17 +57,26 @@ from app.services.weekly_digest import DIGEST_SCHEMA, HEADLINE_KINDS, NOT_DONE_O
 from app.services.workout_progression import assemble_groups, session_point
 
 
+def active_review_date(inputs: SnapshotInputs) -> date | None:
+    block = inputs.active_block
+    return parse_day(block["review_date"]) if block and block.get("review_date") else None
+
+
 def section_window(operation: str, section: str, inputs: SnapshotInputs) -> tuple[date, date]:
     day = inputs.as_of
     if section == "calendar":
-        if operation in {RACE, POST_EVENT}:
+        if operation == RACE:
+            return day, day + timedelta(days=HORIZON_MAX_DAYS)
+        if operation == POST_EVENT:
             return day, day + timedelta(days=13)
         if operation == EXCEPTION:
             return day - timedelta(days=7), day + timedelta(days=6)
-        return (
-            day - timedelta(days={DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28}[operation]),
-            day + timedelta(days=3 if operation == DAILY else 13),
-        )
+        start = day - timedelta(days={DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28}[operation])
+        if operation == ROLLING:
+            return start, scope(ROLLING, day, active_review_date(inputs))[1]
+        if operation == BLOCK:
+            return start, day + timedelta(days=HORIZON_MAX_DAYS)
+        return start, day + timedelta(days=3 if operation == DAILY else 13)
     if section == "exposures":
         return day - timedelta(
             days={DAILY: 2, ROLLING: 13, QUALITY_OP: 13, BLOCK: 27, RACE: 13, CALIB: 83, EXCEPTION: 2, POST_EVENT: 13}[
@@ -721,7 +736,10 @@ def _weekly_digest_view(inputs: SnapshotInputs) -> dict:
 def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
     if operation not in OPERATIONS:
         raise ValueError("unsupported_operation")
-    start, end = scope(operation, inputs.as_of)
+    review_date = active_review_date(inputs)
+    start, end = scope(operation, inputs.as_of, review_date)
+    if operation in {BLOCK, RACE}:
+        end = inputs.as_of + timedelta(days=HORIZON_MAX_DAYS)
     payload: dict[str, Any] = {
         "snapshot_meta": {
             "schema_version": SNAPSHOT_SCHEMA,
@@ -759,6 +777,14 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         "data_quality": _data_quality(inputs),
         "drill_down_queries": list(DRILL_DOWN_QUERIES),
     }
+    if operation in HORIZON_OPS:
+        payload["snapshot_meta"]["horizon"] = {
+            "min_end": inputs.as_of + timedelta(days=HORIZON_MIN_DAYS),
+            "max_end": inputs.as_of + timedelta(days=HORIZON_MAX_DAYS),
+            "rule": "active_block_review_date" if operation == ROLLING else "proposed_block_review_date",
+            "block_review_due": review_date is not None
+            and review_date <= inputs.as_of + timedelta(days=BLOCK_REVIEW_LEAD_DAYS),
+        }
     if operation != CALIB:
         goals = [row_view(g, ("goal_id", "text", "horizon", "priority", "status")) for g in inputs.goals]
         events = [

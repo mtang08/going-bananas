@@ -10,6 +10,8 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, cast
 
+import pytest
+
 from app.services.decision_inputs import canonical_json
 from app.services.knowledge import POLICY_MAP, load_manifest, load_route
 from app.services.proposals.schema import scope
@@ -705,6 +707,86 @@ def test_new_operation_windows_and_topics() -> None:
     ]
     assert select_recipe_ids(source, EXCEPTION) == ["REC001"]
     assert scope(EXCEPTION, AS_OF) == (AS_OF, AS_OF + timedelta(days=6))
+
+
+def horizon_block(review_date: date) -> dict:
+    return {
+        "block_uid": "block-1",
+        "version_id": "version-1",
+        "version": 1,
+        "status": "active",
+        "objective": "Aerobic base",
+        "rationale": "Ready",
+        "maintained_qualities": [],
+        "non_goals": [],
+        "eligible_recipe_ids": ["REC001"],
+        "progression_dimension": "duration",
+        "constraints": [],
+        "start_date": date(2026, 10, 19),
+        "review_date": review_date,
+        "completion_indicators": [],
+        "early_review_triggers": [],
+        "objective_status": "unresolved",
+        "benchmark": None,
+        "benchmark_status": {"status": "not_set"},
+    }
+
+
+def test_rolling_horizon_follows_active_review_date() -> None:
+    review_date = AS_OF + timedelta(days=28)
+    rows = [session(AS_OF + timedelta(days=day), "run", "REC001") for day in (0, 13, 20, 28, 29, 42)]
+    payload = build_payload(inputs(active_block=horizon_block(review_date), sessions=rows), ROLLING)
+    meta = payload["snapshot_meta"]
+    assert meta["scope"] == {"start": AS_OF.isoformat(), "end": review_date.isoformat()}
+    assert payload["calendar"]["end"] == review_date.isoformat()
+    assert [r["session_uid"] for r in payload["calendar"]["sessions"]] == [r["session_uid"] for r in rows[:4]]
+    assert meta["horizon"] == {
+        "rule": "active_block_review_date",
+        "min_end": (AS_OF + timedelta(days=13)).isoformat(),
+        "max_end": (AS_OF + timedelta(days=42)).isoformat(),
+        "block_review_due": False,
+    }
+
+
+@pytest.mark.parametrize(
+    ("review_days", "end_days", "due"),
+    [(5, 13, True), (7, 13, True), (8, 13, False), (60, 42, False), (-3, 13, True), (None, 13, False)],
+)
+def test_rolling_horizon_clamps_and_flags_block_review_due(review_days: int | None, end_days: int, due: bool) -> None:
+    block = horizon_block(AS_OF + timedelta(days=review_days)) if review_days is not None else None
+    payload = build_payload(inputs(active_block=block), ROLLING)
+    meta = payload["snapshot_meta"]
+    assert meta["scope"]["end"] == payload["calendar"]["end"] == (AS_OF + timedelta(days=end_days)).isoformat()
+    assert meta["horizon"]["block_review_due"] is due
+
+
+@pytest.mark.parametrize("operation", [BLOCK, RACE])
+def test_block_and_race_snapshots_show_outer_bound(operation: str) -> None:
+    outer_bound = AS_OF + timedelta(days=42)
+    rows = [session(outer_bound + timedelta(days=offset), "run", "REC001") for offset in (0, 1)]
+    source = inputs(active_block=horizon_block(AS_OF + timedelta(days=28)), sessions=rows)
+    payload = build_payload(source, operation)
+    meta = payload["snapshot_meta"]
+    assert meta["scope"]["end"] == payload["calendar"]["end"] == outer_bound.isoformat()
+    assert [r["session_uid"] for r in payload["calendar"]["sessions"]] == [rows[0]["session_uid"]]
+    assert meta["horizon"]["rule"] == "proposed_block_review_date"
+
+
+@pytest.mark.parametrize(
+    ("operation", "calendar_end_days"), [(EXCEPTION, 6), (POST_EVENT, 13), (DAILY, 3), (QUALITY_OP, 13)]
+)
+def test_fixed_operations_keep_scope_and_have_no_horizon(operation: str, calendar_end_days: int) -> None:
+    payload = build_payload(inputs(active_block=horizon_block(AS_OF + timedelta(days=28))), operation)
+    assert "horizon" not in payload["snapshot_meta"]
+    assert payload["calendar"]["end"] == (AS_OF + timedelta(days=calendar_end_days)).isoformat()
+
+
+def test_topics_scope_uses_active_review_date() -> None:
+    rows = [session(AS_OF, "run", "REC001"), session(AS_OF + timedelta(days=20), "run", "REC009")]
+    with_long_horizon = inputs(active_block=horizon_block(AS_OF + timedelta(days=28)), sessions=rows)
+    with_short_horizon = replace(with_long_horizon, active_block=horizon_block(AS_OF + timedelta(days=8)))
+    assert "REC009" in select_recipe_ids(with_long_horizon, ROLLING)
+    assert "REC009" not in select_recipe_ids(with_short_horizon, ROLLING)
 
 
 def test_session_view_modification_reason() -> None:
