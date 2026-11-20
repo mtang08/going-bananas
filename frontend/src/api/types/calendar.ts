@@ -242,6 +242,11 @@ export interface DigestRow {
     local_date: string
     duration_s: number | null
     distance_m: number | null
+    sport: string | null
+    avg_hr_bpm: number | null
+    moving_pace_s_per_km: number | null
+    rpe: number | null
+    rpe_source: 'manual' | 'garmin_fit' | null
   } | null
   execution: DigestExecution | null
 }

@@ -214,4 +214,13 @@
     border: 1px solid #e3e8df;
     border-radius: 999px;
   }
+  .week-session {
+    display: grid;
+    gap: 4px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border, #dce2dc);
+  }
+  .week-session:first-of-type {
+    border-top: 0;
+  }
 }

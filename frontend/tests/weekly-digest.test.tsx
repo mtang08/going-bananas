@@ -28,6 +28,11 @@ const a1 = {
     local_date: '2026-11-10',
     duration_s: 2952,
     distance_m: 5000,
+    sport: 'running',
+    avg_hr_bpm: 152,
+    moving_pace_s_per_km: 335,
+    rpe: 6,
+    rpe_source: 'manual',
   },
   execution: {
     assessment_status: 'partial',
