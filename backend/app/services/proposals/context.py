@@ -53,7 +53,11 @@ def snapshot_ref(row: Any) -> SnapshotRef:
 
 def active_block(session: Session) -> ActiveBlock | None:
     row = active_block_version(session)
-    return ActiveBlock(row.block_uid, row.id, row.version, tuple(row.eligible_recipe_ids)) if row else None
+    return (
+        ActiveBlock(row.block_uid, row.id, row.version, tuple(row.eligible_recipe_ids), row.review_date)
+        if row
+        else None
+    )
 
 
 def load_context(

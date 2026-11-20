@@ -23,6 +23,7 @@ from app.services.proposals.schema import (
     ValidationContext,
     anchor_key,
     derive_certainty,
+    parse_document,
     scope,
 )
 from app.services.proposals.validation import proposal_freshness, validate_document, validate_subset
@@ -92,7 +93,11 @@ def context(op: str = "review_rolling_plan", *, guard: dict | None = None, block
         KB.digest,
         guard or {"max_symptom_severity": None},
     )
-    active = ActiveBlock(U(100), U(101), 1, ("REC001", "REC002", "REC003", "REC007")) if block else None
+    active = (
+        ActiveBlock(U(100), U(101), 1, ("REC001", "REC002", "REC003", "REC007"), TODAY + timedelta(days=13))
+        if block
+        else None
+    )
     return ValidationContext(
         NOW,
         TODAY,
@@ -608,6 +613,36 @@ def test_subset_unchanged_numeric_target_needs_no_anchor() -> None:
 )
 def test_scope_by_operation(op: str, days: int) -> None:
     assert scope(op, TODAY) == (TODAY, TODAY + timedelta(days=days))
+
+
+@pytest.mark.parametrize(
+    "op,review_offset,days",
+    [
+        ("review_rolling_plan", 28, 28),
+        ("review_rolling_plan", 7, 13),
+        ("review_rolling_plan", 60, 42),
+        ("review_rolling_plan", -3, 13),
+        ("review_rolling_plan", None, 13),
+        ("review_training_block", 35, 35),
+        ("handle_goal_or_race_change", 20, 20),
+        ("exception_review", 28, 6),
+        ("post_event_review", 28, 6),
+        ("proceed_or_modify_today", 28, 3),
+        ("select_quality_session", 28, 13),
+        ("recalibrate_intensity", 28, 13),
+    ],
+)
+def test_scope_horizon_clamp(op: str, review_offset: int | None, days: int) -> None:
+    review = None if review_offset is None else TODAY + timedelta(days=review_offset)
+    assert scope(op, TODAY, review) == (TODAY, TODAY + timedelta(days=days))
+
+
+def test_changes_limit_is_eighty() -> None:
+    doc = valid_doc()
+    doc["changes"] = [change(f"c{i}", "delete", 1) for i in range(1, 81)]
+    assert parse_document(doc)[1] == []
+    doc["changes"].append(change("c81", "delete", 1))
+    assert [(issue.code, issue.path) for issue in parse_document(doc)[1]] == [("V1.schema", "changes")]
 
 
 def test_exception_schema_errors() -> None:

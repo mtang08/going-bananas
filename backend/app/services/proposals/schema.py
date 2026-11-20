@@ -24,6 +24,10 @@ RECIPE_IDS = {f"REC{n:03d}" for n in range(1, 11)}
 BLOCK_OPS = {"review_training_block", "handle_goal_or_race_change"}
 OFF_CYCLE_OPS = {"review_rolling_plan", "review_training_block", "handle_goal_or_race_change"}
 PATCH_SCOPE_OPS = {"exception_review", "post_event_review"}
+HORIZON_OPS = {"review_rolling_plan", "review_training_block", "handle_goal_or_race_change"}
+HORIZON_MIN_DAYS = 13
+HORIZON_MAX_DAYS = 42
+BLOCK_REVIEW_LEAD_DAYS = 7
 ANCHOR_UNIT = {
     "hr_aerobic_upper": "bpm",
     "hr_threshold_lower": "bpm",
@@ -242,7 +246,7 @@ class ProposalDoc(Strict):
     summary: str = Field(min_length=1, max_length=2000)
     rationale: str = Field(min_length=1, max_length=8000)
     confidence: Confidence
-    changes: list[Change] = Field(max_length=50)
+    changes: list[Change] = Field(max_length=80)
     preserved: list[uuid.UUID] = Field(default_factory=list)
     block_change: BlockChange | None = None
     anchor_changes: list[AnchorChange] = Field(default_factory=list)
@@ -295,6 +299,7 @@ class ActiveBlock:
     version_id: uuid.UUID
     version: int
     eligible_recipe_ids: tuple[str, ...]
+    review_date: date
 
 
 @dataclass(frozen=True)
@@ -363,7 +368,10 @@ def is_quality_slot(kind: str, recipe_id: str | None, placeholder: bool) -> bool
     return kind == "run" and (recipe_id in QUALITY_RECIPES or placeholder)
 
 
-def scope(operation: str, today: date) -> tuple[date, date]:
+def scope(operation: str, today: date, review_date: date | None = None) -> tuple[date, date]:
+    if operation in HORIZON_OPS:
+        days = (review_date - today).days if review_date is not None else HORIZON_MIN_DAYS
+        return today, today + timedelta(days=min(max(days, HORIZON_MIN_DAYS), HORIZON_MAX_DAYS))
     days = 3 if operation == "proceed_or_modify_today" else 6 if operation in PATCH_SCOPE_OPS else 13
     return today, today + timedelta(days=days)
 
