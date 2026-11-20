@@ -491,14 +491,14 @@
     {
       "path": "COACHING_GUIDE.md",
       "status": "changed",
-      "bytes": 8449,
-      "sha256": "a716e1e77933f40997316393b40ed233f5b25f9fbd2dcb971e63444d5b55db16"
+      "bytes": 8518,
+      "sha256": "6d95913d9f6caf3ff5230a1d818ea18363e70e3caf733296aeb83cd7e7f018d7"
     },
     {
       "path": "README.md",
       "status": "changed",
-      "bytes": 10547,
-      "sha256": "a8891293e6c095f8e8c23cc8bc5a1525673abfad271dcca03fa754ad783238ee"
+      "bytes": 10581,
+      "sha256": "cedbddccedd887743063bc0c6ac766fbecc61231f11ba26d2c10b32d7fee2733"
     },
     {
       "path": "evaluation/coaching_cases.md",
@@ -521,8 +521,8 @@
     {
       "path": "policies/periodization_policy_candidates.json",
       "status": "added",
-      "bytes": 28481,
-      "sha256": "9e4dee6131dde53425511b776c9c6248f65dc98c9a0a30c94f9b976609c755ca"
+      "bytes": 28815,
+      "sha256": "ed20b02812b56fc6971693c387b6ad3d46ad6ce4219cfa94ffa2960a1782b2c6"
     },
     {
       "path": "recipes/running_session_families.json",
@@ -611,8 +611,8 @@
     {
       "path": "topics/periodization_and_training_blocks.md",
       "status": "added",
-      "bytes": 13065,
-      "sha256": "4b37f6e224337249ce8ad49708c68152f410f498cc6343e788d48850f2e202d4"
+      "bytes": 13571,
+      "sha256": "57151cc18944d3c1cb8102da37081e136a6a72ae4873da26e913ee8ce6d941a4"
     },
     {
       "path": "topics/ptt_and_load_tolerance.md",

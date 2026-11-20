@@ -33,7 +33,7 @@ Prefer section/record retrieval. Record which paths/headings/IDs were loaded.
 Use the narrowest layer that can solve the problem:
 
 1. **Daily:** proceed, modify, reschedule, rest, or seek appropriate human/clinical input. Normally preserve the rolling plan and block.
-2. **Rolling plan:** reconstruct actual versus planned and revise the next 14 days coherently. Preserve the block objective unless repeated changes invalidate it.
+2. **Rolling plan:** reconstruct actual versus planned and revise the plan through the block review date (at least 14 days) coherently. Preserve the block objective unless repeated changes invalidate it.
 3. **Training block:** choose `start | continue | extend | consolidate | transition | replace | end`. It may change the primary emphasis, maintained qualities, eligible recipes, and progression dimension.
 4. **Long-term direction:** change major goals, event priorities, seasons, or constraints. Do not pretend distant daily sessions are knowable.
 
@@ -94,7 +94,7 @@ Every output records observable facts separately from interpretation and candida
 
 - **Daily:** decision; session intent; change from plan; concise rationale; recipe/policy/evidence IDs; confidence; missing/stale inputs; follow-up; plan version.
 - **Rolling review:** actual versus planned; adaptation and tolerance; delayed symptoms; strength interactions; block alignment; committed/provisional proposal; tradeoffs; IDs; uncertainty; escalation trigger.
-- **Block review:** lifecycle decision; objective status; exposure/adherence; adaptation; tolerance; maintained qualities; next emphasis; eligible recipes; 14-day implications; review conditions; IDs; confidence; approval/version requirement.
+- **Block review:** lifecycle decision; objective status; exposure/adherence; adaptation; tolerance; maintained qualities; next emphasis; eligible recipes; plan implications through the block review date; review conditions; IDs; confidence; approval/version requirement.
 - **Calibration:** comparability/quality facts; retain/update decision; old/candidate anchor objects; method/date/confidence; unsupported conversions; first-use guardrails; follow-up.
 - **Race change:** event priority/purpose; block impact; preserved/dropped objective; committed/provisional changes; prerequisites; taper/testing deferred items; approval requirement.
 

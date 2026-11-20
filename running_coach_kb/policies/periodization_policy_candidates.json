@@ -26,7 +26,7 @@
       "suggested_action": [
         "Separate objective status from tolerance and exposure adequacy.",
         "Choose one lifecycle outcome: start, continue, extend, consolidate, transition, replace, or end.",
-        "State what is preserved, what changes in the next 14 days, what remains provisional, and what observation will trigger the next review.",
+        "State what is preserved, what changes through the block review date, what remains provisional, and what observation will trigger the next review.",
         "Use a planned date plus completion and early-review conditions; do not treat elapsed weeks alone as success or failure."
       ],
       "alternatives": [
@@ -45,7 +45,7 @@
       "evidence_certainty": "Low-moderate for model superiority; moderate for the need to avoid rigid claims",
       "athlete_applicability": "High as a planning and audit policy; exact duration remains individualized",
       "threshold_basis": "No universal duration, response cutoff, or mandatory block structure",
-      "calibration_needed": "Calibrate objective indicators, review cadence, and what counts as adequate exposure to the athlete, phase, data quality, and approved product semantics.",
+      "calibration_needed": "Calibrate objective indicators, review cadence, and what counts as adequate exposure to the athlete, phase, data quality, and approved product semantics. The review trigger 'Product changes the calendar horizon or approval model' was reviewed for the block-length planning horizon (through the block review date, at least 14 and at most 42 days): the next-14-days wording in suggested_action was updated, and the position that no fixed block duration is validated is unchanged.",
       "uncertainty": "The value of an explicit block depends on whether it materially constrains session selection and makes review clearer than an ongoing goal plus rolling plan.",
       "review_triggers": [
         "New direct evidence in low-volume recreational runners",
