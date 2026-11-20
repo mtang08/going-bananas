@@ -23,8 +23,7 @@ export const qk = {
     ['v2', 'metrics', 'workout-progression', groupBy] as const,
   workoutHistory: (id: string) => ['v2', 'metrics', 'workout-history', id] as const,
   activity: (id: string) => ['v2', 'activity', id] as const,
-  activitiesNear: (start: string, end: string) =>
-    ['v2', 'activities', start, end, 'running', null] as const,
+  activitiesNear: (start: string, end: string) => ['v2', 'activities', start, end, null] as const,
   exceptions: ['v2', 'exceptions'] as const,
   goals: ['v2', 'goals'] as const,
   events: ['v2', 'events'] as const,

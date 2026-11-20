@@ -200,7 +200,24 @@ beforeEach(() => {
         : url.includes('/calendar/diff')
           ? { changes: [] }
           : url.includes('/activities')
-            ? { items: [{ id: 'a9', local_date: '2026-11-09', distance_m: 5000 }] }
+            ? {
+                items: [
+                  { id: 'a9', local_date: '2026-11-09', distance_m: 5000, sport: 'running' },
+                  {
+                    id: 'a10',
+                    local_date: '2026-11-09',
+                    distance_m: 8000,
+                    sport: 'treadmill_running',
+                  },
+                  { id: 'a11', local_date: '2026-11-09', distance_m: 20000, sport: 'cycling' },
+                  {
+                    id: 'a12',
+                    local_date: '2026-11-09',
+                    distance_m: 10000,
+                    sport: 'trail_running',
+                  },
+                ],
+              }
             : url.includes('/calendar/completions')
               ? { ...completion, session_uid: 's3', status: 'skipped' }
               : url.includes('/calendar/edits') || url.includes('/calendar/rollback')
@@ -671,6 +688,19 @@ describe('Calendar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Link run' }))
     await waitFor(() => expect(writes()).toHaveLength(1))
     expect(writes()[0].body).toEqual({ activity_id: 'a9', expected_version: 4 })
+  })
+  it('offers treadmill and trail runs and hides other sports when linking', async () => {
+    mount()
+    await screen.findByText('Version 2')
+    fireEvent.click(within(row('2026-11-09')).getByRole('button', { name: 'Record outcome' }))
+    expect(await screen.findByRole('option', { name: 'Nov 9 · 3.1 mi' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Nov 9 · 5.0 mi' })).toHaveValue('a10')
+    expect(screen.getByRole('option', { name: 'Nov 9 · 6.2 mi' })).toHaveValue('a12')
+    expect(screen.queryByRole('option', { name: /12.4 mi/ })).not.toBeInTheDocument()
+    const request = requests.find((r) => r.method === 'GET' && r.url.includes('/activities'))
+    expect(request?.url).toEqual(
+      '/api/v1/activities?start_date=2026-11-08&end_date=2026-11-10&limit=50',
+    )
   })
   it('does not send unchanged edits', async () => {
     mount()
