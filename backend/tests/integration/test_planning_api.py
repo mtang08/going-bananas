@@ -11,14 +11,14 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.api.planning import router
-from app.planning_models import Block, BlockVersion, Event, Goal, StrengthRoutineSlot
+from app.planning_models import Block, BlockDecision, BlockVersion, Event, Goal, StrengthRoutineSlot
 from app.services.strength_routine import confirmed_schedule, routine_occurrences
 
 
 @pytest.fixture
 def planning_fixture(db_connection, session_factory, api_client, profile_factory, calendar_state):
     with session_factory() as session:
-        for model in (StrengthRoutineSlot, Goal, BlockVersion, Event, Block):
+        for model in (StrengthRoutineSlot, Goal, BlockDecision, BlockVersion, Event, Block):
             session.execute(delete(model))
         calendar_state(session)
         profile_factory(
@@ -139,36 +139,37 @@ def test_goal_event_block_routes(planning_fixture):
     assert client.get("/api/v1/events").json()["data"]["items"][0]["status"] == "registered"
 
 
+def _add_version(session, uid, version, status, **extra):
+    fields = dict(
+        block_uid=uid,
+        version=version,
+        status=status,
+        objective="Synthetic objective",
+        rationale="Synthetic rationale",
+        maintained_qualities=[],
+        non_goals=[],
+        eligible_recipe_ids=[],
+        progression_dimension="none",
+        constraints={},
+        start_date=date(2026, 11, 2),
+        review_date=date(2026, 12, 2),
+        completion_indicators=[],
+        early_review_triggers=[],
+        objective_status="unresolved",
+    )
+    fields.update(extra)
+    session.add(BlockVersion(**fields))
+
+
 def test_block_active_uses_latest_version_and_history_is_ordered(planning_fixture):
     client, connection = planning_fixture
     block_uid = uuid.uuid4()
 
-    def add_version(session, uid, version, status):
-        session.add(
-            BlockVersion(
-                block_uid=uid,
-                version=version,
-                status=status,
-                objective="Synthetic objective",
-                rationale="Synthetic rationale",
-                maintained_qualities=[],
-                non_goals=[],
-                eligible_recipe_ids=[],
-                progression_dimension="none",
-                constraints={},
-                start_date=date(2026, 11, 2),
-                review_date=date(2026, 12, 2),
-                completion_indicators=[],
-                early_review_triggers=[],
-                objective_status="unresolved",
-            )
-        )
-
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
         session.add(Block(block_uid=block_uid))
         session.flush()
-        add_version(session, block_uid, 1, "active")
-        add_version(session, block_uid, 2, "ended")
+        _add_version(session, block_uid, 1, "active")
+        _add_version(session, block_uid, 2, "ended")
         session.commit()
     assert client.get("/api/v1/blocks/active").json()["data"] is None
     history = client.get(f"/api/v1/blocks/{block_uid}/history")
@@ -178,7 +179,7 @@ def test_block_active_uses_latest_version_and_history_is_ordered(planning_fixtur
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
         session.add(Block(block_uid=active_uid))
         session.flush()
-        add_version(session, active_uid, 1, "active")
+        _add_version(session, active_uid, 1, "active")
         session.commit()
     assert client.get("/api/v1/blocks/active").json()["data"]["block_uid"] == str(active_uid)
 
@@ -290,3 +291,104 @@ def test_put_events_order_conflicts(planning_fixture):
     response = _order(client, second, {**first, "version": 42})
     assert response.status_code == 409 and response.json()["error"]["code"] == "version_conflict"
     assert _events(client) == [past, first, second]
+
+
+def _decide(session, uid, decision, to_version):
+    session.add(
+        BlockDecision(
+            block_uid=uid,
+            decision=decision,
+            to_version=to_version,
+            rationale="Synthetic rationale",
+            confidence="moderate",
+            decided_at=datetime(2026, 11, 1, tzinfo=UTC),
+        )
+    )
+
+
+def _active(client):
+    return client.get("/api/v1/blocks/active").json()["data"]
+
+
+def test_active_block_reports_target_event_and_status(planning_fixture):
+    client, connection = planning_fixture
+    race = _post(client, "Goal race", 90, "pr", goal_time_s=1500)
+    block_uid = uuid.uuid4()
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        session.add(Block(block_uid=block_uid))
+        session.flush()
+        _add_version(session, block_uid, 1, "active", target_event_id=uuid.UUID(race["id"]))
+        session.commit()
+    active = _active(client)
+    assert active["target_event_id"] == race["id"]
+    assert active["target_event"] == {
+        key: race[key] for key in ("id", "name", "event_date", "distance_m", "purpose", "goal_time_s", "rank")
+    }
+    assert active["target_event_status"] == "current"
+    next_race = _post(client, "Another race", 120)
+    reordered = _order(client, next_race, race).json()["data"]["items"]
+    assert _active(client)["target_event_status"] == "changed"
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        _add_version(session, block_uid, 2, "active")
+        session.commit()
+    active = _active(client)
+    assert active["target_event_status"] == "unset" and active["target_event"] is None
+    for event in reordered:
+        assert _patch(client, event, status="cancelled").status_code == 200
+    assert _active(client)["target_event_status"] == "none"
+
+
+def test_block_responses_echo_build_outline(planning_fixture):
+    client, connection = planning_fixture
+    block_uid = uuid.uuid4()
+    outline = [{"emphasis": "threshold durability", "weeks": 4}]
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        session.add(Block(block_uid=block_uid))
+        session.flush()
+        _add_version(session, block_uid, 1, "ended")
+        _add_version(session, block_uid, 2, "active", build_outline=outline)
+        session.commit()
+    assert _active(client)["build_outline"] == outline
+    history = client.get(f"/api/v1/blocks/{block_uid}/history").json()["data"]["items"]
+    assert [item["build_outline"] for item in history] == [[], outline]
+
+
+def test_event_blocks_returns_one_row_per_training_block_oldest_first(planning_fixture):
+    client, connection = planning_fixture
+    target = uuid.UUID(_post(client, "Target race", 90)["id"])
+    other = uuid.UUID(_post(client, "Other race", 120)["id"])
+    first, second, untargeted = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        session.add_all(Block(block_uid=uid) for uid in (first, second, untargeted))
+        session.flush()
+        _add_version(session, first, 1, "active", target_event_id=target)
+        _add_version(session, first, 2, "ended", target_event_id=target)
+        _decide(session, first, "start", 1)
+        _decide(session, first, "continue", 2)
+        _add_version(session, second, 1, "ended", target_event_id=other)
+        _add_version(session, second, 2, "active", target_event_id=target, start_date=date(2026, 11, 23))
+        _decide(session, second, "start", 1)
+        _decide(session, second, "transition", 2)
+        _add_version(session, untargeted, 1, "ended")
+        session.commit()
+    items = client.get(f"/api/v1/events/{target}/blocks").json()["data"]["items"]
+    assert [(row["block_uid"], row["version"]) for row in items] == [(str(first), 2), (str(second), 2)]
+    missing = client.get(f"/api/v1/events/{uuid.uuid4()}/blocks")
+    assert missing.status_code == 404 and missing.json()["error"]["code"] == "event_not_found"
+
+
+def test_event_blocks_splits_a_block_at_a_transition(planning_fixture):
+    client, connection = planning_fixture
+    event_id = uuid.UUID(_post(client, "Race", 90)["id"])
+    block_uid = uuid.uuid4()
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        session.add(Block(block_uid=block_uid))
+        session.flush()
+        _add_version(session, block_uid, 1, "ended", target_event_id=event_id)
+        for version in (2, 3):
+            _add_version(session, block_uid, version, "active", target_event_id=event_id, start_date=date(2026, 11, 23))
+        for version, decision in enumerate(("start", "transition", "continue"), start=1):
+            _decide(session, block_uid, decision, version)
+        session.commit()
+    items = client.get(f"/api/v1/events/{event_id}/blocks").json()["data"]["items"]
+    assert [(row["block_uid"], row["version"]) for row in items] == [(str(block_uid), 1), (str(block_uid), 3)]
