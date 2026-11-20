@@ -20,7 +20,7 @@ Start one manual coaching review on Sunday evening. You do not need to decide wh
 
 > Use $going-bananas-coach for my Sunday review in real mode. Check whether I need a block review or the regular Sunday review of the rest of the block, and prepare a proposal. My schedule changes and feedback are: …
 
-The coach checks the active block and its review date. With no block, it helps establish one. When the block is due or an early-review trigger applies, it reviews the objective and response. Otherwise, it adjusts the next 14 days within the current block, keeping the second week provisional.
+The coach checks the active block and its review date. With no block, it helps establish one. When the block is due or an early-review trigger applies, it reviews the objective and response. Otherwise, it reviews the rest of the current block, from today through the block's review date and always at least 14 days ahead, keeping day 8 onward provisional.
 
 This cadence is manual. No coaching review or proposal runs automatically on Sunday. Extra reviews are useful after a material change, symptoms, or a new goal.
 
@@ -36,7 +36,7 @@ When Home recommends an exception review, copy its prompt:
 
 > Use $going-bananas-coach for an exception review. Read the open findings in the app and patch only what they require.
 
-The coach makes the smallest change that works: today's session, the next session, the next few days, and at most this committed week (days 1–7). It never edits the provisional second week (days 8–14). The proposal lists the sessions it leaves unchanged, a reassess date, what to watch for, when to return to plan, and when to escalate. Accepted changes show **Patched · reassess** with the day on Home and in Calendar.
+The coach makes the smallest change that works: today's session, the next session, the next few days, and at most this committed week (days 1–7). It never edits provisional days (day 8 onward). The proposal lists the sessions it leaves unchanged, a reassess date, what to watch for, when to return to plan, and when to escalate. Accepted changes show **Patched · reassess** with the day on Home and in Calendar.
 
 On the reassess day, Home shows **Reassess due**. Choose **Mark resolved** when you are back to normal, or **Still not right** to keep it for the coach. To ask the coach to reassess:
 
@@ -72,11 +72,11 @@ That review compares the result with earlier benchmarks of the same protocol, de
 
 ## Training blocks and weekly plans
 
-A block gives the weekly plan direction: an objective, start date, review date, progression dimension, and observable completion indicators. It also records qualities to maintain, constraints, and reasons to review early. A weekly plan chooses the sessions that serve that accepted objective over the next 14 days.
+A block gives the weekly plan direction: an objective, start date, review date, progression dimension, and observable completion indicators. It also records qualities to maintain, constraints, and reasons to review early. A weekly plan chooses the sessions that serve that accepted objective from today through the block's review date, and always at least 14 days ahead.
 
 To establish your first block now:
 
-> Use $going-bananas-coach to establish my first training block in real mode. Propose its objective, start and review dates, progression dimension, completion indicators, and next 14 days using my current evidence and priorities.
+> Use $going-bananas-coach to establish my first training block in real mode. Propose its objective, start and review dates, progression dimension, completion indicators, and sessions through its review date using my current evidence and priorities.
 
 The proposed block becomes active only after you select and accept its block change in the app. Creating or revising the draft does not activate it.
 
@@ -135,7 +135,7 @@ A new race result, test, or sustained change in workout execution may justify re
 
 For a new goal, race, or substantial scheduling constraint, request the broader review explicitly:
 
-> Use $going-bananas-coach to review this goal or race change in real mode: … Explain its block implications and the next 14 days.
+> Use $going-bananas-coach to review this goal or race change in real mode: … Explain its block implications and the plan through the block's review date.
 
 These are occasional reviews rather than extra weekly chores. The coach distinguishes observations, research, and athlete-specific inference; uncertain data stays uncertain.
 
