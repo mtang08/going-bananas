@@ -12,6 +12,7 @@ import {
   fmtRpe,
   paceToSpeed,
   signatureLabel,
+  sportLabel,
   statusText,
 } from '../src/lib/format'
 import { flattenStructure, formatStep } from '../src/lib/structure'
@@ -106,6 +107,13 @@ describe('planning wire', () => {
 })
 
 describe('planning helpers', () => {
+  it('labels sports', () => {
+    expect(sportLabel('running')).toBe('Run')
+    expect(sportLabel('treadmill_running')).toBe('Treadmill run')
+    expect(sportLabel('trail_running')).toBe('Trail run')
+    expect(sportLabel('strength_training')).toBe('strength training')
+  })
+
   it('labels work signatures', () => {
     expect(signatureLabel('ws1:4xt300')).toBe('4 × 5:00')
     expect(signatureLabel('ws1:3xd1000+4xd200')).toBe('3 × 1 km + 4 × 200 m')

@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import math
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import date, timedelta
+from types import SimpleNamespace
 from typing import Literal, get_args
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
+from app.checkin_models import SessionRpe
 from app.db import global_read_lock
+from app.domain.analytics import pace_s_per_km
 from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.local_time import date_in_zone
 from app.domain.session_class import HARD_CLASSES, classify
@@ -24,6 +27,7 @@ from app.metrics.engine import activities_coverage_complete, current_results, lo
 from app.models import Activity, ManualSession
 from app.read.calendar import head_version, latest_revisions
 from app.services import calendar
+from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
 from app.services.weekly_projection import planned_distance, recent_pace_mps
 from app.strong_models import StrongWorkoutRow
@@ -50,6 +54,7 @@ _SUBJECT_FIELDS = (
     ("strong_workout_id", "strong_workout"),
     ("manual_session_id", "manual_session"),
 )
+_ACTIVITY_EMPTY = {"sport": None, "avg_hr_bpm": None, "moving_pace_s_per_km": None, "rpe": None, "rpe_source": None}
 
 
 def week_bounds(day: date) -> tuple[date, date]:
@@ -128,6 +133,7 @@ def assemble_week(
     manuals: list[dict],
     assessments: dict[str, dict],
     intervals: dict[str, dict],
+    activity_facts: dict[str, dict],
     pace_mps: float | None,
     activity_coverage_complete: bool,
 ) -> dict:
@@ -207,11 +213,13 @@ def assemble_week(
                     "local_date": found["local_date"].isoformat(),
                     "duration_s": found["duration_s"],
                     "distance_m": found["distance_m"],
+                    **_ACTIVITY_EMPTY,
+                    **(activity_facts.get(ref[1], {}) if ref[0] == "activity" else {}),
                 }
                 if ref and found
                 else None,
                 "execution": _execution(assessments.get(uid), intervals.get(ref[1]) if ref[0] == "activity" else None)
-                if key and ref
+                if ref
                 else None,
             }
         )
@@ -413,16 +421,48 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
         }
         for row in kept
     }
-    key_uids = [
-        str(row["session_uid"])
-        for row in sessions
-        if classify(row["kind"], row.get("recipe_id"), row.get("intent")) in KEY_CLASSES
-    ]
-    key_activity_ids = [
-        str(completions[uid]["activity_id"])
-        for uid in key_uids
-        if uid in completions and completions[uid]["activity_id"]
-    ]
+    session_uids = {str(uid) for uid in head_uids}
+    linked_ids = {c["activity_id"] for uid, c in completions.items() if uid in session_uids and c["activity_id"]}
+    activity_facts: dict[str, dict] = {}
+    if linked_ids:
+        rpe_rows: dict = defaultdict(list)
+        base: dict = {}
+        for activity_row in session.execute(
+            select(
+                Activity.id,
+                Activity.sport,
+                Activity.avg_hr_bpm,
+                Activity.moving_s,
+                Activity.distance_m,
+                Activity.workout_rpe,
+                SessionRpe.id.label("rpe_id"),
+                SessionRpe.rpe,
+                SessionRpe.source,
+                SessionRpe.collected_at,
+            )
+            .outerjoin(SessionRpe, SessionRpe.activity_id == Activity.id)
+            .where(Activity.id.in_(linked_ids))
+        ):
+            base[activity_row.id] = activity_row
+            if activity_row.rpe_id is not None:
+                rpe_rows[activity_row.id].append(
+                    SimpleNamespace(
+                        id=activity_row.rpe_id,
+                        rpe=activity_row.rpe,
+                        source=activity_row.source,
+                        collected_at=activity_row.collected_at,
+                    )
+                )
+        for activity_id, activity_row in base.items():
+            rpe, source, _ = effective_run_rpe(rpe_rows[activity_id], activity_row.workout_rpe)
+            activity_facts[str(activity_id)] = {
+                "sport": activity_row.sport,
+                "avg_hr_bpm": activity_row.avg_hr_bpm,
+                "moving_pace_s_per_km": pace_s_per_km(activity_row.distance_m, activity_row.moving_s),
+                "rpe": rpe,
+                "rpe_source": source,
+            }
+    linked_activity_ids = sorted(str(a) for a in linked_ids)
     pace_runs = load_runs(session, as_of - timedelta(days=PACE_WINDOW_DAYS - 1), as_of + _DAY)
     pace, _ = recent_pace_mps(pace_runs, as_of, PACE_WINDOW_DAYS)
     return assemble_week(
@@ -436,12 +476,13 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
         runs=list(runs.values()),
         lifts=list(lifts.values()),
         manuals=list(manuals.values()),
-        assessments=_rows(current_results(session, planned_actual.METRIC_ID, key_uids)),
+        assessments=_rows(current_results(session, planned_actual.METRIC_ID, sorted(session_uids))),
         intervals={
             key: row.value
-            for key, row in current_results(session, interval_metric.METRIC_ID, key_activity_ids).items()
+            for key, row in current_results(session, interval_metric.METRIC_ID, linked_activity_ids).items()
             if isinstance(row.value, dict)
         },
+        activity_facts=activity_facts,
         pace_mps=pace,
         activity_coverage_complete=activities_coverage_complete(session, week_start, as_of + _DAY),
     )

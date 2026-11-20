@@ -82,6 +82,21 @@ def get_calendar(
     )
 
 
+@router.get("/calendar/week")
+def get_calendar_week(
+    start: date | None = None,
+    version: int | None = None,
+    session: Session = Depends(get_session),
+) -> dict:
+    if start is None:
+        start, end = weekly_digest.week_bounds(calendar.calendar_today(session))
+    else:
+        if start.weekday() != 0:
+            fail("invalid_week_start", "Week start must be a Monday")
+        end = start + timedelta(days=6)
+    return envelope(session, calendar.calendar_view(session, start, end, version))
+
+
 @router.get("/calendar/weekly-projection")
 def get_weekly_projection(session: Session = Depends(get_session)) -> dict:
     return envelope(session, weekly_projection.weekly_projection(session))

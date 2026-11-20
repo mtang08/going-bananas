@@ -1,14 +1,15 @@
 @layer components {
-  .plan-overview,
-  .plan-week {
-    min-width: 0;
-  }
-  .plan-week-grid {
+  .home-gauges {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    align-items: start;
   }
-  .plan-day,
+  @media (max-width: 900px) {
+    .home-gauges {
+      grid-template-columns: 1fr;
+    }
+  }
   .calendar-page .calendar-day {
     min-width: 0;
     padding: 10px;
@@ -16,17 +17,9 @@
     border-radius: 12px;
     background: var(--surface, #fff);
   }
-  .plan-day h3,
   .calendar-page .calendar-day h3 {
     font-size: 0.85rem;
     margin: 0 0 10px;
-  }
-  .plan-day h3 small {
-    display: block;
-    color: var(--primary, #426e42);
-  }
-  .plan-day.is-today {
-    outline: 2px solid var(--primary, #426e42);
   }
   .plan-session {
     border-left: 3px solid #658c61;
@@ -131,17 +124,8 @@
     margin-right: 5px;
   }
   @media (max-width: 1000px) {
-    .plan-week-grid,
     .calendar-page .calendar-week-grid {
       grid-template-columns: 1fr;
-    }
-    .plan-day {
-      display: grid;
-      grid-template-columns: 80px minmax(0, 1fr);
-      gap: 8px;
-    }
-    .plan-day h3 {
-      grid-row: 1 / span 8;
     }
     .calendar-page .calendar-day {
       padding: 12px;
@@ -151,12 +135,10 @@
     }
   }
   /* An opened prescription occupies the whole week, keeping its exact steps readable. */
-  .plan-week-grid > .plan-day:has(.plan-session-details[open]),
   .calendar-week-grid > .calendar-day:has(.plan-session-details[open]) {
     grid-column: 1 / -1;
     display: block;
   }
-  .plan-day:has(.plan-session-details[open]) .plan-session,
   .calendar-day:has(.plan-session-details[open]) .plan-session {
     max-width: none;
   }
@@ -213,5 +195,14 @@
     padding: 2px 8px;
     border: 1px solid #e3e8df;
     border-radius: 999px;
+  }
+  .week-session {
+    display: grid;
+    gap: 4px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border, #dce2dc);
+  }
+  .week-session:first-of-type {
+    border-top: 0;
   }
 }

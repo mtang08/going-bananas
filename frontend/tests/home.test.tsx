@@ -7,7 +7,7 @@ import { Home } from '../src/pages/Home'
 import type { ProposalSummary } from '../src/api/types/coach'
 import { addDays } from '../src/lib/format'
 import type { BlockVersion } from '../src/api/types/blocks'
-import type { CalendarView, SessionState, WeeklyDigest } from '../src/api/types/calendar'
+import type { CalendarView, DigestRow, SessionState, WeeklyDigest } from '../src/api/types/calendar'
 
 const finding = (id: string, severity: Severity, summary: string, version = 1): Finding => ({
   id,
@@ -176,7 +176,9 @@ const digestFor = (weekStart: string, done = 2): WeeklyDigest => {
       },
       key_sessions: { planned: 1, planned_to_date: 1, done: 1, by_outcome },
     },
-    sessions: [],
+    sessions: digestSessions.filter(
+      (row) => row.local_date >= weekStart && row.local_date <= addDays(weekStart, 6),
+    ),
     unplanned: [],
     removed: [],
   }
@@ -188,6 +190,7 @@ let exceptionsData: ExceptionsView
 let blockData: BlockVersion | null
 let error = false
 let digestFail = false
+let digestSessions: DigestRow[]
 let requests: { url: string; method: string; body: unknown; headers: Headers }[]
 const onCheckin = vi.fn()
 const clients: QueryClient[] = []
@@ -209,6 +212,7 @@ beforeEach(() => {
   error = false
   onCheckin.mockReset()
   digestFail = false
+  digestSessions = []
   calendar = {
     today: '2026-11-11',
     timezone: 'America/New_York',
@@ -290,19 +294,12 @@ function mount() {
 }
 
 describe('training home', () => {
-  it('shows today and the strip', async () => {
+  it("shows today's plan", async () => {
     mount()
     await screen.findByRole('heading', { name: 'Wednesday, November 11' })
     const card = screen.getByTestId('today-card')
     expect(within(card).getByText('Easy run')).toBeInTheDocument()
     expect(within(card).getByText('30m')).toBeInTheDocument()
-    expect(screen.getAllByTestId('strip-day')).toHaveLength(14)
-    const longDay = document.querySelector('[data-date="2026-11-19"]') as HTMLElement
-    expect(within(longDay).getByTestId('session-tag')).toHaveClass('certainty-provisional')
-    const changed = document.querySelector('[data-date="2026-11-13"]') as HTMLElement
-    expect(within(changed).getByText('Quality slot')).toBeInTheDocument()
-    expect(within(changed).getByText('Changed')).toBeInTheDocument()
-    expect(document.querySelector('[data-date="2026-11-11"]')).toHaveTextContent('Planned')
   })
   it('prompt actions open the right check-in', async () => {
     mount()
@@ -373,15 +370,13 @@ describe('training home', () => {
     expect(await screen.findByText('No calendar yet.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open setup' })).toHaveAttribute('href', '#settings')
     expect(screen.queryByTestId('today-card')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('strip-day')).not.toBeInTheDocument()
   })
-  it('shows plan-end banner and leaves future empty days empty', async () => {
+  it('shows the plan-end banner for a short plan', async () => {
     calendar.sessions = calendar.sessions.slice(0, 2)
     mount()
     expect(await screen.findByTestId('plan-end-banner')).toHaveTextContent(
       'Plan ends on Nov 13 — run the weekly review',
     )
-    expect(document.querySelector('[data-date="2026-11-15"]')).toHaveTextContent('No session')
   })
   it('omits the plan-end banner for a longer plan', async () => {
     mount()
@@ -464,11 +459,8 @@ describe('training home', () => {
     const card = await screen.findByTestId('today-card')
     expect(within(card).getByText('2 ×')).toBeVisible()
     expect(within(card).getByText('2 ×').closest('details')).toBeNull()
-    expect(
-      within(card).getByText('Stop if form deteriorates').closest('details'),
-    ).not.toHaveAttribute('open')
     expect(within(card).queryByText('Session details')).not.toBeInTheDocument()
-    fireEvent.click(within(card).getByText('Session notes'))
+    expect(within(card).queryByText('Session notes')).not.toBeInTheDocument()
     expect(within(card).getByText('Stop if form deteriorates')).toBeVisible()
     expect(within(card).getByText('Original prescribed easy progression')).toBeVisible()
     expect(within(card).getByText('Work 1:00 · effort')).toBeInTheDocument()
@@ -511,20 +503,57 @@ describe('training home', () => {
     ).toBeTruthy()
     expect(requests.every((r) => r.method === 'GET')).toBe(true)
   })
-  it('orders Home sections', async () => {
-    mount()
-    await screen.findByTestId('today-card')
-    const sections = ['Needs attention', "Today's plan", 'This week'].map((name) =>
-      screen.getByRole('heading', { name }),
-    )
-    for (let i = 0; i < sections.length - 1; i++)
-      expect(
-        sections[i].compareDocumentPosition(sections[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy()
+  it("puts the gauges first and lists the week's sessions below Today's plan", async () => {
+    digestSessions = [
+      {
+        session_uid: 's1',
+        local_date: '2026-11-10',
+        slot: 1,
+        kind: 'run',
+        class: 'easy',
+        recipe_id: 'REC001',
+        custom: false,
+        intent: null,
+        key: false,
+        changed: false,
+        outcome: 'completed',
+        modification_reason: null,
+        planned_duration_s: 1800,
+        planned_distance_m: null,
+        planned_distance_estimated: false,
+        actual: {
+          subject: 'activity',
+          id: 'a1',
+          local_date: '2026-11-10',
+          duration_s: 1800,
+          distance_m: 5000,
+          sport: 'running',
+          avg_hr_bpm: 152,
+          moving_pace_s_per_km: 360,
+          rpe: 5,
+          rpe_source: 'manual',
+        },
+        execution: null,
+      },
+    ]
+    const { container } = mount()
+    const sessions = await screen.findByTestId('week-sessions')
+    expect(sessions).toHaveTextContent('Easy run')
     expect(
-      screen.getByTestId('home-status').compareDocumentPosition(sections[0]) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
+      Array.from(
+        container.querySelectorAll(
+          '[data-testid="home-status"], .home-gauges, [data-testid="needs-attention"], [data-testid="today-card"], [data-testid="week-sessions"]',
+        ),
+        (section) => section.getAttribute('data-testid') ?? section.className,
+      ),
+    ).toEqual(['home-status', 'home-gauges', 'needs-attention', 'today-card', 'week-sessions'])
+    expect(screen.queryByText('Next week')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Last week' }))
+    expect(await screen.findByRole('heading', { name: "Last week's sessions" })).toBeInTheDocument()
+    expect(screen.getByTestId('week-sessions')).not.toHaveTextContent('Easy run')
+    expect(
+      requests.filter(({ url }) => url.endsWith('/calendar/weekly-digest?week_start=2026-11-02')),
+    ).toHaveLength(1)
   })
   it('hides Needs attention when nothing needs it', async () => {
     promptItems = []
@@ -645,67 +674,4 @@ describe('training home', () => {
       expect(posts[i].body).toEqual({ expected_version: 1, status, note: null })
     }
   })
-})
-
-it('shows a synced recorded run on an otherwise unplanned Home day', async () => {
-  calendar.recorded_runs = [
-    { activity_id: 'recorded-run', local_date: '2026-11-10', distance_m: 5000, timer_s: 1800 },
-  ]
-  mount()
-  await screen.findByTestId('today-card')
-  const day = document.querySelector(
-    '[data-testid="strip-day"][data-date="2026-11-10"]',
-  ) as HTMLElement
-  expect(within(day).getByText('Recorded run')).toBeInTheDocument()
-  expect(within(day).getByRole('link', { name: 'Open run' })).toHaveAttribute(
-    'href',
-    '#activity/recorded-run',
-  )
-  expect(within(day).queryByText('No session')).toBeNull()
-})
-
-it('shows extra completions once and does not repeat linked runs as recorded runs', async () => {
-  const completion = {
-    id: 'extra',
-    session_uid: 'extra-session',
-    activity_id: 'extra-run',
-    strong_workout_id: null,
-    manual_session_id: null,
-    status: 'extra' as const,
-    match_method: 'none' as const,
-    modification_reason: null,
-    reason_note: null,
-    version: 1,
-    input_version: 1,
-    updated_at: '2026-11-10T12:00:00Z',
-    local_date: '2026-11-10',
-  }
-  calendar.completions = [
-    completion,
-    {
-      ...completion,
-      id: 'linked',
-      session_uid: 's1',
-      activity_id: 'linked-run',
-      status: 'unknown',
-      match_method: 'auto_same_day',
-      local_date: '2026-11-11',
-    },
-  ]
-  calendar.recorded_runs = [
-    { activity_id: 'extra-run', local_date: '2026-11-10', distance_m: 5000, timer_s: 1800 },
-    { activity_id: 'linked-run', local_date: '2026-11-11', distance_m: 5000, timer_s: 1800 },
-  ]
-  mount()
-  await screen.findByTestId('today-card')
-  const day = document.querySelector(
-    '[data-testid="strip-day"][data-date="2026-11-10"]',
-  ) as HTMLElement
-  expect(within(day).getAllByText('Extra run (not in the plan)')).toHaveLength(1)
-  expect(within(day).getByRole('link', { name: 'Open run' })).toHaveAttribute(
-    'href',
-    '#activity/extra-run',
-  )
-  expect(within(day).queryByText('No session')).toBeNull()
-  expect(screen.queryByText('Recorded run')).toBeNull()
 })

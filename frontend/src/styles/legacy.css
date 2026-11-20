@@ -788,15 +788,6 @@
   margin-top: 6px;
 }
 
-.workout-notes {
-  margin: 14px 0;
-}
-
-.workout-notes > summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
 @media (max-width: 640px) {
   .proposal-table {
     min-width: 0;

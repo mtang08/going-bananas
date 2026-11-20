@@ -2,11 +2,13 @@ import json
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import func, select
+import pytest
+from sqlalchemy import event, func, select
 from sqlalchemy.orm import Session
 from test_calendar_api import calendar_fixture  # noqa: F401
 
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
+from app.checkin_models import SessionRpe
 from app.metric_models import MetricResult
 from app.metrics import intervals, planned_actual
 from app.models import Activity, ActivityAnnotation, AppState, ManualSession, RawObject, SourceAccount, SourceRecord
@@ -170,8 +172,15 @@ def test_load_week_reads_stored_rows_without_writes(calendar_fixture, monkeypatc
         lift = _strong(session, 8, 3000)
         cross = ManualSession(date=date(2030, 1, 8), kind="cross", duration_s=1200)
         updated = datetime.now(UTC)
+        run_a.avg_hr_bpm = 151.0
+        run_a.moving_s = 1750.0
+        run_a.workout_rpe = 5.0
+        run_b.sport = "treadmill_running"
+        run_b.moving_s = 2400.0
+        run_b.workout_rpe = 4.0
         session.add_all(
             [
+                SessionRpe(activity_id=run_b.id, source="manual", rpe=7.0, collected_at=updated),
                 SessionCompletion(
                     session_uid=uid["A"],
                     activity_id=run_a.id,
@@ -223,13 +232,32 @@ def test_load_week_reads_stored_rows_without_writes(calendar_fixture, monkeypatc
             str(run_b.id),
             {"n_planned": 6, "n_completed": 4, "reps": []},
         )
+        _metric(
+            session,
+            planned_actual.METRIC_ID,
+            planned_actual.METHOD_VERSION,
+            "session",
+            str(uid["K"]),
+            {"components": [{"name": "duration_ratio", "value": 1.0, "status": "met"}]},
+        )
         session.flush()
         unplanned_ids = {str(unlinked.id), str(cross.id)}
         session.commit()
         counts = _stored_counts(session)
 
+    activity_facts_queries = []
+
+    def record_activity_facts_query(conn, cursor, statement, parameters, context, executemany):
+        if "FROM activities LEFT OUTER JOIN session_rpe" in statement:
+            activity_facts_queries.append(statement)
+
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
-        week = load_week(session, week_start, today=today)
+        event.listen(connection, "before_cursor_execute", record_activity_facts_query)
+        try:
+            week = load_week(session, week_start, today=today)
+        finally:
+            event.remove(connection, "before_cursor_execute", record_activity_facts_query)
+        assert len(activity_facts_queries) == 1
         assert weekly_digest(session, None) == week
         assert _stored_counts(session) == counts
 
@@ -299,6 +327,16 @@ def test_load_week_reads_stored_rows_without_writes(calendar_fixture, monkeypatc
     execution_a = rows[str(uid["A"])]["execution"]
     assert execution_a["assessment_status"] is None
     assert execution_a["reason_codes"] == ["ASSESSMENT_MISSING"]
+    actual_a, actual_b = rows[str(uid["A"])]["actual"], rows[str(uid["B"])]["actual"]
+    assert (actual_a["sport"], actual_a["avg_hr_bpm"], actual_a["rpe"], actual_a["rpe_source"]) == (
+        "running",
+        151.0,
+        5.0,
+        "garmin_fit",
+    )
+    assert actual_a["moving_pace_s_per_km"] == pytest.approx(1750 / 3.6)
+    assert (actual_b["sport"], actual_b["rpe"], actual_b["rpe_source"]) == ("treadmill_running", 7.0, "manual")
+    assert actual_b["avg_hr_bpm"] is None
     assert rows[str(uid["B"])]["execution"] == {
         "assessment_status": "available",
         "reason_codes": [],
@@ -307,10 +345,14 @@ def test_load_week_reads_stored_rows_without_writes(calendar_fixture, monkeypatc
         "reps_planned": 6,
         "reps_completed": 4,
     }
+    assert rows[str(uid["C"])]["execution"]["assessment_status"] is None
+    assert rows[str(uid["C"])]["actual"]["sport"] is None
     assert rows[str(uid["D"])]["execution"] is None
     moved = rows[str(uid["K"])]["actual"]
     assert moved["local_date"] == "2030-01-06"
     assert moved["subject"] == "activity"
+    assert rows[str(uid["K"])]["key"] is False
+    assert rows[str(uid["K"])]["execution"]["assessment_status"] == "available"
     assert {row["id"] for row in week["unplanned"]} == unplanned_ids
     assert "private" not in json.dumps(week, default=str)
     forbidden = ("note", "stream", "gps", "latitude", "longitude", "coordinate", "vo2max", "readiness")

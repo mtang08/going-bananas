@@ -65,6 +65,7 @@ def _assemble(**over):
         manuals=[],
         assessments={},
         intervals={},
+        activity_facts={},
         pace_mps=None,
         activity_coverage_complete=True,
     )
@@ -228,6 +229,15 @@ def test_key_session_execution():
             }
         },
         intervals={"a2": {"n_planned": 6, "n_completed": 4}},
+        activity_facts={
+            "a1": {
+                "sport": "treadmill_running",
+                "avg_hr_bpm": 150.0,
+                "moving_pace_s_per_km": 330.0,
+                "rpe": 4.0,
+                "rpe_source": "manual",
+            }
+        },
     )
     long_run, quality, easy, unlinked = week["sessions"]
     assert quality["execution"] == {
@@ -242,9 +252,23 @@ def test_key_session_execution():
     assert long_run["execution"]["reason_codes"] == ["ASSESSMENT_MISSING"]
     assert long_run["execution"]["reps_planned"] is None
     assert long_run["execution"]["reps_completed"] is None
-    assert easy["key"] is False and easy["execution"] is None
+    assert long_run["actual"]["sport"] == "treadmill_running"
+    assert long_run["actual"]["rpe_source"] == "manual"
+    assert quality["actual"]["avg_hr_bpm"] is None and quality["actual"]["sport"] is None
+    assert easy["key"] is False and easy["execution"]["assessment_status"] is None
     assert unlinked["key"] is True and unlinked["execution"] is None
     assert week["totals"]["key_sessions"]["planned"] == 3
+
+
+def test_non_activity_actual_has_null_activity_facts():
+    week = _assemble(
+        sessions=[_session(7, kind="strength", uid="strength")],
+        completions={"strength": _c("completed_as_planned", strong_workout_id="w1")},
+        lifts=[dict(id="w1", local_date=date(2030, 1, 7), duration_s=1200)],
+        activity_facts={"w1": {"sport": "treadmill_running"}},
+    )
+    actual = week["sessions"][0]["actual"]
+    assert all(actual[field] is None for field in ("sport", "avg_hr_bpm", "moving_pace_s_per_km", "rpe", "rpe_source"))
 
 
 def test_revision_over_one_is_changed():

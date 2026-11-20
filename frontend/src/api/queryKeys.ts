@@ -7,6 +7,8 @@ export function invalidateKeys(qc: QueryClient, keys: readonly (readonly unknown
 export const qk = {
   calendar: ['v2', 'calendar'] as const,
   calendarView: (version: number | 'head') => ['v2', 'calendar', 'view', version] as const,
+  calendarWeek: (start: string | 'current', version: number | 'head') =>
+    ['v2', 'calendar', 'week', start, version] as const,
   calendarVersions: ['v2', 'calendar', 'versions'] as const,
   calendarDiff: (from: number, to: number) => ['v2', 'calendar', 'diff', from, to] as const,
   weeklyDigest: (weekStart: string | 'current') =>
@@ -21,8 +23,7 @@ export const qk = {
     ['v2', 'metrics', 'workout-progression', groupBy] as const,
   workoutHistory: (id: string) => ['v2', 'metrics', 'workout-history', id] as const,
   activity: (id: string) => ['v2', 'activity', id] as const,
-  activitiesNear: (start: string, end: string) =>
-    ['v2', 'activities', start, end, 'running', null] as const,
+  activitiesNear: (start: string, end: string) => ['v2', 'activities', start, end, null] as const,
   exceptions: ['v2', 'exceptions'] as const,
   goals: ['v2', 'goals'] as const,
   events: ['v2', 'events'] as const,

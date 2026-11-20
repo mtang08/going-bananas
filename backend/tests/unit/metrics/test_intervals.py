@@ -74,6 +74,16 @@ def example() -> tuple[list[PlanStep], list[FitStep], list[LapIn], ExecStream]:
     return plan, fit, laps, stream
 
 
+def test_treadmill_flag_added_without_changing_scoring() -> None:
+    plan, fit, laps, stream = example()
+    plain = execution_outcome(plan, fit, laps, stream)
+    treadmill = execution_outcome(plan, fit, laps, stream, "treadmill_running")
+    assert "TREADMILL" not in plain["quality_flags"]
+    assert "TREADMILL" in treadmill["quality_flags"]
+    assert {**treadmill, "quality_flags": [flag for flag in treadmill["quality_flags"] if flag != "TREADMILL"]} == plain
+    assert treadmill["value"]["reps"][0]["mean_speed_mps"] == 3.84
+
+
 def test_ex1_numeric_and_mapping() -> None:
     plan, fit, laps, stream = example()
     outcome = execution_outcome(plan, fit, laps, stream)

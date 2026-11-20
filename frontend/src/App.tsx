@@ -9,7 +9,7 @@ import {
   Plus,
   Settings2,
 } from 'lucide-react'
-import { dateLabel, localDate } from './lib/format'
+import { dateLabel, localDate, validDate } from './lib/format'
 import type { CheckinRequest } from './api/types/checkins'
 import type { Profile } from './api/types/profile'
 import { useServer } from './components/shared'
@@ -46,6 +46,10 @@ export function parseHash(hash: string): Route {
   if (allowed.has(path)) return { page: path as Page, id: null }
   if (/^proposal\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path)) {
     return { page: 'proposal', id: path.slice('proposal/'.length) }
+  }
+  if (path.startsWith('calendar/')) {
+    const date = path.slice('calendar/'.length)
+    return validDate(date) ? { page: 'calendar', id: date } : fallback
   }
   if (path.startsWith('activity/')) {
     try {
@@ -236,7 +240,7 @@ export function App() {
         {profile.data && (
           <>
             {page === 'home' && <Home unit={unit} onCheckin={openCheckin} />}
-            {page === 'calendar' && <Calendar unit={unit} />}
+            {page === 'calendar' && <Calendar unit={unit} weekStart={route.id} />}
             {page === 'trends' && <Trends unit={unit} />}
             {page === 'block' && <Block unit={unit} />}
             {page === 'guide' && <Guide />}

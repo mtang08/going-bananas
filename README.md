@@ -21,7 +21,7 @@ exception, race, and training-block workflows. The same guide is maintained in
 [docs/user-guide.md](docs/user-guide.md) and can be downloaded from the app.
 
 1. Open **http://127.0.0.1:8000**. Home shows sync status, what needs attention,
-   today's plan, projected weekly mileage, the next two weeks, and the training
+   today's plan, projected weekly mileage, planned vs done, recorded sessions this week, and the training
    block. Record check-ins and actual effort there.
 2. Ask Codex to use **`$going-bananas-coach`** for a weekly review, an
    exception review, a block review, a post-race review, calibration, or a goal
@@ -30,7 +30,7 @@ exception, race, and training-block workflows. The same guide is maintained in
    block change, and calibration anchors you want to accept. Unselected session
    changes are rejected. Nothing applies when you open the page or submit a
    proposal from Codex.
-4. Inspect accepted sessions and revision history in Calendar. Completed,
+4. Inspect accepted sessions and **Plan versions** in Calendar. Completed,
    historical, and locked sessions remain protected when undoing a change.
    A check-in or new import can make a proposal stale; request a fresh review.
 5. Use Trends and activity details to inspect timer-based volume, effort load,
@@ -206,7 +206,7 @@ python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real snaps
 python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real history
 ```
 
-Use Calendar revision history to restore eligible sessions, or explicitly ask
+Use Calendar’s **Plan versions** to restore eligible sessions, or explicitly ask
 the skill to undo a change. Protected rollback creates a new version and keeps
 completed, historical, and locked facts. Old imported revisions remain stored;
 undo of pre-migration agent revisions is deferred.

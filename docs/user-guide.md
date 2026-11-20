@@ -8,7 +8,7 @@ If the app is already running, just open http://127.0.0.1:8000; do not start a s
 
 ## Daily check-in
 
-Open [Home](#home) to see what needs attention, today's accepted session, weekly mileage, and the next two weeks. Open a session for its full prescription, including warm-up, intervals, recovery, targets, and notes. In a rolling proposal, days 1–7 are committed planning and days 8–14 are provisional. The grid uses Monday–Sunday rows, which may not match those seven-day windows; use each session’s saved provisional badge as the authority. Home also has a **Planned vs done** card for this week or last week (Monday–Sunday): sessions done against planned (so far, while the week is still running), time, running distance, how each key session went (quality, long, and benchmark runs, with steps completed and time in target), what was missed or not recorded, unplanned sessions, and sessions an accepted change removed. A value the app cannot know shows as unknown, never as zero. The coach reads the same numbers in your Sunday review.
+Open [Home](#home) to see what needs attention, weekly mileage, **Planned vs done**, today's accepted session, and this week's sessions with their recorded distance, time, pace, heart rate, RPE, and comparison with the plan. Open a session for its full prescription, including warm-up, intervals, recovery, targets, and notes. In a rolling proposal, days 1–7 are committed planning and days 8–14 are provisional. Calendar shows one Monday–Sunday week at a time. Use each session’s saved badge to see whether it is provisional. The **Planned vs done** card covers this week or last week (Monday–Sunday): sessions done against planned (so far, while the week is still running), time, running distance, how each key session went (quality, long, and benchmark runs, with steps completed and time in target), what was missed or not recorded, unplanned sessions, and sessions an accepted change removed. A value the app cannot know shows as unknown, never as zero. The coach reads the same numbers in your Sunday review.
 
 Record actual effort and post-run response when prompted. Report fatigue, illness, symptoms, or gait changes when relevant. Missing observations stay unknown, so a blank check-in does not mean everything was normal.
 
@@ -98,20 +98,22 @@ The coach updates the same proposal ID and review link, with revision history. R
 
 Use **Discard proposal** on the review page if you want to abandon that draft and start fresh. Its history remains and the calendar does not change. Accepted, partially accepted, rejected, and discarded proposals are final; a later change needs a new proposal.
 
-## Weekly mileage and the two-week view
+## Weekly mileage and the week view
 
 Home's weekly mileage uses Monday–Sunday in your profile timezone. It adds recorded running distance so far to the remaining accepted runs. Time-based sessions use workout speed targets or median observed speed from the previous 28 days and show an estimate. Past unrecorded sessions are not added to the forecast, and pending drafts never affect it.
 
-Missing data and incomplete plan coverage are labeled. Treat the projection as a planning aid, especially where distance is estimated. Use the two-week grids to compare day-by-day sessions and open details before reviewing a proposal. Sessions marked provisional are an outlook that may change. Those badges follow the saved proposal, rather than making every next calendar week provisional.
+Missing data and incomplete plan coverage are labeled. Treat the projection as a planning aid, especially where distance is estimated. Use the Calendar arrows to move between weeks. Choose **This week** to return to the current week or **Session details** to read the full prescription and the coach’s notes. Sessions marked provisional are an outlook that may change. Those badges follow the saved proposal, rather than making every next calendar week provisional.
 
 On the Calendar, use **Mark complete** for a workout you did today or earlier without a recording, including a strength session without a Strong import. The **Completed · self-reported** badge counts toward the weekly session total. Actual time, distance, and reps stay unknown. Use **Undo manual completion** to correct the entry. A later matching activity or Strong workout can supply measured details.
 
 Reps are matched to your watch workout in order. Split laps within a step are combined. An unrecorded warm-up, recovery, or cool-down can be skipped. A skipped work rep counts as unrecorded. The comparison is unavailable when equally plausible matches give different counts of completed reps.
 
+On treadmill runs the watch estimates pace and distance from your wrist. Rep paces are shown for reference. The comparison skips pace targets and scores distance only when the session has no planned duration.
+
 ## Find your way around
 
-- [Home](#home): sync status, **Needs attention** (open proposals, coach recommendations, findings, patch reassessments, and check-in prompts), today's plan, the next two weeks, weekly mileage, the block line, and **Logged for Sunday review**.
-- [Calendar](#calendar): accepted sessions, workout details, patch and benchmark badges, and revision history with a link to the proposal behind each coach change. Completed, historical, and locked sessions are protected during undo.
+- [Home](#home): sync status, **Needs attention** (open proposals, coach recommendations, findings, patch reassessments, and check-in prompts), weekly mileage and **Planned vs done**, today's plan, this week's sessions, the block line, and **Logged for Sunday review**.
+- [Calendar](#calendar): one week at a time, with arrows to browse accepted sessions, workout details and notes, patch and benchmark badges, and **Plan versions** with a link to the proposal behind each coach change. Completed, historical, and locked sessions are protected during undo.
 - [Trends](#trends): volume, effort load, long runs, intensity, aerobic efficiency on steady runs, workout progression, recovery, and benchmark history. Panels without enough data wait under **Not yet assessable**.
 - [Training block](#block): the current objective, timeline, review indicators, and block benchmark.
 - [Settings](#settings): sync, setup or strength routine, display timezone and units, weekly review day, goals, events, and intensity anchors.
@@ -121,7 +123,7 @@ That is about 50 minutes of running before allowing for extra time after pauses.
 
 The **Guide** link in the header opens this guide. Lifting stays in Strong; the app reads its export for running context.
 
-If you need to undo an accepted calendar change, inspect Calendar's revision history or explicitly ask the coach for an undo. Protected sessions remain protected.
+If you need to undo an accepted calendar change, inspect Calendar’s **Plan versions** or explicitly ask the coach for an undo. Protected sessions remain protected.
 
 ## Occasional calibration and goal changes
 

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { App, parseHash } from '../src/App'
+import { pageHref } from '../src/lib/routes'
+import { qk } from '../src/api/queryKeys'
 import { digest } from './fixtures/weekly-digest'
 
 vi.mock('recharts', () => ({
@@ -216,6 +218,12 @@ beforeEach(() => {
         return { ok: true, status: 200, json: async () => wrap(weeklyProjection) } as Response
       if (url.endsWith('/calendar/weekly-digest'))
         return { ok: true, status: 200, json: async () => wrap(weeklyDigest) } as Response
+      if (url.endsWith('/calendar/week'))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => wrap({ ...calendarView, start: '2026-11-09', end: '2026-11-15' }),
+        } as Response
       if (url.includes('/profile') && method === 'PUT')
         profileRecord = {
           ...profileRecord,
@@ -316,6 +324,11 @@ describe('authority shell', () => {
   it('parses current routes and sends removed pages home', () => {
     for (const page of ['calendar', 'trends', 'block', 'settings', 'guide'])
       expect(parseHash(`#${page}`)).toEqual({ page, id: null })
+    const calendar = { page: 'calendar', id: '2026-11-16' }
+    expect(parseHash('#calendar/2026-11-16')).toEqual(calendar)
+    expect(parseHash(pageHref.calendarWeek('2026-11-16'))).toEqual(calendar)
+    for (const hash of ['#calendar/2026-13-01', '#calendar/soon', '#calendar/2026-11-16/extra'])
+      expect(parseHash(hash)).toEqual({ page: 'home', id: null })
     expect(parseHash('#activity/run%20one')).toEqual({ page: 'activity', id: 'run one' })
     expect(parseHash('#activity/%ZZ')).toEqual({ page: 'home', id: null })
     expect(parseHash('#activity/%2F')).toEqual({ page: 'home', id: null })
@@ -325,14 +338,20 @@ describe('authority shell', () => {
     for (const hash of ['#history', '#strength', '#coach', '#overview', '#cycle', '#unknown', ''])
       expect(parseHash(hash)).toEqual({ page: 'home', id: null })
   })
+  it('includes calendar week queries in calendar invalidation', () => {
+    const key = qk.calendarWeek('current', 'head')
+    expect(key).toEqual(['v2', 'calendar', 'week', 'current', 'head'])
+    expect(key.slice(0, 2)).toEqual(qk.calendar)
+  })
   it('opens calendar Home, follows navigation hashes, and uses the v2 check-in', async () => {
     mount()
     expect(await screen.findByTestId('today-card')).toBeInTheDocument()
-    expect(screen.getAllByTestId('strip-day')).toHaveLength(14)
+    expect(await screen.findByTestId('week-sessions')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cycle' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Calendar' }))
     expect(window.location.hash).toBe('#calendar')
     expect(await screen.findByRole('heading', { name: 'Calendar.' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Previous week' })).toBeInTheDocument()
     window.location.hash = '#unknown'
     fireEvent(window, new Event('hashchange'))
     expect(await screen.findByTestId('today-card')).toBeInTheDocument()
