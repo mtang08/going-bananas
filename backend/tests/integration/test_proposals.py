@@ -968,14 +968,14 @@ def test_post_event_accept_reviews_only_that_event(proposal_session: Session) ->
         name="Synthetic 10K",
         event_date=TODAY - timedelta(days=2),
         distance_m=10000,
-        priority="target",
+        purpose="pr",
         status="completed",
     )
     second = Event(
         name="Synthetic 5K",
         event_date=TODAY - timedelta(days=3),
         distance_m=5000,
-        priority="target",
+        purpose="pr",
         status="completed",
     )
     session.add_all([first, second])
@@ -1059,7 +1059,7 @@ def test_block_review_accept_upserts_benchmark_row(proposal_session: Session, mo
         name="Benchmark 5K",
         event_date=TODAY - timedelta(days=1),
         distance_m=5000,
-        priority="benchmark",
+        purpose="benchmark",
         status="completed",
     )
     session.add(event)
