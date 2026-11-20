@@ -34,7 +34,7 @@ from app.services.calendar import state_at
 from app.services.coverage import coverage
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING
 from app.services.profile import current_profile
-from app.services.proposals.schema import derive_certainty
+from app.services.proposals.schema import HORIZON_MAX_DAYS, derive_certainty
 from app.services.run_rpe import effective_run_rpe
 from app.services.snapshot.common import (
     BENCHMARK_HISTORY_MAX,
@@ -81,7 +81,7 @@ def _load_sessions(session: Session, head: int, first: date, as_of: date) -> lis
             certainty=derive_certainty(row["local_date"], as_of),
         )
         for row in state_at(session, head)
-        if first <= row["local_date"] <= as_of + timedelta(days=13)
+        if first <= row["local_date"] <= as_of + timedelta(days=HORIZON_MAX_DAYS)
     ]
     return sessions
 

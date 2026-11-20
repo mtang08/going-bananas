@@ -85,10 +85,21 @@ Pending your review; nothing applied. [Review proposal](<returned app link>)
 | --- | --- | --- |
 | <day, date> | <session> | <duration/distance, steps, target and essential cues> |
 
+Days 8–14 (provisional):
+- <day, date> — <session>: <duration and main set>
+
+Later weeks (provisional):
+- Week of <Monday date>: <key sessions and their purpose, one line>
+
 ### Next check-in
 
 <follow_up>
 ```
+
+When the proposal reaches past day 7, keep the table to days 1–7, list days 8–14
+concisely, and give each later Monday–Sunday week one line naming its key
+sessions and purpose; the app shows every session's details. Omit a section the
+proposal does not reach.
 
 Keep the table limited to the actual scope: list proposed changes for a change
 proposal, or the complete schedule when the proposal supplies the full plan.
@@ -125,7 +136,7 @@ bigger review"). Omit lines whose field is empty.
 - Escalation conditions: <escalate_criteria>
 
 ### Plan history
-- Patch relative to plan version <base_calendar_version>; days 8–14 untouched.
+- Patch relative to plan version <base_calendar_version>; provisional days untouched.
 - Reason per change: <day, date — changes[].reason>
 ```
 
@@ -171,7 +182,7 @@ Tuesday's easy run was substantially harder than intended, fatigue has remained 
 - Escalation conditions: fatigue or poor sleep persisting past Wednesday, or any symptom or illness
 
 ### Plan history
-- Patch relative to plan version <base_calendar_version>; days 8–14 untouched.
+- Patch relative to plan version <base_calendar_version>; provisional days untouched.
 - Wednesday: replace intervals — repeated fatigue, poor sleep, and an easy run above its intended effort.
 
 Pending your review; nothing applied. [Review proposal](<returned app link>)
