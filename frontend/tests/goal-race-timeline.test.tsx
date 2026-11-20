@@ -81,14 +81,14 @@ const events: RaceEvent[] = [
 ]
 
 const clients: QueryClient[] = []
-function mount(update: Partial<BlockVersion> = {}, today = '2026-11-19') {
+function mount(update: Partial<BlockVersion> = {}, today = '2026-11-19', relatedBlocks = blocks) {
   const fetcher = vi.fn(async (input: string) => ({
     ok: true,
     json: async () => ({
       schema_version: 'v1',
       mode: 'demo',
       data_revision: 1,
-      data: { items: input.endsWith('/blocks') ? blocks : events },
+      data: { items: input.endsWith('/blocks') ? relatedBlocks : events },
     }),
   }))
   vi.stubGlobal('fetch', fetcher)
@@ -175,3 +175,33 @@ it('points to Settings when there are no events', () => {
     '#settings',
   )
 })
+
+it('keeps prior phases of the same block and skips the exact current version', async () => {
+  const current = { ...blocks[1], version: 5 }
+  mount({ version: current.version }, '2026-11-19', [
+    { ...blocks[0], block_uid: current.block_uid, version: 1 },
+    { ...blocks[0], block_uid: current.block_uid, version: 3, objective: 'Durability' },
+    current,
+  ])
+  await screen.findByText(/Aerobic base · Done/)
+  expect(
+    screen
+      .getAllByTestId('timeline-row')
+      .slice(0, 3)
+      .map((row) => row.textContent),
+  ).toEqual([
+    'Oct 26–Nov 22 · Aerobic base · Done',
+    'Oct 26–Nov 22 · Durability · Done',
+    'Nov 23–Dec 20 · Threshold durability · Current block',
+  ])
+  expect(screen.queryByText(/Threshold durability · Done/)).toBeNull()
+})
+
+it.each(['', 'unavailable'])(
+  'omits the countdown for calendar date %j and a missing status',
+  (today) => {
+    mount({ target_event_status: undefined }, today)
+    expect(screen.getByRole('heading')).toHaveTextContent(/goal 1:45:00$/)
+    expect(screen.queryByRole('status')).toBeNull()
+  },
+)

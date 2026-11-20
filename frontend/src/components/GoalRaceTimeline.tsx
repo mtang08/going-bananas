@@ -13,6 +13,7 @@ import { Card } from './ui'
 function timeUntil(date: string, today: string | undefined) {
   if (!today) return null
   const days = (Date.parse(date) - Date.parse(today)) / 86400000
+  if (!Number.isFinite(days)) return null
   if (days < 0) return 'race date passed'
   if (days === 0) return 'race day is today'
   if (days < 14) return `${days} ${days === 1 ? 'day' : 'days'} away`
@@ -44,7 +45,7 @@ export function GoalRaceTimeline({
       api<{ items: EventBlock[] }>(`/events/${encodeURIComponent(targetId ?? '')}/blocks`),
   })
   const earlier = (related.data?.data?.items ?? []).filter(
-    (item) => item.block_uid !== block.block_uid,
+    (item) => item.block_uid !== block.block_uid || item.version !== block.version,
   )
   const others = (events.data?.data?.items ?? []).filter(
     (event) => event.rank !== null && event.id !== targetId,
@@ -113,7 +114,11 @@ export function GoalRaceTimeline({
       )}
       <ol className="goal-timeline-list" aria-label="Build-up to the goal race">
         {earlier.map((item) => (
-          <li key={item.block_uid} data-testid="timeline-row" data-kind="earlier">
+          <li
+            key={`${item.block_uid}:${item.version}`}
+            data-testid="timeline-row"
+            data-kind="earlier"
+          >
             {dateRange(item.start_date, item.review_date)} · {item.objective} · Done
           </li>
         ))}
