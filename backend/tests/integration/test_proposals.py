@@ -1107,7 +1107,7 @@ def test_empty_week_four_is_accepted_after_partial_rejection(proposal_session):
     session = proposal_session
     prop = _block_review(session, "2026-12-14", "2026-12-05", ("2026-12-08", "2026-12-11"))
     result = _decide_block(session, prop, "empty-horizon", [], ["c1", "c2"], block=True)
-    assert result.status == "accepted"
+    assert result.status == "partially_accepted"
     assert session.get(BlockVersion, result.block_version_id).review_date == date(2026, 12, 14)
 
 
