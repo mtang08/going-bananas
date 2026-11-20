@@ -465,8 +465,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
               )}
               {renderWeek()}
               <Disclosure variant="card" className="calendar-history">
-                <summary>Calendar history</summary>
-                <h2>Version history</h2>
+                <summary>Plan versions</summary>
                 {versions.error && (
                   <p role="alert" className="error-text">
                     {versions.error.message}

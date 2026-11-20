@@ -215,6 +215,101 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+describe('week navigation', () => {
+  beforeEach(() => {
+    window.location.hash = ''
+  })
+
+  it('shows the current week with arrows and no This week button', async () => {
+    mount()
+    expect(await screen.findByRole('heading', { name: 'Nov 9–Nov 15 · This week' })).toBeVisible()
+    expect(screen.getAllByTestId('calendar-day').map((day) => day.dataset.date)).toEqual([
+      '2026-11-09',
+      '2026-11-10',
+      '2026-11-11',
+      '2026-11-12',
+      '2026-11-13',
+      '2026-11-14',
+      '2026-11-15',
+    ])
+    expect(screen.getByRole('button', { name: 'Previous week' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Next week' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'This week' })).not.toBeInTheDocument()
+  })
+
+  it('moves one week through the hash', async () => {
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Next week' }))
+    expect(window.location.hash).toBe('#calendar/2026-11-16')
+    fireEvent.click(screen.getByRole('button', { name: 'Previous week' }))
+    expect(window.location.hash).toBe('#calendar/2026-11-02')
+  })
+
+  it('fetches only the shown week and reuses the current week cache', async () => {
+    const requestedWeeks = () =>
+      requests.map((r) => r.url).filter((url) => url.includes('/calendar/week'))
+    const { rerender } = mount()
+    await screen.findByRole('heading', { name: /This week/ })
+    expect(requestedWeeks()).toEqual(['/api/v1/calendar/week'])
+
+    rerender(<Calendar unit="mi" weekStart="2026-11-06" />)
+    await screen.findByRole('heading', { name: 'Nov 2–Nov 8' })
+    expect(requestedWeeks()).toEqual([
+      '/api/v1/calendar/week',
+      '/api/v1/calendar/week?start=2026-11-02',
+    ])
+    expect(screen.getAllByTestId('calendar-day').map((day) => day.dataset.date)).toEqual([
+      '2026-11-02',
+      '2026-11-03',
+      '2026-11-04',
+      '2026-11-05',
+      '2026-11-06',
+      '2026-11-07',
+      '2026-11-08',
+    ])
+    fireEvent.click(screen.getByRole('button', { name: 'This week' }))
+    expect(window.location.hash).toBe('#calendar')
+    rerender(<Calendar unit="mi" weekStart={null} />)
+    expect(await screen.findByRole('heading', { name: /This week/ })).toBeVisible()
+    expect(requestedWeeks()).toHaveLength(2)
+  })
+
+  it.each([
+    { weekStart: '2026-11-23', lastPlannedDate: '2026-12-02', canAdvance: true },
+    { weekStart: '2026-11-30', lastPlannedDate: '2026-12-02', canAdvance: false },
+    { weekStart: '2026-11-09', lastPlannedDate: '2026-11-15', canAdvance: true },
+    { weekStart: '2026-11-16', lastPlannedDate: '2026-11-15', canAdvance: false },
+  ])(
+    'sets Next week availability at $weekStart when the plan ends $lastPlannedDate',
+    async ({ weekStart, lastPlannedDate, canAdvance }) => {
+      head = { ...view, last_planned_date: lastPlannedDate }
+      mount(weekStart)
+      const next = await screen.findByRole('button', { name: 'Next week' })
+      if (canAdvance) expect(next).toBeEnabled()
+      else expect(next).toBeDisabled()
+    },
+  )
+
+  it('allows unlimited history', async () => {
+    mount('2026-01-05')
+    expect(await screen.findByRole('button', { name: 'Previous week' })).toBeEnabled()
+    const days = screen.getAllByTestId('calendar-day')
+    expect(days).toHaveLength(7)
+    for (const day of days) expect(within(day).getByText('No session')).toBeVisible()
+  })
+
+  it('applies a viewed version to the shown week', async () => {
+    mount('2026-11-16')
+    fireEvent.click(await screen.findByText('Plan versions'))
+    const version = (await screen.findByText('v1 · Setup')).closest('.version-row') as HTMLElement
+    fireEvent.click(within(version).getByRole('button', { name: 'View' }))
+    expect(await screen.findByText(/Viewing version 1 \(read-only\)/)).toBeVisible()
+    expect(requests.some((r) => r.url === '/api/v1/calendar/week?start=2026-11-16&version=1')).toBe(
+      true,
+    )
+  })
+})
+
 describe('Calendar', () => {
   it('downloads the chosen Monday–Sunday week with workout details', async () => {
     const create = vi.fn((blob: Blob) => {
@@ -291,7 +386,7 @@ describe('Calendar', () => {
       versions[0] = { ...versions[0], proposal_id: 'p9' }
       mount()
       await screen.findByText('Version 2')
-      fireEvent.click(screen.getByText('Calendar history'))
+      fireEvent.click(screen.getByText('Plan versions'))
       expect(await screen.findByRole('link', { name: 'Open proposal' })).toHaveAttribute(
         'href',
         '#proposal/p9',
@@ -340,7 +435,7 @@ describe('Calendar', () => {
     fireEvent.click(summary)
     fireEvent.click(within(planned).getByRole('button', { name: 'Edit' }))
     expect(screen.getByRole('dialog', { name: 'Edit session' })).toBeInTheDocument()
-    expect(screen.getByText('Calendar history').closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByText('Plan versions').closest('details')).not.toHaveAttribute('open')
   })
 
   it('closes editors and outcome dialogs with Escape and restores focus', async () => {
@@ -382,7 +477,7 @@ describe('Calendar', () => {
       within(row('2026-11-10')).getByText('Work 800 m · 6:42 /mi–7:04 /mi'),
     ).toBeInTheDocument()
     expect(within(row('2026-11-10')).getByText('4 ×')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Calendar history'))
+    fireEvent.click(screen.getByText('Plan versions'))
     expect(screen.getByText('v2 · Manual edit')).toBeInTheDocument()
     expect(screen.getByText('v1 · Setup')).toBeInTheDocument()
     expect(screen.getAllByTestId('calendar-day')).toHaveLength(7)
@@ -495,7 +590,7 @@ describe('Calendar', () => {
   it('restores only the advertised protected target', async () => {
     mount()
     await screen.findByText('Version 2')
-    fireEvent.click(screen.getByText('Calendar history'))
+    fireEvent.click(screen.getByText('Plan versions'))
     expect(
       within(screen.getAllByTestId('version-row')[0]).queryByRole('button', { name: 'Restore' }),
     ).not.toBeInTheDocument()
@@ -516,7 +611,7 @@ describe('Calendar', () => {
   it('views historical version read-only', async () => {
     mount()
     await screen.findByText('Version 2')
-    fireEvent.click(screen.getByText('Calendar history'))
+    fireEvent.click(screen.getByText('Plan versions'))
     fireEvent.click(
       within(screen.getAllByTestId('version-row')[1]).getByRole('button', { name: 'View' }),
     )
@@ -589,7 +684,7 @@ describe('Calendar', () => {
     head = { ...view, undo: { target_version: 1, eligible: false, protected_session_uids: [] } }
     mount()
     await screen.findByText('Version 2')
-    fireEvent.click(screen.getByText('Calendar history'))
+    fireEvent.click(screen.getByText('Plan versions'))
     expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument()
   })
   it('preserves exact metres during an unrelated edit and resolves a chosen placeholder recipe', async () => {

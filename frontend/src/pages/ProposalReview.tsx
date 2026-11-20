@@ -388,7 +388,7 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
               />
             )}
             <p>
-              <a href="#calendar">Calendar history and protected undo</a>
+              <a href="#calendar">Plan versions and protected undo</a>
             </p>
           </>
         )}
