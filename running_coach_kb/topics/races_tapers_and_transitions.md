@@ -123,7 +123,7 @@ A priority change is a block-review trigger, not an automatic rewrite. Preserve 
 - what changed and why;
 - what current objective is retained, reduced to maintenance, or dropped;
 - what prerequisites are missing;
-- what the next 14 days concretely change;
+- what the plan through the block review date concretely changes;
 - what remains provisional; and
 - the tradeoff with strength, long-run, symptom, and recovery constraints.
 

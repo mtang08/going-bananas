@@ -6,7 +6,7 @@
 
 - Run when the app recommends `exception_review`: an open `caution` or `hold` finding, or a due patch reassessment. `observe` findings wait for Sunday review unless the athlete asks. (product heuristic)
 - This is a narrow interrupt; weekly review remains the normal control loop. (product heuristic)
-- Scope is the committed window (days 1–7). Never edit days 8–14.
+- Scope is the committed window (days 1–7). Never edit provisional days (day 8 onward).
 - If another operation has an open proposal, ask the athlete to decide on it or discard it first. Never take it over.
 - For `escalate`, route to block review through `escalation` or recommend clinical input per policy. Finding severity, operation routing, and P018 clinical referral remain separate. (product heuristic)
 
@@ -48,7 +48,7 @@ Reassess within 7 days; use the patch's own return and escalation criteria to ex
 
 ## Prohibited actions
 
-- Editing days 8–14.
+- Editing provisional days (day 8 onward).
 - Adding sessions or changing run frequency.
 - Moving, adding, or deleting strength sessions.
 - Making up missed sessions.

@@ -521,8 +521,8 @@
     {
       "path": "policies/periodization_policy_candidates.json",
       "status": "added",
-      "bytes": 28815,
-      "sha256": "ed20b02812b56fc6971693c387b6ad3d46ad6ce4219cfa94ffa2960a1782b2c6"
+      "bytes": 29351,
+      "sha256": "7149464d31bf1a7344243ba306df1a5d47fe582a5884cdf8566b52f11742ab8c"
     },
     {
       "path": "recipes/running_session_families.json",
@@ -623,8 +623,8 @@
     {
       "path": "topics/races_tapers_and_transitions.md",
       "status": "added",
-      "bytes": 9003,
-      "sha256": "edbfc97f8f4c21a7c7b8d5bd258f7491c580e7790631e13356dbb6c32dbc6c0c"
+      "bytes": 9026,
+      "sha256": "bec8802ef548ba7da3c3cae4d7d840994414c825bb3d2d3da70d9af738cd5585"
     },
     {
       "path": "topics/recovery_and_daily_adaptation.md",
@@ -677,14 +677,14 @@
     {
       "path": "workflows/exception_review.md",
       "status": "added",
-      "bytes": 3701,
-      "sha256": "e1d19db31635d782692167e2ab515cd378e689dbb19da56bdbece51b89abac8a"
+      "bytes": 3741,
+      "sha256": "59fea885f2f48f8553f21a884aad5454760c01f196df4d4822a06ed3ce00df84"
     },
     {
       "path": "workflows/post_event_review.md",
       "status": "added",
-      "bytes": 3496,
-      "sha256": "e9a136b54ab1c71583209de4785e2e609edd61e52044decb08fc35171d3fe333"
+      "bytes": 3516,
+      "sha256": "cdd934096f9116cce86167ec346c43abd2e50870e3f8066c165371302e4f1e8e"
     }
   ],
   "manifest_self": {
