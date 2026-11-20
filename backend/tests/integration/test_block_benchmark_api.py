@@ -212,7 +212,7 @@ def test_event_match_prefers_event_result_and_longest_run(bench_fixture):
             event_date=d - timedelta(days=2),
             result_s=2400,
             status="completed",
-            priority="benchmark",
+            purpose="benchmark",
         )
         session.add(event)
         session.flush()

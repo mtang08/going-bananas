@@ -201,7 +201,7 @@ def _events(session: Session, today: date, run_facts: Sequence[Any]) -> tuple[Ev
                 str(e.id),
                 e.name,
                 e.event_date,
-                e.priority,
+                e.purpose,
                 e.status,
                 any(f.local_date == e.event_date for f in run_facts),
                 _utc(max(ends)) if ends else None,

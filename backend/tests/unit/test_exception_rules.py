@@ -100,8 +100,8 @@ def ses(
     )
 
 
-def ev(days_ago=3, *, priority="target", status="completed", ran=False, run_end=None):
-    return EventFact("e1", "Synthetic 10K", TODAY - timedelta(days=days_ago), priority, status, ran, run_end)
+def ev(days_ago=3, *, purpose="pr", status="completed", ran=False, run_end=None):
+    return EventFact("e1", "Synthetic 10K", TODAY - timedelta(days=days_ago), purpose, status, ran, run_end)
 
 
 def inp(**kw):
@@ -451,7 +451,8 @@ def test_post_event_review_due():
     inputs = inp(events=(ev(3),))
     assert hits(inputs, code) == [("event:e1", "observe")]
     assert one(inputs, code).summary == "Race review due for Synthetic 10K on Fri Nov 13."
-    assert hits(inp(events=(ev(3, priority="optional"),)), code) == []
+    assert hits(inp(events=(ev(3, purpose="training"),)), code) == []
+    assert hits(inp(events=(ev(3, purpose="benchmark"),)), code)
     assert hits(inp(events=(ev(3, status="cancelled"),)), code) == []
     assert hits(inp(events=(ev(3, status="registered", ran=True),)), code)
     assert hits(inp(events=(ev(3, status="registered"),)), code) == []
