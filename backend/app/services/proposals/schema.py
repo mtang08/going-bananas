@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from datetime import date, datetime, timedelta
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, NamedTuple
 from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -145,6 +145,11 @@ class BlockBenchmark(Strict):
     consolidate_if: str = Field(max_length=300)
 
 
+class OutlineStep(Strict):
+    emphasis: str = Field(min_length=1, max_length=120)
+    weeks: int = Field(ge=1, le=8)
+
+
 class BlockVersionFields(Strict):
     status: Literal["draft", "active", "consolidating", "completed", "replaced", "ended"]
     objective: str
@@ -160,6 +165,8 @@ class BlockVersionFields(Strict):
     early_review_triggers: list[str]
     objective_status: Literal["unresolved", "partially_achieved", "achieved", "not_achieved"]
     benchmark: BlockBenchmark | None = None
+    target_event_id: uuid.UUID | None = None
+    build_outline: list[OutlineStep] = Field(default_factory=list, max_length=8)
 
 
 class BlockChange(Strict):
@@ -314,6 +321,13 @@ class SnapshotRef:
     safety_guard: dict | None
 
 
+class EventRef(NamedTuple):
+    status: str
+    day: date
+    rank: int | None
+    purpose: str | None = None
+
+
 @dataclass(frozen=True)
 class ValidationContext:
     now: datetime
@@ -330,7 +344,7 @@ class ValidationContext:
     kb: VerifiedKnowledge
     findings: dict[uuid.UUID, str] = dataclass_field(default_factory=dict)
     patches: dict[uuid.UUID, str] = dataclass_field(default_factory=dict)
-    events: dict[uuid.UUID, tuple[str, date]] = dataclass_field(default_factory=dict)
+    events: dict[uuid.UUID, EventRef] = dataclass_field(default_factory=dict)
     open_rule_codes: frozenset[str] = frozenset()
     benchmark: Any = None
     last_benchmark_date: date | None = None

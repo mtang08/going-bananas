@@ -25,6 +25,7 @@ from app.services.proposals.schema import (
     PROTOCOLS,
     RECIPE_IDS,
     RESOLUTION_OPS,
+    BlockVersionFields,
     Change,
     HeadSession,
     ProposalDoc,
@@ -207,6 +208,37 @@ def _benchmark_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
     return issues
 
 
+def _target_event_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    fields = doc.block_change.version_fields if doc.block_change else None
+    if fields is None or doc.operation not in BLOCK_OPS or fields.status not in ACTIVE_STATUSES:
+        return []
+    path = "block_change.version_fields.target_event_id"
+    issues: list[ValidationIssue] = []
+    if fields.target_event_id is None:
+        if any(ref.rank is not None for ref in ctx.events.values()):
+            issues.append(_issue("V23.target_event_required", path))
+        return issues + _build_outline_rules(fields, None)
+    ref = ctx.events.get(fields.target_event_id)
+    if ref is None or ref.rank is None:
+        return [_issue("V23.target_event_invalid", path)]
+    if ref.rank != 1:
+        issues.append(_issue("V23.target_event_not_top", path))
+    if ref.day < fields.start_date:
+        issues.append(_issue("V23.target_event_date", path))
+    return issues + _build_outline_rules(fields, ref.day)
+
+
+def _build_outline_rules(fields: BlockVersionFields, race_day: date | None) -> list[ValidationIssue]:
+    weeks = [step.weeks for step in fields.build_outline]
+    if race_day is None or race_day <= fields.review_date:
+        ok = not weeks
+    else:
+        lower = fields.review_date + timedelta(days=7 * (sum(weeks) - (weeks[-1] if weeks else 0)))
+        upper = fields.review_date + timedelta(days=7 * sum(weeks))
+        ok = bool(weeks) and lower < race_day <= upper
+    return [] if ok else [_issue("V23.build_outline_span", "block_change.version_fields.build_outline")]
+
+
 def _patch_resolution_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     if doc.patch_resolutions and doc.operation not in RESOLUTION_OPS:
@@ -228,6 +260,7 @@ def _exception_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
     issues = _exception_block_rules(doc, ctx)
     issues += _event_review_rules(doc, ctx)
     issues += _benchmark_rules(doc, ctx)
+    issues += _target_event_rules(doc, ctx)
     issues += _patch_resolution_rules(doc, ctx)
     return issues
 
