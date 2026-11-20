@@ -12,7 +12,7 @@ Race-specific preparation should become more specific as the event becomes impor
 
 Record:
 
-- event type, date, surface/course, and priority (`A`, `B`, `C`, or equivalent explicit meaning);
+- event type, date, surface/course, rank (1 = the goal race that every block targets), and purpose (`pr`, `benchmark`, or `training`);
 - why it matters: goal performance, practice, social event, or benchmark;
 - time available and current block objective;
 - prerequisites and missing race-specific exposure;
@@ -21,12 +21,24 @@ Record:
 
 Then choose one response:
 
-1. **Keep the block; use the race as a supported exposure.** Appropriate for a lower-priority event whose demands overlap and do not require cramming.
+1. **Keep the block; use the race as a supported exposure.** Appropriate for a lower-ranked event whose demands overlap and do not require cramming. In the app this is purpose `training`.
 2. **Transition the block.** Appropriate when the event is high priority, sufficiently near, and prerequisites support a focused phase.
 3. **Treat as a benchmark, not a peak.** Reduce surrounding load enough for interpretable execution, but do not promise peak performance.
 4. **Decline or de-prioritize.** Appropriate when the event creates unsafe density, conflicts with recovery/clinical constraints, or would replace more valuable consistency.
 
 Do not make up missing race-specific training by stacking demanding sessions.
+
+## Purpose and rank
+
+Rank and purpose answer different questions. **Rank** (1 = the goal race) decides which event the training blocks build toward. **Purpose** decides how each event is prepared for and run, at any rank. A lower-ranked `pr` event gets its own preparation inside the current block, and the block review states what that costs the goal-race build (P022; P023). Rank alone does not imply a taper, a supported exposure, or a benchmark.
+
+| Purpose | Race week and preparation | Afterwards |
+|---|---|---|
+| `pr` | Taper: reduce volume and load, keep small doses of familiar intensity and usual frequency when tolerated, and add no novel work. Size it to the event, so a 10K taper is shorter and smaller than a half-marathon taper; there is no fixed duration or percentage [E-RACE-01]; P023. For the goal race, the final block also moves toward event-specific work when prerequisites support it (response 2 above). | Post-event review, with a 1–3 day observation window and the cost classified from the whole response (Post-race transition below; P027). |
+| `benchmark` | Mini-taper: reduce surrounding load only enough for an interpretable result; it is not a full taper (`adaptive_coaching/race_and_benchmark_policy.md` › Block-ending benchmark; response 3 above). | Post-event review, or the block review when the race is the block's benchmark. |
+| `training` | No taper. Plan the event day as the session it replaces, at that session's intended effort; it is not run maximally (response 1 above; What not to infer below). | No post-event review; read it as a training session (P027, `do_not_apply_when`: a training run that was not raced). |
+
+A `pr` or `benchmark` race inside a block, including a lower-ranked one, can serve as that block's benchmark; a `training` event never does (`adaptive_coaching/race_and_benchmark_policy.md` › Block-ending benchmark). A goal race marked `training` or `benchmark` is unusual, so confirm the intent once. Every purpose keeps the rule above: do not make up missing race-specific training by stacking demanding sessions.
 
 ## Benchmarks and field tests
 
@@ -118,13 +130,14 @@ Detraining research supports that complete cessation can reduce cardiorespirator
 
 ## Race-priority changes
 
-A priority change is a block-review trigger, not an automatic rewrite. Preserve already approved sessions until the user accepts a versioned proposal. The proposal should state:
+A priority change, including a change of the goal race (the rank-1 event the blocks target), is a block-review trigger, not an automatic rewrite. Preserve already approved sessions until the user accepts a versioned proposal. The proposal should state:
 
 - what changed and why;
 - what current objective is retained, reduced to maintenance, or dropped;
 - what prerequisites are missing;
 - what the plan through the block review date concretely changes;
-- what remains provisional; and
+- what remains provisional;
+- the block's target event and its build outline, direction only, kept unless the change alters them (`topics/periodization_and_training_blocks.md` › Planning hierarchy, "Directional only"); and
 - the tradeoff with strength, long-run, symptom, and recovery constraints.
 
 ## What can wait until a race is real

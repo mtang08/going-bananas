@@ -131,7 +131,9 @@ Record unresolved attribution rather than choosing the most convenient explanati
 
 ### 6. Check whether the planning context changed
 
-A new high-priority race, large interruption, new clinical constraint, or changed available frequency may invalidate the original block even when the training itself was working. Route to `handle_goal_or_race_change` when applicable.
+A new high-priority race, a changed goal race (the rank-1 event the block targets), large interruption, new clinical constraint, or changed available frequency may invalidate the original block even when the training itself was working. Route to `handle_goal_or_race_change` when applicable.
+
+Then check the block's target event. It should be the goal race, the rank-1 upcoming event. When the target is `changed` or `unset`, this review sets it; a `continue` that only adds the target and the build outline is valid (`topics/races_tapers_and_transitions.md` › Race-priority changes). (product heuristic)
 
 ### 7. Choose exactly one block outcome
 
@@ -155,6 +157,7 @@ Specify only what the plan through the block review date needs:
 - session-spacing and strength constraints;
 - committed first-week intent;
 - provisional intent for later days and the observation that will confirm it (full prescriptions for days 8–14; after day 14 only the recipe family, intent, and duration, with the detail added when the session enters days 8–14);
+- the target event and the build outline: the likely future emphases and their lengths in weeks from this block's end to the goal race, direction only and with no sessions beyond the plan horizon; keep earlier steps unless evidence changed them (`topics/periodization_and_training_blocks.md` › Planning hierarchy, "Directional only");
 - what is deliberately not being progressed; and
 - next review date and trigger conditions.
 
