@@ -521,8 +521,8 @@
     {
       "path": "policies/periodization_policy_candidates.json",
       "status": "added",
-      "bytes": 29351,
-      "sha256": "7149464d31bf1a7344243ba306df1a5d47fe582a5884cdf8566b52f11742ab8c"
+      "bytes": 29440,
+      "sha256": "74a670aaaf09e09d28f0cb8d4eae0de58712ccb629a79b75987376791513caea"
     },
     {
       "path": "recipes/running_session_families.json",
@@ -611,8 +611,8 @@
     {
       "path": "topics/periodization_and_training_blocks.md",
       "status": "added",
-      "bytes": 13571,
-      "sha256": "57151cc18944d3c1cb8102da37081e136a6a72ae4873da26e913ee8ce6d941a4"
+      "bytes": 13622,
+      "sha256": "da4993d640e453b6bab2d118f083f6cdfcb67767c9ea491e2afbb7f06ad65129"
     },
     {
       "path": "topics/ptt_and_load_tolerance.md",

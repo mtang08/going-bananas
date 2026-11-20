@@ -164,7 +164,7 @@
         "user_acceptance_of_tradeoffs"
       ],
       "suggested_action": [
-        "Classify the event as target, supported exposure, benchmark, or optional participation.",
+        "Read the event's rank and purpose; ask only when purpose is missing.",
         "Run a versioned block review and state what objective is retained, reduced to maintenance, replaced, or ended.",
         "Change only the committed calendar horizon after deterministic validation and user approval; leave farther work provisional or directional.",
         "Do not compress missing race-specific work or stack demanding sessions to compensate for limited time."
@@ -184,7 +184,7 @@
       "evidence_certainty": "Moderate for broad sequencing and taper principles; low for exact transition timing",
       "athlete_applicability": "High as a decision process",
       "threshold_basis": "No universal minimum preparation weeks or mandatory event-specific session count",
-      "calibration_needed": "Define event-priority semantics, approval behavior, and what preparation prerequisites are represented in athlete state.",
+      "calibration_needed": "Define approval behavior and what preparation prerequisites are represented in athlete state. Event semantics are defined: rank (1 = the goal race) sets the block target, and purpose (`pr`, `benchmark`, `training`) sets how the event is prepared for and run.",
       "uncertainty": "The best response depends on event priority, current fitness, recent exposure, tolerance, and the cost of changing the active objective.",
       "review_triggers": [
         "Event date or priority changes again",
@@ -218,7 +218,7 @@
       "alternatives": [
         "Use a shorter or more conservative reduction when recent load is already low.",
         "Retain only easy movement when symptoms or illness make intensity inappropriate.",
-        "Treat a lower-priority event as a supported exposure rather than creating a full taper."
+        "Prepare a lower-ranked event by its purpose; a `training` event gets no taper."
       ],
       "do_not_apply_when": [
         "There is no important event or no accumulated load to shed.",
@@ -371,7 +371,7 @@
       "title": "Treat a completed race as one piece of evidence",
       "decision_question": "How should a completed race or benchmark change training and anchors?",
       "trigger": [
-        "A target, benchmark, or supported-exposure event was completed in the last 7 days."
+        "A `pr` or `benchmark` event was completed in the last 7 days."
       ],
       "required_inputs": [
         "event_priority_distance_and_result",
