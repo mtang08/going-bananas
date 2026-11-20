@@ -782,7 +782,7 @@ def test_single_open_upgrade_archives_older_drafts_and_preserves_history(isolate
     projection["app_state"].remove("planning_authority")
     del projection["daily_guidance"]
     before, _ = _legacy_snapshot(connection, projection)
-    _migration(connection, HEAD)
+    _migration(connection, "0021_self_reported_completion")
     connection.commit()
     after, _ = _legacy_snapshot(connection, projection)
     assert after == before
