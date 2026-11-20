@@ -52,6 +52,8 @@ let requests: string[] = []
 let proposal: ProposalDetail
 let failure: 'network' | 'subset' | 'stale' | 'revision' | null = null
 let failReload = false
+let calendarToday = '2026-11-16'
+let failCalendar = false
 let writes: ProposalDecision[] = []
 let deletes: number[] = []
 const clients: QueryClient[] = []
@@ -59,6 +61,8 @@ beforeEach(() => {
   requests = []
   failure = null
   failReload = false
+  calendarToday = '2026-11-16'
+  failCalendar = false
   writes = []
   deletes = []
   proposal = {
@@ -187,6 +191,7 @@ beforeEach(() => {
         }
       }
       if (failReload && url.includes('/coach/proposals/')) throw new Error('offline')
+      if (url.endsWith('/calendar') && failCalendar) throw new Error('offline')
       if (url.endsWith('/calendar'))
         return {
           ok: true,
@@ -194,7 +199,7 @@ beforeEach(() => {
             schema_version: 'v1',
             mode: 'demo',
             data_revision: 1,
-            data: { today: '2026-11-16', sessions: [unchangedSession] },
+            data: { today: calendarToday, sessions: [unchangedSession] },
           }),
         }
       return {
@@ -622,7 +627,10 @@ it('shows the complete proposed workouts in date order with matching numbered re
   ]
   mount()
   const table = await screen.findByRole('table', { name: 'Proposed plan changes' })
-  const rows = within(table).getAllByRole('row').slice(1)
+  const rows = within(table)
+    .getAllByRole('row')
+    .filter((row) => !row.classList.contains('proposal-week-row'))
+    .slice(1)
   expect(rows).toHaveLength(3)
   expect(within(rows[0]).getByText('Full body A')).toBeInTheDocument()
   expect(within(rows[1]).getByText('Remove this session from the plan.')).toBeInTheDocument()
@@ -833,7 +841,6 @@ it('old proposals without the new fields render unchanged', async () => {
   await screen.findByText('Adjust the next week')
   for (const id of ['proposal-exception', 'proposal-event-review', 'proposal-patch-updates'])
     expect(screen.queryByTestId(id)).toBeNull()
-  expect(requests.some((u) => u.endsWith('/calendar'))).toBe(false)
 })
 
 it('shows outcome and comparison in the race review', async () => {
@@ -884,3 +891,55 @@ it('lists patch updates', async () => {
   await screen.findByText('Adjust the next week')
   expect(screen.queryByTestId('proposal-patch-updates')).toBeNull()
 })
+
+it.each([
+  {
+    today: '2026-11-16',
+    dates: ['2026-11-17', '2026-11-24', '2026-12-01'],
+    offline: false,
+    headings: [
+      'Week of Nov 16 · Committed',
+      'Week of Nov 23 · Provisional',
+      'Week of Nov 30 · Provisional',
+    ],
+  },
+  {
+    today: '2026-11-18',
+    dates: ['2026-11-23', '2026-11-25'],
+    offline: false,
+    headings: ['Week of Nov 23 · Committed and provisional'],
+  },
+  {
+    today: '2026-11-16',
+    dates: ['2026-11-17'],
+    offline: true,
+    headings: ['Week of Nov 16'],
+  },
+])(
+  'groups proposed dates when today is $today and calendar offline is $offline',
+  async ({ today, dates, offline, headings }) => {
+    calendarToday = today
+    failCalendar = offline
+    proposal.changes = dates.map((date, index) => ({
+      change_id: `group-${index}`,
+      op: 'add',
+      session_uid: null,
+      before: null,
+      after: { local_date: date, kind: 'run', intent: 'Easy run' },
+      current: null,
+      reason: 'Build consistency.',
+      decision: 'pending',
+      material_flags: [],
+    }))
+    mount()
+    const table = await screen.findByRole('table', { name: 'Proposed plan changes' })
+    await waitFor(() => {
+      expect(
+        within(table)
+          .getAllByRole('columnheader', { name: /^Week of / })
+          .map((cell) => cell.textContent),
+      ).toEqual(headings)
+    })
+    expect(within(table).getByRole('link', { name: 'Read reason 1' })).toBeInTheDocument()
+  },
+)

@@ -637,6 +637,13 @@
   margin-top: 8px;
 }
 
+.proposal-table .proposal-week-row th {
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  background: var(--card);
+}
+
 .proposal-table .proposal-session p {
   margin: 0 0 6px;
 }
