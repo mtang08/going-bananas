@@ -19,6 +19,7 @@ from app.errors import fail
 from app.models import Activity
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, Goal
 from app.services.block_benchmark import active_block_version, benchmark_spec, benchmark_status, status_data
+from app.services.events import ranked_upcoming, renumber
 from app.services.strength_routine import replace_routine, routine_view
 from app.services.timezone import athlete_today, athlete_tz
 
@@ -81,7 +82,8 @@ class EventInput(BaseModel):
     name: str
     event_date: date
     distance_m: int | None = Field(default=None, gt=0)
-    priority: Literal["target", "supported_exposure", "benchmark", "optional"]
+    purpose: Literal["pr", "benchmark", "training"]
+    goal_time_s: int | None = Field(default=None, gt=0)
     status: Literal["planned", "registered", "completed", "cancelled"] = "planned"
     result_s: int | None = Field(default=None, gt=0)
 
@@ -99,7 +101,8 @@ class EventPatch(BaseModel):
     name: str | None = None
     event_date: date | None = None
     distance_m: int | None = Field(default=None, gt=0)
-    priority: Literal["target", "supported_exposure", "benchmark", "optional"] | None = None
+    purpose: Literal["pr", "benchmark", "training"] | None = None
+    goal_time_s: int | None = Field(default=None, gt=0)
     status: Literal["planned", "registered", "completed", "cancelled"] | None = None
     result_s: int | None = Field(default=None, gt=0)
 
@@ -111,6 +114,17 @@ class EventPatch(BaseModel):
         return value.strip() if value is not None else None
 
 
+class EventOrderItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: uuid.UUID
+    expected_version: int = Field(ge=1)
+
+
+class EventOrder(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    items: list[EventOrderItem]
+
+
 def _writer_lock(session: Session) -> None:
     global_write_lock(session)
 
@@ -119,11 +133,16 @@ def _goal(row: Goal) -> dict:
     return {key: getattr(row, key) for key in ("id", "text", "horizon", "priority", "status", "version")}
 
 
-def _event(row: Event) -> dict:
-    return {
+def _event(row: Event, ranks: dict[uuid.UUID, int]) -> dict:
+    data = {
         key: getattr(row, key)
-        for key in ("id", "name", "event_date", "distance_m", "priority", "status", "result_s", "version")
+        for key in ("id", "name", "event_date", "distance_m", "purpose", "goal_time_s", "status", "result_s", "version")
     }
+    return {**data, "rank": ranks.get(row.id)}
+
+
+def _effective_ranks(rows: list[Event], today: date) -> dict[uuid.UUID, int]:
+    return {event.id: rank for rank, event in ranked_upcoming(rows, today)}
 
 
 def _block(row: BlockVersion) -> dict:
@@ -199,8 +218,9 @@ def patch_goal(goal_id: uuid.UUID, body: GoalPatch, session: Session = Depends(g
 
 @router.get("/events")
 def get_events(session: Session = Depends(get_session)) -> dict:
-    rows = session.scalars(select(Event).order_by(Event.event_date, Event.id)).all()
-    return envelope(session, {"items": [_event(row) for row in rows]})
+    rows = list(session.scalars(select(Event).order_by(Event.event_date, Event.id)))
+    ranks = _effective_ranks(rows, athlete_today(session))
+    return envelope(session, {"items": [_event(row, ranks) for row in rows]})
 
 
 @router.post("/events", status_code=201)
@@ -208,8 +228,9 @@ def post_event(body: EventInput, session: Session = Depends(get_session)) -> dic
     _writer_lock(session)
     row = Event(**body.model_dump(), version=1)
     session.add(row)
+    ranks = {event.id: rank for rank, event in renumber(session, athlete_today(session))}
     session.commit()
-    return envelope(session, _event(row))
+    return envelope(session, _event(row, ranks))
 
 
 @router.patch("/events/{event_id}")
@@ -222,11 +243,33 @@ def patch_event(event_id: uuid.UUID, body: EventPatch, session: Session = Depend
         fail("version_conflict", "Event changed; reload before editing", 409)
     for key, value in body.model_dump(exclude={"expected_version"}, exclude_unset=True).items():
         setattr(row, key, value)
-    if not row.name or not row.name.strip() or row.event_date is None or row.priority is None or row.status is None:
+    if not row.name or not row.name.strip() or row.event_date is None or row.purpose is None or row.status is None:
         fail("invalid_event", "Required event fields cannot be null")
     row.version += 1
+    ranks = {event.id: rank for rank, event in renumber(session, athlete_today(session))}
     session.commit()
-    return envelope(session, _event(row))
+    return envelope(session, _event(row, ranks))
+
+
+@router.put("/events/order")
+def put_event_order(body: EventOrder, session: Session = Depends(get_session)) -> dict:
+    _writer_lock(session)
+    today = athlete_today(session)
+    rows = list(session.scalars(select(Event)))
+    current = {event.id: (rank, event) for rank, event in ranked_upcoming(rows, today)}
+    ids = [item.id for item in body.items]
+    if len(set(ids)) != len(ids) or set(ids) != set(current):
+        fail("event_order_stale", "Events changed; reload before reordering", 409)
+    if any(current[item.id][1].version != item.expected_version for item in body.items):
+        fail("version_conflict", "Event changed; reload before reordering", 409)
+    for new_rank, item in enumerate(body.items, start=1):
+        old_rank, event = current[item.id]
+        event.rank = new_rank
+        if old_rank != new_rank:
+            event.version += 1
+    ranks = {event.id: rank for rank, event in renumber(session, today)}
+    session.commit()
+    return envelope(session, {"items": [_event(current[item.id][1], ranks) for item in body.items]})
 
 
 @router.get("/blocks/active")
