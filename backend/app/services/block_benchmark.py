@@ -28,6 +28,8 @@ MatchMethod = Literal["auto", "manual"]
 AUTO_BEFORE_DAYS = 3
 AUTO_AFTER_DAYS = 7
 PENDING_GRACE_DAYS = 2
+BENCHMARK_MAX_AGE_DAYS = 42
+CREDIBLE_OUTCOMES: tuple[BenchmarkOutcome, ...] = ("progress", "consolidate", "recalibrate_only")
 ACTIVE_STATUSES = ("active", "consolidating")
 BENCHMARK_RECIPES = frozenset(r for r, c in RECIPE_CLASS.items() if c == "benchmark")
 
@@ -77,6 +79,12 @@ def active_block_version(session: Session) -> BlockVersion | None:
         .where(BlockVersion.status.in_(ACTIVE_STATUSES))
         .order_by(desc(BlockVersion.created_at), desc(BlockVersion.version), desc(BlockVersion.id))
         .limit(1)
+    )
+
+
+def last_credible_result_date(session: Session) -> date | None:
+    return session.scalar(
+        select(func.max(BlockBenchmarkResult.local_date)).where(BlockBenchmarkResult.outcome.in_(CREDIBLE_OUTCOMES))
     )
 
 

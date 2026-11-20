@@ -333,6 +333,7 @@ class ValidationContext:
     events: dict[uuid.UUID, tuple[str, date]] = dataclass_field(default_factory=dict)
     open_rule_codes: frozenset[str] = frozenset()
     benchmark: Any = None
+    last_benchmark_date: date | None = None
 
 
 @dataclass(frozen=True)

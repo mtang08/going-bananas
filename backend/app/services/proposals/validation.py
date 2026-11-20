@@ -9,6 +9,7 @@ from typing import Any, Literal
 from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.cycle import opportunity
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
+from app.services.block_benchmark import ACTIVE_STATUSES, BENCHMARK_MAX_AGE_DAYS, CREDIBLE_OUTCOMES
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING
 from app.services.proposals.schema import (
     ANCHOR_CONFIDENCE,
@@ -16,6 +17,9 @@ from app.services.proposals.schema import (
     ANCHOR_UNIT,
     ANCHOR_UNITS,
     BLOCK_OPS,
+    BLOCK_REVIEW_LEAD_DAYS,
+    HORIZON_MIN_DAYS,
+    HORIZON_OPS,
     NO_STRENGTH_EDIT_OPS,
     OFF_CYCLE_OPS,
     PROTOCOLS,
@@ -151,15 +155,45 @@ def _event_review_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Valida
     return issues
 
 
+def _last_credible_benchmark(doc: ProposalDoc, ctx: ValidationContext) -> date | None:
+    dates = [ctx.last_benchmark_date]
+    bench, review = ctx.benchmark, doc.event_review
+    if bench is not None and bench.status == "completed" and review is not None and review.outcome in CREDIBLE_OUTCOMES:
+        dates.append(bench.local_date)
+    return max((d for d in dates if d is not None), default=None)
+
+
+def _benchmark_required_message(last: date | None) -> str:
+    if last is None:
+        return "no credible benchmark result yet; set a benchmark"
+    skip_by = last + timedelta(days=BENCHMARK_MAX_AGE_DAYS + BLOCK_REVIEW_LEAD_DAYS - 1)
+    return (
+        f"Last credible benchmark {last.isoformat()}. Set a benchmark or choose a review date "
+        f"on or before {skip_by.isoformat()}."
+    )
+
+
 def _benchmark_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     fields = doc.block_change.version_fields if doc.block_change else None
     if fields is not None and fields.status == "active":
         planned = fields.benchmark
+        latest = fields.review_date - timedelta(days=BLOCK_REVIEW_LEAD_DAYS)
         if planned is None:
-            issues.append(_issue("V22.benchmark_required", "block_change.version_fields.benchmark"))
+            last = _last_credible_benchmark(doc, ctx)
+            if last is None or (latest - last).days >= BENCHMARK_MAX_AGE_DAYS:
+                issues.append(
+                    _issue(
+                        "V22.benchmark_required",
+                        "block_change.version_fields.benchmark",
+                        _benchmark_required_message(last),
+                    )
+                )
+            elif not fields.completion_indicators:
+                issues.append(_issue("V22.indicators_required", "block_change.version_fields.completion_indicators"))
         else:
-            if not fields.review_date - timedelta(days=6) <= planned.planned_date <= fields.review_date:
+            earliest = fields.review_date - timedelta(days=HORIZON_MIN_DAYS)
+            if not earliest <= planned.planned_date <= latest:
                 issues.append(_issue("V22.benchmark_date", "block_change.version_fields.benchmark.planned_date"))
             event = ctx.events.get(planned.event_id) if planned.event_id else None
             bad_event = planned.kind == "event" and (
@@ -354,7 +388,8 @@ def _change_issues(
         if after.local_date is not None:
             dates.append(after.local_date)
     if any(d is not None and not (start <= d <= end) for d in dates):
-        issues.append(_issue("V5.out_of_scope", path))
+        beyond = doc.operation in HORIZON_OPS and any(d is not None and d > end for d in dates)
+        issues.append(_issue("V5.out_of_scope", path, _V5_BEYOND_REVIEW if beyond else None))
     recipe_issue = _recipe_issue(doc, ctx, change=change, result=result, fields=fields, path=path)
     if recipe_issue is not None:
         issues.append(recipe_issue)
@@ -413,7 +448,12 @@ def _calendar_shape_rules(state: dict[str, dict], *, start: date, end: date) -> 
     week = start - timedelta(days=start.weekday())
     while week <= end:
         rows = [row for row in state.values() if week <= row["local_date"] <= week + timedelta(days=6)]
-        if week >= start and week + timedelta(days=6) <= end and sum(row["kind"] == "strength" for row in rows) < 2:
+        if (
+            rows
+            and week >= start
+            and week + timedelta(days=6) <= end
+            and sum(row["kind"] == "strength" for row in rows) < 2
+        ):
             issues.append(_issue("V9.strength_count", "changes"))
         if sum(row["kind"] == "run" and row.get("recipe_id") == LONG_RECIPE for row in rows) > 1:
             issues.append(_issue("V10.multiple_long", "changes"))
@@ -484,8 +524,18 @@ def _anchor_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIs
     return issues
 
 
+_V5_BEYOND_REVIEW = "beyond the block review date; accept the block change or reject this session"
+
+
+def _horizon_review_date(doc: ProposalDoc, ctx: ValidationContext) -> date | None:
+    if doc.block_change is not None:
+        fields = doc.block_change.version_fields
+        return fields.review_date if fields.status in ACTIVE_STATUSES else None
+    return ctx.active_block.review_date if ctx.active_block else None
+
+
 def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool = True) -> list[ValidationIssue]:
-    start, end = scope(doc.operation, ctx.today)
+    start, end = scope(doc.operation, ctx.today, _horizon_review_date(doc, ctx))
     state = _resulting(doc, ctx)
     issues = _change_rules(doc, ctx, start=start, end=end, state=state)
     issues += _preserved_rules(doc, ctx)
