@@ -629,12 +629,15 @@ it('reorders the events with their versions and restores focus after reload', as
   ])
 })
 
-it('focuses the other move button when the moved event reaches the end', async () => {
+it.each([
+  ['Move Half down', 'Move Half up'],
+  ['Move Ten K up', 'Move Ten K down'],
+])('restores focus when %s becomes disabled', async (original, fallback) => {
   events = rankedEvents().slice(0, 2)
   mount()
-  fireEvent.click(await screen.findByRole('button', { name: 'Move Half down' }))
-  await waitFor(() => expect(moveButton('Move Half up')).toHaveFocus())
-  expect(moveButton('Move Half down')).toBeDisabled()
+  fireEvent.click(await screen.findByRole('button', { name: original }))
+  await waitFor(() => expect(moveButton(fallback)).toHaveFocus())
+  expect(moveButton(original)).toBeDisabled()
 })
 
 it('shows a stale order error and reloads the events', async () => {
