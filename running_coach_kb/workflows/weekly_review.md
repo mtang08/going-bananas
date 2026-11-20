@@ -1,4 +1,4 @@
-# Workflow: Weekly and Rolling-14-Day Review
+# Workflow: Weekly Rolling-Plan Review
 
 ## Objective
 
@@ -16,7 +16,7 @@ Review what actually happened, not just what was prescribed; evaluate adaptation
 ## Review horizons
 
 - **Last 7 days:** useful for calendar logistics, but may contain three or four runs depending on cycle phase.
-- **Rolling 14 days:** primary planning unit; captures seven intended runs and both weekly quality/long-run exposures.
+- **Through the block review date (at least 14 and at most 42 days ahead):** primary planning unit. The 14-day minimum is kept because it captures seven intended runs and both weekly quality/long-run exposures of the repeating cycle. Days 1–7 are committed and later days are provisional. After day 14, change a session only for a material reason (an observed fact that changes its purpose or dose, a schedule change or event, benchmark placement) or to give it full detail as it enters days 8–14. (product heuristic)
 - **Rolling 4–8 weeks:** continuity, trend, illness interruption, symptom-free consistency, repeated scheduling conflicts, and whether prior advice worked.
 
 Do not compare calendar weeks as though they should contain equal run counts.
@@ -106,7 +106,7 @@ Every proposal needs one or two checks that can confirm or refute it—for examp
 period_reviewed:
   start: YYYY-MM-DD
   end: YYYY-MM-DD
-  primary_horizon: rolling_14_days
+  primary_horizon: through_block_review_date_min_14_days
 actual_vs_planned:
   summary: string
   completed_as_planned: integer | null

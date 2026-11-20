@@ -34,7 +34,7 @@ Use `handle_goal_or_race_change`, `recalibrate_intensity`, or `assess_training_r
 - Maintained qualities and explicit non-goals
 - Allowed session families and current progression dimension
 - Completion indicators, review triggers, and constraints
-- Approved 14-day plan and any provisional second-week intent
+- Approved plan through the block review date, with its committed first week and its provisional later days and intent
 
 ### Evidence of execution
 
@@ -52,7 +52,7 @@ Use `handle_goal_or_race_change`, `recalibrate_intensity`, or `assess_training_r
 - Symptoms, function, and delayed response linked to exposures
 - Recovery trends, illness, life stress, lower-body soreness, and fueling context
 - Whether the next planned session remained possible after prior key exposures
-- Benchmark/race result only with test conditions and uncertainty
+- Benchmark/race result only with test conditions and uncertainty; a block without a benchmark is judged on the training indicators in its completion indicators
 
 ### Changed context
 
@@ -68,11 +68,11 @@ Missing observations remain `null` or `unknown`; absence of a recorded problem i
 | Layer | May normally change | Should normally preserve | Escalate when |
 |---|---|---|---|
 | Daily check-in | Today's dose, terrain, mode, or placement; at most the next 1-3 days | Block objective, approved frequency, broader session sequence | Repeated modifications, function/symptom deterioration, or a change that cannot fit without pileup |
-| Rolling-plan review | Concrete next 14 days, session order, one progression dimension, substitutions | Block objective and long-term direction | Several disrupted or failed objective-relevant exposures; goal/context change; block evidence no longer coherent |
+| Rolling-plan review | Concrete plan through the block review date (at least 14 days), session order, one progression dimension, substitutions | Block objective and long-term direction | Several disrupted or failed objective-relevant exposures; goal/context change; block evidence no longer coherent |
 | Block review | Objective, maintained qualities, eligible recipe families, progression strategy, review conditions | Long-term goals unless those changed | Major goal/season/context change or inability to define a useful block |
 | Long-term direction | Goal priority, event sequence, broad future phases | Current approved plan until a narrower review translates the change | User decision or major context change |
 
-The 14-day horizon and a typical 4-8-week block are product/coaching defaults, not validated physiological cutoffs.
+The planning horizon (through the block review date, at least 14 and at most 42 days) and a typical 4-8-week block are product/coaching defaults, not validated physiological cutoffs.
 
 ## Review sequence
 
@@ -147,18 +147,20 @@ A new high-priority race, large interruption, new clinical constraint, or change
 
 ### 8. Translate the outcome into the rolling plan
 
-Specify only what the next 14 days need:
+Specify only what the plan through the block review date needs:
 
 - primary target and maintained qualities;
 - eligible recipe IDs;
 - one main progression or consolidation lever;
 - session-spacing and strength constraints;
 - committed first-week intent;
-- provisional second-week intent and the observation that will confirm it;
+- provisional intent for later days and the observation that will confirm it (full prescriptions for days 8–14; after day 14 only the recipe family, intent, and duration, with the detail added when the session enters days 8–14);
 - what is deliberately not being progressed; and
 - next review date and trigger conditions.
 
 Do not create a workload pileup to compensate for missed sessions. Do not activate a recipe whose prerequisites are unmet.
+
+**Block handoff.** When the active block's review date is 7 days away or less, the Sunday review is this block review: it runs the Sunday 7 days before the review date. It judges the block with the benchmark result in hand, then plans the rest of the old block (the handoff week) together with the next block's first weeks. The next block starts the day after the current review date, with its own review date on a Sunday. The new version is active as soon as it is accepted, so choose eligible recipe IDs that also suit the handoff week. If the benchmark result is not available (its planned date has passed with no matching completed session), do not treat the benchmark as done: ask the athlete when a sync is plausible, otherwise reschedule the time trial into the handoff week; see `adaptive_coaching/race_and_benchmark_policy.md` › Missed or compromised benchmark. (product heuristic)
 
 ### 9. Define a falsifiable follow-up
 
@@ -196,7 +198,7 @@ outcome: start | continue | extend | consolidate | transition | replace | end
 outcome_rationale: string
 maintained_qualities: [string]
 proposed_next_emphasis: string | null
-rolling_14_day_implications:
+rolling_plan_implications:
   committed_intents: [string]
   provisional_intents: [string]
   eligible_recipe_ids: [RECxxx]

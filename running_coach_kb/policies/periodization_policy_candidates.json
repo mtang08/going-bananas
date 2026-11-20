@@ -26,7 +26,7 @@
       "suggested_action": [
         "Separate objective status from tolerance and exposure adequacy.",
         "Choose one lifecycle outcome: start, continue, extend, consolidate, transition, replace, or end.",
-        "State what is preserved, what changes in the next 14 days, what remains provisional, and what observation will trigger the next review.",
+        "State what is preserved, what changes through the block review date, what remains provisional, and what observation will trigger the next review.",
         "Use a planned date plus completion and early-review conditions; do not treat elapsed weeks alone as success or failure."
       ],
       "alternatives": [
@@ -45,7 +45,7 @@
       "evidence_certainty": "Low-moderate for model superiority; moderate for the need to avoid rigid claims",
       "athlete_applicability": "High as a planning and audit policy; exact duration remains individualized",
       "threshold_basis": "No universal duration, response cutoff, or mandatory block structure",
-      "calibration_needed": "Calibrate objective indicators, review cadence, and what counts as adequate exposure to the athlete, phase, data quality, and approved product semantics.",
+      "calibration_needed": "Calibrate objective indicators, review cadence, and what counts as adequate exposure to the athlete, phase, data quality, and approved product semantics. The review trigger 'Product changes the calendar horizon or approval model' was reviewed for the block-length planning horizon (through the block review date, at least 14 and at most 42 days): the next-14-days wording in suggested_action was updated, and the position that no fixed block duration is validated is unchanged.",
       "uncertainty": "The value of an explicit block depends on whether it materially constrains session selection and makes review clearer than an ongoing goal plus rolling plan.",
       "review_triggers": [
         "New direct evidence in low-volume recreational runners",
@@ -300,7 +300,7 @@
       "suggested_action": [
         "Choose the lowest ladder level that addresses the finding: current session, next session, next days (up to 3), then the committed window (days 1–7).",
         "Change only sessions inside a stated patch window and list the committed sessions deliberately left unchanged.",
-        "Never edit provisional days 8–14; the next weekly review owns them.",
+        "Never edit provisional days (day 8 onward); the next weekly review owns them.",
         "Record a reassess date within 7 days with monitoring, return, and escalation criteria."
       ],
       "alternatives": [
@@ -409,7 +409,7 @@
     },
     {
       "policy_id": "P028",
-      "title": "Close each block with a standardized benchmark and recalibrate in the same review",
+      "title": "Benchmark a block when a credible result is due and recalibrate in the same review",
       "decision_question": "How should a block's progress and intensity anchors be judged at its end?",
       "trigger": [
         "A block version is active or is being started.",
@@ -424,12 +424,13 @@
         "current_anchors"
       ],
       "suggested_action": [
-        "Set one benchmark in the last 7 days of every block: a time trial or an existing event, with a repeatable protocol and progress and consolidate criteria stated in advance.",
+        "Set one benchmark when it is due (no credible earlier result, the last credible result is 42 days or more before `review_date−7`, or a goal or benchmark race falls in the block) in the week before the block's last week (`planned_date` in `[review_date−13, review_date−7]`) so its result exists at the block review: a time trial or an existing event, with a repeatable protocol and progress and consolidate criteria stated in advance.",
         "At the block review, choose progress, consolidate, recalibrate_only, or inconclusive from the result compared with the same protocol, together with the training response.",
-        "Recalibrate anchors in the same review when the result is credible and comparable."
+        "Recalibrate anchors in the same review when the result is credible and comparable; without one, keep them.",
+        "Otherwise judge the block on training indicators named in advance (workout execution, aerobic efficiency, completion, RPE versus intent)."
       ],
       "alternatives": [
-        "Use an existing event as the benchmark when it fits the last 7 days.",
+        "Use an existing event as the benchmark when it fits the week before the block's last week.",
         "Reschedule within 14 days or extend the block when the benchmark is missed."
       ],
       "do_not_apply_when": [
@@ -441,7 +442,7 @@
       "source_ids": ["S064", "S067", "S068", "S050", "S051"],
       "evidence_certainty": "Low-moderate",
       "athlete_applicability": "High",
-      "threshold_basis": "Progress and consolidate criteria are athlete-specific and written into each block; no universal improvement threshold",
+      "threshold_basis": "Progress and consolidate criteria are athlete-specific and written into each benchmark block; no universal improvement threshold; the 42-day benchmark interval is a product heuristic",
       "calibration_needed": "Review after several blocks whether the chosen protocol and criteria were repeatable.",
       "uncertainty": "Benchmark results vary with conditions, pacing, and motivation; one result cannot establish a trend.",
       "review_triggers": [

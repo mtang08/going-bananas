@@ -1,1 +1,1 @@
-EXPECTED_HEAD = "0021_self_reported_completion"
+EXPECTED_HEAD = "0022_race_goals"

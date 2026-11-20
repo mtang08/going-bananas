@@ -21,7 +21,7 @@
 
 - Calling a focus a "block" and using a typical 4-8-week window.
 - Reviewing the block at a planned checkpoint before its nominal end.
-- Committing the next week while leaving much of week two provisional in a rolling 14-day calendar.
+- Committing the next week while leaving the rest of the plan, through the block review date, provisional in a rolling calendar of at least 14 days.
 - Maintaining one or two qualities with small doses while one primary quality progresses.
 - Using a consolidation segment when several demanding changes have accumulated.
 
@@ -33,18 +33,18 @@ These can be sensible without being presented as physiological laws.
 |---|---|---|---|---|---|---|
 | Long-term direction | Which goals and seasons matter, and what broad sequence is plausible? | Goal priority, event dates, life constraints, training history | Goal hierarchy and likely future emphases | Months; changes only with a major decision/context shift | Current approved block and calendar until translated | New/cancelled priority event, major availability or health change |
 | Training block | What single primary adaptation/tolerance emphasis should constrain choices now? | Previous block, 4-12-week trends, prerequisites, race timing, constraints | Objective, maintained qualities, eligible recipes, review conditions | Several weeks, but trigger-responsive | Long-term goal; approved sessions until accepted | Repeated disruption, objective invalidated, worsening tolerance, race/goal change |
-| Rolling 14-day plan | Which concrete session sequence expresses the block under current logistics? | Actual vs planned 7/14 days, current block, recent tolerance/recovery | Specific first-week sessions and provisional second-week intents | Reviewed weekly/cycle | Block objective and maintained qualities | Several failed/missed key exposures or inability to fit the block coherently |
+| Rolling plan through the block review date | Which concrete session sequence expresses the block under current logistics? | Actual vs planned 7/14 days, current block, recent tolerance/recovery | Specific first-week sessions, full provisional prescriptions for days 8–14, and recipe-family intents after day 14 | Reviewed weekly/cycle | Block objective and maintained qualities | Several failed/missed key exposures or inability to fit the block coherently |
 | Daily check-in | What is the safest useful decision for today's session? | Current symptoms/function, recovery, last exposures, today's plan | Proceed/modify/move/rest/clinical input | Hours to days | Block and broader sequence | Repeated modification, pileup risk, or material symptom/context change |
 
-### Why a rolling 14-day horizon can fit
+### Why a 14-day minimum planning horizon can fit
 
-For an alternating four-run/three-run cycle, a calendar-week comparison can misrepresent frequency and session density. Fourteen days captures the full repeating rhythm and both expected long-run/quality exposures. This is a **reasoned product heuristic**, not evidence that physiology operates in 14-day units.
+For an alternating four-run/three-run cycle, a calendar-week comparison can misrepresent frequency and session density. Fourteen days captures the full repeating rhythm and both expected long-run/quality exposures. This is a **reasoned product heuristic**, not evidence that physiology operates in 14-day units. The plan therefore runs through the block's review date, with 14 days as the minimum and 42 days as the cap. The cap keeps proposals reviewable and is not a physiological limit.
 
 Recommended semantics:
 
 - **Committed:** specific purpose, date range, and session family for the next approximately seven days, subject to daily checks.
-- **Provisional:** likely purpose/family for the second week, with dose left contingent on the first week's response.
-- **Directional only:** block intent beyond the rolling horizon; do not fabricate daily sessions months ahead.
+- **Provisional:** from day 8 through the block review date. Days 8–14 carry full prescriptions that the next review may revise. Later days carry the likely purpose/family and duration, with dose left contingent on the response so far and the detail added as the session enters days 8–14.
+- **Directional only:** block intent beyond the block review date or the 42-day cap; do not fabricate daily sessions months ahead.
 
 ## Does an explicit block add value?
 

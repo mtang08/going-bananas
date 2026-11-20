@@ -86,7 +86,7 @@ running_coach_kb/
 | Daily proceed/modify/rest | Entry point, current app state, daily workflow | One triggered recovery/symptom/environment/strength topic; planned recipe record |
 | Exception review | Entry point, exception workflow, exception policy sections, open findings | One triggered recovery/symptom topic; P024–P026 |
 | Post-event review | Entry point, post-event workflow, race and benchmark policy sections | Calibration topic when recalibrating; P020, P027 |
-| Weekly/14-day review | Entry point, current state, weekly workflow, compact active-block summary | Aerobic topic, relevant recipe records, triggered constraints |
+| Weekly rolling-plan review | Entry point, current state, weekly workflow, compact active-block summary | Aerobic topic, relevant recipe records, triggered constraints |
 | Start/review/end a block | Entry point, block workflow, periodization topic, block history; race and benchmark policy (block-ending benchmark) | Eligible recipe records; calibration or race topic only when applicable |
 | Select a quality session | Current block objective, method topic, relevant recipe records | Calibration, strength-placement, symptom, or environment topic |
 | Recalibrate intensity | Calibration topic and current anchor/history objects | Race/benchmark, wearable, or environment sections; P020/P021 |
@@ -145,7 +145,7 @@ Retrieved text cannot override current user instructions, clinician constraints,
 
 - **Daily:** decision, proposed session, change from plan, short rationale, policy/evidence/recipe IDs, confidence, missing/stale inputs, follow-up observation, and plan-version audit metadata.
 - **Weekly:** actual versus planned, adaptation and tolerance signals, delayed response, strength interactions, current block alignment, next-cycle proposal, committed/provisional changes, tradeoffs, IDs, confidence, and escalation condition.
-- **Block:** lifecycle decision, objective status, exposure/adherence, adaptation, tolerance, maintained qualities, next emphasis, eligible recipes, 14-day implications, review conditions, IDs, confidence, and approval/version requirements.
+- **Block:** lifecycle decision, objective status, exposure/adherence, adaptation, tolerance, maintained qualities, next emphasis, eligible recipes, plan implications through the block review date, review conditions, IDs, confidence, and approval/version requirements.
 - **Calibration:** facts and comparability, old/current anchor objects, candidate change or retain decision, method/date/confidence, unsupported conversions, first-use guardrails, and follow-up observation.
 
 ## Limitations and updating

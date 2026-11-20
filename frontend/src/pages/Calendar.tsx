@@ -2,6 +2,7 @@ import { Badge, Button, Card, Disclosure, Input, NativeSelect, Textarea } from '
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api, post, put, query } from '../api/client'
+import { RUN_SPORTS } from '../api/types/blocks'
 import { REASON_LABELS } from '../api/types/checkins'
 import {
   RECIPE_LABELS,
@@ -91,7 +92,6 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
         `/activities${query({
           start_date: addDays(nearDate, -1),
           end_date: addDays(nearDate, 1),
-          sport: 'running',
           limit: 50,
         })}`,
       ),
@@ -602,11 +602,13 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
             onChange={(e) => setSelectedRun(e.target.value)}
           >
             <option value="">Select a run</option>
-            {near.data?.data.items.map((a) => (
-              <option value={a.id} key={a.id}>
-                {dateLabel(a.local_date)} · {fmtDistance(a.distance_m, unit)}
-              </option>
-            ))}
+            {near.data?.data.items
+              .filter((a) => RUN_SPORTS.includes(a.sport))
+              .map((a) => (
+                <option value={a.id} key={a.id}>
+                  {dateLabel(a.local_date)} · {fmtDistance(a.distance_m, unit)}
+                </option>
+              ))}
           </NativeSelect>
           {near.error && (
             <p className="error-text" role="alert">

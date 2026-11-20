@@ -6,7 +6,7 @@
 
 - Run when a race review is due for a `target`, `benchmark`, or `supported_exposure` event in the last 7 days. The block's culminating benchmark belongs to block review; see `adaptive_coaching/race_and_benchmark_policy.md`. (product heuristic)
 - For the event as exposure and observation, see `topics/races_tapers_and_transitions.md` › Core position.
-- Scope is committed days 1–7. Never edit days 8–14; weekly review owns them.
+- Scope is committed days 1–7. Never edit provisional days (day 8 onward); weekly review owns them.
 - The 1–3 days after are an observation window, not a fixed rest prescription; see `adaptive_coaching/race_and_benchmark_policy.md` › Post-event review. (coaching convention)
 
 ## Review sequence
