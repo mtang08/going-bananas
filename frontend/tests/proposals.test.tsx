@@ -1,3 +1,4 @@
+import type { RaceEvent } from '../src/api/types/blocks'
 import { qk } from '../src/api/queryKeys'
 import type { ProposalException } from '../src/api/types/exceptions'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -52,6 +53,7 @@ let requests: string[] = []
 let proposal: ProposalDetail
 let failure: 'network' | 'subset' | 'stale' | 'revision' | null = null
 let failReload = false
+let events: RaceEvent[] = []
 let calendarToday = '2026-11-16'
 let failCalendar = false
 let writes: ProposalDecision[] = []
@@ -61,6 +63,7 @@ beforeEach(() => {
   requests = []
   failure = null
   failReload = false
+  events = []
   calendarToday = '2026-11-16'
   failCalendar = false
   writes = []
@@ -191,6 +194,17 @@ beforeEach(() => {
         }
       }
       if (failReload && url.includes('/coach/proposals/')) throw new Error('offline')
+      if (url.endsWith('/events')) {
+        return {
+          ok: true,
+          json: async () => ({
+            schema_version: 'v1',
+            mode: 'demo',
+            data_revision: 1,
+            data: { items: events },
+          }),
+        }
+      }
       if (url.endsWith('/calendar') && failCalendar) throw new Error('offline')
       if (url.endsWith('/calendar'))
         return {
@@ -943,3 +957,53 @@ it.each([
     expect(within(table).getByRole('link', { name: 'Read reason 1' })).toBeInTheDocument()
   },
 )
+
+it('names the goal race and outline on the block card', async () => {
+  events = [
+    {
+      id: 'e1',
+      name: 'NYC Half',
+      event_date: '2027-03-14',
+      distance_m: 21098,
+      purpose: 'pr',
+      goal_time_s: 6300,
+      rank: 1,
+      status: 'planned',
+      result_s: null,
+      version: 1,
+    },
+  ]
+  proposal.changes = []
+  proposal.block_change = {
+    decision: 'continue',
+    block_uid: 'b1',
+    version_fields: {
+      objective: 'Build consistency',
+      target_event_id: 'e1',
+      build_outline: [
+        { emphasis: 'threshold durability', weeks: 4 },
+        { emphasis: 'half-marathon-specific endurance', weeks: 5 },
+      ],
+    },
+  }
+  mount()
+  expect(await screen.findByText('Builds toward: NYC Half (Mar 14)')).toBeInTheDocument()
+  const list = screen.getByRole('list', { name: 'Build outline' })
+  expect(
+    within(list)
+      .getAllByRole('listitem')
+      .map((item) => item.textContent),
+  ).toEqual(['4 wk threshold durability', '5 wk half-marathon-specific endurance'])
+})
+
+it('says no event when the block has no goal race', async () => {
+  proposal.changes = []
+  proposal.block_change = {
+    decision: 'continue',
+    block_uid: 'b1',
+    version_fields: { objective: 'Build consistency', target_event_id: null, build_outline: [] },
+  }
+  mount()
+  expect(await screen.findByText('Builds toward: no event')).toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Build outline' })).toBeNull()
+})

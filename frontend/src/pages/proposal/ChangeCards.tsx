@@ -1,3 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../../api/client'
+import { qk } from '../../api/queryKeys'
+import type { RaceEvent } from '../../api/types/blocks'
+import { dateLabel } from '../../lib/format'
 import { RECIPE_LABELS } from '../../api/types/calendar'
 import type { ProposalDecisionResult, ProposalDetail } from '../../api/types/coach'
 import { Card } from '../../components/ui'
@@ -21,6 +26,23 @@ export function BlockChangeCard({
   onChange: (checked: boolean) => void
   plain: (text: string) => string
 }) {
+  const targetId = change.version_fields.target_event_id
+  const events = useQuery({
+    queryKey: qk.events,
+    queryFn: () => api<{ items: RaceEvent[] }>('/events'),
+    enabled: Boolean(targetId),
+  })
+  const target = events.data?.data?.items?.find((event) => event.id === targetId)
+  const builtToward = !targetId
+    ? 'no event'
+    : target
+      ? `${target.name} (${dateLabel(target.event_date)})`
+      : events.isPending
+        ? 'loading event'
+        : events.isError
+          ? 'event unavailable'
+          : 'event not found'
+  const outline = change.version_fields.build_outline ?? []
   return (
     <Card>
       <h2>Training block: {change.decision}</h2>
@@ -30,6 +52,14 @@ export function BlockChangeCard({
         {change.version_fields.start_date} · Review{' '}
         {change.version_fields.review_date ?? 'Not specified'}
       </p>
+      <p data-testid="builds-toward">{`Builds toward: ${builtToward}`}</p>
+      {outline.length > 0 && (
+        <ul aria-label="Build outline">
+          {outline.map((step, index) => (
+            <li key={index}>{`${step.weeks} wk ${plain(step.emphasis)}`}</li>
+          ))}
+        </ul>
+      )}
       <p>
         Status: {change.version_fields.status} · Objective:{' '}
         {change.version_fields.objective_status?.replaceAll('_', ' ')}
