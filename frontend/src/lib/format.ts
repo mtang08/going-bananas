@@ -18,6 +18,12 @@ export function addDays(date: string, amount: number): string {
   d.setDate(d.getDate() + amount)
   return localDate(d)
 }
+export function sportLabel(sport: string): string {
+  if (sport === 'running') return 'Run'
+  if (sport === 'treadmill_running') return 'Treadmill run'
+  if (sport === 'trail_running') return 'Trail run'
+  return sport.replaceAll('_', ' ')
+}
 export function dateLabel(
   date: string,
   options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' },

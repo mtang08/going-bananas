@@ -22,6 +22,7 @@ import {
   fmtPercent,
   fmtRpe,
   signatureLabel,
+  sportLabel,
   statusText,
   type Unit,
 } from '../lib/format'
@@ -164,7 +165,7 @@ export function Activity({
               <div>
                 <div className="eyebrow">ACTIVITY</div>
                 <h1>
-                  {activity.sport === 'running' ? 'Run' : activity.sport.replaceAll('_', ' ')} ·{' '}
+                  {sportLabel(activity.sport)} ·{' '}
                   {dateLabel(activity.local_date, {
                     weekday: 'long',
                     month: 'long',

@@ -467,6 +467,20 @@ describe('Activity execution', () => {
     mount()
     expect(await screen.findByText('Split laps combined')).toBeInTheDocument()
   })
+  it('labels a treadmill run and its flags', async () => {
+    fixture = {
+      ...base,
+      activity: { ...base.activity, sport: 'treadmill_running' },
+      planned_actual: { ...base.planned_actual!, quality_flags: ['TREADMILL_PACE_NOT_SCORED'] },
+      intervals: { ...base.intervals!, quality_flags: ['TREADMILL'] },
+    }
+    mount()
+    expect(
+      await screen.findByRole('heading', { name: 'Treadmill run · Sunday, November 8' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Treadmill: pace not scored')).toBeInTheDocument()
+    expect(screen.getByText('Treadmill: pace estimated by the watch')).toBeInTheDocument()
+  })
   it('makes missing FIT evidence explicit while retaining summary', async () => {
     fixture = {
       ...base,

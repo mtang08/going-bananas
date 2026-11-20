@@ -56,6 +56,7 @@ export const REASON_LABELS: Record<string, string> = {
   INSUFFICIENT_PLAN: 'Not enough plan detail to compare',
   INTERVAL_RESULT_MISSING: 'Rep analysis not computed yet',
   TREADMILL: 'Treadmill: pace estimated by the watch',
+  TREADMILL_PACE_NOT_SCORED: 'Treadmill: pace not scored',
   NO_PLAN_LINK: 'Not linked to a planned session',
   NO_WORK_STEPS: 'Plan has no work steps',
   LAP_STEP_ORDER_MISMATCH: 'Laps do not follow the watch workout',
