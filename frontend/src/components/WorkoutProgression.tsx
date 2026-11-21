@@ -47,7 +47,7 @@ export function WorkoutProgressionChart({
     <div className="chart" role="img" aria-label="Work pace and heart rate by session">
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data}>
-          <CartesianGrid vertical={false} stroke="#e9e7df" />
+          <CartesianGrid vertical={false} stroke="var(--border)" />
           <XAxis dataKey="date" tickFormatter={(value: string) => dateLabel(value)} fontSize={11} />
           <YAxis
             yAxisId="speed"
@@ -60,7 +60,7 @@ export function WorkoutProgressionChart({
             yAxisId="speed"
             dataKey="speed"
             name="Work pace"
-            stroke="#5b754d"
+            stroke="var(--primary)"
             dot={false}
             connectNulls={false}
           />
@@ -68,7 +68,7 @@ export function WorkoutProgressionChart({
             yAxisId="hr"
             dataKey="hr"
             name="Work HR (bpm)"
-            stroke="#9b704c"
+            stroke="light-dark(#9b704c, #e3ad6c)"
             dot={false}
             connectNulls={false}
           />

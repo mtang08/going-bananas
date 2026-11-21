@@ -11,10 +11,10 @@
     gap: 0.5rem;
   }
   .direction-chips > span {
-    border: 1px solid #d8dfce;
+    border: 1px solid light-dark(#d8dfce, var(--border));
     border-radius: 2rem;
     padding: 0.35rem 0.7rem;
-    background: #f3f6ed;
+    background: light-dark(#f3f6ed, var(--muted));
     font-size: 0.85rem;
   }
   .goal-timeline-list {
@@ -30,12 +30,12 @@
   }
   .goal-timeline-list li.is-current {
     border-color: #405b32;
-    background: #f3f6ed;
+    background: light-dark(#f3f6ed, var(--muted));
     font-weight: 600;
   }
   .goal-timeline-list li[data-kind='outline'] {
     border-style: dashed;
-    color: #4d5a43;
+    color: light-dark(#4d5a43, var(--muted-foreground));
   }
   .goal-timeline-list li[data-kind='race'] {
     border-color: #405b32;
@@ -79,7 +79,7 @@
     display: flex;
     gap: 0.7rem;
     padding: 0.75rem;
-    background: #f6f7f2;
+    background: light-dark(#f6f7f2, var(--muted));
     border-radius: 0.5rem;
   }
   .review-checklist li > span {
@@ -149,7 +149,7 @@
 
   .recovery-latest {
     padding: 1rem;
-    background: #f6f7f2;
+    background: light-dark(#f6f7f2, var(--muted));
     border-radius: 0.6rem;
     margin-top: 1rem;
   }
@@ -161,7 +161,7 @@
   }
   .recovery-latest dt {
     font-size: 0.8rem;
-    color: #62685b;
+    color: light-dark(#62685b, var(--muted-foreground));
   }
   .recovery-latest dd {
     margin: 0.2rem 0 0;

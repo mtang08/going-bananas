@@ -1,6 +1,6 @@
 import { Badge, Button, Card, Disclosure, Input, NativeSelect, Textarea } from '../components/ui'
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api, post, put, query } from '../api/client'
 import { RUN_SPORTS } from '../api/types/blocks'
 import { REASON_LABELS } from '../api/types/checkins'
@@ -63,6 +63,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
   const requested = weekStart ? mondayOfWeek(weekStart) : null
   const view = useQuery({
     queryKey: qk.calendarWeek(requested ?? 'current', viewVersion ?? 'head'),
+    placeholderData: keepPreviousData,
     queryFn: () =>
       api<CalendarView>(
         `/calendar/week${query({ start: requested ?? undefined, version: viewVersion ?? undefined })}`,
@@ -356,8 +357,8 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
   }
   const renderWeek = () => {
     if (!data) return null
-    const start = data.start
     const currentStart = mondayOfWeek(today)
+    const start = view.isPlaceholderData ? (requested ?? currentStart) : data.start
     const nextStart = addDays(currentStart, 7)
     const lastStart = mondayOfWeek(data.last_planned_date ?? today)
     const maxStart = lastStart > nextStart ? lastStart : nextStart
@@ -367,47 +368,55 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
     }
     return (
       <Card>
-        <div className="panel-head flex-wrap items-center">
-          <Button
-            variant="outline"
-            size="icon"
-            type="button"
-            aria-label="Previous week"
-            onClick={() => go(addDays(start, -7))}
-          >
-            ‹
-          </Button>
-          <h2>
-            {dateLabel(start)}–{dateLabel(data.end)}
-            {start === currentStart && ' · This week'}
-            {start === nextStart && ' · Next week'}
-          </h2>
-          <Button
-            variant="outline"
-            size="icon"
-            type="button"
-            aria-label="Next week"
-            disabled={start >= maxStart}
-            onClick={() => go(addDays(start, 7))}
-          >
-            ›
-          </Button>
-          {start !== currentStart && (
-            <Button variant="outline" type="button" onClick={() => go(currentStart)}>
-              This week
+        <div className="calendar-week-header">
+          <div className="calendar-week-navigation">
+            <Button
+              variant="outline"
+              size="icon"
+              type="button"
+              aria-label="Previous week"
+              onClick={() => go(addDays(start, -7))}
+            >
+              ‹
             </Button>
-          )}
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() => downloadWeeklyWorkouts(data.sessions, start, unit)}
-          >
-            Download week
-          </Button>
+            <h2>
+              {dateLabel(start)}–{dateLabel(addDays(start, 6))}{' '}
+              <span className="calendar-week-label">
+                {start === currentStart ? 'This week' : start === nextStart ? 'Next week' : null}
+              </span>
+            </h2>
+            <Button
+              variant="outline"
+              size="icon"
+              type="button"
+              aria-label="Next week"
+              disabled={start >= maxStart}
+              onClick={() => go(addDays(start, 7))}
+            >
+              ›
+            </Button>
+          </div>
+          <div className="calendar-week-actions">
+            {start !== currentStart && (
+              <Button variant="outline" type="button" onClick={() => go(currentStart)}>
+                This week
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              type="button"
+              disabled={view.isPlaceholderData}
+              onClick={() => downloadWeeklyWorkouts(data.sessions, start, unit)}
+            >
+              Download week
+            </Button>
+          </div>
         </div>
-        <div className="calendar-week-grid">
-          {Array.from({ length: 7 }, (_, i) => renderDay(addDays(start, i)))}
-        </div>
+        <QueryState loading={view.isPlaceholderData}>
+          <div className="calendar-week-grid">
+            {Array.from({ length: 7 }, (_, i) => renderDay(addDays(start, i)))}
+          </div>
+        </QueryState>
       </Card>
     )
   }

@@ -39,7 +39,7 @@ export function QueryState({
     <>
       {error && stale && (
         <div
-          className="mx-6 my-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+          className="mx-6 my-4 rounded-lg border border-border bg-muted p-4 text-sm text-foreground"
           role="status"
         >
           Showing the last loaded data. Refresh failed: {error.message}

@@ -15,7 +15,7 @@
     padding: 10px;
     border: 1px solid var(--border, #dce2dc);
     border-radius: 12px;
-    background: var(--surface, #fff);
+    background: var(--card);
   }
   .calendar-page .calendar-day h3 {
     font-size: 0.85rem;
@@ -23,7 +23,7 @@
   }
   .plan-session {
     border-left: 3px solid #658c61;
-    background: #f3f6f1;
+    background: light-dark(#f3f6f1, var(--muted));
     border-radius: 6px;
     padding: 9px;
     margin-bottom: 8px;
@@ -36,21 +36,21 @@
   }
   .plan-session-type {
     font-size: 0.75rem;
-    color: #4c5c53;
+    color: light-dark(#4c5c53, var(--muted-foreground));
     margin-top: 4px;
   }
   .plan-session.kind-strength {
     border-color: #9464ad;
-    background: #f6f1f8;
+    background: light-dark(#f6f1f8, #34293b);
   }
   .plan-session.kind-cross {
     border-color: #368d9a;
-    background: #eff7f8;
+    background: light-dark(#eff7f8, #1b3437);
   }
   .plan-session.kind-rest,
   .plan-session.kind-mobility {
     border-color: #9a895a;
-    background: #f8f6ef;
+    background: light-dark(#f8f6ef, var(--muted));
   }
   .plan-session-amounts,
   .plan-session-status {
@@ -75,6 +75,50 @@
   .plan-session .compact-workout {
     padding-left: 16px;
   }
+  .calendar-week-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 22rem) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .calendar-week-navigation {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+  }
+  .calendar-week-navigation h2 {
+    margin: 0;
+  }
+  .calendar-week-label {
+    display: block;
+    min-height: 1.25rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+  }
+  .calendar-week-actions {
+    display: flex;
+    justify-content: end;
+    gap: 8px;
+  }
+  @media (max-width: 1024px) {
+    .calendar-week-header {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .calendar-week-navigation {
+      grid-column: 1;
+      justify-self: center;
+      width: min(100%, 22rem);
+    }
+    .calendar-week-actions {
+      justify-content: center;
+    }
+  }
   .calendar-page .calendar-week-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -98,7 +142,7 @@
     height: 12px;
     overflow: hidden;
     border-radius: 99px;
-    background: #e7ebe5;
+    background: light-dark(#e7ebe5, var(--muted));
     margin: 16px 0;
   }
   .mileage-recorded {
@@ -144,7 +188,7 @@
   }
   .plan-session-details[open] {
     padding: 12px;
-    background: #fff;
+    background: light-dark(#fff, var(--muted));
     border-radius: 8px;
   }
   .plan-session-details[open] .compact-workout {
@@ -180,7 +224,7 @@
     display: grid;
     gap: 4px;
     padding: 8px 0;
-    border-top: 1px solid #e3e8df;
+    border-top: 1px solid light-dark(#e3e8df, var(--border));
   }
   .digest-chips {
     display: flex;
@@ -193,7 +237,7 @@
   }
   .digest-chips li {
     padding: 2px 8px;
-    border: 1px solid #e3e8df;
+    border: 1px solid light-dark(#e3e8df, var(--border));
     border-radius: 999px;
   }
   .week-session {

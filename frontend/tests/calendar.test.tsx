@@ -239,7 +239,7 @@ describe('week navigation', () => {
 
   it('shows the current week with arrows and no This week button', async () => {
     mount()
-    expect(await screen.findByRole('heading', { name: 'Nov 9–Nov 15 · This week' })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'Nov 9–Nov 15 This week' })).toBeVisible()
     expect(screen.getAllByTestId('calendar-day').map((day) => day.dataset.date)).toEqual([
       '2026-11-09',
       '2026-11-10',
@@ -269,8 +269,13 @@ describe('week navigation', () => {
     await screen.findByRole('heading', { name: /This week/ })
     expect(requestedWeeks()).toEqual(['/api/v1/calendar/week'])
 
+    const previous = screen.getByRole('button', { name: 'Previous week' })
+    previous.focus()
     rerender(<Calendar unit="mi" weekStart="2026-11-06" />)
-    await screen.findByRole('heading', { name: 'Nov 2–Nov 8' })
+    expect(screen.getByRole('button', { name: 'Previous week' })).toBe(previous)
+    expect(previous).toHaveFocus()
+    expect(screen.queryAllByTestId('calendar-day')).toHaveLength(0)
+    await screen.findAllByTestId('calendar-day')
     expect(requestedWeeks()).toEqual([
       '/api/v1/calendar/week',
       '/api/v1/calendar/week?start=2026-11-02',
@@ -360,8 +365,9 @@ describe('Calendar', () => {
     expect(text).toContain('Easy')
     expect(text).not.toContain('2026-11-16')
     rerender(<Calendar unit="mi" weekStart="2026-11-16" />)
-    await screen.findByRole('heading', { name: /Next week/ })
-    fireEvent.click(screen.getByRole('button', { name: 'Download week' }))
+    const download = screen.getByRole('button', { name: 'Download week' })
+    await waitFor(() => expect(download).toBeEnabled())
+    fireEvent.click(download)
     expect(clicked[1].download).toBe('workouts-2026-11-16.txt')
     click.mockRestore()
   })

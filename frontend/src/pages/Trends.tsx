@@ -178,7 +178,7 @@ function Recovery({ nights }: { nights: RecoveryNight[] }) {
       <div className="chart" role="img" aria-label="Overnight HRV and resting HR by night">
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={chartData}>
-            <CartesianGrid vertical={false} stroke="#e9e7df" />
+            <CartesianGrid vertical={false} stroke="var(--border)" />
             <XAxis
               dataKey="date"
               tickFormatter={(value: string) => dateLabel(value)}
@@ -191,7 +191,7 @@ function Recovery({ nights }: { nights: RecoveryNight[] }) {
               yAxisId="hrv"
               dataKey="hrv"
               name="HRV (ms)"
-              stroke="#5b754d"
+              stroke="var(--primary)"
               dot={false}
               connectNulls={false}
             />
@@ -199,7 +199,7 @@ function Recovery({ nights }: { nights: RecoveryNight[] }) {
               yAxisId="rhr"
               dataKey="rhr"
               name="Resting HR (bpm)"
-              stroke="#9b704c"
+              stroke="light-dark(#9b704c, #e3ad6c)"
               dot={false}
               connectNulls={false}
             />
@@ -328,7 +328,7 @@ function BenchmarkHistory({ items, unit }: { items: BenchmarkRecord[]; unit: Uni
                   .sort((a, b) => a.local_date!.localeCompare(b.local_date!))
                   .map((r) => ({ date: r.local_date, result_s: r.result_s }))}
               >
-                <CartesianGrid vertical={false} stroke="#e9e7df" />
+                <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis
                   dataKey="date"
                   tickFormatter={(value: string) => dateLabel(value)}
@@ -340,7 +340,7 @@ function BenchmarkHistory({ items, unit }: { items: BenchmarkRecord[]; unit: Uni
                   tickFormatter={(value: number) => fmtDuration(value)}
                 />
                 <Tooltip />
-                <Line dataKey="result_s" name="Result" stroke="#5b754d" />
+                <Line dataKey="result_s" name="Result" stroke="var(--primary)" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -496,7 +496,7 @@ function AerobicChart({ points, unit }: { points: AerobicPoint[]; unit: Unit }) 
     >
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={series}>
-          <CartesianGrid vertical={false} stroke="#e9e7df" />
+          <CartesianGrid vertical={false} stroke="var(--border)" />
           <XAxis dataKey="date" tickFormatter={(value: string) => dateLabel(value)} fontSize={11} />
           <YAxis
             domain={['auto', 'auto']}
@@ -510,7 +510,7 @@ function AerobicChart({ points, unit }: { points: AerobicPoint[]; unit: Unit }) 
               'Aerobic efficiency',
             ]}
           />
-          <Line dataKey="ef" name="m per heartbeat" stroke="#5b754d" />
+          <Line dataKey="ef" name="m per heartbeat" stroke="var(--primary)" />
         </LineChart>
       </ResponsiveContainer>
     </div>

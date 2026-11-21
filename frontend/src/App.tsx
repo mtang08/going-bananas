@@ -6,8 +6,10 @@ import {
   ChartNoAxesColumn,
   Footprints,
   Menu,
+  Moon,
   Plus,
   Settings2,
+  Sun,
 } from 'lucide-react'
 import { dateLabel, localDate, validDate } from './lib/format'
 import type { CheckinRequest } from './api/types/checkins'
@@ -72,6 +74,13 @@ export function App() {
   const [checkinOpen, setCheckinOpen] = useState(false)
   const [checkinRequest, setCheckinRequest] = useState<CheckinRequest | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [darkMode, setDarkMode] = useState(() => document.documentElement.dataset.theme !== 'light')
+  const toggleTheme = () => {
+    const theme = darkMode ? 'light' : 'dark'
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('going-bananas-theme', theme)
+    setDarkMode(!darkMode)
+  }
   const [unit, setUnitState] = useState<Unit>(() =>
     localStorage.getItem('gb-unit') === 'km' ? 'km' : 'mi',
   )
@@ -138,7 +147,9 @@ export function App() {
   const brand = (
     <div className="flex items-center gap-3 px-3 pb-7">
       <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-        <Footprints size={23} />
+        <span aria-hidden="true" className="text-2xl">
+          🦍
+        </span>
       </div>
       <div>
         <strong className="text-base font-semibold tracking-tight">going bananas.</strong>
@@ -151,7 +162,7 @@ export function App() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card px-3 py-6 lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card px-3 py-6 jungle-sidebar lg:flex">
         {brand}
         {navigation}
         <div className="mt-auto border-t px-3 pt-5">
@@ -192,7 +203,21 @@ export function App() {
             </span>
             {title}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Dark mode"
+              aria-pressed={darkMode}
+              onClick={toggleTheme}
+            >
+              {darkMode ? (
+                <Sun aria-hidden="true" size={17} />
+              ) : (
+                <Moon aria-hidden="true" size={17} />
+              )}
+            </Button>
             <Badge
               variant={mode === 'real' ? 'secondary' : 'outline'}
               className="text-[10px] tracking-wide"

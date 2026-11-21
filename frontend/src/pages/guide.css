@@ -35,7 +35,7 @@
     margin: 8px 0;
   }
   .guide-prompt {
-    background: #f0f3e9;
+    background: light-dark(#f0f3e9, var(--muted));
     border-left: 3px solid #6e805a;
     border-radius: 0 8px 8px 0;
     margin: 16px 0;

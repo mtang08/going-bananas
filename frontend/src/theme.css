@@ -29,6 +29,7 @@
 }
 
 :root {
+  color-scheme: light;
   --background: #f8faf9;
   --foreground: #202923;
   --card: #ffffff;
@@ -48,6 +49,42 @@
   --input: #cfd9d2;
   --ring: #448c61;
   --radius: 0.625rem;
+}
+
+:root:not([data-theme='light']) {
+  color-scheme: dark;
+  --background: #0d1811;
+  --foreground: #e9f1e5;
+  --card: #15241a;
+  --card-foreground: #e9f1e5;
+  --popover: #1d3022;
+  --popover-foreground: #e9f1e5;
+  --primary: #a3d278;
+  --primary-foreground: #132111;
+  --secondary: #263c2b;
+  --secondary-foreground: #e3eedb;
+  --muted: #1e3023;
+  --muted-foreground: #a7bda9;
+  --accent: #2a432d;
+  --accent-foreground: #d9efbb;
+  --destructive: #f18c82;
+  --border: #354d39;
+  --input: #46634a;
+  --ring: #a3d278;
+}
+
+@layer components {
+  .jungle-sidebar {
+    background-image: radial-gradient(ellipse at top left, var(--accent), transparent 55%);
+  }
+  .recharts-cartesian-axis-tick text {
+    fill: var(--muted-foreground);
+  }
+  .recharts-tooltip-wrapper .recharts-default-tooltip {
+    background-color: var(--popover) !important;
+    border-color: var(--border) !important;
+    color: var(--popover-foreground);
+  }
 }
 
 @layer base {
