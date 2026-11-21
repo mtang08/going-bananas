@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import re
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
+from functools import partial
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session
 
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
@@ -31,28 +32,34 @@ from app.metrics.engine import (
     ordered_registry,
     upsert_results,
 )
+from app.metrics.recovery import CONFIG as RECOVERY_CONFIG
+from app.metrics.recovery import METRIC_ID as RECOVERY_METRIC
+from app.metrics.recovery import WINDOW_DAYS as RECOVERY_WINDOWS
+from app.metrics.spacing import METRIC_ID as SPACING_METRIC
+from app.metrics.spacing import batch_calculator, plan_classes
 from app.models import Activity
-from app.read.calendar import head_version, latest_revisions, recent_revision_dates
+from app.read.calendar import head_version, latest_revision, latest_revisions, recent_revision_dates
 from app.services.timezone import athlete_today, athlete_tz
 
 
 def parse_scope(scope: str) -> tuple[str, Any]:
     """Split a refresh scope into `(kind, value)`, or raise `ValueError('invalid_scope')`.
 
-    `activity:`, `checkin:`, `plan:` carry a UUID; `strength:strong:` and `strength:manual:` a UUID; `date:` and
-    `since:` an ISO date; `recovery_dates:` comma-separated ISO dates. `timezone` and `revision` carry nothing.
+    `activity:`, `checkin:`, `plan:`, `manual_completion:`, `strength:strong:` and `strength:manual:` carry a UUID.
+    `date:`, `since:`, and `coverage_date:` carry an ISO date; `recovery_dates:` comma-separated ISO dates.
+    `timezone` and `revision` carry nothing.
     """
     kind, _, raw = scope.partition(":")
     try:
         if scope in ("timezone", "revision"):
             return scope, None
-        if kind in ("activity", "checkin", "plan"):
+        if kind in ("activity", "checkin", "plan", "manual_completion"):
             return kind, uuid.UUID(raw)
         if kind == "strength":
             prefix, _, raw_id = raw.partition(":")
             if prefix in ("strong", "manual"):
                 return f"strength:{prefix}", uuid.UUID(raw_id)
-        if kind in ("date", "since"):
+        if kind in ("date", "since", "coverage_date"):
             value = date.fromisoformat(raw)
             if value.isoformat() == raw:
                 return kind, value
@@ -66,8 +73,23 @@ def parse_scope(scope: str) -> tuple[str, Any]:
     raise ValueError("invalid_scope")
 
 
-# A stored hard_session_spacing window refreshes only when a changed date is within this distance of its as-of date.
+# Ordinary date changes refresh nearby spacing windows. Coverage can affect long runs farther away.
 SPACING_REACH_DAYS = 14
+LONG_RUN_COMPARATOR_DAYS = 30
+RECOVERY_BASELINE_DAYS = cast(int, RECOVERY_CONFIG["baseline_days"])
+(RECOVERY_WINDOW_DAYS,) = RECOVERY_WINDOWS
+
+STANDARD_WINDOWS = (7, 14, 28, 56, 84)
+WINDOW_DAYS_BY_METRIC = {
+    "run_volume_frequency": STANDARD_WINDOWS,
+    "long_run_exposure": STANDARD_WINDOWS,
+    "session_rpe_load": STANDARD_WINDOWS,
+    "intensity_time_distribution": STANDARD_WINDOWS,
+    "symptom_response_timeline": (28,),
+    RECOVERY_METRIC: RECOVERY_WINDOWS,
+    "hard_session_spacing": (14,),
+    "aerobic_efficiency": (28, 84),
+}
 
 
 def clock(session: Session) -> datetime:
@@ -98,7 +120,13 @@ def refreshing(session: Session):
             session.info.pop("metrics_depth", None)
 
 
-def compute_subjects(session: Session, metric_id: str, subject_keys: Sequence[str]) -> list[MetricResultData]:
+def compute_subjects(
+    session: Session,
+    metric_id: str,
+    subject_keys: Sequence[str],
+    *,
+    calculate: Callable[[str], list[MetricResultData]] | None = None,
+) -> list[MetricResultData]:
     metric_modules()
     if metric_id not in REGISTRY:
         raise ValueError("unknown_metric")
@@ -106,12 +134,13 @@ def compute_subjects(session: Session, metric_id: str, subject_keys: Sequence[st
     if allowed is not None and metric_id not in allowed:
         return []
     registration = REGISTRY[metric_id]
+    calculate = calculate or partial(registration.compute, session)
     cache = session.info.get("metrics_computed", set())
     results = []
     for key in dict.fromkeys(subject_keys):
         if (metric_id, key) in cache:
             continue
-        calculated = [replace(row, calculated_at=clock(session)) for row in registration.compute(session, key)]
+        calculated = [replace(row, calculated_at=clock(session)) for row in calculate(key)]
         if not calculated:
             session.query(MetricResultRow).filter(
                 MetricResultRow.metric_id == metric_id,
@@ -231,7 +260,7 @@ def ensure_nights(session: Session, start: date, end: date) -> None:
     with refreshing(session):
         compute_subjects(
             session,
-            "recovery_multisignal_summary",
+            RECOVERY_METRIC,
             [f"night:{start + timedelta(days=n)}" for n in range((end - start).days + 1)],
         )
 
@@ -246,19 +275,28 @@ def ensure_windows(session: Session, as_of: date) -> None:
             select(SessionCompletion.session_uid).where(SessionCompletion.activity_id.in_(activity_ids))
         )
         refresh_plans(session, [*_plan_uids(session, as_of - timedelta(days=13), as_of + timedelta(days=13)), *linked])
-        ensure_nights(session, as_of - timedelta(days=6), as_of)
-        for metric_id in (
-            "run_volume_frequency",
-            "long_run_exposure",
-            "session_rpe_load",
-            "intensity_time_distribution",
-        ):
-            compute_subjects(session, metric_id, [f"w{n}:{as_of}" for n in (7, 14, 28, 56, 84)])
-        compute_subjects(session, "symptom_response_timeline", [f"w28:{as_of}"])
-        compute_subjects(session, "recovery_multisignal_summary", [f"w7:{as_of}"])
-        compute_subjects(session, "hard_session_spacing", [f"w14:{as_of}"])
-        compute_subjects(session, "aerobic_efficiency", [f"w{n}:{as_of}" for n in (28, 84)])
+        ensure_nights(session, as_of - timedelta(days=RECOVERY_WINDOW_DAYS - 1), as_of)
+        for metric_id, widths in WINDOW_DAYS_BY_METRIC.items():
+            compute_subjects(session, metric_id, [f"w{width}:{as_of}" for width in widths])
         session.flush()
+
+
+def has_training_windows(session: Session, as_of: date) -> bool:
+    """A filtered recompute can leave a date with only some of its windows."""
+    expected = {
+        (metric_id, f"w{width}:{as_of}{suffix}")
+        for metric_id, widths in WINDOW_DAYS_BY_METRIC.items()
+        for width in widths
+        for suffix in ((":run", ":strength") if metric_id == "session_rpe_load" else ("",))
+    }
+    stored = session.execute(
+        select(MetricResultRow.metric_id, MetricResultRow.subject_key).where(
+            current_result_filter(),
+            MetricResultRow.subject_type == "window",
+            tuple_(MetricResultRow.metric_id, MetricResultRow.subject_key).in_(sorted(expected)),
+        )
+    )
+    return expected.issubset((metric_id, key) for metric_id, key in stored)
 
 
 def _all_dates(session: Session) -> set[date]:
@@ -280,11 +318,42 @@ class Targets:
 
     dates: set[date] = field(default_factory=set)
     recovery_dates: set[date] = field(default_factory=set)
+    coverage_dates: set[date] = field(default_factory=set)
     activity_ids: set[uuid.UUID] = field(default_factory=set)
     strength_keys: set[str] = field(default_factory=set)
     plan_uids: set[uuid.UUID] = field(default_factory=set)
+    manual_completion_uids: set[uuid.UUID] = field(default_factory=set)
     broad: bool = False
     since: date | None = None
+
+    @property
+    def recovery_only(self) -> bool:
+        return bool(self.recovery_dates) and not (
+            self.dates
+            or self.activity_ids
+            or self.strength_keys
+            or self.plan_uids
+            or self.manual_completion_uids
+            or self.broad
+            or self.since
+        )
+
+    @property
+    def manual_completion_only(self) -> bool:
+        return bool(self.manual_completion_uids) and not (
+            self.dates
+            or self.activity_ids
+            or self.strength_keys
+            or self.plan_uids
+            or self.recovery_dates
+            or self.broad
+            or self.since
+        )
+
+    def expand_manual_completions(self, session: Session) -> None:
+        self.plan_uids.update(self.manual_completion_uids)
+        for uid in self.manual_completion_uids:
+            self.dates.update(recent_revision_dates(session, uid))
 
 
 def scope_targets(session: Session, scopes: Iterable[str]) -> Targets:
@@ -306,10 +375,17 @@ def scope_targets(session: Session, scopes: Iterable[str]) -> Targets:
         elif kind == "date":
             assert isinstance(value, date)
             targets.dates.add(value)
+        elif kind == "coverage_date":
+            assert isinstance(value, date)
+            targets.coverage_dates.add(value)
+            targets.dates.add(value)
         elif kind == "plan":
             assert isinstance(value, uuid.UUID)
             targets.plan_uids.add(value)
             targets.dates.update(recent_revision_dates(session, value))
+        elif kind == "manual_completion":
+            assert isinstance(value, uuid.UUID)
+            targets.manual_completion_uids.add(value)
         elif kind == "activity":
             assert isinstance(value, uuid.UUID)
             targets.activity_ids.add(value)
@@ -333,7 +409,6 @@ def scope_targets(session: Session, scopes: Iterable[str]) -> Targets:
         elif kind == "recovery_dates":
             assert isinstance(value, tuple)
             targets.recovery_dates.update(value)
-            targets.dates.update(value)
     if targets.broad:
         targets.dates.update(_all_dates(session))
         targets.recovery_dates.update(targets.dates)
@@ -354,14 +429,139 @@ def _date_ranges(days: Iterable[date], before: int, after: int) -> list[tuple[da
     return ranges
 
 
-def refresh_targets(session: Session, targets: Targets, matched_plan_uids: Iterable[uuid.UUID]) -> dict[str, int]:
+def _training_window_dates(
+    session: Session, targets: Targets, today: date, *, has_activities: bool
+) -> tuple[set[date], set[date]]:
+    as_ofs = {today}
+    coverage_spacing = set()
+    current = session.execute(
+        select(MetricResultRow.subject_key, MetricResultRow.metric_id).where(
+            current_result_filter(), MetricResultRow.subject_type == "window"
+        )
+    )
+    for key, metric_id in current:
+        match = re.fullmatch(r"w(\d+):(\d{4}-\d{2}-\d{2})(?::(?:run|strength))?", key)
+        if not match:
+            continue
+        end = date.fromisoformat(match[2])
+        width = int(match[1]) * (2 if metric_id == "run_volume_frequency" else 1)
+        if (
+            targets.broad
+            or (targets.since is not None and end >= targets.since)
+            or any(end - timedelta(days=width - 1) <= day <= end for day in targets.dates)
+            or (
+                metric_id == "long_run_exposure"
+                and any(
+                    end - timedelta(days=width - 1 + LONG_RUN_COMPARATOR_DAYS) <= day <= end
+                    for day in targets.coverage_dates
+                )
+            )
+            or (
+                metric_id == "hard_session_spacing"
+                and any(abs((end - day).days) <= SPACING_REACH_DAYS for day in targets.dates)
+            )
+        ):
+            as_ofs.add(end)
+        elif metric_id == "hard_session_spacing" and targets.coverage_dates and has_activities:
+            # Spacing uses neighboring long runs from all stored history.
+            coverage_spacing.add(end)
+    return as_ofs, coverage_spacing - as_ofs
+
+
+def _refresh_recovery(session: Session, source_dates: set[date], today: date, full_as_ofs: set[date]) -> set[date]:
+    if not source_dates:
+        return set()
+    keys = session.scalars(
+        select(MetricResultRow.subject_key).where(
+            current_result_filter(),
+            MetricResultRow.metric_id == RECOVERY_METRIC,
+            MetricResultRow.subject_type.in_(("night", "window")),
+        )
+    )
+    night_ranges = _date_ranges(source_dates, before=0, after=RECOVERY_BASELINE_DAYS)
+    nights = {
+        start + timedelta(days=offset)
+        for start, end in night_ranges
+        for offset in range((min(end, today) - start).days + 1)
+    }
+    summary_ranges = _date_ranges(source_dates, before=0, after=RECOVERY_BASELINE_DAYS + RECOVERY_WINDOW_DAYS - 1)
+    summaries = {today} if any(start <= today <= end for start, end in summary_ranges) else set()
+    for key in keys:
+        prefix, _, raw_date = key.partition(":")
+        day = date.fromisoformat(raw_date)
+        if prefix == "night" and any(start <= day <= end for start, end in night_ranges):
+            nights.add(day)
+        elif prefix == f"w{RECOVERY_WINDOW_DAYS}" and any(start <= day <= end for start, end in summary_ranges):
+            summaries.add(day)
+    nights.difference_update(
+        as_of - timedelta(days=offset) for as_of in full_as_ofs for offset in range(RECOVERY_WINDOW_DAYS)
+    )
+    summaries.difference_update(full_as_ofs)
+    compute_subjects(session, RECOVERY_METRIC, [f"night:{day}" for day in sorted(nights)])
+    compute_subjects(session, RECOVERY_METRIC, [f"w{RECOVERY_WINDOW_DAYS}:{day}" for day in sorted(summaries)])
+    return summaries
+
+
+def _manual_completion_spacing(
+    session: Session, uids: set[uuid.UUID], today: date, *, associations_changed: bool = False
+) -> set[date]:
+    if not uids:
+        return set()
+    if not associations_changed and not any(
+        plan is not None and not plan.deleted and plan_classes(session, plan)
+        for plan in (latest_revision(session, uid) for uid in uids)
+    ):
+        return set()
+    # Spacing provenance includes every hard exposure, including exposures outside the display window.
+    keys = set(
+        session.scalars(
+            select(MetricResultRow.subject_key).where(
+                current_result_filter(),
+                MetricResultRow.metric_id == SPACING_METRIC,
+                MetricResultRow.subject_type == "window",
+            )
+        )
+    )
+    keys.add(f"w14:{today}")
+    compute_subjects(session, SPACING_METRIC, sorted(keys), calculate=batch_calculator(session))
+    return {date.fromisoformat(key.removeprefix("w14:")) for key in keys}
+
+
+def refresh_targets(
+    session: Session,
+    targets: Targets,
+    matched_plan_uids: Iterable[uuid.UUID],
+    *,
+    include_training_today: bool = False,
+) -> dict[str, int]:
     """Recompute every subject `targets` reaches. Matching has already run; prompts run after.
 
-    Returns the counts for the refresh log line.
+    The log counts distinct as-of dates for windows and touched source dates for nights.
     """
     today = local_today(session)
+    if targets.manual_completion_only:
+        keys = sorted(map(str, targets.manual_completion_uids))
+        compute_subjects(session, "planned_actual_session", keys)
+        as_ofs = _manual_completion_spacing(session, targets.manual_completion_uids, today)
+        return {"dates": 0, "activities": 0, "plans": len(keys), "windows": len(as_ofs), "nights": 0}
+    if targets.recovery_only:
+        matched = sorted(set(matched_plan_uids), key=str)
+        if matched:
+            refresh_plans(session, matched)
+        as_ofs = set()
+        if include_training_today:
+            ensure_windows(session, today)
+            as_ofs.add(today)
+        as_ofs.update(_refresh_recovery(session, targets.recovery_dates, today, as_ofs))
+        return {
+            "dates": 0,
+            "activities": 0,
+            "plans": len(matched),
+            "windows": len(as_ofs),
+            "nights": len(targets.recovery_dates),
+        }
     activity_ids = set(targets.activity_ids)
-    for start, end in _date_ranges(targets.dates, before=2, after=30):
+    for start, end in _date_ranges(targets.dates, before=2, after=LONG_RUN_COMPARATOR_DAYS):
         activity_ids.update(activities_between(session, start, end))
     if targets.broad:
         activity_ids.update(session.scalars(select(Activity.id)))
@@ -386,50 +586,22 @@ def refresh_targets(session: Session, targets: Targets, matched_plan_uids: Itera
             matching_days = {day for day in matching_days if day < targets.since}
         if matching_days:
             nearby_plans.extend(_plan_uids(session, days=matching_days))
-    plan_uids = [*matched_plan_uids, *linked, *targets.plan_uids, *strength_links, *nearby_plans]
+    matched = list(matched_plan_uids)
+    plan_uids = [*matched, *linked, *targets.plan_uids, *strength_links, *nearby_plans]
     refresh_plans(session, plan_uids)
-    as_ofs = {today}
-    current = session.execute(
-        select(MetricResultRow.subject_key, MetricResultRow.metric_id).where(
-            current_result_filter(), MetricResultRow.subject_type.in_(("window", "night"))
-        )
-    ).all()
-    stored_nights = set()
-    for key, metric_id in current:
-        match = re.fullmatch(r"w(\d+):(\d{4}-\d{2}-\d{2})(?::(?:run|strength))?", key)
-        if match:
-            end = date.fromisoformat(match[2])
-            width = int(match[1]) * (2 if metric_id == "run_volume_frequency" else 1)
-            if (
-                targets.broad
-                or (targets.since is not None and end >= targets.since)
-                or any(end - timedelta(days=width - 1) <= day <= end for day in targets.dates)
-                or (
-                    metric_id == "hard_session_spacing"
-                    and any(abs((end - day).days) <= SPACING_REACH_DAYS for day in targets.dates)
-                )
-            ):
-                as_ofs.add(end)
-        elif key.startswith("night:"):
-            stored_nights.add(date.fromisoformat(key[6:]))
-    for day in targets.recovery_dates:
-        end = min(day + timedelta(days=60), today)
-        if day <= end:
-            ensure_nights(session, day, end)
-        for stored in stored_nights:
-            if day <= stored <= day + timedelta(days=60):
-                ensure_nights(session, stored, stored)
-        for key, metric_id in current:
-            if metric_id == "recovery_multisignal_summary" and key.startswith("w7:"):
-                end = date.fromisoformat(key[3:])
-                if day <= end <= day + timedelta(days=66):
-                    as_ofs.add(end)
+    as_ofs, coverage_spacing = _training_window_dates(session, targets, today, has_activities=bool(activity_ids))
     for as_of in sorted(as_ofs):
         ensure_windows(session, as_of)
+    if coverage_spacing:
+        compute_subjects(session, SPACING_METRIC, [f"w14:{day}" for day in sorted(coverage_spacing)])
+    manual_spacing = _manual_completion_spacing(
+        session, targets.manual_completion_uids, today, associations_changed=bool(matched)
+    )
+    recovery_as_ofs = _refresh_recovery(session, targets.recovery_dates, today, as_ofs)
     return {
         "dates": len(targets.dates),
         "activities": len(activity_ids),
         "plans": len(set(plan_uids)),
-        "windows": len(as_ofs),
+        "windows": len(as_ofs | recovery_as_ofs | coverage_spacing | manual_spacing),
         "nights": len(targets.recovery_dates),
     }

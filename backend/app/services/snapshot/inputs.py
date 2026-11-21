@@ -111,13 +111,19 @@ def _load_strength_slots(session: Session) -> list[dict]:
     slots = [
         row_view(
             row,
-            ("id", "label", "default_weekday", "lower_body_cost", "typical_duration_s", "main_lower_body_lifts"),
+            (
+                "id",
+                "label",
+                "default_weekday",
+                "lower_body_cost",
+                "typical_duration_s",
+                "main_lower_body_lifts",
+                "active",
+            ),
             names={"id": "slot_id"},
         )
         for row in session.scalars(
-            select(StrengthRoutineSlot)
-            .where(StrengthRoutineSlot.active.is_(True))
-            .order_by(StrengthRoutineSlot.default_weekday, StrengthRoutineSlot.id)
+            select(StrengthRoutineSlot).order_by(StrengthRoutineSlot.default_weekday, StrengthRoutineSlot.id)
         )
     ]
     return slots

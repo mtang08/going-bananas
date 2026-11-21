@@ -48,7 +48,7 @@ def _has_numeric_target(structure: Any) -> bool:
 def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[str]:
     sessions = _scope_sessions(inputs, operation)
     runs = [s for s in sessions if s.get("kind") == "run"]
-    slots = {str(s["slot_id"]): s for s in inputs.strength_slots}
+    slots = {str(s["slot_id"]): s for s in inputs.strength_slots if s.get("active", True)}
     symptom_start, symptom_end = section_window(
         operation if operation not in {CALIB, RACE, POST_EVENT} else DAILY, "symptoms", inputs
     )

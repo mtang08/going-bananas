@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -13,7 +13,7 @@ from app.config import settings
 from app.db import get_session
 from app.errors import fail
 from app.models import SyncJob, SyncState
-from app.services.sync import enqueue_sync
+from app.services.sync import enqueue_requested_sync
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
@@ -79,11 +79,12 @@ def _job(job: SyncJob) -> dict:
 def request_sync(body: SyncRequest, session: Session = Depends(get_session)) -> dict:
     if settings.app_mode != "real":
         fail("real_mode_required", "Real mode required", 409)
-    end = body.end_date or date.today()
-    start = body.start_date or end - timedelta(days=13)
-    jobs = [enqueue_sync(session, start, end, "activities")]
-    recovery_start = start if body.start_date else end - timedelta(days=6)
-    jobs += [enqueue_sync(session, recovery_start, end, dataset) for dataset in ("sleep", "hrv", "resting_hr")]
+    try:
+        jobs = enqueue_requested_sync(session, body.start_date, body.end_date)
+    except ValueError as exc:
+        if str(exc) != "invalid_sync_range":
+            raise
+        fail("invalid_sync_range", "Sync dates must be in order and at most 366 days apart.", 422)
     session.commit()
     return envelope(session, {"jobs": [_job(job) for job in jobs]})
 

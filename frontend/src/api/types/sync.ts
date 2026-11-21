@@ -12,7 +12,8 @@ export interface SyncDataset {
 export interface SyncJob {
   id: string
   dataset: string
-  status: 'queued' | 'running' | 'retry_wait' | 'succeeded' | 'failed'
+  status: 'queued' | 'running' | 'retry_wait' | 'complete' | 'partial' | 'failed'
+  next_attempt_at: string | null
   error_code: string | null
 }
 export interface SyncStatus {

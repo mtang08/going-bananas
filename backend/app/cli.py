@@ -24,8 +24,8 @@ from app.logs import configure
 from app.models import AppState
 from app.services.backup import BackupError, create_backup, restore_backup
 from app.services.export_import import import_export
-from app.services.sync import ADVISORY_LOCK, enqueue_catchup, enqueue_sync, run_one_job
-from app.services.timezone import DEFAULT_TIMEZONE
+from app.services.sync import ADVISORY_LOCK, enqueue_catchup, enqueue_requested_sync, run_one_job
+from app.services.timezone import DEFAULT_TIMEZONE, athlete_today
 
 
 def _scope() -> str:
@@ -440,15 +440,8 @@ def main() -> int:
             key_file = Path(os.getenv("GARMIN_KEY_FILE", settings.private_dir / "garmin-key"))
             if args.command == "sync":
                 scope = _scope()
-                end = args.end or date.today()
-                start = args.start or end - timedelta(days=13)
                 with SessionLocal.begin() as session:
-                    jobs = [enqueue_sync(session, start, end, "activities")]
-                    recovery_start = start if args.start else end - timedelta(days=6)
-                    jobs += [
-                        enqueue_sync(session, recovery_start, end, dataset)
-                        for dataset in ("sleep", "hrv", "resting_hr")
-                    ]
+                    jobs = enqueue_requested_sync(session, args.start, args.end)
                     print(json.dumps({"job_ids": [str(job.id) for job in jobs]}))
                 results = [run_one_job(settings.private_dir, key_file, scope) for _ in jobs]
                 print(json.dumps({"results": results}))
@@ -462,7 +455,7 @@ def main() -> int:
                     continue
                 if need_catchup:
                     with SessionLocal.begin() as session:
-                        enqueue_catchup(session, date.today())
+                        enqueue_catchup(session, athlete_today(session))
                     need_catchup = False
                 result = run_one_job(settings.private_dir, key_file, scope)
                 if result == "complete":

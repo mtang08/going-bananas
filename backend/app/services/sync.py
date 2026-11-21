@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.adapters.garmin.normalize import InvalidRecord, parse_activity
 from app.adapters.garmin.personal import GarminPersonalSource
 from app.db import SessionLocal, bump_data_revision, engine, global_write_lock
+from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.logs import exception_summary, get
 from app.models import (
@@ -34,7 +35,7 @@ from app.models import (
     SyncJob,
     SyncState,
 )
-from app.services.timezone import athlete_tz
+from app.services.timezone import athlete_today, athlete_tz
 
 log = get("sync")
 
@@ -581,34 +582,58 @@ def enqueue_sync(session: Session, first: date, last: date, dataset: str = "acti
     return job
 
 
-def catchup_window(today: date, latest_complete_end: date | None, overlap_days: int) -> tuple[date, date]:
-    start = today - timedelta(days=overlap_days - 1)
-    if latest_complete_end is not None:
-        start = min(start, latest_complete_end - timedelta(days=overlap_days - 1))
-    return start, min(today, start + timedelta(days=365))
+SYNC_BOOTSTRAP_DAYS = {"activities": 14, "sleep": 7, "hrv": 7, "resting_hr": 7}
+
+
+def catchup_window(end: date, latest_complete_end: date | None, bootstrap_days: int) -> tuple[date, date]:
+    start = latest_complete_end or end - timedelta(days=bootstrap_days - 1)
+    return start, min(end, start + timedelta(days=365))
+
+
+def _latest_complete_end(session: Session, dataset: str, end: date) -> date | None:
+    return session.scalar(
+        select(CoverageInterval.end_date)
+        .where(
+            CoverageInterval.dataset == dataset,
+            CoverageInterval.status == "complete",
+            CoverageInterval.fully_enumerated.is_(True),
+            CoverageInterval.end_date <= end,
+        )
+        .order_by(CoverageInterval.end_date.desc())
+        .limit(1)
+    )
+
+
+def enqueue_requested_sync(session: Session, start: date | None, end: date | None) -> list[SyncJob]:
+    end = end or athlete_today(session)
+    jobs = []
+    for dataset, bootstrap_days in SYNC_BOOTSTRAP_DAYS.items():
+        first, last = (
+            (start, end)
+            if start is not None
+            else catchup_window(end, _latest_complete_end(session, dataset, end), bootstrap_days)
+        )
+        jobs.append(enqueue_sync(session, first, last, dataset))
+    return jobs
 
 
 def enqueue_catchup(session: Session, today: date) -> list[SyncJob]:
-    """Queue one bounded overlap window for every dataset stale today."""
+    """Queue one bounded window for every dataset stale today."""
     jobs: list[SyncJob] = []
-    for dataset in ("activities", "sleep", "hrv", "resting_hr"):
+    zone = athlete_tz(session)
+    for dataset, bootstrap_days in SYNC_BOOTSTRAP_DAYS.items():
         state = session.get(SyncState, dataset)
         if (
             state
             and state.last_attempt_at
-            and state.last_attempt_at.date() >= today
+            and date_in_zone(state.last_attempt_at, zone) >= today
             and state.status in {"partial", "failed", "retry_wait", "running"}
         ):
             continue
-        latest = session.scalar(
-            select(CoverageInterval)
-            .where(CoverageInterval.dataset == dataset, CoverageInterval.status == "complete")
-            .order_by(CoverageInterval.end_date.desc())
-        )
-        if latest and latest.end_date >= today:
+        latest = _latest_complete_end(session, dataset, today)
+        if latest == today:
             continue
-        days = 14 if dataset == "activities" else 7
-        start, end = catchup_window(today, latest.end_date if latest else None, days)
+        start, end = catchup_window(today, latest, bootstrap_days)
         jobs.append(enqueue_sync(session, start, end, dataset))
     return jobs
 

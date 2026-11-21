@@ -133,8 +133,11 @@ Switching modes for a single command does not rewrite `.env`:
 ```
 
 In real mode, **Sync now** is on Home's status strip and in Settings. `make sync`
-runs a standalone sync for the mode configured in `.env`. Explicit historical
-window:
+runs a standalone sync for the mode configured in `.env`. Both start each
+dataset at its most recent fully covered day and include that day to pick up
+late uploads. A dataset without prior complete coverage starts with 14 days for
+activities or seven for recovery. To request a specific historical window, pass
+both dates:
 
 ```sh
 ./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli sync --start 2026-10-14 --end 2026-11-10'

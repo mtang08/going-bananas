@@ -173,9 +173,11 @@ def test_backup_traversal_rejected(tmp_path):
 
 def test_catchup_covers_missed_days_and_chunks_long_gap():
     today = date(2026, 11, 10)
-    assert catchup_window(today, date(2026, 10, 21), 14) == (date(2026, 10, 8), today)
+    assert catchup_window(today, date(2026, 10, 21), 14) == (date(2026, 10, 21), today)
+    assert catchup_window(today, today, 14) == (today, today)
+    assert catchup_window(today, None, 14) == (date(2026, 10, 28), today)
     start, end = catchup_window(today, date(2024, 1, 1), 14)
-    assert start == date(2023, 12, 19)
+    assert start == date(2024, 1, 1)
     assert (end - start).days == 365
     assert end < today
 

@@ -204,6 +204,53 @@ def _classify(recipe: str | None) -> str:
     return "easy" if recipe else "unplanned"
 
 
+def _completed_lifts(inputs: SnapshotInputs, start: date, end: date, sessions: dict[str, dict]) -> list[dict]:
+    slots = {str(s["slot_id"]): s for s in inputs.strength_slots}
+    by_strong = {str(c["strong_workout_id"]): c for c in inputs.completions if c.get("strong_workout_id")}
+    lifts = []
+    for row in inputs.strong_workouts:
+        if day_between(row.get("local_date"), start, end):
+            completion = by_strong.get(str(row["strong_workout_id"]))
+            lifts.append(
+                dict(
+                    row_view(row, ("strong_workout_id", "local_date", "workout_name", "duration_s", "rpe")),
+                    source="strong",
+                    session_uid=completion["session_uid"] if completion else None,
+                )
+            )
+    for completion in inputs.completions:
+        planned = sessions.get(str(completion["session_uid"]))
+        if (
+            planned
+            and planned["kind"] == "strength"
+            and day_between(planned["local_date"], start, end)
+            and completion.get("match_method") == "user_marked"
+            and completion["status"] == "completed_as_planned"
+            and not any(completion.get(key) for key in ("strong_workout_id", "activity_id", "manual_session_id"))
+        ):
+            lifts.append(
+                {
+                    "source": "self_reported",
+                    "session_uid": planned["session_uid"],
+                    "strong_workout_id": None,
+                    "local_date": planned["local_date"],
+                    "workout_name": None,
+                    "duration_s": None,
+                    "rpe": None,
+                }
+            )
+    for lift in lifts:
+        planned = sessions.get(str(lift["session_uid"])) or {}
+        slot_id = planned.get("strength_slot_id")
+        slot = slots.get(str(slot_id)) or {}
+        lift.update(
+            strength_slot_id=slot_id,
+            planned_slot_label=slot.get("label"),
+            planned_lower_body_cost=slot.get("lower_body_cost"),
+        )
+    return sorted(lifts, key=lambda row: (str(row["local_date"]), str(row["strong_workout_id"] or row["session_uid"])))
+
+
 def _completed_exposures(inputs: SnapshotInputs, operation: str) -> dict:
     start, end = section_window(operation, "exposures", inputs)
     by_activity = {str(c["activity_id"]): c for c in inputs.completions if c.get("activity_id")}
@@ -228,18 +275,12 @@ def _completed_exposures(inputs: SnapshotInputs, operation: str) -> dict:
     runs.sort(key=lambda row: (str(row["local_date"]), str(row["activity_id"])))
     if operation == CALIB:
         return {"window_days": 84, "runs": runs}
-    lifts = [
-        row_view(row, ("strong_workout_id", "local_date", "workout_name", "duration_s", "rpe"))
-        for row in inputs.strong_workouts
-        if day_between(row.get("local_date"), start, end)
-    ]
-    lifts.sort(key=lambda row: (str(row["local_date"]), str(row["strong_workout_id"])))
     return {
         "window_days": {DAILY: 3, ROLLING: 14, QUALITY_OP: 14, BLOCK: 28, RACE: 14, EXCEPTION: 3, POST_EVENT: 14}[
             operation
         ],
         "runs": runs,
-        "lifts": lifts,
+        "lifts": _completed_lifts(inputs, start, end, sessions),
     }
 
 
@@ -813,6 +854,7 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
                 ),
             )
             for s in inputs.strength_slots
+            if s.get("active", True)
         ]
         latest = sorted(inputs.strong_workouts, key=lambda s: str(s["local_date"]), reverse=True)[:2]
         goals_view = {

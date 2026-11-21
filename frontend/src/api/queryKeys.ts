@@ -45,7 +45,7 @@ export const qk = {
   eventBlocks: (id: string) => ['v2', 'blocks', 'events', id] as const,
   ready: ['ready'] as const,
   sync: ['sync'] as const,
-  syncJob: (id: string) => ['sync', 'job', id] as const,
+  syncBatch: (ids: string[]) => ['sync', 'batch', ids] as const,
   syncPending: ['sync', 'pending'] as const,
   syncOutcome: ['sync', 'outcome'] as const,
 }

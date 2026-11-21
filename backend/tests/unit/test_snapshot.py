@@ -81,6 +81,53 @@ def minimal() -> SnapshotInputs:
     )
 
 
+def test_recent_self_reported_lift_is_visible_outside_calendar_and_replaced_by_strong():
+    day = AS_OF - timedelta(days=8)
+    planned = session(day, "strength", slot_id="slot-1")
+    skipped = session(day - timedelta(days=1), "strength", slot_id="slot-1")
+    source = minimal()
+    source.sessions.extend((planned, skipped))
+    source.strength_slots[0]["active"] = False
+    completion = {
+        "session_uid": planned["session_uid"],
+        "status": "completed_as_planned",
+        "match_method": "user_marked",
+    }
+    source.completions = [
+        completion,
+        {"session_uid": skipped["session_uid"], "status": "skipped", "match_method": "user_marked"},
+    ]
+
+    payload = build_payload(source, POST_EVENT)
+    assert planned["session_uid"] not in {row["session_uid"] for row in payload["calendar"]["sessions"]}
+    assert payload["goals_and_constraints"]["strength_routine"] == []
+    assert payload["completed_exposures"]["lifts"] == [
+        {
+            "source": "self_reported",
+            "session_uid": planned["session_uid"],
+            "strong_workout_id": None,
+            "local_date": day.isoformat(),
+            "workout_name": None,
+            "duration_s": None,
+            "rpe": None,
+            "strength_slot_id": "slot-1",
+            "planned_slot_label": "Full body",
+            "planned_lower_body_cost": "low",
+        }
+    ]
+    assert build_payload(source, DAILY)["completed_exposures"]["lifts"] == []
+
+    source.strong_workouts.append(
+        {"strong_workout_id": "strong-1", "local_date": day, "workout_name": "Lower", "duration_s": 2000, "rpe": 6}
+    )
+    completion.update(strong_workout_id="strong-1", match_method="auto_same_day")
+    [lift] = build_payload(source, POST_EVENT)["completed_exposures"]["lifts"]
+    assert lift["source"] == "strong"
+    assert lift["session_uid"] == planned["session_uid"]
+    assert lift["duration_s"] == 2000
+    assert lift["rpe"] == 6
+
+
 def finding(
     n: int,
     *,

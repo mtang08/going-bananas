@@ -229,6 +229,47 @@ Unspecified.
 The meaning of PTT, the specific routine, and the desired benchmarks are
 unspecified.
 
+### IDEA-011 — Reduce Garmin sync time spent refreshing local metrics
+
+Recorded and implemented 2026-11-20.
+
+**Problem / context**
+A live benchmark of a one-day sync took 74.7 s from request to completion. The
+request queued in 9 ms, and the worker picked it up after 6.2 s. The activity
+fetch took about 0.5 s and returned zero activities. Writing the coverage
+interval triggered 33.0 s of local metric refresh. Sleep and HRV took 1.3 s
+combined. Resting HR changed one observation and took 33.4 s, including 32.8 s
+of metric refresh. Each refresh revisited nine metric windows. Together the
+refreshes accounted for about 88% of the measured wall time.
+
+**Desired behavior**
+Routine incremental sync finishes sooner by avoiding redundant metric refresh
+work while keeping coverage, matching, prompts, and metrics current.
+
+**Acceptance checks**
+- Repeat a one-day sync with no new activities and with one changed recovery
+  observation. Compare end-to-end time and refresh work against the benchmark.
+- Verify newly covered days and changed recovery data still update affected
+  results.
+
+**Constraints**
+The incremental fetch already uses each dataset’s last fully synced date.
+Preserve the local worker, async sync status, and existing history.
+
+**Implementation and verification**
+Only days that gain or lose complete, fully enumerated activity coverage trigger
+coverage-based metric updates. Sleep, HRV and resting-HR changes refresh the
+affected recovery nights and seven-day summaries. A sync can still initialize
+today's training windows and advance time-based prompts.
+
+The isolated PostgreSQL benchmark queued four one-day jobs, returned zero
+activities, and corrected one resting-HR observation with nine reporting dates
+already materialized. Request-to-completion time fell from 1.612 s to 0.166 s.
+Metric calculations fell from 480 to 18 (nine recovery nights and nine summaries).
+The fixture uses synthetic Garmin responses and immediate worker pickup. The
+74.7 s measurement above is the original live observation.
+[Benchmark and regression cases](../backend/tests/integration/test_incremental_sync_refresh.py)
+
 ## Coaching depth and evaluation
 
 ### Product direction — dashboards plus conversational coaching (IDEA-004)

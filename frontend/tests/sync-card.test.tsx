@@ -5,13 +5,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SyncCard } from '../src/components/SyncCard'
 import { relativeTime } from '../src/components/shared'
 
+let activeJobs: { id: string; dataset: string; status: string }[]
 let mode: 'demo' | 'real', jobStatus: string, datasets: unknown[]
 let requests: { url: string; method: string; body: unknown; headers: Headers }[]
 const clients: QueryClient[] = []
 beforeEach(() => {
   mode = 'demo'
-  jobStatus = 'succeeded'
+  jobStatus = 'complete'
   datasets = []
+  activeJobs = []
   requests = []
   vi.stubGlobal(
     'fetch',
@@ -25,7 +27,7 @@ beforeEach(() => {
         headers: new Headers(init?.headers),
       })
       const data = url.endsWith('/sync/status')
-        ? { datasets, active_jobs: [] }
+        ? { datasets, active_jobs: activeJobs }
         : url.includes('/sync/jobs/')
           ? { id: 'job-1', dataset: 'activities', status: jobStatus }
           : url.endsWith('/sync') && method === 'POST'
@@ -100,6 +102,25 @@ it('real-mode sync posts once, polls the job, and refreshes plan data', async ()
   expect(client.getQueryState(qk.calendar)?.isInvalidated).toBe(true)
   expect(client.getQueryState(qk.goals)?.isInvalidated).toBe(false)
 })
+it('checks aggregate status while a job runs and reads its result once after it finishes', async () => {
+  mode = 'real'
+  const client = mount()
+  const sync = await screen.findByRole('button', { name: 'Sync now' })
+  activeJobs = [{ id: 'job-1', dataset: 'activities', status: 'running' }]
+  fireEvent.click(sync)
+  expect(await screen.findByText('activities: running')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Sync in progress' })).toBeDisabled()
+  const lookups = () => requests.filter((r) => r.url.includes('/sync/jobs/'))
+  expect(lookups()).toHaveLength(0)
+
+  activeJobs = []
+  await client.refetchQueries({ queryKey: qk.syncBatch(['job-1']), exact: true })
+  expect(await screen.findByText('Sync finished. Training data has been refreshed.')).toBeVisible()
+  expect(lookups()).toHaveLength(1)
+  expect(requests.filter((r) => r.method === 'POST')).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Sync now' })).toBeEnabled()
+})
+
 it('reports a failed job', async () => {
   mode = 'real'
   jobStatus = 'failed'
@@ -108,6 +129,17 @@ it('reports a failed job', async () => {
   expect(
     await screen.findByText('One or more datasets failed. Check the dataset status and retry.'),
   ).toBeInTheDocument()
+})
+it('stops tracking when a dataset finishes with partial data', async () => {
+  mode = 'real'
+  jobStatus = 'partial'
+  const client = mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }))
+  expect(
+    await screen.findByText('Sync finished with incomplete data. Check the dataset status.'),
+  ).toBeInTheDocument()
+  expect(client.getQueryData(qk.syncPending)).toEqual([])
+  expect(screen.getByRole('button', { name: 'Sync now' })).toBeEnabled()
 })
 it('compact variant is one line without the dataset list', async () => {
   mount(true)

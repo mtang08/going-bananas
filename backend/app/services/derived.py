@@ -17,12 +17,22 @@ from sqlalchemy.orm import Session
 
 from app import logs
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
-from app.db import bump_data_revision
+from app.db import bump_data_revision, global_write_lock
 from app.domain.local_time import date_in_zone
 from app.fit_models import FitFile
 from app.metric_models import MetricResult as MetricResultRow
 from app.metrics import refresh
-from app.models import Activity, ActivityAnnotation, ActivitySource, AppState, CoverageInterval, ProfileVersion
+from app.metrics.recovery import SIGNALS
+from app.models import (
+    Activity,
+    ActivityAnnotation,
+    ActivitySource,
+    AppState,
+    CoverageInterval,
+    ProfileVersion,
+    RecoveryObservation,
+)
+from app.read.calendar import latest_revision
 from app.services.matching import rematch_dates
 from app.services.prompts import generate_prompts
 from app.services.timezone import athlete_tz
@@ -39,9 +49,25 @@ def refresh_scopes(session: Session, scopes: Iterable[str]) -> None:
     started = time.perf_counter()
     scopes = list(scopes)
     targets = refresh.scope_targets(session, scopes)
-    matched = rematch_dates(session, targets.dates | {refresh.local_today(session)})
+    today = refresh.local_today(session)
+    include_training_today = targets.recovery_only and not refresh.has_training_windows(session, today)
+    matched = set()
+    reconciled = set()
+    if targets.manual_completion_only:
+        reconciled = {
+            plan.local_date
+            for uid in targets.manual_completion_uids
+            if (plan := latest_revision(session, uid)) is not None
+        }
+        matched = rematch_dates(session, reconciled)
+    if matched or not targets.manual_completion_only:
+        targets.expand_manual_completions(session)
+        if not targets.recovery_only or include_training_today:
+            remaining = (targets.dates | {today}) - reconciled
+            if remaining:
+                matched.update(rematch_dates(session, remaining))
     session.flush()
-    counts = refresh.refresh_targets(session, targets, matched)
+    counts = refresh.refresh_targets(session, targets, matched, include_training_today=include_training_today)
     generate_prompts(session, refresh.clock(session))
     session.flush()
     log.info(
@@ -67,7 +93,7 @@ def _source_types() -> tuple[type, ...]:
     from app.calendar_models import CalendarVersion
     from app.checkin_models import Checkin, SessionRpe, SymptomReport
     from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep
-    from app.models import ManualSession, RecoveryObservation
+    from app.models import ManualSession
     from app.planning_models import (
         Block,
         BlockDecision,
@@ -125,6 +151,66 @@ def _timezone_changed(session: Session, row: ProfileVersion, old: dict) -> bool:
     return previous != row.timezone
 
 
+def _coverage_boundaries(session: Session) -> frozenset[int]:
+    """Return the half-open boundaries of the effective activities coverage union."""
+    intervals = session.execute(
+        select(CoverageInterval.start_date, CoverageInterval.end_date)
+        .where(
+            CoverageInterval.dataset == "activities",
+            CoverageInterval.status == "complete",
+            CoverageInterval.fully_enumerated.is_(True),
+        )
+        .order_by(CoverageInterval.start_date)
+    )
+    merged: list[tuple[int, int]] = []
+    for start, end in intervals:
+        first, stop = start.toordinal(), end.toordinal() + 1
+        if first >= stop:
+            continue
+        if merged and first <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(stop, merged[-1][1]))
+        else:
+            merged.append((first, stop))
+    return frozenset(boundary for interval in merged for boundary in interval)
+
+
+def _complete_activities(facts: dict) -> bool:
+    return (
+        facts.get("dataset") == "activities"
+        and facts.get("status") == "complete"
+        and facts.get("fully_enumerated") is True
+    )
+
+
+_COVERAGE_FIELDS = {"dataset", "status", "fully_enumerated", "start_date", "end_date"}
+
+
+def _capture_coverage_before(session: Session, row: CoverageInterval, old: dict, changes: set[str]) -> None:
+    deleting = row in session.deleted
+    new = {} if deleting else {**old, **{key: getattr(row, key) for key in _COVERAGE_FIELDS & changes}}
+    if _complete_activities(old) or _complete_activities(new):
+        session.info["metrics_complete_coverage_touched"] = True
+        if "metrics_coverage_before" not in session.info and (deleting or not changes.isdisjoint(_COVERAGE_FIELDS)):
+            if not old:
+                global_write_lock(session)
+            session.info["metrics_coverage_before"] = _coverage_boundaries(session)
+
+
+def _add_recovery_scopes(scopes: set[str], *facts: dict) -> None:
+    days = {row["source_date"] for row in facts if row.get("metric") in SIGNALS and row.get("source_date") is not None}
+    scopes.update(f"recovery_dates:{day}" for day in days)
+    if not days:
+        scopes.add("revision")
+
+
+def _unlinked_self_report(facts: dict) -> bool:
+    return (
+        facts.get("match_method") == "user_marked"
+        and facts.get("status") == "completed_as_planned"
+        and not any(facts.get(key) for key in ("activity_id", "strong_workout_id", "manual_session_id"))
+    )
+
+
 def _before_flush(session: Session, _context, _instances) -> None:
     if session.info.get("metrics_running"):
         return
@@ -138,11 +224,18 @@ def _before_flush(session: Session, _context, _instances) -> None:
         if state.persistent and row not in session.deleted:
             if not changes:
                 continue
-            if isinstance(row, SessionCompletion) and changes <= {"status", "version", "updated_at"}:
+            if (
+                isinstance(row, SessionCompletion)
+                and changes <= {"status", "version", "updated_at"}
+                and ("status" not in changes or any((row.activity_id, row.strong_workout_id, row.manual_session_id)))
+            ):
                 continue
             # Retry diagnostics do not change the decoded FIT inputs.
             if isinstance(row, FitFile) and changes <= {"last_attempt_at", "last_error"}:
                 continue
+        if isinstance(row, (CoverageInterval, RecoveryObservation)) and state.identity is not None:
+            # Read the facts used to select scopes while excluding other source writers.
+            global_write_lock(session)
         old = {}
         if state.identity is not None:
             table = state.mapper.local_table
@@ -151,6 +244,22 @@ def _before_flush(session: Session, _context, _instances) -> None:
             ]
             stored = session.connection().execute(select(table).where(*predicate)).mappings().first()
             old = dict(stored) if stored else {}
+        if isinstance(row, CoverageInterval):
+            _capture_coverage_before(session, row, old, changes)
+            if "metrics_coverage_before" not in session.info:
+                session.info.setdefault("metrics_scopes", set()).add("revision")
+            continue
+        if isinstance(row, RecoveryObservation):
+            new = (
+                {}
+                if row in session.deleted
+                else {
+                    **old,
+                    **{key: getattr(row, key) for key in {"metric", "source_date"} & changes},
+                }
+            )
+            _add_recovery_scopes(session.info.setdefault("metrics_scopes", set()), old, new)
+            continue
         pending.append((row, old))
 
 
@@ -159,7 +268,7 @@ def _after_flush(session: Session, _context) -> None:
         return
     from app.calendar_models import CalendarVersion
     from app.checkin_models import Checkin, SessionRpe, SymptomReport
-    from app.models import ManualSession, RecoveryObservation
+    from app.models import ManualSession
     from app.planning_models import (
         Block,
         BlockDecision,
@@ -186,7 +295,17 @@ def _after_flush(session: Session, _context) -> None:
         if isinstance(row, StrengthRoutineSlot):
             scopes.add(f"since:{refresh.local_today(session)}")
             continue
-        new = {column.key: getattr(row, column.key, None) for column in inspect(row).mapper.columns}
+        state = inspect(row)
+        new = {column.key: getattr(row, column.key, None) for column in state.mapper.columns}
+        if isinstance(row, SessionCompletion) and state.was_deleted:
+            new = {}
+        if (
+            isinstance(row, SessionCompletion)
+            and (old or new)
+            and all(not facts or _unlinked_self_report(facts) for facts in (old, new))
+        ):
+            scopes.update(f"manual_completion:{facts['session_uid']}" for facts in (old, new) if facts)
+            continue
         for facts in (old, new):
             uid = facts.get("id")
             for name in ("local_date", "date", "source_date", "valid_from"):
@@ -210,14 +329,10 @@ def _after_flush(session: Session, _context) -> None:
                 scopes.add(f"strength:strong:{uid}")
             elif isinstance(row, ManualSession) and uid:
                 scopes.add(f"strength:manual:{uid}")
-            elif isinstance(row, RecoveryObservation) and facts.get("source_date"):
-                scopes.add(f"recovery_dates:{facts['source_date']}")
             elif isinstance(row, IntensityAnchor) and facts.get("valid_from"):
                 scopes.add(f"since:{facts['valid_from']}")
             elif isinstance(row, CalendarSessionRevision) and facts.get("session_uid"):
                 scopes.add(f"plan:{facts['session_uid']}")
-            elif isinstance(row, CoverageInterval) and facts.get("dataset") == "activities":
-                scopes.add(f"since:{facts['start_date']}")
             if facts.get("activity_id"):
                 scopes.add(f"activity:{facts['activity_id']}")
             if isinstance(row, SymptomReport) and facts.get("checkin_id"):
@@ -236,33 +351,48 @@ def _before_commit(session: Session) -> None:
         return
     session.flush()
     scopes = set(session.info.get("metrics_scopes", ()))
+    before = session.info.get("metrics_coverage_before")
+    if before is not None:
+        # A boundary in exactly one union toggles whether coverage differs.
+        boundaries = iter(sorted(before ^ _coverage_boundaries(session)))
+        for first, stop in zip(boundaries, boundaries, strict=True):
+            scopes.update(f"coverage_date:{date.fromordinal(day)}" for day in range(first, stop))
+        if not scopes:
+            scopes.add("revision")
     if not scopes:
         return
     with refresh.refreshing(session):
         session.execute(select(AppState.id).where(AppState.id == 1).with_for_update())
         bump_data_revision(session)
-        if REFRESH_ENABLED and scopes != {"revision"}:
-            refresh_scopes(session, scopes)
+        if REFRESH_ENABLED:
+            if scopes != {"revision"}:
+                refresh_scopes(session, scopes)
+            elif session.info.get("metrics_complete_coverage_touched"):
+                if refresh.has_training_windows(session, refresh.local_today(session)):
+                    generate_prompts(session, refresh.clock(session))
+                else:
+                    refresh_scopes(session, scopes)
         session.flush()
-    for key in ("metrics_scopes", "metrics_pending_sources"):
+    for key in (*_SCOPE_KEYS, "metrics_pending_sources"):
         session.info.pop(key, None)
 
 
-_SCOPE_KEYS = ("metrics_scopes",)
+_SCOPE_KEYS = ("metrics_scopes", "metrics_coverage_before", "metrics_complete_coverage_touched")
 
 
 def _save_nested_scopes(session: Session, transaction) -> None:
     if transaction.nested:
-        transaction._metrics_inherited_scopes = {key: set(session.info.get(key, ())) for key in _SCOPE_KEYS}
+        inherited = {key: session.info[key] for key in _SCOPE_KEYS if key in session.info}
+        if "metrics_scopes" in inherited:
+            inherited["metrics_scopes"] = inherited["metrics_scopes"].copy()
+        transaction._metrics_inherited_scopes = inherited
 
 
 def _restore_nested_scopes(session: Session, transaction) -> None:
+    for key in _SCOPE_KEYS:
+        session.info.pop(key, None)
     if transaction.nested:
-        for key, value in getattr(transaction, "_metrics_inherited_scopes", {}).items():
-            session.info[key] = value
-    else:
-        for key in _SCOPE_KEYS:
-            session.info.pop(key, None)
+        session.info.update(getattr(transaction, "_metrics_inherited_scopes", {}))
     session.info.pop("metrics_pending_sources", None)
     session.info.pop("metrics_computed", None)
 

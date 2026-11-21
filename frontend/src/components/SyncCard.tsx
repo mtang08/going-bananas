@@ -1,13 +1,7 @@
 import { useEffect } from 'react'
-import {
-  keepPreviousData,
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
-import { api, post } from '../api/client'
+import { ApiError, api, post } from '../api/client'
 import { dateLabel } from '../lib/format'
 import { invalidateKeys, qk, refreshAfterSync } from '../api/queryKeys'
 import type { SyncJob, SyncStatus } from '../api/types/sync'
@@ -27,21 +21,38 @@ function useCached<T>(key: readonly unknown[], fallback: T): T {
   return data === undefined ? fallback : data
 }
 
+async function loadStatus(ids: string[]) {
+  const status = await api<SyncStatus>('/sync/status')
+  const active = status.data.active_jobs
+  if (!ids.length || active.some((job) => ids.includes(job.id))) {
+    return { status, results: null }
+  }
+  const results = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        return (await api<SyncJob>(`/sync/jobs/${id}`)).data.status
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return 'unavailable'
+        throw error
+      }
+    }),
+  )
+  return { status, results }
+}
+
 export function SyncCard({ compact = false }: { compact?: boolean }) {
   const qc = useQueryClient()
-  const status = useQuery({
-    queryKey: qk.sync,
-    queryFn: () => api<SyncStatus>('/sync/status'),
-    placeholderData: keepPreviousData,
-  })
   const pending = useCached<string[]>(qk.syncPending, [])
   const outcome = useCached<string | null>(qk.syncOutcome, null)
-  const jobs = useQueries({
-    queries: pending.map((id) => ({
-      queryKey: qk.syncJob(id),
-      queryFn: () => api<SyncJob>(`/sync/jobs/${id}`),
-      refetchInterval: 2000,
-    })),
+  const status = useQuery({
+    queryKey: pending.length ? qk.syncBatch(pending) : qk.sync,
+    queryFn: () => loadStatus(pending),
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    refetchInterval: ({ state }) =>
+      !state.error && !state.data?.results && state.data?.status.data.active_jobs.length
+        ? 3000
+        : false,
   })
   const start = useMutation({
     mutationFn: () => post<{ jobs: SyncJob[] }>('/sync', {}),
@@ -51,29 +62,33 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
         qk.syncPending,
         r.data.jobs.map((j) => j.id),
       )
-      void qc.invalidateQueries({ queryKey: qk.sync, exact: true })
     },
   })
-  const finished =
-    pending.length > 0 &&
-    jobs.every((j) => j.data && ['succeeded', 'failed'].includes(j.data.data.status))
+  const completed = status.isPlaceholderData ? null : status.data
   useEffect(() => {
-    if (!finished) return
-    const failed = jobs.some((j) => j.data?.data.status === 'failed')
+    const results = completed?.results
+    if (!pending.length || !results) return
+    const failed = results.includes('failed')
+    const partial = results.includes('partial')
+    const unavailable = results.includes('unavailable')
+    qc.setQueryData(qk.sync, { status: completed.status, results: null })
     qc.setQueryData(qk.syncPending, [])
     qc.setQueryData(
       qk.syncOutcome,
       failed
         ? 'One or more datasets failed. Check the dataset status and retry.'
-        : 'Sync finished. Training data has been refreshed.',
+        : unavailable
+          ? 'A sync job is unavailable. Check the dataset status.'
+          : partial
+            ? 'Sync finished with incomplete data. Check the dataset status.'
+            : 'Sync finished. Training data has been refreshed.',
     )
-    void qc.invalidateQueries({ queryKey: qk.sync, exact: true })
     invalidateKeys(qc, refreshAfterSync)
-  }, [finished, jobs, qc])
+  }, [pending.length, completed, qc])
 
-  const real = status.data?.mode === 'real'
-  const datasets = status.data?.data.datasets ?? []
-  const activeJobs = status.data?.data.active_jobs ?? []
+  const real = status.data?.status.mode === 'real'
+  const datasets = status.data?.status.data.datasets ?? []
+  const activeJobs = status.data?.status.data.active_jobs ?? []
   const lastSuccess = datasets.reduce<string | null>(
     (latest, d) =>
       d.last_success_at && (!latest || Date.parse(d.last_success_at) > Date.parse(latest))
@@ -82,7 +97,7 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
     null,
   )
   const lastText = lastSuccess ? `Last sync ${relativeTime(lastSuccess)}` : 'Not synced yet'
-  const busy = start.isPending || pending.length > 0
+  const busy = start.isPending || pending.length > 0 || activeJobs.length > 0
   const button = real && (
     <Button variant="outline" size="sm" onClick={() => start.mutate()} disabled={busy}>
       <RefreshCw size={15} /> {busy ? 'Sync in progress' : 'Sync now'}
@@ -107,7 +122,12 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
     return (
       <div className="flex flex-wrap items-center gap-3 text-sm" data-testid="sync-compact">
         {status.error ? (
-          <span className="error-text">Sync status unavailable</span>
+          <>
+            <span className="error-text">Sync status unavailable</span>
+            <Button type="button" variant="outline" size="sm" onClick={() => void status.refetch()}>
+              Retry status
+            </Button>
+          </>
         ) : (
           <span>{lastText}</span>
         )}
@@ -127,18 +147,13 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
       >
         <p>{lastText}</p>
         {button}
-        {messages}
-        {pending.length > 0 && (
-          <div className="sync-jobs">
-            {jobs.map((job, i) => (
-              <small key={pending[i]}>
-                {job.data?.data.dataset || 'Dataset'}:{' '}
-                {stateLabel(job.data?.data.status || 'queued')}
-              </small>
-            ))}
-          </div>
+        {status.error && (
+          <Button type="button" variant="outline" size="sm" onClick={() => void status.refetch()}>
+            Retry status
+          </Button>
         )}
-        {pending.length === 0 && activeJobs.length > 0 && (
+        {messages}
+        {activeJobs.length > 0 && (
           <div className="sync-jobs">
             {activeJobs.map((job) => (
               <small key={job.id}>

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from functools import cache
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -41,7 +44,7 @@ def _gap(previous: dict, following: dict) -> dict:
     return {"low": round(low, 1), "high": round(high, 1), "confidence": "high" if exact else "low"}
 
 
-def spacing_outcome(exposures: list[dict], as_of: date, tz: ZoneInfo) -> dict:
+def spacing_outcome(exposures: Sequence[dict], as_of: date, tz: ZoneInfo) -> dict:
     first, last = as_of - timedelta(days=7), as_of + timedelta(days=6)
     by_subject: dict[str, dict] = {}
     for item in exposures:
@@ -173,7 +176,7 @@ def _actual_exposure(
     }
 
 
-def _plan_classes(session: Session, row: CalendarSessionRevision) -> list[str]:
+def plan_classes(session: Session, row: CalendarSessionRevision) -> list[str]:
     if row.kind == "run":
         if row.recipe_id in CONFIG["quality_recipes"]:
             return ["quality"]
@@ -207,15 +210,24 @@ def _plan_ref(session: Session, row: CalendarSessionRevision, completion: Sessio
     }
 
 
-@register(METRIC_ID, METHOD_VERSION, DEPENDS_ON)
-def compute(session: Session, subject_key: str) -> list[MetricResultData]:
+def _as_of(subject_key: str) -> date:
     match = re.fullmatch(r"w14:(\d{4}-\d{2}-\d{2})", subject_key)
     if match is None:
         raise ValueError("invalid_subject_key")
     try:
-        as_of = date.fromisoformat(match[1])
+        return date.fromisoformat(match[1])
     except ValueError as exc:
         raise ValueError("invalid_subject_key") from exc
+
+
+@dataclass(frozen=True)
+class _Inputs:
+    timezone: ZoneInfo
+    exposures: tuple[dict, ...]
+    refs: dict
+
+
+def _load_inputs(session: Session) -> _Inputs:
     tz = athlete_tz(session)
     head = head_version(session)
     plans = list(latest_revisions(session, head).values())
@@ -231,7 +243,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
             continue
         if completion and any((completion.activity_id, completion.strong_workout_id, completion.manual_session_id)):
             continue
-        classes = _plan_classes(session, plan)
+        classes = plan_classes(session, plan)
         if classes:
             exposures.append(_planned_exposure(plan, classes, tz))
             source_refs.append({**_plan_ref(session, plan, completion), "classes": classes})
@@ -241,7 +253,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
     for run in runs:
         completion = by_activity.get(run.activity_id)
         linked_plan = next((p for p in plans if completion and p.session_uid == completion.session_uid), None)
-        classes = _plan_classes(session, linked_plan) if linked_plan else []
+        classes = plan_classes(session, linked_plan) if linked_plan else []
         long_result = long_by_id.get(str(run.activity_id))
         long_value = long_result.value if long_result else None
         is_long = (
@@ -282,7 +294,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
         strength_plan = next((p for p in plans if p.session_uid == completion.session_uid), None)
         if strength_plan is None:
             continue
-        classes = _plan_classes(session, strength_plan)
+        classes = plan_classes(session, strength_plan)
         if "lower_body_strength" not in classes:
             continue
         if completion.strong_workout_id:
@@ -340,15 +352,20 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
                     "plan": _plan_ref(session, strength_plan, completion),
                 }
             )
-    outcome = spacing_outcome(exposures, as_of, tz)
-    first, last = as_of - timedelta(days=7), as_of + timedelta(days=6)
-    start, end = utc_date_bounds(first, last, tz.key)
     source_refs.sort(key=sha256_json)
     refs = {
         "sources": source_refs,
         "calendar_head": head,
         "input_hash": sha256_json({"sources": source_refs, "calendar_head": head}),
     }
+    return _Inputs(tz, tuple(exposures), refs)
+
+
+def _calculate(subject_key: str, as_of: date, inputs: _Inputs) -> list[MetricResultData]:
+    tz = inputs.timezone
+    outcome = spacing_outcome(inputs.exposures, as_of, tz)
+    first, last = as_of - timedelta(days=7), as_of + timedelta(days=6)
+    start, end = utc_date_bounds(first, last, tz.key)
     return [
         MetricResultData(
             METRIC_ID,
@@ -358,7 +375,7 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
             Status(outcome["status"]),
             tuple(outcome["reason_codes"]),
             tuple(outcome["quality_flags"]),
-            refs,
+            inputs.refs,
             (),
             config_hash(CONFIG),
             window_start=start,
@@ -369,3 +386,18 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
             timezone=tz.key,
         )
     ]
+
+
+@register(METRIC_ID, METHOD_VERSION, DEPENDS_ON)
+def compute(session: Session, subject_key: str) -> list[MetricResultData]:
+    return _calculate(subject_key, _as_of(subject_key), _load_inputs(session))
+
+
+def batch_calculator(session: Session) -> Callable[[str], list[MetricResultData]]:
+    """Load shared inputs lazily, once per batch of spacing subjects."""
+    load_inputs = cache(lambda: _load_inputs(session))
+
+    def calculate(subject_key: str) -> list[MetricResultData]:
+        return _calculate(subject_key, _as_of(subject_key), load_inputs())
+
+    return calculate
