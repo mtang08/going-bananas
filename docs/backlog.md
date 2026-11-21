@@ -163,26 +163,32 @@ Unspecified.
 
 ### IDEA-008 — Schedule and share training plans in Google Calendar
 
-Recorded 2026-11-12. Status: idea. Priority: Unspecified.
+Recorded 2026-11-12. Updated 2026-11-20. Status: idea. Priority: Unspecified.
 
 **Problem / context**
 The athlete wants planned sessions to fit predetermined times they assign and
-to share the resulting schedule with friends.
+to share the resulting schedule with friends. Flights also affect when and
+where the athlete can train.
 
 **Desired behavior**
 Integrate with Google Calendar so the training plan can sync with athlete-
-assigned workout times and be shared with friends through the calendar.
+assigned workout times and be shared with friends through the calendar. Use
+flight information from the calendar when building training plans so sessions
+fit around travel.
 
 **Acceptance checks**
 - Planned sessions can sync to Google Calendar at the times assigned by the
   athlete and appear in a calendar that can be shared with friends.
+- Flight information is available to the coach and considered when building a
+  training plan around travel.
 
 **Constraints**
 Unspecified.
 
 **Open questions**
 Whether calendar sync should be one-way or keep edits synchronized in both
-directions; how the athlete chooses which calendar to share.
+directions; how the athlete chooses which calendar to share; how flight events
+are identified and what travel details the coach needs.
 
 ### IDEA-009 — Support integrated HYROX training
 
