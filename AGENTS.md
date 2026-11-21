@@ -60,7 +60,7 @@ calendar authority, and manual activation. `README.md` describes this user flow.
 tables. Application requests no longer read those tables.
 
 `docs/running-coach-workflow.md` and `docs/handoff.md` include an earlier automatic
-activation design; `docs/archive/` and `planning/remaining_mvp/` contain design/task history. They
+activation design; `docs/archive/` contains design history. These documents
 are useful for rationale, not evidence that those contracts are current. Inspect
 the relevant implementation and tests when documents disagree. Explicit current
 user instructions set the requested direction; code describes what works today.
