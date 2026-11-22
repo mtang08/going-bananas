@@ -9,8 +9,10 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.api.coach import resolve_kb
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
+from app.domain.session_class import classify
 from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.models import Activity, AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, IntensityAnchor
@@ -20,6 +22,7 @@ from app.services.proposals.context import load_context
 from app.services.proposals.decision import DecisionRequest, decide_proposal
 from app.services.proposals.lifecycle import SubmitResult, discard_proposal, submit_proposal
 from app.services.proposals.schema import DecisionError
+from app.services.snapshot.build import build_snapshot
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
@@ -1185,6 +1188,85 @@ def test_block_review_accept_upserts_benchmark_row(proposal_session: Session, mo
             submitted.proposal_id,
             "5 km solo time trial",
         )
+
+
+def test_block_review_can_design_future_runs_from_verified_recipes(proposal_session):
+    session = proposal_session
+    benchmark = session.scalars(select(CalendarSessionRevision).filter_by(kind="run")).one()
+    benchmark.recipe_id = "REC009"
+    benchmark.intent = "Time trial"
+    benchmark.local_date = date(2026, 11, 24)
+    for day, intent in [(19, "Easy aerobic"), (22, "Tempo")]:
+        session.add(
+            CalendarSessionRevision(
+                session_uid=uuid.uuid4(),
+                revision=1,
+                calendar_version_number=1,
+                local_date=date(2026, 11, day),
+                kind="run",
+                custom=True,
+                structure=[{"type": "work", "duration_type": "time", "duration_value": 1800}],
+                planned_duration_s=1800,
+                intent=intent,
+                certainty="committed",
+            )
+        )
+    session.flush()
+    result = build_snapshot(session, "review_training_block", TODAY, now=NOW)
+    recipes = {e["record_id"] for e in result["kb"]["excerpts"] if e.get("record_id", "").startswith("REC")}
+    assert {"REC001", "REC002", "REC003", "REC009"} <= recipes
+
+    snapshot = session.get(CoachSnapshot, uuid.UUID(result["snapshot_id"]))
+    raw = _doc(snapshot, benchmark.session_uid)
+    fields = _block_fields("2026-12-06", "2026-11-24")
+    fields["eligible_recipe_ids"] = ["REC001", "REC002", "REC003", "REC009"]
+    raw.update(
+        block_change={"decision": "start", "block_uid": None, "version_fields": fields},
+        policy_ids=[],
+        evidence_ids=[],
+        recipe_ids=fields["eligible_recipe_ids"],
+        changes=_strength_adds("2026-12-01", "2026-12-04"),
+    )
+    runs = [
+        ("easy", "2026-11-30", "REC001", 1800),
+        ("quality", "2026-12-02", "REC003", 2400),
+        ("long", "2026-12-06", "REC002", 3600),
+    ]
+    for i, (intent, day, recipe, duration) in enumerate(runs, start=3):
+        raw["changes"].append(
+            {
+                "change_id": f"c{i}",
+                "op": "add",
+                "reason": "Plan the block",
+                "after": {
+                    "local_date": day,
+                    "kind": "run",
+                    "intent": intent,
+                    "recipe_id": recipe,
+                    "planned_duration_s": duration,
+                    "structure": None,
+                },
+            }
+        )
+    proposal = submit_proposal(session, raw, now=NOW, resolve_kb=resolve_kb)
+    assert proposal.status == "pending", [(issue.code, issue.path) for issue in proposal.issues]
+    assert session.get(AppState, 1).calendar_head_version == 1
+    assert session.scalar(select(BlockVersion.id)) is None
+
+    accepted = decide_proposal(
+        session,
+        proposal.proposal_id,
+        _block_req("accept-verified-runs", [c["change_id"] for c in raw["changes"]], [], block=True),
+        now=NOW,
+        resolve_kb=resolve_kb,
+    )
+    assert accepted.status == "accepted"
+    rows = {r["local_date"]: r for r in calendar.state_at(session, accepted.calendar_version) if r["kind"] == "run"}
+    for intent, day, recipe, duration in runs:
+        row = rows[date.fromisoformat(day)]
+        assert row["recipe_id"] == recipe and classify(row["kind"], row["recipe_id"], row["intent"]) == intent
+        assert row["structure"] is None and row["certainty"] == "provisional"
+        assert row["planned_duration_s"] == duration
 
 
 def test_block_review_accepts_sessions_through_review_date(proposal_session):

@@ -828,6 +828,14 @@ def test_fixed_operations_keep_scope_and_have_no_horizon(operation: str, calenda
     assert payload["calendar"]["end"] == (AS_OF + timedelta(days=calendar_end_days)).isoformat()
 
 
+def test_block_recipe_candidates_include_calendar_and_active_block_families() -> None:
+    source = inputs(
+        active_block={"eligible_recipe_ids": ["REC008"]},
+        sessions=[session(AS_OF, "run", "REC007")],
+    )
+    assert select_recipe_ids(source, BLOCK) == ["REC001", "REC002", "REC003", "REC007", "REC008", "REC009"]
+
+
 def test_topics_scope_uses_active_review_date() -> None:
     rows = [session(AS_OF, "run", "REC001"), session(AS_OF + timedelta(days=20), "run", "REC009")]
     with_long_horizon = inputs(active_block=horizon_block(AS_OF + timedelta(days=28)), sessions=rows)

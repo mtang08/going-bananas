@@ -109,6 +109,11 @@ def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[st
 def select_recipe_ids(inputs: SnapshotInputs, operation: str) -> list[str]:
     sessions = _scope_sessions(inputs, operation)
     ids = {s["recipe_id"] for s in sessions if s.get("kind") == "run" and s.get("recipe_id")}
+    if operation == BLOCK:
+        # A new block can introduce easy, long, threshold, and benchmark runs even on an empty calendar.
+        ids.update({"REC001", LONG_RECIPE, "REC003", "REC009"})
+        if inputs.active_block:
+            ids.update(inputs.active_block.get("eligible_recipe_ids", []))
     if operation in {ROLLING, QUALITY_OP} and any(
         is_quality_slot(s.get("kind", ""), s.get("recipe_id"), bool(s.get("placeholder"))) for s in sessions
     ):
