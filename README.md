@@ -26,8 +26,8 @@ exception, race, and training-block workflows. The same guide is maintained in
 2. Ask Codex to use **`$going-bananas-coach`** for a weekly review, an
    exception review, a block review, a post-race review, calibration, or a goal
    change. If there is no training block yet, start with a block review.
-3. On Home, open **Needs attention → Review**. Select the session changes,
-   block change, and calibration anchors you want to accept. Unselected session
+3. On Home, open **Needs attention → Review**. Valid session changes start checked. Uncheck any you want to skip,
+   select any block or anchor changes, then choose **Accept selected**. Unselected session
    changes are rejected. Nothing applies when you open the page or submit a
    proposal from Codex.
 4. Inspect accepted sessions and **Plan versions** in Calendar. Completed,
@@ -44,9 +44,8 @@ estimates. Missing data or incomplete plan coverage is labeled; past unrecorded
 runs are not added to the forecast. Pending proposals do not affect the total.
 
 Use Sunday evening as the normal weekly coaching review; initiate it in Codex.
-Extra reviews are for material changes, symptoms, or new goals. To adjust a
-pending proposal, tell the coach what to change and include its review link.
-The coach edits that draft under the same link, with a saved revision history.
+Extra reviews are for material changes, symptoms, or new goals. Discuss adjustments in the same chat. The coach reuses the review context and
+publishes once you agree or ask to save. Updates to an open draft keep its link and revision history.
 Refresh and review the latest revision before accepting; selections reset when
 the draft changes. Stale drafts need refreshed context, but keep their link.
 Accepted or rejected proposals stay fixed; later plan changes use a new proposal.

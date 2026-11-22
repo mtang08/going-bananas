@@ -18,7 +18,7 @@ Each check-in, post-run RPE, and recorded outcome runs the exception check. An i
 
 Start one manual coaching review on Sunday evening. You do not need to decide whether it should be a weekly or block review:
 
-> Use $going-bananas-coach for my Sunday review in real mode. Check whether I need a block review or the regular Sunday review of the rest of the block, and prepare a proposal. My schedule changes and feedback are: …
+> Use $going-bananas-coach for my Sunday review in real mode. Review my current block and talk through the plan with me. My schedule changes and feedback are: …
 
 The coach checks the active block and its review date. With no block, it helps establish one. When the block is due or an early-review trigger applies, it reviews the objective and response. Otherwise, it reviews the rest of the current block, from today through the block's review date and always at least 14 days ahead, keeping day 8 onward provisional.
 
@@ -100,19 +100,19 @@ When the goal race changes (you move it up or down, cancel it, or its date passe
 
 ## Review and revise a proposal
 
-The coach saves a draft and provides its review link. **Pending your review; nothing applied.** On Home, open **Needs attention → Review** to inspect the rationale and each proposed change, including workout details, block changes, and calibration anchors when present.
+Discuss the plan in one chat. Ask for a shorter workout or a different day and the coach will work from the same review context. When the plan looks right, say “looks good” or “publish it.” The coach saves the agreed plan and provides its review link. **Pending your review; nothing applied.** On Home, open **Needs attention → Review** to inspect the rationale and each proposed change, including workout details, block changes, and calibration anchors when present.
 
-- Select the changes you want to accept. Unselected session changes are rejected when you submit your decision.
+- Valid session changes start checked. Uncheck any you want to reject, select any block or anchor changes separately, then choose **Accept selected**.
 - Review related calibration anchors with any targets that depend on them.
 - For a no-change review, the app records your acknowledgment.
 - Opening a proposal or receiving it in chat does not apply it.
 - Exception reviews add an **Exception** card: why now, plan impact, sessions left unchanged, the reassess date, and what to watch for. Race reviews add a **Race review** card; block benchmark reviews add a **Benchmark review** card. Settled patches appear under **Patch updates**.
 
-To refine an open draft, keep its link and ask:
+To refine an open draft, continue the same conversation. For example:
 
-> Use $going-bananas-coach to revise this pending proposal: … Keep the same draft. Change the following: …
+> Could we move the long run to Saturday?
 
-The coach updates the same proposal ID and review link, with revision history. Refresh before deciding; review selections reset when a new revision arrives. New check-ins or imports can make a draft stale, so the coach may refresh its evidence before revising. Stale and invalid drafts still count as the one open draft.
+Once you agree, the coach updates the same proposal ID and review link, with revision history. Refresh before deciding; review selections reset when a new revision arrives. New check-ins or imports can make a draft stale, so the coach may refresh its evidence before revising. Stale and invalid drafts still count as the one open draft.
 
 Use **Discard proposal** on the review page if you want to abandon that draft and start fresh. Its history remains and the calendar does not change. Accepted, partially accepted, rejected, and discarded proposals are final; a later change needs a new proposal.
 

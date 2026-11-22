@@ -246,6 +246,7 @@ function mount() {
   )
 }
 async function select(...ids: string[]) {
+  fireEvent.click(await screen.findByRole('button', { name: 'Clear' }))
   for (const id of ids) fireEvent.click(await screen.findByLabelText(`Accept change ${id}`))
 }
 
@@ -267,12 +268,12 @@ it('renders coach paragraphs and bullets safely with confidence collapsed and fo
   ).toBeTruthy()
 })
 
-it('requires individual review and submits complete partial selection', async () => {
+it('preselects sessions and submits only the changes left checked', async () => {
   mount()
-  expect(await screen.findByLabelText('Accept change c1')).not.toBeChecked()
+  expect(await screen.findByLabelText('Accept change c1')).toBeChecked()
   expect(writes).toHaveLength(0)
-  expect(screen.getByRole('button', { name: 'Accept selected' })).toBeDisabled()
-  await select('c1', 'c3')
+  expect(screen.getByRole('button', { name: 'Accept selected' })).toBeEnabled()
+  fireEvent.click(screen.getByLabelText('Accept change c2'))
   fireEvent.click(screen.getByRole('button', { name: 'Accept selected' }))
   await screen.findByText('Accepted — calendar version 8')
   expect(writes[0]).toEqual({
@@ -366,8 +367,8 @@ it('requires an explicit reload after a revision conflict and discards old selec
   failure = null
   fireEvent.click(screen.getByRole('button', { name: 'Reload proposal' }))
   await waitFor(() => expect(screen.getAllByText(/Revision 2/).length).toBeGreaterThan(0))
-  expect(screen.getByLabelText('Accept change c1')).not.toBeChecked()
-  expect(screen.getByRole('button', { name: 'Accept selected' })).toBeDisabled()
+  expect(screen.getByLabelText('Accept change c2')).toBeChecked()
+  expect(screen.getByRole('button', { name: 'Accept selected' })).toBeEnabled()
   expect(screen.getByText('Revision history').closest('details')).not.toHaveAttribute('open')
   expect(screen.getByLabelText('Accept change c2').closest('tr')).toHaveClass(
     'proposal-revised-row',
@@ -413,7 +414,7 @@ it('clears stale decision state when a newer current revision arrives', async ()
   }
   await clients[0].invalidateQueries({ queryKey: ['v2', 'proposals', 'p1'] })
   await waitFor(() => expect(screen.queryByText(/This proposal is stale/)).not.toBeInTheDocument())
-  expect(screen.getByLabelText('Accept change c1')).not.toBeChecked()
+  expect(screen.getByLabelText('Accept change c2')).toBeChecked()
   fireEvent.click(screen.getByText('Revision history'))
   expect(screen.getByText(/removed sessions: 1/)).toBeInTheDocument()
   failure = null
@@ -439,8 +440,8 @@ it('resets review selections when a background refresh reveals a new revision', 
     ],
   }
   await clients[0].invalidateQueries({ queryKey: ['v2', 'proposals', 'p1'] })
-  await waitFor(() => expect(screen.getByLabelText('Accept change c1')).not.toBeChecked())
-  expect(screen.getByRole('button', { name: 'Accept selected' })).toBeDisabled()
+  await waitFor(() => expect(screen.getByLabelText('Accept change c2')).toBeChecked())
+  expect(screen.getByRole('button', { name: 'Accept selected' })).toBeEnabled()
   await select('c3')
   fireEvent.click(screen.getByRole('button', { name: 'Accept selected' }))
   await waitFor(() => expect(writes).toHaveLength(1))
@@ -798,11 +799,13 @@ it('select all skips changes with invalid saved workouts', async () => {
   expect(screen.getByLabelText('Accept change c1')).not.toBeChecked()
   for (const id of ['c2', 'c3']) expect(screen.getByLabelText(`Accept change ${id}`)).toBeChecked()
 })
-it('links to Calendar and Home after a decision', async () => {
+it('applies all sessions with one explicit decision and links to Calendar and Home', async () => {
   mount()
-  await select('c1')
+  await screen.findByLabelText('Accept change c1')
+  expect(writes).toHaveLength(0)
   fireEvent.click(screen.getByRole('button', { name: 'Accept selected' }))
   await screen.findByText('Accepted — calendar version 8')
+  expect(writes[0].accept_change_ids).toEqual(['c1', 'c2', 'c3'])
   expect(screen.getByRole('link', { name: 'Open calendar' })).toHaveAttribute('href', '#calendar')
   expect(screen.getByRole('link', { name: 'Return home' })).toHaveAttribute('href', '#home')
 })

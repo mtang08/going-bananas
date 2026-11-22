@@ -46,7 +46,13 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
 
   useEffect(() => {
     if (!proposal || reviewedRevision === proposal.revision) return
-    setSelected([])
+    setSelected(
+      proposal.status === 'pending' && proposal.is_current
+        ? proposal.changes
+            .filter((change) => !readStructure(change.after).invalid)
+            .map((change) => change.change_id)
+        : [],
+    )
     setAnchors([])
     setBlock(false)
     setResult(null)
@@ -220,7 +226,6 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                     const refreshed = await detail.refetch()
                     if (refreshed.isSuccess) {
                       setRevisionConflict(false)
-                      setSelected([])
                       setAnchors([])
                       setBlock(false)
                       setConfirmDiscard(false)

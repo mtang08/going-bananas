@@ -1,5 +1,5 @@
 export const WEEKLY_PROMPT =
-  'Use $going-bananas-coach for my Sunday review in real mode. Check whether I need a block review or the regular Sunday review of the rest of the block, and prepare a proposal. My schedule changes and feedback are: …'
+  'Use $going-bananas-coach for my Sunday review in real mode. Review my current block and talk through the plan with me. My schedule changes and feedback are: …'
 export const EXCEPTION_PROMPT =
   'Use $going-bananas-coach for an exception review. Read the open findings in the app and patch only what they require.'
 export const BLOCK_PROMPT =
