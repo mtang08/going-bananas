@@ -763,8 +763,8 @@ def test_subset_numeric_target_requires_matching_anchor_modality() -> None:
     ctx = context("recalibrate_intensity")
     result = validate_document(doc, ctx)
     assert result.status == "pending"
-    hr_key = anchor_key(result.doc.anchor_changes[0], TZ)
-    speed_key = anchor_key(result.doc.anchor_changes[1], TZ)
+    hr_key = anchor_key(result.doc.anchor_changes[0].kind, result.doc.anchor_changes[0].calibrated_at, TZ)
+    speed_key = anchor_key(result.doc.anchor_changes[1].kind, result.doc.anchor_changes[1].calibrated_at, TZ)
     issues = validate_subset(result.doc, {"c1"}, False, {speed_key}, ctx)
     assert [(item.code, item.path, item.message) for item in issues] == [
         (

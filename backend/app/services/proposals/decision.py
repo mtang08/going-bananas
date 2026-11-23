@@ -313,7 +313,7 @@ def decide_proposal(
         raise DecisionError(code, message, 409, commit=True)
     accepted, rejected, anchors = set(req.accept_change_ids), set(req.reject_change_ids), set(req.accept_anchor_changes)
     required = {change.change_id for change in doc.changes}
-    known_anchors = {anchor_key(item, ctx.tz) for item in doc.anchor_changes}
+    known_anchors = {anchor_key(item.kind, item.calibrated_at, ctx.tz) for item in doc.anchor_changes}
     if (
         accepted & rejected
         or accepted | rejected != required
@@ -332,7 +332,7 @@ def decide_proposal(
             changed = True
     anchor_keys: list[str] = []
     for item in doc.anchor_changes:
-        if anchor_key(item, ctx.tz) in anchors:
+        if anchor_key(item.kind, item.calibrated_at, ctx.tz) in anchors:
             fields = item.model_dump(mode="python")
             fields.update(
                 proposal_id=proposal_id,

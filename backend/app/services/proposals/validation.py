@@ -791,7 +791,7 @@ def _anchor_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIs
         ]:
             if invalid:
                 issues.append(_issue("V14.anchor_invalid", f"{path}.{field}"))
-        key = anchor_key(anchor, ctx.tz)
+        key = anchor_key(anchor.kind, anchor.calibrated_at, ctx.tz)
         if key in anchor_keys:
             issues.append(_issue("V14.anchor_invalid", f"{path}.kind"))
         anchor_keys.add(key)
@@ -906,7 +906,11 @@ def validate_subset(
         update={
             "changes": [change for change in doc.changes if change.change_id in accepted_ids],
             "block_change": doc.block_change if accept_block_change else None,
-            "anchor_changes": [item for item in doc.anchor_changes if anchor_key(item, ctx.tz) in accepted_anchor_keys],
+            "anchor_changes": [
+                item
+                for item in doc.anchor_changes
+                if anchor_key(item.kind, item.calibrated_at, ctx.tz) in accepted_anchor_keys
+            ],
         }
     )
     issues = _rules(selected, ctx, exception_checks=False)
@@ -914,7 +918,7 @@ def validate_subset(
         proposed: dict[str, set[str]] = {"hr": set(), "speed": set()}
         for anchor in doc.anchor_changes:
             modality = "hr" if anchor.kind.startswith("hr_") else "speed"
-            proposed[modality].add(anchor_key(anchor, ctx.tz))
+            proposed[modality].add(anchor_key(anchor.kind, anchor.calibrated_at, ctx.tz))
         for index, change in enumerate(doc.changes):
             if (
                 change.change_id not in accepted_ids

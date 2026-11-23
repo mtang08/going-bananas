@@ -12,6 +12,7 @@ from app.services.knowledge import (
     POLICY_MAP,
     SUPPORTED_OPERATIONS,
     KnowledgeIntegrityError,
+    cited_sources,
     extract_section,
     kb_index,
     load_manifest,
@@ -326,3 +327,50 @@ def test_new_review_routes_within_budget(operation, caplog):
         "COACHING_GUIDE.md",
         "adaptive_coaching/exception_policy.md",
     }
+
+
+EVIDENCE_S001 = (
+    "No effect of a graded training program on the number of running-related injuries in novice runners (2008)"
+)
+EVIDENCE_S002 = "The Association Between Running Injuries and Training Parameters: A Systematic Review (2022)"
+
+
+def test_cited_sources_policy_title_and_papers():
+    items = cited_sources([], ["P001"])
+    assert len(items) == 1 and items[0]["kind"] == "policy"
+    assert items[0]["title"] == "Work with missing or stale data"
+    assert any(paper.startswith("Readiness for Training in Athletes") for paper in items[0]["papers"])
+
+
+def test_cited_sources_evidence_gives_question_title_and_papers():
+    assert cited_sources(["E-AER-01"], []) == [
+        {"kind": "evidence", "title": "Aerobic progression", "papers": [EVIDENCE_S001]}
+    ]
+
+
+def test_cited_sources_merges_equal_titles_in_citation_order():
+    items = cited_sources(["E-AER-05", "E-AER-01", "E-AER-02"], ["P001"])
+    assert [(i["kind"], i["title"]) for i in items] == [
+        ("policy", "Work with missing or stale data"),
+        ("evidence", "Return after illness"),
+        ("evidence", "Aerobic progression"),
+    ]
+    assert items[2]["papers"] == [EVIDENCE_S001, EVIDENCE_S002]
+
+
+def test_cited_sources_splits_multiple_source_ids():
+    (item,) = cited_sources(["E-AER-04"], [])
+    assert len(item["papers"]) == 2 and item["papers"][0].startswith("Acute:Chronic Workload Ratio")
+
+
+def test_cited_sources_skips_unknown_ids_and_text_has_no_ids():
+    assert cited_sources(["E-NOPE-99"], ["P999"]) == []
+    text = json.dumps(cited_sources(["E-AER-01", "E-PER-02"], ["P001", "P015"]))
+    assert not re.search(r"\b(?:E-[A-Z]+-\d{2}|P\d{3})\b", text)
+
+
+def test_cited_sources_rejects_modified_kb(tmp_kb):
+    path = tmp_kb / "references/evidence_matrix.md"
+    path.write_bytes(path.read_bytes() + b" ")
+    with pytest.raises(KnowledgeIntegrityError):
+        cited_sources(["E-AER-01"], [], root=tmp_kb)

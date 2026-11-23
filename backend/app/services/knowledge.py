@@ -378,3 +378,41 @@ def verify_selection(selection: tuple[dict, ...], *, root: Path | None = None) -
         "recipe_ids": index.recipe_ids,
         "evidence_ids": index.evidence_ids,
     }
+
+
+def cited_sources(evidence_ids: Iterable[str], policy_ids: Iterable[str], *, root: Path | None = None) -> list[dict]:
+    """Titles and papers behind a proposal's citations, policies first; unknown IDs are skipped.
+
+    Items with the same (kind, title) merge: papers are unioned and the first position is kept.
+    """
+    base = Path(root) if root is not None else DEFAULT_ROOT
+    manifest = load_manifest(base)
+    records = _records(base, manifest)
+    policies = {pid: item for path in POLICY_FILES for pid, item in records[path].items()}
+    try:
+        registry = json.loads(_read(base, "references/source_registry.json", manifest))["sources"]
+        papers = {s["source_id"]: f"{s['title']} ({s['year']})" for s in registry}
+    except (KeyError, TypeError, ValueError) as exc:
+        raise KnowledgeIntegrityError("Invalid source registry") from exc
+    rows: dict[str, tuple[str, list[str]]] = {}
+    for path in EVIDENCE_FILES:
+        for line in _read(base, path, manifest).splitlines():
+            if EVIDENCE_ROW.match(line):
+                cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+                rows[cells[0]] = (cells[1], [s.strip() for s in cells[-1].split(";")])
+    items: dict[tuple[str, str], dict] = {}
+
+    def add(kind: str, title: str, source_ids: Iterable[str]) -> None:
+        item = items.setdefault((kind, title), {"kind": kind, "title": title, "papers": []})
+        for source_id in source_ids:
+            paper = papers.get(source_id)
+            if paper and paper not in item["papers"]:
+                item["papers"].append(paper)
+
+    for policy_id in policy_ids:
+        if policy_id in policies:
+            add("policy", policies[policy_id]["title"], policies[policy_id]["source_ids"])
+    for evidence_id in evidence_ids:
+        if evidence_id in rows:
+            add("evidence", *rows[evidence_id])
+    return list(items.values())

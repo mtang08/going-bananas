@@ -147,7 +147,7 @@ def _coach(args) -> int:
         if args.coach_command == "schema":
             output(
                 {
-                    "protocol": "coach_proposal.v1",
+                    "protocol": "coach_proposal.v2",
                     "activation": "manual",
                     "required_authority": "calendar",
                     "proposal": ProposalDoc.model_json_schema(),

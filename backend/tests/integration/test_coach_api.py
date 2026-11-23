@@ -26,6 +26,12 @@ from app.services.strength_routine import replace_routine, routine_view
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
 KB = VerifiedKnowledge("0" * 64, (), (), frozenset({"P001"}), frozenset({"REC001"}), frozenset({"E-AER-01"}))
+BRIEF = {
+    "effort": {"rpe_low": 3, "rpe_high": 4, "feel": "conversational"},
+    "focus": ["Relax shoulders"],
+    "adjust_if": [{"when": "Calf tight", "then": "walk 5 min"}],
+    "why": "Easy aerobic volume",
+}
 
 
 def _resolve(selection: tuple[dict, ...]) -> VerifiedKnowledge:
@@ -62,20 +68,23 @@ def _snapshot(session: Session, operation: str = "review_rolling_plan") -> tuple
 
 def _doc(snapshot: CoachSnapshot, uid: uuid.UUID) -> dict:
     return {
-        "schema_version": "coach_proposal.v1",
+        "schema_version": "coach_proposal.v2",
         "operation": snapshot.operation,
         "snapshot_id": str(snapshot.id),
         "base_calendar_version": snapshot.calendar_version_number,
         "base_block_version_id": None,
-        "summary": "Add easy time",
-        "rationale": "Ready for a small increase",
+        "headline": "Add easy time",
+        "why": [{"kind": "observation", "text": "Ready for a small increase"}],
+        "uncertainty": ["Sleep data is thin"],
+        "change_triggers": [{"when": "Easy run feels hard", "then": "hold the duration"}],
+        "next_check": {"on": (TODAY + timedelta(days=7)).isoformat(), "check": "Easy run RPE"},
         "confidence": {"decision": "moderate", "evidence": "moderate", "data": "moderate"},
         "changes": [
             {
                 "change_id": "c1",
                 "op": "modify",
                 "session_uid": str(uid),
-                "after": {"planned_duration_s": 2400},
+                "after": {"planned_duration_s": 2400, "brief": BRIEF},
                 "reason": "Progression",
             }
         ],
@@ -294,7 +303,7 @@ def test_partial_accept_writes_version_with_lineage(api):
             "change_id": f"c{index + 1}",
             "op": "modify",
             "session_uid": str(row["session_uid"]),
-            "after": {"planned_duration_s": 2100},
+            "after": {"planned_duration_s": 2100, "brief": BRIEF},
             "reason": "Small adjustment",
         }
         for index, row in enumerate(runs)
@@ -351,7 +360,7 @@ def test_accept_block_change_appends_decision(api):
         "version_fields": {
             "status": "active",
             "objective": "Build",
-            "rationale": "Ready",
+            "why": [{"kind": "inference", "text": "Ready"}],
             "maintained_qualities": [],
             "non_goals": [],
             "eligible_recipe_ids": ["REC001", "REC009"],
@@ -359,7 +368,7 @@ def test_accept_block_change_appends_decision(api):
             "constraints": [],
             "start_date": str(TODAY),
             "review_date": str(TODAY + timedelta(days=42)),
-            "completion_indicators": [],
+            "indicators": [],
             "early_review_triggers": [],
             "objective_status": "unresolved",
             "benchmark": {
@@ -457,6 +466,7 @@ def test_strength_omissions_are_reviewed_and_scoped_to_their_dates(api, monkeypa
         snapshot = session.get(CoachSnapshot, uuid.UUID(result["snapshot_id"]))
         doc = _doc(snapshot, run_uid)
         doc.update(evidence_ids=[], recipe_ids=[], policy_ids=[])
+        doc["next_check"] = {"on": (at.date() + timedelta(days=7)).isoformat(), "check": "Lift and run response"}
         return doc, result["payload"]["goals_and_constraints"]
 
     doc, constraints = review(now)
@@ -466,8 +476,8 @@ def test_strength_omissions_are_reviewed_and_scoped_to_their_dates(api, monkeypa
     assert constraints["accepted_strength_omissions"] == []
     head = doc["base_calendar_version"]
     baseline_calendar = calendar.state_at(session, head)
-    doc["summary"] = "Omit Tuesday lifting during travel"
-    doc["rationale"] = "Travel prevents the usual Tuesday lift. Keep Friday lifting."
+    doc["headline"] = "Omit Tuesday lifting during travel"
+    doc["why"] = [{"kind": "observation", "text": "Travel prevents the usual Tuesday lift; Friday lifting stays"}]
     doc["changes"] = [
         {
             "change_id": "c1",
@@ -527,8 +537,8 @@ def test_strength_omissions_are_reviewed_and_scoped_to_their_dates(api, monkeypa
 
     doc, _ = review(now)
     recovery_reason = "Reduce lower-body load this week while recovering from travel"
-    doc["summary"] = "Omit Friday lifting for recovery"
-    doc["rationale"] = recovery_reason
+    doc["headline"] = "Omit Friday lifting for recovery"
+    doc["why"] = [{"kind": "inference", "text": recovery_reason}]
     doc["changes"] = [
         {
             "change_id": "c1",
@@ -564,7 +574,9 @@ def test_strength_omissions_are_reviewed_and_scoped_to_their_dates(api, monkeypa
     assert {str(day) for day in following_days} <= {
         row["local_date"] for row in constraints["confirmed_strength_sessions"]
     }
-    next_doc.update(summary="Resume usual lifting", rationale="The temporary omissions are over")
+    next_doc.update(
+        headline="Resume usual lifting", why=[{"kind": "observation", "text": "The temporary omissions are over"}]
+    )
     next_doc["changes"] = [
         {
             "change_id": f"c{i}",
@@ -647,7 +659,7 @@ def test_invalid_revision_api_preserves_current_draft(api):
     assert response.status_code == 422
     current = client.get(base).json()["data"]
     assert current["revision"] == 1 and current["status"] == "pending"
-    assert current["changes"][0]["after"] == {"planned_duration_s": 2400}
+    assert current["changes"][0]["after"] == {"planned_duration_s": 2400, "brief": BRIEF}
 
 
 def test_detail_exposes_exception_fields_and_patch(api):
@@ -670,7 +682,7 @@ def test_detail_exposes_exception_fields_and_patch(api):
     session.flush()
     snapshot, uid = _snapshot(session, "exception_review")
     doc = _doc(snapshot, uid)
-    doc["changes"][0]["after"] = {"planned_duration_s": 1200}
+    doc["changes"][0]["after"] = {"planned_duration_s": 1200, "brief": BRIEF}
     doc["exception"] = {
         "finding_ids": [str(finding.id)],
         "category": "accumulated_fatigue",
@@ -702,3 +714,60 @@ def test_detail_exposes_exception_fields_and_patch(api):
     assert data["patch"]["calendar_version_number"] == 2
     rolling_id, _, _ = pending(session)
     assert client.get(f"/api/v1/coach/proposals/{rolling_id}").json()["data"]["patch"] is None
+
+
+def test_detail_returns_v2_fields_and_titled_sources(api, monkeypatch):
+    from app.api import coach
+
+    client, session = api
+    proposal_id, _, _ = pending(session)
+    data = client.get(f"/api/v1/coach/proposals/{proposal_id}").json()["data"]
+    assert data["headline"] == "Add easy time"
+    assert data["why"] == [{"kind": "observation", "text": "Ready for a small increase"}]
+    assert data["uncertainty"] == ["Sleep data is thin"]
+    assert data["change_triggers"] == [{"when": "Easy run feels hard", "then": "hold the duration"}]
+    assert data["next_check"] == {"on": "2026-11-23", "check": "Easy run RPE"}
+    assert data["coach_note"] is None and data["legacy_text"] is None
+    assert not {"summary", "rationale", "follow_up"} & set(data)
+    assert [(s["kind"], s["title"]) for s in data["sources"]] == [
+        ("policy", "Work with missing or stale data"),
+        ("evidence", "Aerobic progression"),
+    ]
+    assert all(s["papers"] for s in data["sources"])
+    assert "P001" not in str(data["sources"]) and "E-AER" not in str(data["sources"])
+    current = data["changes"][0]["current"]
+    assert current["brief"] is None and "notes" not in current
+    items = client.get("/api/v1/coach/proposals?status=pending").json()["data"]["items"]
+    assert items[0]["headline"] == "Add easy time" and "summary" not in items[0]
+
+    def broken(*args, **kwargs):
+        raise coach.knowledge.KnowledgeIntegrityError("changed")
+
+    monkeypatch.setattr(coach.knowledge, "cited_sources", broken)
+    assert client.get(f"/api/v1/coach/proposals/{proposal_id}").json()["data"]["sources"] == []
+
+
+def test_historical_anchor_survives_new_conditions_limit(api):
+    client, session = api
+    proposal_id, _, _ = pending(session)
+    proposal = session.get(CoachProposal, proposal_id)
+    conditions = "Noted the indoor temperature, workload, and recovery between repeats. " * 2
+    proposal.status = "accepted"
+    proposal.anchor_changes = [
+        {
+            "kind": "hr_threshold_lower",
+            "value_low": 165,
+            "unit": "bpm",
+            "protocol": "manual",
+            "confidence": "moderate",
+            "calibrated_at": NOW.isoformat(),
+            "conditions": conditions,
+        }
+    ]
+    session.commit()
+
+    response = client.get(f"/api/v1/coach/proposals/{proposal_id}")
+    assert response.status_code == 200
+    (anchor,) = response.json()["data"]["anchor_changes"]
+    assert anchor["conditions"] == conditions
+    assert anchor["anchor_key"] == "hr_threshold_lower-2026-11-16"

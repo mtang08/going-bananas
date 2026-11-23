@@ -473,8 +473,8 @@ def derive_certainty(day: date, today: date) -> str:
     return "committed" if day <= today + timedelta(days=6) else "provisional"
 
 
-def anchor_key(item: AnchorChange, tz: ZoneInfo) -> str:
-    return f"{item.kind}-{date_in_zone(item.calibrated_at, tz).isoformat()}"
+def anchor_key(kind: str, calibrated_at: datetime, tz: ZoneInfo) -> str:
+    return f"{kind}-{date_in_zone(calibrated_at, tz).isoformat()}"
 
 
 class DecisionError(Exception):
