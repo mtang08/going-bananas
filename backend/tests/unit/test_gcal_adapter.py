@@ -242,6 +242,22 @@ def test_content_hash_tracks_projected_fields_only():
         ("", "-"),
         ("   ", "-"),
     ],
+    ids=[
+        "flight-city",
+        "flight-city-alternate",
+        "lodging",
+        "airport-location",
+        "contact",
+        "train-route",
+        "absence",
+        "number-without-flight",
+        "link",
+        "address",
+        "unicode",
+        "missing",
+        "empty",
+        "whitespace",
+    ],
 )
 def test_mask_title(title, masked):
     assert mask_title(title) == masked
