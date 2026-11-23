@@ -1,4 +1,4 @@
-import { Button, Card } from '../components/ui'
+import { Button } from '../components/ui'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CalendarView } from '../api/types/calendar'
@@ -11,8 +11,8 @@ import type {
   ProposalDiscardResult,
 } from '../api/types/coach'
 import { QueryState } from '../components/QueryState'
-import { readStructure, proposedSession, stripReferenceIds } from './proposal/helpers'
-import { CoachText, ExceptionCard, EventReviewCard, PatchUpdates } from './proposal/ProposalParts'
+import { readStructure, proposedSession } from './proposal/helpers'
+import { ExceptionCard, EventReviewCard, PatchUpdates } from './proposal/ProposalParts'
 import { ProposedChanges } from './proposal/ProposedChanges'
 import { ProposalIntro } from './proposal/ProposalIntro'
 import { AnchorChangeCard, BlockChangeCard } from './proposal/ChangeCards'
@@ -150,12 +150,6 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
       (first?.slot ?? 0) - (second?.slot ?? 0)
     )
   })
-  const referenceIds = [
-    ...(proposal?.evidence_ids ?? []),
-    ...(proposal?.policy_ids ?? []),
-    ...(proposal?.recipe_ids ?? []),
-  ]
-  const plain = (text: string) => stripReferenceIds(text, referenceIds)
   const invalidChanges = new Set(
     changes
       .filter((change) => readStructure(change.after).invalid)
@@ -244,14 +238,9 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
               statusLabel={
                 isDiscarded ? 'discarded' : (result?.status ?? proposal.status).replaceAll('_', ' ')
               }
-              plain={plain}
             />
             {proposal.exception && (
-              <ExceptionCard
-                exc={proposal.exception}
-                sessions={head.data?.data.sessions ?? []}
-                plain={plain}
-              />
+              <ExceptionCard exc={proposal.exception} sessions={head.data?.data.sessions ?? []} />
             )}
             {changes.length > 0 && (
               <ProposedChanges
@@ -274,7 +263,6 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                   frozen.current = null
                 }}
                 onToggle={(id) => toggle(id, selected, setSelected)}
-                plain={plain}
               />
             )}
             {proposal.block_change && (
@@ -285,7 +273,7 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                 decision={decision}
                 checked={block}
                 disabled={disabled}
-                plain={plain}
+
                 onChange={(value) => {
                   setBlock(value)
                   mutation.reset()
@@ -306,23 +294,10 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
               />
             ))}
             {proposal.event_review && (
-              <EventReviewCard
-                review={proposal.event_review}
-                operation={proposal.operation}
-                plain={plain}
-              />
+              <EventReviewCard review={proposal.event_review} operation={proposal.operation} />
             )}
             {proposal.patch_resolutions.length > 0 && (
-              <PatchUpdates items={proposal.patch_resolutions} plain={plain} />
-            )}
-            {(proposal.follow_up || proposal.escalation) && (
-              <Card className="proposal-next-check">
-                <h2>Next check-in</h2>
-                {proposal.follow_up && <CoachText text={plain(proposal.follow_up)} />}
-                {proposal.escalation && (
-                  <p>Suggested next review: {proposal.escalation.replaceAll('_', ' ')}</p>
-                )}
-              </Card>
+              <PatchUpdates items={proposal.patch_resolutions} />
             )}
             {mutation.error && (
               <div className="notice warning" role="alert">

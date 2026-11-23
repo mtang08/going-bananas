@@ -3,6 +3,14 @@ import { formatStep } from '../lib/structure'
 import { sessionTitle } from '../lib/session'
 import type { PlannedStep, SessionState } from '../api/types/calendar'
 
+function effortText(effort: { rpe_low: number; rpe_high: number; feel: string }): string {
+  const range =
+    effort.rpe_low === effort.rpe_high
+      ? `${effort.rpe_low}`
+      : `${effort.rpe_low}–${effort.rpe_high}`
+  return `RPE ${range} (${effort.feel})`
+}
+
 export function weeklyWorkoutText(sessions: SessionState[], monday: string, unit: Unit): string {
   const sunday = addDays(monday, 6)
   const lines = [`Workouts: ${monday} to ${sunday}`, '']
@@ -37,6 +45,11 @@ export function weeklyWorkoutText(sessions: SessionState[], monday: string, unit
           lines.push(`    ${item.count} ×`)
           for (const step of item.steps) lines.push(`      ${format(step)}`)
         } else lines.push(`    ${format(item)}`)
+      }
+      if (session.brief) {
+        lines.push(`    Effort: ${effortText(session.brief.effort)}`)
+        for (const rule of session.brief.adjust_if)
+          lines.push(`    Adjust if: ${rule.when} → ${rule.then}`)
       }
       if (session.notes?.trim()) lines.push(`    Notes: ${session.notes.trim()}`)
     }

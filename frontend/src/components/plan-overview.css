@@ -250,3 +250,33 @@
     border-top: 0;
   }
 }
+
+@layer components {
+  .plan-session-purpose {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    margin-top: 8px;
+  }
+  .plan-session-purpose p {
+    margin: 0;
+  }
+  .session-brief {
+    margin-top: 8px;
+  }
+  .session-brief-field h4 {
+    margin: 8px 0 2px;
+    font-size: 0.8rem;
+  }
+  .session-brief-field p,
+  .session-brief-field ul {
+    margin: 0;
+  }
+  .session-brief-field ul {
+    padding-left: 16px;
+  }
+  .session-brief-more {
+    margin-top: 8px;
+  }
+}

@@ -1,0 +1,39 @@
+@layer components {
+  .coach-why {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .coach-why li {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .coach-why li > span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .coach-rules h4 {
+    margin: 8px 0 4px;
+    font-size: 0.85rem;
+  }
+  .coach-rules ul {
+    margin: 0;
+    padding-left: 18px;
+    overflow-wrap: anywhere;
+  }
+  .coach-effort {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .coach-source-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+}

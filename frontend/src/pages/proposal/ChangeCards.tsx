@@ -5,7 +5,18 @@ import type { RaceEvent } from '../../api/types/blocks'
 import { dateLabel } from '../../lib/format'
 import { RECIPE_LABELS } from '../../api/types/calendar'
 import type { ProposalDecisionResult, ProposalDetail } from '../../api/types/coach'
-import { Card } from '../../components/ui'
+import {
+  Badge,
+  Card,
+  Disclosure,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../components/ui'
+import { INDICATOR_LABELS, WhyList } from '../../components/CoachText'
 
 export function BlockChangeCard({
   change,
@@ -15,7 +26,6 @@ export function BlockChangeCard({
   checked,
   disabled,
   onChange,
-  plain,
 }: {
   change: NonNullable<ProposalDetail['block_change']>
   terminal: boolean
@@ -24,9 +34,9 @@ export function BlockChangeCard({
   checked: boolean
   disabled: boolean
   onChange: (checked: boolean) => void
-  plain: (text: string) => string
 }) {
-  const targetId = change.version_fields.target_event_id
+  const fields = change.version_fields
+  const targetId = fields.target_event_id
   const events = useQuery({
     queryKey: qk.events,
     queryFn: () => api<{ items: RaceEvent[] }>('/events'),
@@ -42,54 +52,122 @@ export function BlockChangeCard({
         : events.isError
           ? 'event unavailable'
           : 'event not found'
-  const outline = change.version_fields.build_outline ?? []
+  const outline = fields.build_outline ?? []
+  const why = fields.why ?? []
+  const indicators = fields.indicators ?? []
+  const triggers = fields.early_review_triggers ?? []
+  const qualities = fields.maintained_qualities ?? []
+  const nonGoals = fields.non_goals ?? []
+  const constraints = fields.constraints ?? []
+  const eligible = fields.eligible_recipe_ids ?? []
+  const benchmark = fields.benchmark
   return (
-    <Card>
+    <Card className="block-change-card">
       <h2>Training block: {change.decision}</h2>
-      <p>{plain(change.version_fields.objective ?? '')}</p>
-      <p>{plain(change.version_fields.rationale ?? '')}</p>
-      <p>
-        {change.version_fields.start_date} · Review{' '}
-        {change.version_fields.review_date ?? 'Not specified'}
+      <p className="block-change-summary">
+        <strong>{fields.objective ?? ''}</strong>
+        {' · '}
+        {fields.start_date ? dateLabel(fields.start_date) : 'Start not set'} →{' '}
+        {fields.review_date ? dateLabel(fields.review_date) : 'review not set'}
+        {' · '}
+        <span data-testid="builds-toward">{`Builds toward: ${builtToward}`}</span>
       </p>
-      <p data-testid="builds-toward">{`Builds toward: ${builtToward}`}</p>
+      <div className="block-change-chips">
+        {fields.status && <Badge variant="secondary">{fields.status}</Badge>}
+        {fields.progression_dimension && (
+          <Badge variant="outline">
+            Progression: {fields.progression_dimension.replaceAll('_', ' ')}
+          </Badge>
+        )}
+        {fields.objective_status && (
+          <Badge variant="outline">Objective: {fields.objective_status.replaceAll('_', ' ')}</Badge>
+        )}
+        {benchmark && (
+          <Badge variant="outline">Benchmark: {dateLabel(benchmark.planned_date)}</Badge>
+        )}
+      </div>
       {outline.length > 0 && (
         <ul aria-label="Build outline">
           {outline.map((step, index) => (
-            <li key={index}>{`${step.weeks} wk ${plain(step.emphasis)}`}</li>
+            <li key={index}>{`${step.weeks} wk ${step.emphasis}`}</li>
           ))}
         </ul>
       )}
-      <p>
-        Status: {change.version_fields.status} · Objective:{' '}
-        {change.version_fields.objective_status?.replaceAll('_', ' ')}
-      </p>
-      <p>Progression: {change.version_fields.progression_dimension?.replaceAll('_', ' ')}</p>
-      <p>
-        Eligible sessions:{' '}
-        {change.version_fields.eligible_recipe_ids
-          ?.map((id) => RECIPE_LABELS[id] ?? 'Custom session')
-          .join(', ') || 'Not specified'}
-      </p>
-      <p>
-        Maintained qualities:{' '}
-        {change.version_fields.maintained_qualities?.join(', ') || 'Not specified'}
-      </p>
-      <p>Outside this block: {change.version_fields.non_goals?.join(', ') || 'Not specified'}</p>
-      <ul>
-        {change.version_fields.constraints?.map((constraint, index) => (
-          <li key={index}>
-            {constraint.kind}: {plain(constraint.text)}
-          </li>
-        ))}
-      </ul>
-      <p>
-        Completion indicators:{' '}
-        {change.version_fields.completion_indicators?.join('; ') || 'Not specified'}
-      </p>
-      <p>
-        Earlier review: {change.version_fields.early_review_triggers?.join('; ') || 'Not specified'}
-      </p>
+      {why.length > 0 && (
+        <Disclosure className="block-change-section">
+          <summary>Why this block</summary>
+          <WhyList items={why} />
+        </Disclosure>
+      )}
+      {(indicators.length > 0 || triggers.length > 0) && (
+        <Disclosure className="block-change-section">
+          <summary>Review by</summary>
+          {indicators.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Indicator</TableHead>
+                  <TableHead>Progress when</TableHead>
+                  <TableHead>Source</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {indicators.map((item, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{item.label}</TableCell>
+                    <TableCell>{item.progress_when}</TableCell>
+                    <TableCell>{INDICATOR_LABELS[item.source]}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {triggers.length > 0 && (
+            <p>
+              <strong>Review early if:</strong>{' '}
+              {triggers.map((value, index) => (
+                <span key={index}>
+                  {index > 0 && ' · '}
+                  {value}
+                </span>
+              ))}
+            </p>
+          )}
+        </Disclosure>
+      )}
+      {(qualities.length > 0 ||
+        nonGoals.length > 0 ||
+        constraints.length > 0 ||
+        eligible.length > 0) && (
+        <Disclosure className="block-change-section">
+          <summary>Qualities, constraints, eligible sessions</summary>
+          {qualities.length > 0 && (
+            <p>
+              <strong>Maintains:</strong> {qualities.join(', ')}
+            </p>
+          )}
+          {nonGoals.length > 0 && (
+            <p>
+              <strong>Outside this block:</strong> {nonGoals.join(', ')}
+            </p>
+          )}
+          {constraints.length > 0 && (
+            <ul>
+              {constraints.map((constraint, index) => (
+                <li key={index}>
+                  {constraint.kind}: {constraint.text}
+                </li>
+              ))}
+            </ul>
+          )}
+          {eligible.length > 0 && (
+            <p>
+              <strong>Eligible sessions:</strong>{' '}
+              {eligible.map((id) => RECIPE_LABELS[id] ?? 'Custom session').join(', ')}
+            </p>
+          )}
+        </Disclosure>
+      )}
       {terminal ? (
         <p>
           {isDiscarded

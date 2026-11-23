@@ -713,7 +713,7 @@ function SessionEditor({
       return
     }
     if (!intent.trim()) {
-      setLocalError('Intent is required.')
+      setLocalError('Purpose is required.')
       return
     }
     if (duration && (!Number.isFinite(Number(duration)) || Number(duration) < 1)) {
@@ -846,7 +846,7 @@ function SessionEditor({
               </NativeSelect>
             </>
           )}
-          <label htmlFor="session-intent">Intent</label>
+          <label htmlFor="session-intent">Purpose</label>
           <Input
             id="session-intent"
             required
@@ -872,6 +872,9 @@ function SessionEditor({
           />
           <label htmlFor="session-notes">Notes</label>
           <Textarea id="session-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <small className="muted-text">
+            Only you write here; the coach reads the session brief instead.
+          </small>
         </>
       )}
       <label htmlFor="edit-reason">Reason for change (optional)</label>

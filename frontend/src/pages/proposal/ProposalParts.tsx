@@ -18,39 +18,17 @@ import { formatStep } from '../../lib/structure'
 import type { ProposalSession } from '../../api/types/coach'
 import { readStructure, sessionName, sessionDate } from './helpers'
 
-// Coach copy supports plain paragraphs and dash bullets, without interpreting HTML.
-export function CoachText({ text }: { text: string }) {
-  return (
-    <div className="proposal-copy">
-      {text
-        .split(/\n\s*\n/)
-        .filter((part) => part.trim())
-        .map((part, index) => {
-          const lines = part.trim().split('\n')
-          return lines.every((line) => /^\s*[-*] /.test(line)) ? (
-            <ul key={index}>
-              {lines.map((line, i) => (
-                <li key={i}>{line.replace(/^\s*[-*] /, '')}</li>
-              ))}
-            </ul>
-          ) : (
-            <p key={index}>{part}</p>
-          )
-        })}
-    </div>
-  )
-}
+import { CoachText } from '../../components/CoachText'
+import { SessionBrief } from '../../components/SessionBrief'
 
 export function SessionView({
   value,
   empty,
   compact = false,
-  plain,
 }: {
   value: ProposalSession | null
   empty: string
   compact?: boolean
-  plain: (text: string) => string
 }) {
   if (!value) return <p className="muted-text">{empty}</p>
   const structure = readStructure(value)
@@ -61,7 +39,7 @@ export function SessionView({
           {sessionDate(value)} · {sessionName(value)}
         </strong>
       )}
-      {value.intent && <p>{plain(value.intent)}</p>}
+      {value.intent && <p>{value.intent}</p>}
       {'planned_duration_s' in value && (
         <p>
           Duration:{' '}
@@ -78,7 +56,7 @@ export function SessionView({
             : `${(value.planned_distance_m / 1000).toFixed(2)} km`}
         </p>
       )}
-      {value.notes && <p>{plain(value.notes)}</p>}
+      {compact && value.notes && <p>{value.notes}</p>}
       {value.legacy_unstructured ? (
         <p>Imported prescription · structured comparison unavailable</p>
       ) : structure.invalid ? (
@@ -91,33 +69,28 @@ export function SessionView({
             {value.structure.map((step, index) => (
               <li key={index}>
                 {step.type === 'repeat'
-                  ? `${step.count} × (${step.steps.map((child) => plain(formatStep(child, 'km'))).join('; ')})`
-                  : plain(formatStep(step, 'km'))}
+                  ? `${step.count} × (${step.steps.map((child) => formatStep(child, 'km')).join('; ')})`
+                  : formatStep(step, 'km')}
               </li>
             ))}
           </ol>
         )
+      )}
+      {!compact && (value.brief || value.notes) && (
+        <SessionBrief brief={value.brief ?? null} notes={value.notes ?? null} layout="full" />
       )}
     </div>
   )
 }
 
 const shortDate = (d: string) => dateLabel(d, { weekday: 'short', month: 'short', day: 'numeric' })
-function TextList({
-  title,
-  items,
-  plain,
-}: {
-  title: string
-  items: string[]
-  plain: (t: string) => string
-}) {
+function TextList({ title, items }: { title: string; items: string[] }) {
   return (
     <>
       <h3>{title}</h3>
       <ul>
         {items.map((item, i) => (
-          <li key={i}>{plain(item)}</li>
+          <li key={i}>{item}</li>
         ))}
       </ul>
     </>
@@ -126,11 +99,9 @@ function TextList({
 export function ExceptionCard({
   exc,
   sessions,
-  plain,
 }: {
   exc: ProposalException
   sessions: SessionState[]
-  plain: (t: string) => string
 }) {
   return (
     <Card className="proposal-exception" data-testid="proposal-exception">
@@ -140,11 +111,11 @@ export function ExceptionCard({
         <Badge>{SEVERITY_LABELS[exc.severity]}</Badge> <span>Confidence: {exc.confidence}</span>
       </p>
       <h3>Why now</h3>
-      <CoachText text={plain(exc.triggering_evidence)} />
+      <CoachText text={exc.triggering_evidence} />
       {exc.relevant_context && (
         <>
           <h3>Context</h3>
-          <CoachText text={plain(exc.relevant_context)} />
+          <CoachText text={exc.relevant_context} />
         </>
       )}
       <h3>Plan impact</h3>
@@ -161,7 +132,7 @@ export function ExceptionCard({
               return (
                 <li key={item.session_uid}>
                   {s ? `${shortDate(s.local_date)} · ${sessionTitle(s)}` : 'Session'} —{' '}
-                  {plain(item.reason)}
+                  {item.reason}
                 </li>
               )
             })}
@@ -171,9 +142,9 @@ export function ExceptionCard({
       <p>
         <strong>Reassess on {shortDate(exc.reassess_on)}</strong>
       </p>
-      <TextList title="Watch for" items={exc.monitor} plain={plain} />
-      <TextList title="Back to plan when" items={exc.return_criteria} plain={plain} />
-      <TextList title="Escalate if" items={exc.escalate_criteria} plain={plain} />
+      <TextList title="Watch for" items={exc.monitor} />
+      <TextList title="Back to plan when" items={exc.return_criteria} />
+      <TextList title="Escalate if" items={exc.escalate_criteria} />
     </Card>
   )
 }
@@ -181,11 +152,9 @@ export function ExceptionCard({
 export function EventReviewCard({
   review,
   operation,
-  plain,
 }: {
   review: ProposalEventReview
   operation: string
-  plain: (t: string) => string
 }) {
   const rows: [string, string | null][] = [
     ['Outcome', review.outcome ? OUTCOME_LABELS[review.outcome] : null],
@@ -208,7 +177,7 @@ export function EventReviewCard({
             <div key={label}>
               <dt>{label}</dt>
               <dd>
-                <CoachText text={plain(value!)} />
+                <CoachText text={value!} />
               </dd>
             </div>
           ))}
@@ -216,13 +185,7 @@ export function EventReviewCard({
     </Card>
   )
 }
-export function PatchUpdates({
-  items,
-  plain,
-}: {
-  items: ProposalPatchResolution[]
-  plain: (t: string) => string
-}) {
+export function PatchUpdates({ items }: { items: ProposalPatchResolution[] }) {
   return (
     <Card className="proposal-patch-updates" data-testid="proposal-patch-updates">
       <h2>Patch updates</h2>
@@ -230,7 +193,7 @@ export function PatchUpdates({
         {items.map((item) => (
           <li key={item.patch_id}>
             <Badge>{item.status === 'resolved' ? 'Resolved' : 'Escalated'}</Badge>
-            <CoachText text={plain(item.note)} />
+            <CoachText text={item.note} />
           </li>
         ))}
       </ul>

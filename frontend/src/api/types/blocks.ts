@@ -1,3 +1,4 @@
+import type { CitedSource, Why } from './coachText'
 import type { BenchmarkOutcome } from './exceptions'
 export type GoalHorizon = '3_6_months' | 'season' | 'long_term'
 export interface Goal {
@@ -70,13 +71,21 @@ export interface StrengthRoutine {
   suggested: boolean
   schedule: ConfirmedSchedule
 } // [DTO fixed here] version 0 + suggested=true: nothing saved, slots pre-filled from Strong (D13)
+export type IndicatorSource =
+  'quality_progression' | 'aerobic_efficiency' | 'key_sessions' | 'rpe_vs_intent' | 'other'
+export interface Indicator {
+  source: IndicatorSource
+  label: string
+  progress_when: string
+}
+
 export interface BlockVersion {
   id: string
   block_uid: string
   version: number
   status: 'draft' | 'active' | 'consolidating' | 'completed' | 'replaced' | 'ended'
   objective: string
-  rationale: string
+  why: Why[]
   maintained_qualities: string[]
   non_goals: string[]
   eligible_recipe_ids: string[]
@@ -84,8 +93,9 @@ export interface BlockVersion {
   constraints: { kind: string; text: string }[]
   start_date: string
   review_date: string
-  completion_indicators: string[]
+  indicators: Indicator[]
   early_review_triggers: string[]
+  legacy_text: string | null
   objective_status: string
   created_at: string
   proposal_id: string | null
@@ -96,6 +106,10 @@ export interface BlockVersion {
   target_event?: TargetEvent | null
   target_event_status?: TargetEventStatus
 }
+export interface ActiveBlock extends BlockVersion {
+  sources: CitedSource[]
+}
+
 export const HORIZON_LABELS: Record<GoalHorizon, string> = {
   '3_6_months': '3–6 months',
   season: 'Season',
