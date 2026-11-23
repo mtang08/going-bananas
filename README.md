@@ -148,6 +148,12 @@ that a successful connection means complete history. Source-invalid records
 remain excluded and visibly affect coverage. Missing recovery observations are
 unknown. Re-imports preserve source revisions and avoid double-counting.
 
+When sync finds a new treadmill run, open its pace review from the sync panel.
+Check the Garmin laps, enter a pace for each interval you want to correct, and
+confirm to import the run. You can also confirm the recorded paces as shown.
+Confirmation saves the run and triggers its metric calculations. Interval
+corrections preserve the overall distance and pace calibrated on your watch.
+
 Startup catch-up and the worker use the same persistent jobs as manual sync.
 For a daily macOS schedule, `scripts/com.local.garmin-sync.plist.example` is a
 secret-free template pointing to `scripts/launchd-sync.sh`; see

@@ -418,6 +418,23 @@ describe('Activity execution', () => {
       '—',
     ])
   })
+
+  it('shows corrected treadmill lap pace without a plan link', async () => {
+    fixture = {
+      ...base,
+      activity: { ...base.activity, sport: 'treadmill_running' },
+      planned: null,
+      completion: null,
+      planned_actual: null,
+      intervals: null,
+      laps: [{ ...base.laps[0], avg_speed_mps: 3, confirmed_pace_s_per_mile: 455 }],
+    }
+    mount()
+    const laps = await screen.findByTestId('activity-laps')
+    laps.setAttribute('open', '')
+    expect(within(laps).getByRole('cell', { name: /7:35 \/mi\s*Corrected/ })).toBeVisible()
+    expect(within(laps).queryByText('8:56 /mi')).toBeNull()
+  })
   it('shows watch and planned steps when structure mismatches', async () => {
     fixture = {
       ...base,
@@ -479,7 +496,7 @@ describe('Activity execution', () => {
       await screen.findByRole('heading', { name: 'Treadmill run · Sunday, November 8' }),
     ).toBeInTheDocument()
     expect(screen.getByText('Treadmill: pace not scored')).toBeInTheDocument()
-    expect(screen.getByText('Treadmill: pace estimated by the watch')).toBeInTheDocument()
+    expect(screen.getByText('Treadmill run', { exact: true })).toBeInTheDocument()
   })
   it('makes missing FIT evidence explicit while retaining summary', async () => {
     fixture = {

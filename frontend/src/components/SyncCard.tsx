@@ -1,11 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { ApiError, api, post } from '../api/client'
-import { dateLabel } from '../lib/format'
+import { dateLabel, type Unit } from '../lib/format'
 import { invalidateKeys, qk, refreshAfterSync } from '../api/queryKeys'
 import type { SyncJob, SyncStatus } from '../api/types/sync'
 import { QueryState } from './QueryState'
+import { TreadmillReviewDialog } from './TreadmillReviewDialog'
 import { relativeTime, stateLabel } from './shared'
 import { Badge, Button, Card } from './ui'
 
@@ -40,12 +41,14 @@ async function loadStatus(ids: string[]) {
   return { status, results }
 }
 
-export function SyncCard({ compact = false }: { compact?: boolean }) {
+export function SyncCard({ compact = false, unit = 'mi' }: { compact?: boolean; unit?: Unit }) {
   const qc = useQueryClient()
+  const [reviewId, setReviewId] = useState<string | null>(null)
   const pending = useCached<string[]>(qk.syncPending, [])
   const outcome = useCached<string | null>(qk.syncOutcome, null)
+  const statusKey = pending.length ? qk.syncBatch(pending) : qk.sync
   const status = useQuery({
-    queryKey: pending.length ? qk.syncBatch(pending) : qk.sync,
+    queryKey: statusKey,
     queryFn: () => loadStatus(pending),
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
@@ -81,7 +84,9 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
           ? 'A sync job is unavailable. Check the dataset status.'
           : partial
             ? 'Sync finished with incomplete data. Check the dataset status.'
-            : 'Sync finished. Training data has been refreshed.',
+            : completed.status.data.pending_treadmill_runs?.length
+              ? 'Sync finished. Review treadmill runs to import them.'
+              : 'Sync finished. Training data has been refreshed.',
     )
     invalidateKeys(qc, refreshAfterSync)
   }, [pending.length, completed, qc])
@@ -89,6 +94,7 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
   const real = status.data?.status.mode === 'real'
   const datasets = status.data?.status.data.datasets ?? []
   const activeJobs = status.data?.status.data.active_jobs ?? []
+  const pendingRuns = status.data?.status.data.pending_treadmill_runs ?? []
   const lastSuccess = datasets.reduce<string | null>(
     (latest, d) =>
       d.last_success_at && (!latest || Date.parse(d.last_success_at) > Date.parse(latest))
@@ -117,6 +123,59 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
       )}
     </>
   )
+  const reviews = (
+    <>
+      {pendingRuns.length > 0 && (
+        <div
+          className="flex w-full flex-wrap gap-2"
+          role="group"
+          aria-label="Treadmill runs awaiting review"
+        >
+          {pendingRuns.map((run) => (
+            <Button
+              key={run.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setReviewId(run.id)}
+            >
+              Review treadmill run · {dateLabel(run.local_date)}
+            </Button>
+          ))}
+        </div>
+      )}
+      {reviewId && (
+        <TreadmillReviewDialog
+          key={reviewId}
+          id={reviewId}
+          unit={unit}
+          close={() => setReviewId(null)}
+          onImported={() => {
+            qc.setQueryData(qk.syncOutcome, 'Treadmill run imported.')
+            qc.setQueryData<Awaited<ReturnType<typeof loadStatus>>>(statusKey, (current) => {
+              if (!current) return current
+              const { status } = current
+              return {
+                ...current,
+                status: {
+                  ...status,
+                  data: {
+                    ...status.data,
+                    pending_treadmill_runs: status.data.pending_treadmill_runs.filter(
+                      (run) => run.id !== reviewId,
+                    ),
+                  },
+                },
+              }
+            })
+            void status.refetch()
+            invalidateKeys(qc, refreshAfterSync)
+            setReviewId(null)
+          }}
+        />
+      )}
+    </>
+  )
 
   if (compact)
     return (
@@ -133,6 +192,7 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
         )}
         {button}
         {messages}
+        {reviews}
       </div>
     )
 
@@ -153,6 +213,7 @@ export function SyncCard({ compact = false }: { compact?: boolean }) {
           </Button>
         )}
         {messages}
+        {reviews}
         {activeJobs.length > 0 && (
           <div className="sync-jobs">
             {activeJobs.map((job) => (

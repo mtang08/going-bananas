@@ -295,6 +295,54 @@ def _reconcile(session: Session, account: SourceAccount, identity: str, garmin_i
     return changed
 
 
+def garmin_page_scope(records: list[dict[str, Any]], account_scope: str) -> str:
+    owners = {str(item.get("ownerId")) for item in records if item.get("ownerId") is not None}
+    if len(owners) != 1 or any(item.get("ownerId") is None for item in records):
+        raise ValueError("missing_or_mixed_garmin_owner")
+    verified_scope = "garmin-owner:" + next(iter(owners))
+    if account_scope != "auto" and account_scope != verified_scope:
+        raise ValueError("mixed_source_account")
+    return verified_scope
+
+
+def _partition_activity_page(
+    session: Session, page: list[dict[str, Any]], account_scope: str, timezone: str
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, str]], list[datetime]]:
+    if not page:
+        return [], {}, []
+    scope = garmin_page_scope(page, account_scope)
+    account = session.scalar(select(SourceAccount).where(SourceAccount.provider == "garmin"))
+    if account is not None and account.account_scope != scope:
+        raise ValueError("mixed_source_account")
+    existing = (
+        set(
+            session.scalars(
+                select(Activity.garmin_id).where(
+                    Activity.source_account_id == account.id,
+                    Activity.garmin_id.in_(str(item.get("activityId") or item.get("id")) for item in page),
+                )
+            )
+        )
+        if account is not None
+        else set()
+    )
+    ready = []
+    pending = {}
+    observed = []
+    for item in page:
+        try:
+            activity = parse_activity(item, timezone)
+        except InvalidRecord:
+            ready.append(item)
+            continue
+        if activity.subtype == "treadmill_running" and activity.provider_id and activity.provider_id not in existing:
+            pending[activity.provider_id] = {"local_date": activity.local_date, "account_scope": scope}
+        else:
+            ready.append(item)
+            observed.append(activity.start_at)
+    return ready, pending, observed
+
+
 def import_activity_page(
     session: Session,
     private_dir: Path,
@@ -320,14 +368,8 @@ def import_activity_page(
     global_write_lock(session)
     if timezone is None:
         timezone = timezone_name(session)
-    if source_kind == "garmin_api" and records:
-        owners = {str(item.get("ownerId")) for item in records if item.get("ownerId") is not None}
-        if len(owners) != 1 or any(item.get("ownerId") is None for item in records):
-            raise ValueError("missing_or_mixed_garmin_owner")
-        verified_scope = "garmin-owner:" + next(iter(owners))
-        if account_scope != "auto" and account_scope != verified_scope:
-            raise ValueError("mixed_source_account")
-        account_scope = verified_scope
+    if source_kind == "garmin_api":
+        account_scope = garmin_page_scope(records, account_scope)
     account = _account(session, "garmin" if source_kind.startswith("garmin") else source_kind, account_scope)
     now = fetched_at or datetime.now(UTC)
     counts = {"seen": 0, "new_revisions": 0, "changed": 0, "rejected": 0}
@@ -821,6 +863,8 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                     return _run_recovery_job(source, job, private_dir)
                 if job.dataset != "activities":
                     raise ValueError("unsupported_dataset")
+                from app.services.treadmill_review import resolve_imported_reviews
+
                 offset = int(job.checkpoint.get("offset", 0))
                 seen_pages: set[tuple[str, ...]] = set()
                 for _ in range(200):
@@ -850,17 +894,20 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                         raise ValueError("repeated_activity_page")
                     seen_pages.add(signature)
                     with SessionLocal() as page_session:
+                        global_write_lock(page_session)
                         current = _required(page_session.get(SyncJob, job_id, with_for_update=True))
+                        timezone = timezone_name(page_session)
+                        ready, pending, observed = _partition_activity_page(page_session, page, account_scope, timezone)
                         batch = ImportBatch(source_kind="garmin_api", status="running", adapter_version=PARSER_VERSION)
                         page_session.add(batch)
                         page_session.flush()
                         counts = import_activity_page(
                             page_session,
                             private_dir,
-                            page,
+                            ready,
                             account_scope=account_scope,
                             batch=batch,
-                            timezone=timezone_name(page_session),
+                            timezone=timezone,
                         )
                         batch.status = "complete"
                         batch.finished_at = datetime.now(UTC)
@@ -870,45 +917,57 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                             for key in set(current.counters) | set(counts)
                         }
                         offset += len(page)
-                        current.checkpoint = {"offset": offset, "attempts": 0}
+                        current.checkpoint = {
+                            **current.checkpoint,
+                            "offset": offset,
+                            "attempts": 0,
+                            **(
+                                {"pending_treadmill": {**current.checkpoint.get("pending_treadmill", {}), **pending}}
+                                if pending
+                                else {}
+                            ),
+                        }
+                        if ready:
+                            resolve_imported_reviews(
+                                page_session, {str(item.get("activityId") or item.get("id")) for item in ready}
+                            )
                         current.heartbeat_at = datetime.now(UTC)
                         state = _required(page_session.get(SyncState, "activities"))
-                        observed = []
-                        for item in page:
-                            try:
-                                observed.append(parse_activity(item, timezone_name(page_session)).start_at)
-                            except InvalidRecord:
-                                continue
                         if observed:
                             newest = max(observed)
                             if state.newest_observation_at is None or newest > state.newest_observation_at:
                                 state.newest_observation_at = newest
                         page_session.commit()
-                    _ingest_fit_page(source, private_dir, page)
+                    _ingest_fit_page(source, private_dir, ready)
                     if len(page) < 50:
                         with SessionLocal() as final:
+                            global_write_lock(final)
                             current = _required(final.get(SyncJob, job_id, with_for_update=True))
                             partial = current.counters.get("rejected", 0) > 0
                             current.status = "partial" if partial else "complete"
                             current.finished_at = datetime.now(UTC)
                             current.error_code = "rejected_records" if partial else None
+                            pending_review = bool(current.checkpoint.get("pending_treadmill"))
+                            reason = current.error_code or ("treadmill_review_pending" if pending_review else None)
                             state = _required(final.get(SyncState, "activities"))
-                            state.status = "partial" if partial else "complete"
-                            state.reason = "rejected_records" if partial else None
-                            if not partial:
+                            state.status = "partial" if reason else "complete"
+                            state.reason = reason
+                            if not reason:
                                 state.last_success_at = datetime.now(UTC)
                             state.fully_enumerated = True
-                            final.add(
-                                CoverageInterval(
-                                    dataset="activities",
-                                    start_date=first,
-                                    end_date=last,
-                                    status="partial" if partial else "complete",
-                                    reason="rejected_records" if partial else None,
-                                    completed_at=datetime.now(UTC),
-                                    fully_enumerated=True,
-                                )
+                            coverage = CoverageInterval(
+                                dataset="activities",
+                                start_date=first,
+                                end_date=last,
+                                status=state.status,
+                                completed_at=datetime.now(UTC),
+                                reason=reason,
+                                fully_enumerated=True,
                             )
+                            final.add(coverage)
+                            if reason == "treadmill_review_pending":
+                                final.flush()
+                                current.checkpoint = {**current.checkpoint, "pending_coverage_id": str(coverage.id)}
                             final.commit()
                         return "partial" if partial else "complete"
                 raise ValueError("activity_page_limit")
@@ -928,6 +987,7 @@ def run_one_job(private_dir: Path, key_file: Path, account_scope: str) -> str | 
                 )
             )
             with SessionLocal() as failed:
+                global_write_lock(failed)
                 current = _required(failed.get(SyncJob, job_id, with_for_update=True))
                 current.status = "failed"
                 current.error_code = safe

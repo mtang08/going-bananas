@@ -317,3 +317,135 @@ def test_duplicate_activity_coverage_advances_prompt_clock(
         session.commit()
         assert prompt.status == "expired"
         assert not calls
+
+
+def test_only_new_treadmill_runs_wait_for_confirmed_interval_paces(
+    api_client, session_factory, db_connection, tmp_path, monkeypatch, frozen_metrics
+):
+    from app.adapters.garmin.fit import DecodedFit, DecodedLap, DecodedSession, DecodedStream
+    from app.fit_models import ActivityLap
+    from app.models import SourceRecord
+    from app.read.treadmill_intervals import confirmed_lap_paces
+    from app.services import fit_ingest, treadmill_review
+
+    records = [
+        {
+            "activityId": str(index),
+            "activityName": "Fixture run",
+            "ownerId": 17701,
+            "startTimeGMT": NOW.isoformat(),
+            "activityType": {"typeKey": sport},
+            "distance": 3500,
+            "movingDuration": 1100,
+            "elapsedDuration": 1200,
+        }
+        for index, sport in enumerate(("treadmill_running", "running", "track_running", "indoor_running"), 1)
+    ]
+    decoded = DecodedFit(
+        fit_sha256="a" * 64,
+        profile_version="test",
+        sdk_version="test",
+        session=DecodedSession(NOW, "treadmill_running", timer_s=1110, distance_m=2700),
+        laps=tuple(
+            DecodedLap(index, NOW + timedelta(seconds=index * 120), timer_s=120, avg_speed_mps=3.0)
+            for index in range(2)
+        ),
+        steps=(),
+        stream=DecodedStream((), (), (), (), (), (), (), 0, 0, ()),
+        message_inventory={},
+        device={},
+        field_names={},
+    )
+    downloads = []
+
+    class SyntheticGarmin:
+        def search_page(self, offset, limit, first, last):
+            return records
+
+        def pages(self, first, last):
+            yield 0, records
+
+        def download_activity(self, activity_id):
+            downloads.append(activity_id)
+            return f"synthetic ZIP {activity_id}".encode()
+
+    lock_connection = SimpleNamespace(execute=db_connection.execute, commit=lambda: None)
+    monkeypatch.setattr(sync, "engine", SimpleNamespace(connect=lambda: nullcontext(lock_connection)))
+    monkeypatch.setattr(sync, "Session", lambda *, bind, **options: session_factory(**options))
+    monkeypatch.setattr(sync, "SessionLocal", session_factory)
+    for module in (sync, treadmill_review):
+        monkeypatch.setattr(module, "GarminPersonalSource", lambda *_: nullcontext(SyntheticGarmin()))
+    for module in (fit_ingest, treadmill_review):
+        monkeypatch.setattr(module, "extract_fit", lambda archive: archive.replace(b"ZIP", b"FIT"))
+        monkeypatch.setattr(module, "decode_fit", lambda *_: decoded)
+    monkeypatch.setattr(sync_api, "settings", SimpleNamespace(app_mode="real", private_dir=tmp_path))
+    with session_factory() as session:
+        sync.enqueue_sync(session, TODAY, TODAY)
+        session.commit()
+
+    assert sync.run_one_job(tmp_path, tmp_path / "unused-key", "auto") == "complete"
+    assert downloads == ["2", "3", "4"]
+    client = api_client(sync_api.router)
+    status_url = "/api/v1/sync/status"
+    review_url = "/api/v1/sync/treadmill-review/1"
+    assert client.get(status_url).json()["data"]["pending_treadmill_runs"] == [
+        {"id": "1", "local_date": TODAY.isoformat()}
+    ]
+    preview = client.get(review_url)
+    assert preview.status_code == 200, preview.text
+    data = preview.json()["data"]
+    assert data["distance_m"] == 3500
+    assert data["timer_s"] == 1110
+    assert [lap["lap_index"] for lap in data["intervals"]] == [0, 1]
+    with session_factory() as session:
+        assert set(session.scalars(select(Activity.garmin_id))) == {"2", "3", "4"}
+        assert session.scalar(select(SourceRecord.id).where(SourceRecord.source_identity == "garmin:1")) is None
+        assert len(list((tmp_path / "raw").rglob("*.json"))) == 3
+        assert session.scalar(select(CoverageInterval.status)) == "partial"
+
+    changes = [
+        {"lap_index": 0, "pace_seconds_per_mile": 500},
+        {"lap_index": 1, "pace_seconds_per_mile": 490},
+    ]
+    assert client.post(review_url, json={"preview_token": "stale", "paces": changes}).status_code == 409
+    token = data["preview_token"]
+    invalid = [{"lap_index": 3, "pace_seconds_per_mile": 500}]
+    assert client.post(review_url, json={"preview_token": token, "paces": invalid}).status_code == 422
+    saved = client.post(review_url, json={"preview_token": token, "paces": changes})
+    assert saved.status_code == 200, saved.text
+    assert downloads == ["2", "3", "4", "1"]
+    assert client.get(status_url).json()["data"]["pending_treadmill_runs"] == []
+    with session_factory() as session:
+        activity = session.scalar(select(Activity).where(Activity.garmin_id == "1"))
+        assert activity is not None
+        assert str(activity.id) == saved.json()["data"]["activity_id"]
+        assert (activity.distance_m, activity.elapsed_s, activity.moving_s, activity.timer_s) == (
+            3500,
+            1200,
+            1100,
+            1110,
+        )
+        laps = list(session.scalars(select(ActivityLap).where(ActivityLap.activity_id == activity.id)))
+        assert confirmed_lap_paces(activity, laps) == {0: 500, 1: 490}
+        assert [lap.avg_speed_mps for lap in laps] == [3.0, 3.0]
+        assert session.scalar(select(CoverageInterval.status)) == "complete"
+
+    # An already confirmed treadmill is a normal replay. A newly pending ID
+    # can also be imported normally if Garmin later reclassifies it as track.
+    records.append({**records[0], "activityId": "5"})
+    with session_factory() as session:
+        sync.enqueue_sync(session, TODAY, TODAY)
+        session.commit()
+    assert sync.run_one_job(tmp_path, tmp_path / "unused-key", "auto") == "complete"
+    assert client.get(status_url).json()["data"]["pending_treadmill_runs"] == [
+        {"id": "5", "local_date": TODAY.isoformat()}
+    ]
+    records[-1]["activityType"] = {"typeKey": "track_running"}
+    with session_factory() as session:
+        sync.enqueue_sync(session, TODAY, TODAY)
+        session.commit()
+    assert sync.run_one_job(tmp_path, tmp_path / "unused-key", "auto") == "complete"
+    assert client.get(status_url).json()["data"]["pending_treadmill_runs"] == []
+    with session_factory() as session:
+        assert session.scalar(select(Activity.subtype).where(Activity.garmin_id == "5")) == "track_running"
+        assert set(session.scalars(select(CoverageInterval.status))) == {"complete"}

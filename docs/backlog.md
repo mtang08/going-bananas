@@ -276,6 +276,34 @@ The fixture uses synthetic Garmin responses and immediate worker pickup. The
 74.7 s measurement above is the original live observation.
 [Benchmark and regression cases](../backend/tests/integration/test_incremental_sync_refresh.py)
 
+### IDEA-012 — Manual pace overrides for treadmill runs
+
+Recorded and implemented 2026-11-22. Priority: High.
+
+**Problem / context**
+The athlete reports that Garmin records inaccurate paces on treadmill runs.
+Accurate interval paces are especially important when reviewing what they ran
+during a workout.
+
+**Desired behavior**
+When Garmin sync finds a new treadmill run, let the athlete review the intervals
+and correct their paces before importing the activity and computing its metrics.
+Show the saved corrections when the athlete reopens the run.
+
+**Acceptance checks**
+- Sync a treadmill workout, an outdoor run, and a track run. The outdoor and
+  track runs import normally and the treadmill run waits for confirmation.
+- Enter different paces for two intervals, confirm, and reopen the activity.
+  Each interval shows its saved correction alongside the watch-calibrated run totals.
+
+**Constraints**
+Overrides apply to treadmill runs and must support individual intervals.
+The athlete calibrates the overall pace and distance manually on the Garmin
+watch when recording the run. Interval edits preserve those calibrated totals.
+
+**Open questions**
+Should the athlete be able to enter treadmill belt speed as well as pace?
+
 ## Coaching depth and evaluation
 
 ### Product direction — dashboards plus conversational coaching (IDEA-004)

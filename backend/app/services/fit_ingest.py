@@ -146,6 +146,12 @@ def ingest_activity_fit(session: Session, source: FitSource, private_dir: Path, 
     if not isinstance(zip_bytes, bytes):
         locked, fit = _locked_rows(session, activity.id)
         return _set_error(locked, fit, "invalid_fit_download_shape", now)
+    return ingest_activity_fit_bytes(session, private_dir, activity, zip_bytes)
+
+
+def ingest_activity_fit_bytes(session: Session, private_dir: Path, activity: Activity, zip_bytes: bytes) -> str:
+    """Persist and decode the same FIT ZIP that was previewed before confirmation."""
+    now = datetime.now(UTC)
     digest, relative = store_fit_zip(private_dir, zip_bytes)
     locked, fit = _locked_rows(session, activity.id)
     raw = _raw_object(session, digest, relative, len(zip_bytes))

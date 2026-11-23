@@ -84,6 +84,26 @@ def test_treadmill_flag_added_without_changing_scoring() -> None:
     assert treadmill["value"]["reps"][0]["mean_speed_mps"] == 3.84
 
 
+def test_treadmill_confirmed_lap_pace_updates_rep_speed() -> None:
+    plan, fit, laps, stream = example()
+    confirmed = {1: 420, 3: 400, 5: 400, 7: 420}
+    laps = [replace(lap, confirmed_pace_s_per_mile=confirmed.get(lap.lap_index)) for lap in laps]
+    outcome = execution_outcome(plan, fit, laps, stream, "treadmill_running")
+    value = outcome["value"]
+    reps = value["reps"]
+    assert [rep["mean_speed_mps"] for rep in reps] == [3.832, 4.023, 4.023, 3.832]
+    assert [rep["in_target"] for rep in reps] == [True, False, False, True]
+    assert [rep["hr_median_bpm"] for rep in reps] == [160, 161, 162, 163]
+    assert value["target_coverage"] is None
+    assert value["completed_work_s"] == 1200
+    assert value["completed_work_m"] == 4608
+    assert value["last_first_change_pct"] == 0
+    assert "TREADMILL_PACE_CONFIRMED" in outcome["quality_flags"]
+    without_stream = execution_outcome(plan, fit, laps, None, "treadmill_running")
+    assert without_stream["value"]["reps"][0]["mean_speed_mps"] == 3.832
+    assert without_stream["value"]["reps"][0]["speed_status"] == "available"
+
+
 def test_ex1_numeric_and_mapping() -> None:
     plan, fit, laps, stream = example()
     outcome = execution_outcome(plan, fit, laps, stream)
@@ -379,6 +399,24 @@ def test_split_work_rep_combines_measurements() -> None:
     assert rep["fully_completed"] is True
     assert rep["hr_median_bpm"] == 161
     assert rep["mean_speed_mps"] == 3.88
+
+
+def test_split_treadmill_work_rep_uses_confirmed_and_watch_lap_speeds() -> None:
+    plan, fit, laps, stream = example()
+    split = [
+        *laps[:3],
+        replace(laps[3], timer_s=100, elapsed_s=100, distance_m=388, confirmed_pace_s_per_mile=400),
+        replace(laps[3], start_offset_s=1120, timer_s=200, elapsed_s=200, distance_m=776),
+        *laps[4:],
+    ]
+    split = [replace(lap, lap_index=i) for i, lap in enumerate(split)]
+    corrected = execution_outcome(plan, fit, split, stream, "treadmill_running")["value"]["reps"][1]
+    assert corrected["mean_speed_mps"] == 3.928
+    assert corrected["actual_distance_m"] == 1164
+    split[4] = replace(split[4], distance_m=None)
+    incomplete = execution_outcome(plan, fit, split, stream, "treadmill_running")["value"]["reps"][1]
+    assert incomplete["mean_speed_mps"] is None
+    assert incomplete["speed_reason_codes"] == ["LAP_SPEED_MISSING"]
 
 
 def test_no_indexed_laps_not_assessable() -> None:

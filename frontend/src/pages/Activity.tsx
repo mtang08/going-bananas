@@ -21,6 +21,7 @@ import {
   fmtPaceFromSpeed,
   fmtPercent,
   fmtRpe,
+  pace,
   signatureLabel,
   sportLabel,
   statusText,
@@ -431,7 +432,14 @@ export function Activity({
                         <TableCell>
                           {lap.distance_m == null ? MISSING : distance(lap.distance_m, unit, 2)}
                         </TableCell>
-                        <TableCell>{fmtPaceFromSpeed(lap.avg_speed_mps, unit)}</TableCell>
+                        <TableCell>
+                          {lap.confirmed_pace_s_per_mile == null
+                            ? fmtPaceFromSpeed(lap.avg_speed_mps, unit)
+                            : pace(lap.confirmed_pace_s_per_mile / 1.609344, unit)}
+                          {lap.confirmed_pace_s_per_mile != null && (
+                            <span className="ml-1 text-xs text-muted-foreground"> Corrected</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {lap.avg_hr_bpm == null ? MISSING : `${Math.round(lap.avg_hr_bpm)} bpm`}
                         </TableCell>

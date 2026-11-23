@@ -48,6 +48,7 @@ export const qk = {
   syncBatch: (ids: string[]) => ['sync', 'batch', ids] as const,
   syncPending: ['sync', 'pending'] as const,
   syncOutcome: ['sync', 'outcome'] as const,
+  treadmillReview: (id: string) => ['sync', 'treadmill-review', id] as const,
 }
 
 // Everything a sync can change. Settings data (goals, events, anchors, routine, profile) is excluded.

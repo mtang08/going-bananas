@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, time
-from typing import Any
+from typing import Any, TypedDict
 
 from sqlalchemy import (
     Boolean,
@@ -108,6 +108,11 @@ class SourceRecord(Base):
     rejected_reason: Mapped[str | None] = mapped_column(String(100))
 
 
+class TreadmillLapPace(TypedDict):
+    lap_identity: str
+    pace_s_per_mile: float
+
+
 class Activity(Base):
     __tablename__ = "activities"
     __table_args__ = (
@@ -132,6 +137,7 @@ class Activity(Base):
     sport: Mapped[str] = mapped_column(String(50), nullable=False)
     subtype: Mapped[str | None] = mapped_column(String(80))
     distance_m: Mapped[float | None] = mapped_column(Float)
+    treadmill_interval_paces: Mapped[dict[str, TreadmillLapPace] | None] = mapped_column(JSONB)
     elapsed_s: Mapped[float | None] = mapped_column(Float)
     timer_s: Mapped[float | None] = mapped_column(Float)
     end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

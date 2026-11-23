@@ -50,7 +50,7 @@ export function PlanningSettings({ unit, setUnit }: { unit: Unit; setUnit: (unit
           Strength routine saved.
         </p>
       )}
-      <SyncCard />
+      <SyncCard unit={unit} />
       <QueryState
         loading={calendar.isPending || profile.isPending || routine.isPending}
         error={calendar.error || profile.error || routine.error}

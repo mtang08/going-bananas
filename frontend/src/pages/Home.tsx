@@ -166,7 +166,7 @@ export function Home({
         </div>
       </div>
       <div className="home-status" data-testid="home-status">
-        <SyncCard compact />
+        <SyncCard compact unit={unit} />
       </div>
       <div className="home-gauges">
         <QueryState

@@ -205,6 +205,7 @@ export interface Lap {
   elapsed_s: number | null
   distance_m: number | null
   avg_speed_mps: number | null
+  confirmed_pace_s_per_mile?: number | null
   avg_hr_bpm: number | null
   max_hr_bpm: number | null
   lap_trigger: string | null

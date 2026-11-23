@@ -17,11 +17,12 @@ from app.db import get_session, global_read_lock
 from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.errors import fail
-from app.fit_models import ActivityLap, ActivityWorkoutStep
+from app.fit_models import ActivityWorkoutStep
 from app.metric_models import MetricConfig, MetricResult
 from app.metrics import engine, refresh
 from app.models import Activity
 from app.read.calendar import head_version
+from app.read.treadmill_intervals import activity_laps, confirmed_lap_paces
 from app.services import calendar, workout_progression
 from app.services.timezone import athlete_tz
 
@@ -119,18 +120,27 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
         rpes["garmin_fit"] = activity.workout_rpe
     effective = rpes.get("manual", rpes.get("garmin_fit"))
 
-    def decoded(model: Any, index: str) -> list[dict]:
-        rows: Any = session.scalars(
-            select(model).where(model.activity_id == activity_id).order_by(getattr(model, index))
-        )
+    def decoded(rows: Any) -> list[dict]:
         return [
             {
                 column.key: getattr(row, column.key)
-                for column in model.__table__.columns
+                for column in row.__table__.columns
                 if column.key not in {"id", "activity_id"}
             }
             for row in rows
         ]
+
+    lap_rows = activity_laps(session, activity_id)
+    laps = decoded(lap_rows)
+    if activity.sport == "treadmill_running":
+        confirmed_paces = confirmed_lap_paces(activity, lap_rows)
+        for lap in laps:
+            lap["confirmed_pace_s_per_mile"] = confirmed_paces.get(lap["lap_index"])
+    watch_rows = session.scalars(
+        select(ActivityWorkoutStep)
+        .where(ActivityWorkoutStep.activity_id == activity_id)
+        .order_by(ActivityWorkoutStep.message_index)
+    )
 
     return {
         "activity": {
@@ -146,8 +156,8 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
         },
         "planned": planned,
         "completion": calendar.completion_data(session, completion) if completion else None,
-        "laps": decoded(ActivityLap, "lap_index"),
-        "watch_steps": decoded(ActivityWorkoutStep, "message_index"),
+        "laps": laps,
+        "watch_steps": decoded(watch_rows),
         "planned_actual": planned_actual,
         "intervals": metrics["work_interval_execution"],
         "intensity": metrics["intensity_time_distribution"],

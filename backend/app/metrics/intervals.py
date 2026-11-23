@@ -16,7 +16,7 @@ from app.calendar_models import SessionCompletion
 from app.config import settings
 from app.domain.calendar_structure import expand_structure
 from app.domain.sports import RUN_SPORTS
-from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep
+from app.fit_models import ActivityStream, ActivityWorkoutStep
 from app.metrics.contract import (
     MetricResultData,
     QualityStatus,
@@ -32,11 +32,13 @@ from app.metrics.engine import register
 from app.metrics.lap_alignment import AlignLap, align_laps
 from app.models import Activity, ActivityAnnotation, ActivitySource, RawObject, SourceRecord
 from app.read.calendar import head_version, latest_revision
+from app.read.treadmill_intervals import activity_laps, confirmed_lap_paces
 
 METRIC_ID = "work_interval_execution"
 METHOD_VERSION = "v2"
 WINDOW_DAYS: tuple[int, ...] = ()
 DEPENDS_ON: tuple[str, ...] = ()
+METERS_PER_MILE = 1609.344
 CONFIG = {
     "segment_source": "plan_plus_wkt_step_index",
     "completion_tolerance": {"time_s_max": 1.0, "time_fraction": 0.005, "distance_ratio": 0.99},
@@ -58,6 +60,7 @@ CONFIG = {
     "last_first_rule": "original_endpoints",
     "subtotal_rule": "known_or_null.v1",
     "synthetic_provenance_rule": "demo_fixture_raw_json_plus_normalized_trace.v1",
+    "treadmill_pace_source": "confirmed_lap_pace.v1",
 }
 
 
@@ -116,6 +119,8 @@ class LapIn:
     wkt_step_index: int | None = None
     end_offset_s: float | None = None
     intensity: str | None = None
+    confirmed_pace_s_per_mile: float | None = None
+    avg_speed_mps: float | None = None
 
 
 @dataclass(frozen=True)
@@ -225,6 +230,24 @@ def _number(value: float | None) -> TypeGuard[float]:
 
 def _rounded(value: float | None, places: int) -> float | None:
     return round(value, places) if _number(value) else None
+
+
+def _confirmed_rep_speed(laps: list[LapIn]) -> float | None:
+    timer = distance = 0.0
+    for lap in laps:
+        pace = lap.confirmed_pace_s_per_mile
+        if not _number(lap.timer_s) or lap.timer_s <= 0:
+            return None
+        if _number(pace) and pace > 0:
+            distance += lap.timer_s * METERS_PER_MILE / pace
+        elif plausible_speed(lap.avg_speed_mps):
+            distance += lap.timer_s * cast(float, lap.avg_speed_mps)
+        elif _number(lap.distance_m) and lap.distance_m >= 0:
+            distance += lap.distance_m
+        else:
+            return None
+        timer += lap.timer_s
+    return distance / timer if timer else None
 
 
 def _early(status: Status, reason: str) -> dict[str, Any]:
@@ -437,6 +460,17 @@ def execution_outcome(
                 rep_flags.append("HR_TIMER_UNKNOWN")
             elif lap_timer < cast(int, CONFIG["hr_min_step_timer_s"]):
                 rep_flags.append("HR_NOT_REPORTED_SHORT_STEP")
+        if sport == "treadmill_running" and any(lap.confirmed_pace_s_per_mile is not None for lap in rep_laps):
+            mean = _confirmed_rep_speed(rep_laps)
+            speed_status = Status.available if mean is not None else Status.not_assessable
+            speed_reasons = [] if mean is not None else ["LAP_SPEED_MISSING"]
+            coverage = target_valid = target_in = None
+            eligible = valid = 0.0
+            in_target = None
+            if required and mean is not None:
+                assert target_low is not None and target_high is not None
+                in_target = target_low <= mean <= target_high
+            rep_flags.append("TREADMILL_PACE_CONFIRMED")
         if step.target_modality == "hr":
             rep_flags.append("HR_TARGET_NOT_SCORED")
         if required and rep_laps:
@@ -623,9 +657,10 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
             if not fit:
                 outcome = _early(Status.not_assessable, "NO_WATCH_WORKOUT")
             else:
-                lap_rows = session.scalars(
-                    select(ActivityLap).where(ActivityLap.activity_id == activity_id).order_by(ActivityLap.lap_index)
-                ).all()
+                lap_rows = activity_laps(session, activity_id)
+                confirmed_paces = confirmed_lap_paces(activity, lap_rows)
+                if confirmed_paces:
+                    refs["treadmill_interval_paces"] = {str(key): value for key, value in confirmed_paces.items()}
                 laps = [
                     LapIn(
                         row.lap_index,
@@ -636,6 +671,8 @@ def compute(session: Session, subject_key: str) -> list[MetricResultData]:
                         row.wkt_step_index,
                         (row.end_at - activity.start_at).total_seconds() if row.end_at else None,
                         row.intensity,
+                        confirmed_paces.get(row.lap_index),
+                        row.avg_speed_mps,
                     )
                     for row in lap_rows
                 ]
