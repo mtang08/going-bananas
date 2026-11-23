@@ -98,6 +98,21 @@ Your goal time is a target, not a prediction. The coach judges whether it is pla
 
 When the goal race changes (you move it up or down, cancel it, or its date passes), the Training block page and Home say the block was planned for another race, and the next Sunday review is a block review. Nothing on the calendar changes until you accept a proposal. Events entered after a block was planned have the same effect once.
 
+## Travel from Google Calendar
+
+The app can read your Google Calendar and find trips from the flight events Gmail adds, so you do not have to tell the coach about travel. Connecting is a one-time setup from the command line; see the README.
+
+- **Sync calendar:** in [Settings](#settings), open **Travel and Google Calendar** and press **Sync calendar**. It reads 30 days back and 180 days ahead and says how many events changed and how many trips need review. The button appears only in real mode.
+- **Detected trips:** a trip found from your flights starts as **Possible trip**. **Confirm** it, **Edit** it (**Save and confirm** also confirms it), or **Dismiss** it. A dismissed trip does not come back on the next sync; **Show dismissed** and **Restore** bring it back.
+- **When the calendar changes:** if a flight changes or disappears after you confirmed or edited a trip, the trip shows **Calendar changed**. Choose **Use calendar version** or **Keep mine**. A sync never overwrites your edits.
+- **Add trip:** for travel without flights, or a vacation or other disruption at home, enter the dates, destination, and destination timezone.
+- **Access and availability:** on any trip, set running access and gym access, and mark single days **Unavailable** or **Shorter or alternative**. Leave a day at **Unknown** when you do not know; the coach treats it as unknown, not as a normal day.
+- **Calendar events:** under **Calendar events**, check each synced event's category. Choose **Automatic** to return to the app's category. Marking an event as a flight, or not, updates your trips.
+
+Trip days show a badge on the [Calendar](#calendar): **Travel**, **Possible travel**, or **Travel changed**, followed by "unavailable", "shorter session", or "travel day" where they apply. Each badge links to Settings.
+
+The coach sees each trip's dates, destination timezone, local flight times, access, availability, and whether you confirmed it. It plans around unconfirmed trips conditionally and may ask you to confirm them. It keeps your strength schedule and run rhythm through a trip and does not turn missed travel sessions into catch-up work. Changing a trip makes an open coach draft stale. App dates stay in your home timezone during trips, so a morning run far from home can appear on the previous day; the coach reads your day in the destination timezone.
+
 ## Review and revise a proposal
 
 Discuss the plan in one chat. Ask for a shorter workout or a different day and the coach will work from the same review context. When the plan looks right, say “looks good” or “publish it.” The coach saves the agreed plan and provides its review link. **Pending your review; nothing applied.** On Home, open **Needs attention → Review** to inspect the rationale and each proposed change, including workout details, block changes, and calibration anchors when present.
@@ -132,10 +147,10 @@ On treadmill runs the watch estimates pace and distance from your wrist. Rep pac
 ## Find your way around
 
 - [Home](#home): sync status, **Needs attention** (open proposals, coach recommendations, findings, patch reassessments, and check-in prompts), weekly mileage and **Planned vs done**, today's plan, this week's sessions, the block line, and **Logged for Sunday review**.
-- [Calendar](#calendar): one week at a time, with arrows to browse accepted sessions, workout details and notes, patch and benchmark badges, and **Plan versions** with a link to the proposal behind each coach change. Completed, historical, and locked sessions are protected during undo.
+- [Calendar](#calendar): one week at a time, with arrows to browse accepted sessions, workout details and notes, patch, benchmark, and trip badges, and **Plan versions** with a link to the proposal behind each coach change. Completed, historical, and locked sessions are protected during undo.
 - [Trends](#trends): volume, effort load, long runs, intensity, aerobic efficiency on steady runs, workout progression, recovery, and benchmark history. Panels without enough data wait under **Not yet assessable**.
 - [Training block](#block): the current objective, timeline, review indicators, and block benchmark.
-- [Settings](#settings): sync, setup or strength routine, display timezone and units, weekly review day, goals, events, and intensity anchors.
+- [Settings](#settings): sync, setup or strength routine, display timezone and units, weekly review day, goals, events, travel and Google Calendar, and intensity anchors.
 
 Heart-rate drift needs at least 40 minutes of timer-on analysis after the 10-minute warm-up.
 That is about 50 minutes of running before allowing for extra time after pauses.
