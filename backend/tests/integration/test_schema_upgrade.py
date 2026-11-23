@@ -10,7 +10,7 @@ import hashlib
 import json
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1064,6 +1064,121 @@ def test_race_goals_upgrade_deletes_events_keeps_references_and_guards_downgrade
         )
     }
     assert "priority" in columns and not columns & {"purpose", "goal_time_s", "rank"}
+    _migration(connection, HEAD)
+    connection.commit()
+    assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
+
+
+def test_google_calendar_constraints_cascade_and_downgrade_guard(isolated_schema):
+    connection = isolated_schema
+    _migration(connection, HEAD)
+    connection.commit()
+    timed = dict(
+        google_event_id="evt-1",
+        event_type="fromGmail",
+        google_status="confirmed",
+        all_day=False,
+        start_at=STAMP,
+        end_at=STAMP,
+        transparency="opaque",
+        busy=True,
+        category="flight",
+        auto_category="flight",
+        category_source="auto",
+        content_hash="a" * 64,
+        first_seen_at=STAMP,
+        changed_at=STAMP,
+    )
+    event_id = _insert(connection, "gcal_events", **timed)
+    row = connection.execute(
+        text("SELECT location_codes, version FROM gcal_events WHERE id=:id"), {"id": event_id}
+    ).one()
+    assert (row.location_codes, row.version) == ([], 1)
+    for values, name in [
+        (dict(google_event_id="evt-1"), "uq_gcal_events_google_id"),
+        (dict(google_event_id="evt-2", start_date=STAMP.date()), "ck_gcal_events_time_shape"),
+        (dict(google_event_id="evt-3", all_day=True), "ck_gcal_events_time_shape"),
+        (dict(google_event_id="evt-4", category="travel"), "ck_gcal_events_category"),
+        (dict(google_event_id="evt-5", google_status="cancelled"), "ck_gcal_events_status"),
+        (dict(google_event_id="evt-6", response_status="maybe"), "ck_gcal_events_response"),
+    ]:
+        with pytest.raises(IntegrityError) as caught:
+            with connection.begin_nested():
+                _insert(connection, "gcal_events", **{**timed, **values})
+        assert caught.value.orig.diag.constraint_name == name
+    all_day_id = _insert(
+        connection,
+        "gcal_events",
+        **{
+            **timed,
+            "google_event_id": "evt-7",
+            "all_day": True,
+            "start_at": None,
+            "end_at": None,
+            "start_date": STAMP.date(),
+            "end_date": STAMP.date(),
+        },
+    )
+
+    trip = dict(
+        status="pending",
+        start_date=STAMP.date(),
+        destination_tz="America/Los_Angeles",
+        confidence="high",
+        detected="{}",
+    )
+    trip_id = _insert(connection, "trips", **trip)
+    row = connection.execute(
+        text("SELECT source, edited, day_availability, version FROM trips WHERE id=:id"), {"id": trip_id}
+    ).one()
+    assert (row.source, row.edited, row.day_availability, row.version) == ("detected", False, [], 1)
+    manual = dict(source="manual", confidence=None, end_date=STAMP.date(), status="confirmed")
+    for values, name in [
+        (dict(status="needs_review"), "ck_trips_review_status"),
+        (dict(review_reason="source_changed"), "ck_trips_review_status"),
+        (dict(confidence=None), "ck_trips_source_shape"),
+        (dict(source="manual"), "ck_trips_source_shape"),
+        (dict(source="manual", confidence=None), "ck_trips_source_shape"),
+        ({**manual, "status": "needs_review", "review_reason": "source_changed"}, "ck_trips_source_shape"),
+        (dict(end_date=date(2026, 11, 11)), "ck_trips_dates"),
+        (dict(running_access="some"), "ck_trips_running_access"),
+        (dict(gym_access="normal"), "ck_trips_gym_access"),
+    ]:
+        with pytest.raises(IntegrityError) as caught:
+            with connection.begin_nested():
+                _insert(connection, "trips", **{**trip, **values})
+        assert caught.value.orig.diag.constraint_name == name
+    _insert(connection, "trips", **{**trip, **manual})
+    _insert(connection, "trips", **{**trip, "status": "needs_review", "review_reason": "source_removed"})
+
+    leg = dict(trip_id=trip_id, gcal_event_id=event_id, leg_hash="a" * 64, seq=0)
+    _insert(connection, "trip_legs", **leg)
+    for values, name in [
+        (dict(seq=1), "uq_trip_legs_event"),
+        (dict(gcal_event_id=all_day_id), "uq_trip_legs_seq"),
+    ]:
+        with pytest.raises(IntegrityError) as caught:
+            with connection.begin_nested():
+                _insert(connection, "trip_legs", **{**leg, **values})
+        assert caught.value.orig.diag.constraint_name == name
+    connection.execute(text("DELETE FROM trips WHERE id=:id"), {"id": trip_id})
+    assert connection.execute(text("SELECT count(*) FROM trip_legs")).scalar_one() == 0
+    connection.commit()
+
+    with pytest.raises(RuntimeError, match="restore_required_nonempty_google_calendar"):
+        _migration(connection, "0023_treadmill_interval_paces", down=True)
+    connection.rollback()
+    connection.execute(text("DELETE FROM gcal_events"))
+    connection.commit()
+    with pytest.raises(RuntimeError, match="restore_required_nonempty_google_calendar"):
+        _migration(connection, "0023_treadmill_interval_paces", down=True)
+    connection.rollback()
+    connection.execute(text("DELETE FROM trips"))
+    connection.commit()
+    _migration(connection, "0023_treadmill_interval_paces", down=True)
+    connection.commit()
+    for table in ("gcal_events", "trips", "trip_legs"):
+        assert not connection.execute(text(f"SELECT to_regclass('{table}') IS NOT NULL")).scalar_one()
     _migration(connection, HEAD)
     connection.commit()
     assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
