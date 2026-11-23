@@ -6,7 +6,7 @@
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "86b5b8cde22265d18c453064d83c36457b13472592abfb293d3524cc7a9bf55a"
+      "sha256": "7ebbf6bcb96f672effc4c9d7d8be8156e28de9264c85bd269398dc7ae7f8ff38"
     },
     {
       "path": "agents/openai.yaml",
@@ -18,7 +18,7 @@
     },
     {
       "path": "references/coaching-workflows.md",
-      "sha256": "b83580dd85a0c0588401ef28e7f3c5f09e44e67818c0155168475027b7fb671c"
+      "sha256": "e6f1f669d1a37d5efaa2c74bc66121ac33fd8efbe1a880742ee7c8fac585d4bd"
     },
     {
       "path": "references/model-and-research.md",
