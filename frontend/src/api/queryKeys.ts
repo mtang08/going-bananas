@@ -27,6 +27,12 @@ export const qk = {
   exceptions: ['v2', 'exceptions'] as const,
   goals: ['v2', 'goals'] as const,
   events: ['v2', 'events'] as const,
+  gcal: ['v2', 'gcal'] as const,
+  gcalStatus: ['v2', 'gcal', 'status'] as const,
+  gcalEvents: (start: string, end: string, category: string) =>
+    ['v2', 'gcal', 'events', start, end, category] as const,
+  tripsAll: ['v2', 'trips'] as const,
+  trips: (start: string, end: string) => ['v2', 'trips', start, end] as const,
   anchors: ['v2', 'anchors'] as const,
   strengthRoutine: ['v2', 'strength-routine'] as const,
   blocksActive: ['v2', 'blocks', 'active'] as const,

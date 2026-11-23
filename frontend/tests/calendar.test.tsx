@@ -4,7 +4,35 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Calendar } from '../src/pages/Calendar'
 import { weeklyWorkoutText } from '../src/components/weeklyWorkoutExport'
 import type { CalendarVersion, CalendarView, SessionState } from '../src/api/types/calendar'
+import type { Trip } from '../src/api/types/travel'
 import { addDays } from '../src/lib/format'
+
+const trip = (
+  id: string,
+  status: Trip['status'],
+  start: string,
+  end: string | null,
+  extra: Partial<Trip> = {},
+): Trip => ({
+  id,
+  status,
+  start_date: start,
+  end_date: end,
+  destination_label: `City ${id}`,
+  destination_tz: 'America/Los_Angeles',
+  source: 'detected',
+  confidence: 'high',
+  edited: false,
+  review_reason: status === 'needs_review' ? 'source_changed' : null,
+  detected: {},
+  running_access: null,
+  gym_access: null,
+  day_availability: [],
+  travel_days: [],
+  legs: [],
+  version: 1,
+  ...extra,
+})
 
 const base = {
   id: '',
@@ -136,6 +164,8 @@ let nextWrite = {
   preserved_session_uids: string[]
 }
 let writeError: number | null = null
+let trips: Trip[] = []
+let tripsStatus = 200
 const wrap = (data: unknown) => ({ schema_version: 'v1', data_revision: 2, mode: 'demo', data })
 function mount(weekStart?: string) {
   const client = new QueryClient({
@@ -161,6 +191,8 @@ beforeEach(() => {
   head = view
   nextWrite = { version: 3, kind: 'manual_edit', stale_proposals: [], preserved_session_uids: [] }
   writeError = null
+  trips = []
+  tripsStatus = 200
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string, init?: RequestInit) => {
@@ -178,6 +210,13 @@ beforeEach(() => {
           }),
           { status: writeError },
         )
+      if (url.includes('/trips')) {
+        const data =
+          tripsStatus === 200
+            ? wrap({ items: trips })
+            : { error: { code: 'internal_error', message: 'Internal server error' } }
+        return new Response(JSON.stringify(data), { status: tripsStatus })
+      }
       if (url.includes('/calendar/week')) {
         const params = new URLSearchParams(url.split('?')[1])
         const start = params.get('start') ?? view.start
@@ -333,6 +372,57 @@ describe('week navigation', () => {
 })
 
 describe('Calendar', () => {
+  it('shows trip badges with status, availability, and travel days', async () => {
+    trips = [
+      trip('a', 'confirmed', '2026-11-10', '2026-11-12', {
+        travel_days: ['2026-11-10', '2026-11-12'],
+        day_availability: [{ date: '2026-11-11', availability: 'reduced' }],
+      }),
+      trip('b', 'pending', '2026-11-14', null),
+    ]
+    mount()
+    await screen.findAllByTestId('calendar-day')
+    const departure = await within(day('2026-11-10')).findByTestId('trip-badge')
+    expect(
+      requests.some(({ url }) => url === '/api/v1/trips?start=2026-11-09&end=2026-11-15'),
+    ).toBe(true)
+    expect(departure).toHaveTextContent('Travel · City a · travel day')
+    expect(departure).toHaveAttribute('data-status', 'confirmed')
+    expect(departure).toHaveAttribute('href', '#settings')
+    expect(within(day('2026-11-11')).getByTestId('trip-badge')).toHaveTextContent(
+      'Travel · City a · shorter session',
+    )
+    expect(within(day('2026-11-12')).getByTestId('trip-badge')).toHaveTextContent(
+      'Travel · City a · travel day',
+    )
+    expect(within(day('2026-11-13')).queryByTestId('trip-badge')).not.toBeInTheDocument()
+    expect(within(day('2026-11-15')).queryByTestId('trip-badge')).not.toBeInTheDocument()
+    const possible = within(day('2026-11-14')).getByTestId('trip-badge')
+    expect(possible).toHaveTextContent('Possible travel · City b')
+    expect(possible).toHaveAttribute('data-status', 'pending')
+  })
+
+  it('marks changed trips and never shows dismissed ones', async () => {
+    trips = [
+      trip('c', 'needs_review', '2026-11-09', '2026-11-09', {
+        day_availability: [{ date: '2026-11-09', availability: 'unavailable' }],
+      }),
+      trip('d', 'dismissed', '2026-11-13', '2026-11-13'),
+    ]
+    mount()
+    expect(await screen.findByTestId('trip-badge')).toHaveTextContent(
+      'Travel changed · City c · unavailable',
+    )
+    expect(screen.getAllByTestId('trip-badge')).toHaveLength(1)
+  })
+
+  it('explains when trips cannot be loaded', async () => {
+    tripsStatus = 500
+    mount()
+    expect(await screen.findByText('Trips could not be loaded.')).toBeVisible()
+    expect(screen.getAllByTestId('calendar-day')).toHaveLength(7)
+  })
+
   it('downloads the chosen Monday–Sunday week with workout details', async () => {
     const create = vi.fn((blob: Blob) => {
       void blob
