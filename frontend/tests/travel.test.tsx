@@ -296,6 +296,25 @@ it.each([
   await waitFor(() => expect(writes().at(-1)?.body).toEqual({ expected_version: 4, ...fields }))
 })
 
+it('offers to keep or dismiss an edited trip when its flights are gone', async () => {
+  trips = [
+    trip('removed', 'needs_review', '2099-03-01', {
+      edited: true,
+      review_reason: 'source_removed',
+      detected: {},
+    }),
+  ]
+  mount()
+  const removed = await row('City removed')
+  expect(removed.getByText(/its flights were removed or recategorized/)).toBeVisible()
+  expect(removed.queryByRole('button', { name: 'Use calendar version' })).not.toBeInTheDocument()
+  expect(removed.getByRole('button', { name: 'Dismiss' })).toBeVisible()
+  fireEvent.click(removed.getByRole('button', { name: 'Keep mine' }))
+  await waitFor(() =>
+    expect(writes().at(-1)?.body).toEqual({ expected_version: 2, status: 'confirmed' }),
+  )
+})
+
 it('restores detected trips to pending and manual trips to confirmed', async () => {
   trips = [
     trip('detected', 'dismissed', '2099-02-01'),

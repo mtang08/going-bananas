@@ -32,12 +32,15 @@ function actions(trip: Trip): [string, TripChange][] {
   switch (trip.status) {
     case 'pending':
       return [['Confirm', { status: 'confirmed' }], dismiss]
-    case 'needs_review':
+    case 'needs_review': {
+      const keep: [string, TripChange] = ['Keep mine', { status: 'confirmed' }]
+      if (!trip.detected.start_date) return [keep, dismiss]
       return [
         ['Use calendar version', { accept_detected: true, status: 'confirmed' }],
-        ['Keep mine', { status: 'confirmed' }],
+        keep,
         dismiss,
       ]
+    }
     case 'confirmed':
       return [dismiss]
     case 'dismissed':
