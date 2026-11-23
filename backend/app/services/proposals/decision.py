@@ -87,6 +87,8 @@ def _save_block(
         session.flush()
     fields = change.version_fields.model_dump(mode="python")
     fields["constraints"] = [item.model_dump() for item in change.version_fields.constraints]
+    fields["why"] = [item.model_dump() for item in change.version_fields.why]
+    fields["indicators"] = [item.model_dump() for item in change.version_fields.indicators]
     fields["benchmark"] = (
         change.version_fields.benchmark.model_dump(mode="json") if change.version_fields.benchmark else None
     )
@@ -106,7 +108,7 @@ def _save_block(
             decision=change.decision,
             from_version=old.version if old else None,
             to_version=version.version,
-            rationale=doc.rationale,
+            rationale="\n".join(f"{w.kind}: {w.text}" for w in change.version_fields.why),
             evidence_ids=doc.evidence_ids,
             policy_ids=doc.policy_ids,
             confidence=doc.confidence.decision,
@@ -365,7 +367,7 @@ def decide_proposal(
             session,
             state.calendar_head_version,
             edits,
-            doc.summary,
+            doc.headline,
             kind="proposal_accept",
             actor="coach",
             proposal_id=proposal_id,

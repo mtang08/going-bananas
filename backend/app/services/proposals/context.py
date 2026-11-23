@@ -103,7 +103,7 @@ def load_context(
             row.get("planned_distance_m"),
             row.get("structure"),
             row.get("strength_slot_id"),
-            row.get("notes"),
+            row.get("brief"),
         )
         for row in rows
     }

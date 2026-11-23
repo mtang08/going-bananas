@@ -86,13 +86,17 @@ def submit_proposal(session: Session, raw: dict, *, now: datetime, resolve_kb: K
         base_block_version_id=doc.base_block_version_id,
         status=result.status,
         submitted_at=now,
-        summary=doc.summary,
-        rationale=doc.rationale,
+        headline=doc.headline,
+        why=[item.model_dump() for item in doc.why],
+        uncertainty=list(doc.uncertainty),
+        change_triggers=[item.model_dump() for item in doc.change_triggers],
+        next_check=doc.next_check.model_dump(mode="json"),
+        coach_note=doc.coach_note,
+        legacy_text=None,
         confidence=doc.confidence.model_dump(),
         evidence_ids=doc.evidence_ids,
         policy_ids=doc.policy_ids,
         recipe_ids=doc.recipe_ids,
-        follow_up=doc.follow_up,
         escalation=doc.escalation,
         block_change=doc.block_change.model_dump(mode="json") if doc.block_change else None,
         anchor_changes=[item.model_dump(mode="json") for item in doc.anchor_changes],
@@ -243,17 +247,21 @@ def revise_proposal(
         "snapshot_id",
         "base_calendar_version",
         "base_block_version_id",
-        "summary",
-        "rationale",
+        "headline",
+        "coach_note",
         "evidence_ids",
         "policy_ids",
         "recipe_ids",
-        "follow_up",
         "escalation",
         "skill_version",
     ):
         setattr(proposal, name, getattr(doc, name))
     proposal.confidence = doc.confidence.model_dump()
+    proposal.why = [item.model_dump() for item in doc.why]
+    proposal.uncertainty = list(doc.uncertainty)
+    proposal.change_triggers = [item.model_dump() for item in doc.change_triggers]
+    proposal.next_check = doc.next_check.model_dump(mode="json")
+    proposal.legacy_text = None
     proposal.block_change = doc.block_change.model_dump(mode="json") if doc.block_change else None
     proposal.anchor_changes = [item.model_dump(mode="json") for item in doc.anchor_changes]
     proposal.payload = payload

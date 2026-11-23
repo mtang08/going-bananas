@@ -371,7 +371,7 @@ class HeadSession:
     planned_distance_m: int | None
     structure: list | None
     strength_slot_id: uuid.UUID | None
-    notes: str | None
+    brief: dict | None
 
 
 @dataclass(frozen=True)

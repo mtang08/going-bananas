@@ -15,7 +15,7 @@ from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalCh
 from app.domain.session_class import classify
 from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.models import Activity, AppState, ProfileVersion
-from app.planning_models import Block, BlockBenchmarkResult, BlockVersion, Event, IntensityAnchor
+from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
 from app.services.proposals.context import load_context
@@ -27,6 +27,12 @@ from app.services.snapshot.build import build_snapshot
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
 KB = VerifiedKnowledge("0" * 64, (), (), frozenset({"P001"}), frozenset({"REC001"}), frozenset({"E-AER-01"}))
+BRIEF = {
+    "effort": {"rpe_low": 3, "rpe_high": 4, "feel": "conversational"},
+    "focus": ["Relax shoulders"],
+    "adjust_if": [{"when": "Calf tight", "then": "walk 5 min"}],
+    "why": "Easy aerobic volume",
+}
 
 
 def _resolve(selection: tuple[dict, ...]) -> VerifiedKnowledge:
@@ -66,20 +72,23 @@ def _snapshot(session: Session, operation: str = "review_rolling_plan") -> tuple
 
 def _doc(snapshot: CoachSnapshot, uid: uuid.UUID) -> dict:
     return {
-        "schema_version": "coach_proposal.v1",
+        "schema_version": "coach_proposal.v2",
         "operation": snapshot.operation,
         "snapshot_id": str(snapshot.id),
         "base_calendar_version": snapshot.calendar_version_number,
         "base_block_version_id": str(snapshot.block_version_id) if snapshot.block_version_id else None,
-        "summary": "Add easy time",
-        "rationale": "Ready for a small increase",
+        "headline": "Add easy time",
+        "why": [{"kind": "observation", "text": "Ready for a small increase"}],
+        "uncertainty": ["Sleep data is thin"],
+        "change_triggers": [{"when": "Easy run feels hard", "then": "hold the duration"}],
+        "next_check": {"on": (TODAY + timedelta(days=7)).isoformat(), "check": "Easy run RPE"},
         "confidence": {"decision": "moderate", "evidence": "moderate", "data": "moderate"},
         "changes": [
             {
                 "change_id": "c1",
                 "op": "modify",
                 "session_uid": str(uid),
-                "after": {"planned_duration_s": 2400},
+                "after": {"planned_duration_s": 2400, "brief": BRIEF},
                 "reason": "Progression",
             }
         ],
@@ -95,7 +104,7 @@ def _block_fields(review_date: str, benchmark_date: str) -> dict:
     return {
         "status": "active",
         "objective": "Build",
-        "rationale": "Ready",
+        "why": [{"kind": "inference", "text": "Ready"}],
         "maintained_qualities": [],
         "non_goals": [],
         "eligible_recipe_ids": ["REC001", "REC009"],
@@ -103,7 +112,7 @@ def _block_fields(review_date: str, benchmark_date: str) -> dict:
         "constraints": [],
         "start_date": "2026-11-16",
         "review_date": review_date,
-        "completion_indicators": [],
+        "indicators": [],
         "early_review_triggers": [],
         "objective_status": "unresolved",
         "benchmark": {
@@ -272,7 +281,7 @@ def _exception_doc(
                 "change_id": "c1",
                 "op": "modify",
                 "session_uid": str(uid),
-                "after": {"planned_duration_s": 1200},
+                "after": {"planned_duration_s": 1200, "brief": BRIEF},
                 "reason": "Fatigue",
             }
         ]
@@ -435,6 +444,7 @@ def test_accepted_add_records_server_session_uid(proposal_session: Session) -> N
                 "intent": "Easy",
                 "custom": True,
                 "structure": [{"type": "work", "duration_type": "time", "duration_value": 600}],
+                "brief": BRIEF,
             },
             "reason": "Add easy run",
         }
@@ -451,6 +461,7 @@ def test_accepted_add_records_server_session_uid(proposal_session: Session) -> N
         select(CalendarSessionRevision).where(CalendarSessionRevision.session_uid == row.session_uid)
     )
     assert created is not None and (created.local_date, created.recipe_id) == (date(2026, 11, 22), None)
+    assert created.brief == BRIEF
 
 
 def test_anchor_only_acceptance_stales_other_pending(proposal_session: Session) -> None:
@@ -469,7 +480,7 @@ def test_anchor_only_acceptance_stales_other_pending(proposal_session: Session) 
         }
     ]
     first = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
-    other = {**raw, "summary": "Another pending proposal"}
+    other = {**raw, "headline": "Another pending proposal"}
     with pytest.raises(DecisionError) as conflict:
         submit_proposal(session, other, now=NOW, resolve_kb=_resolve)
     assert conflict.value.code == "active_proposal_exists"
@@ -503,7 +514,7 @@ def test_block_same_state_acceptance_is_noop(proposal_session: Session) -> None:
     fields = {
         "status": "active",
         "objective": "Build",
-        "rationale": "Ready",
+        "why": [{"kind": "inference", "text": "Ready"}],
         "maintained_qualities": [],
         "non_goals": [],
         "eligible_recipe_ids": ["REC001", "REC009"],
@@ -511,7 +522,7 @@ def test_block_same_state_acceptance_is_noop(proposal_session: Session) -> None:
         "constraints": [],
         "start_date": "2026-11-16",
         "review_date": "2026-12-28",
-        "completion_indicators": [],
+        "indicators": [],
         "early_review_triggers": [],
         "objective_status": "unresolved",
         "benchmark": {
@@ -592,13 +603,13 @@ def test_head_drift_and_cross_proposal_key_conflict(proposal_session: Session) -
     raw = _doc(snapshot, uid)
     first = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
     with pytest.raises(DecisionError) as active:
-        submit_proposal(session, {**raw, "summary": "Other choice"}, now=NOW, resolve_kb=_resolve)
+        submit_proposal(session, {**raw, "headline": "Other choice"}, now=NOW, resolve_kb=_resolve)
     assert active.value.code == "active_proposal_exists"
     rejected = decide_proposal(
         session, first.proposal_id, _req(1, "shared-decision-key", [], ["c1"]), now=NOW, resolve_kb=_resolve
     )
     assert rejected.status == "rejected" and rejected.calendar_version is None
-    second = submit_proposal(session, {**raw, "summary": "Other choice"}, now=NOW, resolve_kb=_resolve)
+    second = submit_proposal(session, {**raw, "headline": "Other choice"}, now=NOW, resolve_kb=_resolve)
     with pytest.raises(DecisionError) as conflict:
         decide_proposal(
             session, second.proposal_id, _req(1, "shared-decision-key", [], ["c1"]), now=NOW, resolve_kb=_resolve
@@ -632,7 +643,9 @@ def test_discard_closes_open_proposal_without_calendar_change(proposal_session: 
     assert stored.discarded_at == NOW
     assert session.get(AppState, 1).calendar_head_version == head
     assert submit_proposal(session, raw, now=NOW, resolve_kb=_resolve).status == "discarded"
-    assert submit_proposal(session, {**raw, "summary": "Replacement"}, now=NOW, resolve_kb=_resolve).status == "pending"
+    assert (
+        submit_proposal(session, {**raw, "headline": "Replacement"}, now=NOW, resolve_kb=_resolve).status == "pending"
+    )
     with pytest.raises(DecisionError, match="Discarded"):
         decide_proposal(
             session, first.proposal_id, _req(head, "discarded-key", ["c1"], []), now=NOW, resolve_kb=_resolve
@@ -714,7 +727,7 @@ def test_failure_after_anchor_write_rolls_back_entire_decision(proposal_session:
             "change_id": "c1",
             "op": "modify",
             "session_uid": str(uid),
-            "after": {"intent": "Revised easy"},
+            "after": {"intent": "Revised easy", "brief": BRIEF},
             "reason": "Recalibrate",
         }
     ]
@@ -774,7 +787,7 @@ def test_ended_block_latest_version_is_not_active(proposal_session: Session) -> 
     session.flush()
     fields = {
         "objective": "Build",
-        "rationale": "Ready",
+        "why": [{"kind": "inference", "text": "Ready"}],
         "maintained_qualities": [],
         "non_goals": [],
         "eligible_recipe_ids": ["REC001"],
@@ -782,7 +795,7 @@ def test_ended_block_latest_version_is_not_active(proposal_session: Session) -> 
         "constraints": [],
         "start_date": TODAY,
         "review_date": date(2026, 12, 28),
-        "completion_indicators": [],
+        "indicators": [],
         "early_review_triggers": [],
         "objective_status": "unresolved",
     }
@@ -826,7 +839,7 @@ def test_revise_preserves_identity_history_and_rejects_old_acceptance(proposal_s
     edited = deepcopy(raw)
     edited["changes"][0]["after"]["planned_duration_s"] = 2100
     edited["changes"][0]["reason"] = "Use the shorter duration requested by the athlete"
-    edited["summary"] = "Shorten the planned run"
+    edited["headline"] = "Shorten the planned run"
     request = RevisionRequest(expected_revision=1, reason="Shorter run requested", document=edited)
     result = revise_proposal(session, initial.proposal_id, request, now=NOW, resolve_kb=_resolve)
     assert result.proposal_id == initial.proposal_id and result.revision == 2
@@ -837,7 +850,7 @@ def test_revise_preserves_identity_history_and_rejects_old_acceptance(proposal_s
     assert len(history) == 2
     assert history[0].payload["changes"][0]["after"]["planned_duration_s"] == 2400
     assert history[1].payload["changes"][0]["after"]["planned_duration_s"] == 2100
-    assert history[1].changed_change_ids == ["c1"] and history[1].changed_fields == ["summary"]
+    assert history[1].changed_change_ids == ["c1"] and history[1].changed_fields == ["headline"]
     assert (
         collect_decision_inputs(session, snapshot.operation, TODAY, now=NOW, kb=KB)["source_fingerprint"] == fingerprint
     )
@@ -883,7 +896,7 @@ def test_invalid_or_conflicting_revision_does_not_replace_draft(proposal_session
             )
         assert caught.value.code == code
     row = session.get(CoachProposal, initial.proposal_id)
-    assert row.revision == 1 and row.payload["changes"][0]["after"] == {"planned_duration_s": 2400}
+    assert row.revision == 1 and row.payload["changes"][0]["after"] == {"planned_duration_s": 2400, "brief": BRIEF}
     assert session.scalar(select(func.count()).select_from(CoachProposalRevision)) == 1
     same = revise_proposal(
         session,
@@ -1079,7 +1092,7 @@ def test_block_review_accept_upserts_benchmark_row(proposal_session: Session, mo
     fields = {
         "status": "active",
         "objective": "Build",
-        "rationale": "Ready",
+        "why": [{"kind": "inference", "text": "Ready"}],
         "maintained_qualities": [],
         "non_goals": [],
         "eligible_recipe_ids": ["REC001", "REC009"],
@@ -1087,7 +1100,7 @@ def test_block_review_accept_upserts_benchmark_row(proposal_session: Session, mo
         "constraints": [],
         "start_date": "2026-11-16",
         "review_date": "2026-12-28",
-        "completion_indicators": [],
+        "indicators": [],
         "early_review_triggers": [],
         "objective_status": "unresolved",
         "benchmark": {
@@ -1374,7 +1387,13 @@ def test_block_may_skip_benchmark_after_recent_credible_result(proposal_session)
         "version_fields": {
             **_block_fields("2026-12-06", "2026-11-23"),
             "benchmark": None,
-            "completion_indicators": ["Quality reps hold at RPE 7 or lower"],
+            "indicators": [
+                {
+                    "source": "quality_progression",
+                    "label": "Quality reps at the same RPE",
+                    "progress_when": "reps hold at RPE 7 or lower",
+                }
+            ],
         },
     }
     proposal = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
@@ -1461,3 +1480,58 @@ def test_consolidating_block_must_still_target_the_goal_race(proposal_session: S
     assert proposal.status == "pending", _issues(proposal)
     block = _accept_block(session, proposal, "rg-consolidate")
     assert block.status == "consolidating" and block.target_event_id == goal.id
+
+
+def test_block_acceptance_saves_why_indicators_and_decision_rationale(proposal_session):
+    session = proposal_session
+    snapshot, uid = _snapshot(session, "review_training_block")
+    why = [
+        {"kind": "observation", "text": "Tempo held at RPE 6"},
+        {"kind": "inference", "text": "Calf is quiet"},
+    ]
+    indicators = [
+        {
+            "source": "quality_progression",
+            "label": "Tempo at the same RPE",
+            "progress_when": "pace 2% faster at RPE 7 or lower",
+        }
+    ]
+    raw = _doc(snapshot, uid)
+    raw["changes"] = []
+    raw["block_change"] = {
+        "decision": "start",
+        "block_uid": None,
+        "version_fields": {**_block_fields("2026-12-14", "2026-12-05"), "why": why, "indicators": indicators},
+    }
+    proposal = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert proposal.status == "pending", proposal.issues
+    block = _accept_block(session, proposal, "brief-block")
+    assert block.why == why
+    assert block.indicators == indicators
+    decision = session.scalar(select(BlockDecision).where(BlockDecision.block_uid == block.block_uid))
+    assert decision.rationale == "observation: Tempo held at RPE 6\ninference: Calf is quiet"
+
+
+def test_revising_a_stale_draft_clears_legacy_text_and_fills_v2_columns(proposal_session):
+    from app.services.proposals.lifecycle import RevisionRequest, revise_proposal
+
+    session = proposal_session
+    snapshot, uid = _snapshot(session)
+    raw = _doc(snapshot, uid)
+    proposal = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    row = session.get(CoachProposal, proposal.proposal_id)
+    row.legacy_text = "Earlier prose"
+    row.status = "stale"
+    session.flush()
+    edits = {**raw, "headline": "Keep the long run", "coach_note": "Athlete asked for less"}
+    request = RevisionRequest(expected_revision=1, reason="Athlete asked for less", document=edits)
+    revise_proposal(session, proposal.proposal_id, request, now=NOW, resolve_kb=_resolve)
+    row = session.get(CoachProposal, proposal.proposal_id, populate_existing=True)
+    assert row.status == "pending"
+    assert row.legacy_text is None
+    assert row.headline == edits["headline"]
+    assert row.coach_note == edits["coach_note"]
+    assert row.why == raw["why"]
+    assert row.uncertainty == raw["uncertainty"]
+    assert row.change_triggers == raw["change_triggers"]
+    assert row.next_check == raw["next_check"]
