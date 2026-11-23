@@ -287,6 +287,49 @@ it('preselects sessions and submits only the changes left checked', async () => 
   })
   expect(screen.queryByRole('button', { name: 'Accept selected' })).not.toBeInTheDocument()
 })
+
+it.each(['delete', 'add'] as const)(
+  'shows the lift and reason upfront for a strength omission recorded as %s',
+  async (op) => {
+    const lift = { local_date: '2026-11-18', intent: 'Lower body A' }
+    const reason = 'Give sore legs a day to recover before the long run.'
+    proposal.changes = [
+      {
+        ...proposal.changes[0],
+        op,
+        session_uid: op === 'delete' ? 's0' : null,
+        before: op === 'delete' ? { ...lift, kind: 'strength' } : null,
+        after: op === 'add' ? { ...lift, kind: 'rest' } : null,
+        reason,
+        material_flags: ['strength_omission'],
+      },
+      {
+        ...proposal.changes[1],
+        before: { local_date: lift.local_date, kind: 'run' },
+      },
+    ]
+
+    mount()
+    const omission = await screen.findByRole('checkbox', {
+      name: 'Accept skipping Lower body A on Wed, Nov 18',
+    })
+    const row = within(omission.closest('tr')!)
+    expect(row.getByText('Wed, Nov 18')).toBeInTheDocument()
+    expect(row.getByText('Lower body A')).toBeInTheDocument()
+    expect(row.getByText('Skip lift')).toBeInTheDocument()
+    expect(row.getByText(reason)).toBeInTheDocument()
+    expect(row.getByText('This change applies only to the lift.')).toBeInTheDocument()
+    expect(row.queryByText('Rest')).not.toBeInTheDocument()
+    expect(omission).toBeChecked()
+
+    fireEvent.click(omission)
+    expect(screen.getByLabelText('Accept change c2')).toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept selected' }))
+    await screen.findByText('Accepted — calendar version 8')
+    expect(writes[0]).toMatchObject({ accept_change_ids: ['c2'], reject_change_ids: ['c1'] })
+  },
+)
+
 it('refreshes plan data after a decision but not settings', async () => {
   mount()
   const client = clients[clients.length - 1]

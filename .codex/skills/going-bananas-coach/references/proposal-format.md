@@ -27,6 +27,14 @@ for every changed session. Keep it brief when the top-level rationale already
 explains the decision; the app may collapse session-level details in its review
 display.
 
+## One-time strength omissions
+
+Use one selectable change per omitted lift in a strength-editing review. Set its `material_flags` to `["strength_omission"]` and use `reason` to explain that occurrence, for example athlete travel, recovery after a key session, or preparation for a race.
+
+- For an accepted future strength session, use `op: "delete"` and its calendar `session_uid`.
+- For a lift still to be planned, use the date and lift label from `goals_and_constraints.confirmed_strength_sessions`. Use `op: "add"` with only `local_date`, `kind: "rest"`, and the lift label as `intent` in `after`. The app displays this flagged entry as **Skip lift** and records the decision without adding a rest workout.
+- Carry forward accepted omissions shown in `goals_and_constraints.accepted_strength_omissions`. Create a new change only for a new omission. Keep the remaining lifts and subsequent weeks on their usual pattern. A makeup lift is optional.
+
 ## Exception, race, and benchmark fields
 
 These fields appear only in exception, post-event, and benchmark block reviews.

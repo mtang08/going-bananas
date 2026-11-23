@@ -375,6 +375,189 @@ def test_v9_week_keeps_two_strength() -> None:
     assert outcome(doc) == ("invalid", [("V9.strength_count", "changes")])
 
 
+def omission(change_id: str, day: int) -> dict:
+    return {
+        **change(
+            change_id,
+            "add",
+            None,
+            {"local_date": f"2026-11-{day}", "kind": "rest", "intent": "Omit full-body B"},
+            ["strength_omission"],
+        ),
+        "reason": "Travel prevents access to the gym",
+    }
+
+
+def test_v9_explicit_deletions_cover_a_week_with_no_remaining_lifts() -> None:
+    ctx = context()
+    ctx = replace(
+        ctx,
+        head_sessions={
+            uid: row for uid, row in ctx.head_sessions.items() if row.local_date.day < 23 or row.kind == "strength"
+        },
+    )
+    doc = valid_doc()
+    doc["changes"] = [change("c1", "delete", 13, flags=["strength_omission"]), change("c2", "delete", 14)]
+    assert outcome(doc, ctx) == ("invalid", [("V9.strength_count", "changes")])
+    doc["changes"][1]["material_flags"] = ["strength_omission"]
+    result = validate_document(doc, ctx)
+    assert (result.status, result.issues) == ("pending", [])
+    assert result.doc is not None
+    assert validate_subset(result.doc, {"c1"}, False, set(), ctx) == []
+    assert validate_subset(result.doc, {"c1", "c2"}, False, set(), ctx) == []
+
+
+def test_v9_unmaterialized_omission_can_coexist_with_run_and_must_be_selected() -> None:
+    ctx = context()
+    ctx = replace(
+        ctx,
+        head_sessions={uid: row for uid, row in ctx.head_sessions.items() if uid != U(12)},
+        confirmed_strength_dates=frozenset({date(2026, 11, 20)}),
+    )
+    doc = valid_doc()
+    doc["changes"].append(omission("c2", 20))
+    result = validate_document(doc, ctx)
+    assert (result.status, result.issues) == ("pending", [])
+    assert result.doc is not None
+    assert [(issue.code, issue.path) for issue in validate_subset(result.doc, {"c1"}, False, set(), ctx)] == [
+        ("V9.strength_count", "changes")
+    ]
+    assert validate_subset(result.doc, {"c2"}, False, set(), ctx) == []
+    assert validate_subset(result.doc, set(), False, set(), ctx) == []
+
+
+def test_v9_unmaterialized_omissions_count_even_in_an_empty_week() -> None:
+    ctx = context()
+    ctx = replace(
+        ctx,
+        head_sessions={uid: row for uid, row in ctx.head_sessions.items() if row.local_date.day < 23},
+        confirmed_strength_dates=frozenset({date(2026, 11, 23), date(2026, 11, 27)}),
+    )
+    doc = valid_doc()
+    doc["changes"] = [omission("c1", 23)]
+    assert outcome(doc, ctx) == ("invalid", [("V9.strength_count", "changes")])
+    doc["changes"].append(omission("c2", 27))
+    assert outcome(doc, ctx) == ("pending", [])
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        [omission("c1", 19)],
+        [omission("c1", 20)],
+        [{**omission("c1", 17), "reason": "  "}],
+        [change("c1", "delete", 3, flags=["strength_omission"])],
+        [change("c1", "move", 13, {"local_date": "2026-11-24"}, ["strength_move", "strength_omission"])],
+        [
+            change("c1", "delete", 13, flags=["strength_omission"]),
+            change("c2", "add", None, {"local_date": "2026-11-23", "kind": "strength", "intent": "Full body"}),
+        ],
+        [
+            omission("c1", 17),
+            change("c2", "move", 11, {"local_date": "2026-11-17"}, ["strength_move"]),
+        ],
+    ],
+)
+def test_v9_omission_requires_a_valid_absent_lift(changes: list[dict]) -> None:
+    ctx = replace(context(), confirmed_strength_dates=frozenset({date(2026, 11, 17), date(2026, 11, 20)}))
+    doc = valid_doc()
+    doc["changes"] = changes
+    assert any(code == "V9.strength_omission_invalid" for code, _ in outcome(doc, ctx)[1])
+
+
+def test_v9_duplicate_dates_cannot_be_counted_twice() -> None:
+    ctx = replace(context(), confirmed_strength_dates=frozenset({date(2026, 11, 17)}))
+    doc = valid_doc()
+    doc["changes"] = [omission("c1", 17), omission("c2", 17)]
+    assert outcome(doc, ctx) == ("invalid", [("V9.strength_omission_duplicate", "changes.1")])
+    ctx = replace(ctx, accepted_strength_omission_dates=frozenset({date(2026, 11, 17)}))
+    doc["changes"].pop()
+    assert outcome(doc, ctx) == ("invalid", [("V9.strength_omission_duplicate", "changes.0")])
+
+
+def test_v9_an_unrelated_omission_cannot_pay_for_moving_a_lift_out_of_a_week() -> None:
+    ctx = replace(context(), confirmed_strength_dates=frozenset({date(2026, 11, 25)}))
+    doc = valid_doc()
+    doc["changes"] = [
+        omission("c1", 25),
+        change("c2", "move", 13, {"local_date": "2026-11-17"}, ["strength_move"]),
+    ]
+    assert outcome(doc, ctx) == ("invalid", [("V9.strength_count", "changes")])
+
+
+def test_v9_accepted_omissions_only_cover_still_absent_lifts() -> None:
+    ctx = context()
+    omissions = frozenset({date(2026, 11, 23)})
+    ctx = replace(ctx, accepted_strength_omission_dates=omissions)
+    doc = valid_doc()
+    doc["changes"] = [change("c1", "delete", 13)]
+    assert outcome(doc, ctx) == ("invalid", [("V9.strength_count", "changes")])
+    remaining = {uid: row for uid, row in ctx.head_sessions.items() if uid != U(13)}
+    without_lift = replace(ctx, head_sessions=remaining)
+    assert outcome(valid_doc(), without_lift) == ("pending", [])
+    doc["changes"] = [change("c1", "move", 14, {"local_date": "2026-11-23"}, ["strength_move"])]
+    assert outcome(doc, without_lift) == ("invalid", [("V9.strength_count", "changes")])
+
+
+def test_v9_omission_cannot_target_a_routine_slot_planned_on_a_different_date() -> None:
+    ctx = context()
+    remaining = {uid: row for uid, row in ctx.head_sessions.items() if uid != U(12)}
+    remaining[U(11)] = replace(remaining[U(11)], strength_slot_id=U(21))
+    tue, fri = date(2026, 11, 17), date(2026, 11, 20)
+    ctx = replace(
+        ctx,
+        head_sessions=remaining,
+        confirmed_strength_dates=frozenset({tue, fri}),
+        confirmed_strength_slot_ids={tue: U(21), fri: U(22)},
+    )
+    doc = valid_doc()
+    doc["changes"] = [omission("c1", 17)]
+    assert ("V9.strength_omission_invalid", "changes.0") in outcome(doc, ctx)[1]
+    ctx = replace(
+        ctx,
+        accepted_strength_omission_dates=frozenset({tue}),
+        accepted_strength_omission_slot_ids={tue: U(21)},
+    )
+    assert outcome(valid_doc(), ctx) == ("invalid", [("V9.strength_count", "changes")])
+    doc["changes"] = [omission("c1", 20)]
+    assert outcome(doc, ctx) == ("pending", [])
+    doc["changes"].append(
+        change(
+            "c2",
+            "add",
+            None,
+            {"local_date": "2026-11-19", "kind": "strength", "intent": "Full body", "strength_slot_id": str(U(22))},
+        )
+    )
+    assert outcome(doc, ctx) == ("invalid", [("V9.strength_omission_invalid", "changes.0")])
+
+
+def test_v9_two_occurrences_of_the_same_routine_template_remain_distinct() -> None:
+    ctx = context()
+    remaining = {uid: row for uid, row in ctx.head_sessions.items() if uid != U(11)}
+    remaining[U(12)] = replace(remaining[U(12)], strength_slot_id=U(21))
+    tue, fri = date(2026, 11, 17), date(2026, 11, 20)
+    ctx = replace(
+        ctx,
+        head_sessions=remaining,
+        confirmed_strength_dates=frozenset({tue, fri}),
+        confirmed_strength_slot_ids={tue: U(21), fri: U(21)},
+    )
+    doc = valid_doc()
+    doc["changes"] = [omission("c1", 17)]
+    assert outcome(doc, ctx) == ("pending", [])
+
+
+def test_v9_daily_operations_cannot_omit_strength() -> None:
+    doc = valid_doc("proceed_or_modify_today")
+    doc["changes"] = [omission("c1", 17), change("c2", "delete", 11, flags=["strength_omission"])]
+    ctx = replace(context("proceed_or_modify_today"), confirmed_strength_dates=frozenset({date(2026, 11, 17)}))
+    assert outcome(doc, ctx) == (
+        "invalid",
+        [("V9.daily_strength_change", "changes.1"), ("V9.daily_strength_change", "changes.0")],
+    )
+
+
 def test_v9_daily_cannot_move_strength() -> None:
     doc = valid_doc("proceed_or_modify_today")
     doc["changes"] = [change("c1", "move", 11, {"local_date": "2026-11-17"}, ["strength_move"])]

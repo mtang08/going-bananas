@@ -113,6 +113,11 @@ def _store_changes(session: Session, proposal_id: uuid.UUID, doc: ProposalDoc, c
 
     for change in doc.changes:
         before = ctx.head_sessions.get(change.session_uid) if change.session_uid else None
+        after = change.after.model_dump(mode="json", exclude_unset=True) if change.after else None
+        if after and change.is_unplanned_strength_omission and after.get("local_date"):
+            slot = ctx.confirmed_strength_slot_ids.get(date.fromisoformat(after["local_date"]))
+            if slot:
+                after["strength_slot_id"] = str(slot)
         session.add(
             CoachProposalChange(
                 proposal_id=proposal_id,
@@ -133,7 +138,7 @@ def _store_changes(session: Session, proposal_id: uuid.UUID, doc: ProposalDoc, c
                     if before
                     else None
                 ),
-                after=change.after.model_dump(mode="json", exclude_unset=True) if change.after else None,
+                after=after,
                 reason=change.reason,
                 decision="pending",
             )

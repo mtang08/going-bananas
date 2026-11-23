@@ -123,6 +123,13 @@ export function ProposedChanges({
                 const after = proposedSession(change),
                   session = after ?? change.before
                 const week = weeks[index]
+                const isStrengthOmission = change.material_flags.includes('strength_omission')
+                const name = isStrengthOmission
+                  ? plain(session?.intent ?? '').trim() || 'Confirmed lift'
+                  : sessionName(session)
+                const otherFlags = change.material_flags.filter(
+                  (flag) => flag !== 'strength_omission',
+                )
                 return (
                   <Fragment key={change.change_id}>
                     {week && week !== weeks[index - 1] && (
@@ -165,19 +172,24 @@ export function ProposedChanges({
                           )}
                       </TableCell>
                       <TableCell>
-                        <strong>{sessionName(session)}</strong>
-                        <Badge className="status-chip">{ACTION_LABELS[change.op]}</Badge>
-                        {change.material_flags.length > 0 && (
+                        <strong>{name}</strong>
+                        <Badge className="status-chip">
+                          {isStrengthOmission ? 'Skip lift' : ACTION_LABELS[change.op]}
+                        </Badge>
+                        {otherFlags.length > 0 && (
                           <small>
                             Review carefully:{' '}
-                            {change.material_flags
-                              .map((flag) => flag.replaceAll('_', ' '))
-                              .join(', ')}
+                            {otherFlags.map((flag) => flag.replaceAll('_', ' ')).join(', ')}
                           </small>
                         )}
                       </TableCell>
                       <TableCell>
-                        {after ? (
+                        {isStrengthOmission ? (
+                          <div id={`proposal-omission-${index + 1}`}>
+                            <CoachText text={plain(change.reason)} />
+                            <small>This change applies only to the lift.</small>
+                          </div>
+                        ) : after ? (
                           <SessionView value={after} empty="" compact plain={plain} />
                         ) : (
                           <>
@@ -202,7 +214,14 @@ export function ProposedChanges({
                           <label className="proposal-choice">
                             <input
                               type="checkbox"
-                              aria-label={`Accept change ${change.change_id}`}
+                              aria-label={
+                                isStrengthOmission
+                                  ? `Accept skipping ${name} on ${sessionDate(session)}`
+                                  : `Accept change ${change.change_id}`
+                              }
+                              aria-describedby={
+                                isStrengthOmission ? `proposal-omission-${index + 1}` : undefined
+                              }
                               checked={selected.includes(change.change_id)}
                               disabled={disabled || invalidChangeIds.has(change.change_id)}
                               onChange={() => onToggle(change.change_id)}
@@ -229,7 +248,9 @@ export function ProposedChanges({
             <li id={`proposal-reason-${index + 1}`} key={change.change_id}>
               <h3>
                 {sessionDate(proposedSession(change) ?? change.before)} ·{' '}
-                {sessionName(proposedSession(change) ?? change.before)}
+                {change.material_flags.includes('strength_omission')
+                  ? 'Skip lift'
+                  : sessionName(proposedSession(change) ?? change.before)}
               </h3>
               <CoachText text={plain(change.reason)} />
               {(change.before || isStale) && (

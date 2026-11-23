@@ -1,12 +1,12 @@
 {
-  "artifact_version": "going-bananas-coach.MVP-1.4",
+  "artifact_version": "going-bananas-coach.MVP-1.5",
   "protocol": "coach_proposal.v1",
   "required_authority": "calendar",
   "activation": "manual",
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "de2ad491207b1f4fe2b14a8bd9e76a5647d23050ec31035f7a5048f422524da3"
+      "sha256": "86b5b8cde22265d18c453064d83c36457b13472592abfb293d3524cc7a9bf55a"
     },
     {
       "path": "agents/openai.yaml",
@@ -26,7 +26,7 @@
     },
     {
       "path": "references/proposal-format.md",
-      "sha256": "d66c81113d3380db082e893e4e23166a19ac16eb6bdc70244c876413f60f7f79"
+      "sha256": "549ce5ad19067cc67dea6a4a1423ed47ddf7563cf150033802eb3d47cdd3e949"
     },
     {
       "path": "references/research-intake.md",

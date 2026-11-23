@@ -107,7 +107,11 @@ class Change(Strict):
     session_uid: uuid.UUID | None = None
     after: SessionFields | None = None
     reason: str = Field(min_length=1)
-    material_flags: list[Literal["off_cycle_run", "strength_move"]] = Field(default_factory=list)
+    material_flags: list[Literal["off_cycle_run", "strength_move", "strength_omission"]] = Field(default_factory=list)
+
+    @property
+    def is_unplanned_strength_omission(self) -> bool:
+        return self.op == "add" and "strength_omission" in self.material_flags
 
     @model_validator(mode="after")
     def shape(self) -> Change:
@@ -348,6 +352,10 @@ class ValidationContext:
     open_rule_codes: frozenset[str] = frozenset()
     benchmark: Any = None
     last_benchmark_date: date | None = None
+    confirmed_strength_dates: frozenset[date] = frozenset()
+    confirmed_strength_slot_ids: dict[date, uuid.UUID] = dataclass_field(default_factory=dict)
+    accepted_strength_omission_dates: frozenset[date] = frozenset()
+    accepted_strength_omission_slot_ids: dict[date, uuid.UUID] = dataclass_field(default_factory=dict)
 
 
 @dataclass(frozen=True)

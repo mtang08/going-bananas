@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections import Counter
 from datetime import date, timedelta
 from typing import Any, Literal
 
@@ -52,6 +53,8 @@ def _issue(code: str, path: str, message: str | None = None) -> ValidationIssue:
 def _resulting(doc: ProposalDoc, ctx: ValidationContext) -> dict[str, dict]:
     state = {str(uid): dict(vars(row)) for uid, row in ctx.head_sessions.items()}
     for change in doc.changes:
+        if change.is_unplanned_strength_omission:
+            continue
         uid = str(change.session_uid) if change.session_uid else f"new:{change.change_id}"
         if change.op == "delete":
             state.pop(uid, None)
@@ -67,6 +70,7 @@ def _resulting(doc: ProposalDoc, ctx: ValidationContext) -> dict[str, dict]:
                 "intent": change.after.intent,
                 "planned_duration_s": change.after.planned_duration_s,
                 "structure": change.after.structure,
+                "strength_slot_id": change.after.strength_slot_id,
             }
         elif uid in state and change.after:
             state[uid].update(change.after.model_dump(include=change.after.model_fields_set))
@@ -472,7 +476,116 @@ def _preserved_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
     return issues
 
 
-def _calendar_shape_rules(state: dict[str, dict], *, start: date, end: date) -> list[ValidationIssue]:
+def _strength_omission_target(
+    change: Change, ctx: ValidationContext, head_strength_dates: set[date]
+) -> tuple[date, uuid.UUID | None] | None:
+    if change.op == "delete" and change.session_uid is not None:
+        head = ctx.head_sessions.get(change.session_uid)
+        if head and head.kind == "strength" and not head.locked:
+            return head.local_date, head.strength_slot_id
+        return None
+    after = change.after
+    if change.op != "add" or after is None or after.kind != "rest" or not (after.intent or "").strip():
+        return None
+    if not after.model_dump(exclude_none=True).keys() <= {"local_date", "kind", "intent"}:
+        return None
+    day = after.local_date
+    if day is not None and day in ctx.confirmed_strength_dates and day not in head_strength_dates:
+        return day, ctx.confirmed_strength_slot_ids.get(day)
+    return None
+
+
+def _slot_week(day: date, slot_id: uuid.UUID) -> tuple[date, uuid.UUID]:
+    return day - timedelta(days=day.weekday()), slot_id
+
+
+def _shared_strength_slots(ctx: ValidationContext) -> set[tuple[date, uuid.UUID]]:
+    # A routine template can describe both weekly lifts. In that case the dates identify them.
+    return {
+        key
+        for assignments in (ctx.confirmed_strength_slot_ids, ctx.accepted_strength_omission_slot_ids)
+        for key, count in Counter(_slot_week(day, slot) for day, slot in assignments.items()).items()
+        if count > 1
+    }
+
+
+def _strength_omission_rules(
+    doc: ProposalDoc, ctx: ValidationContext, state: dict[str, dict]
+) -> tuple[set[date], set[date], list[ValidationIssue]]:
+    head_lifts = [
+        (row.local_date, row.strength_slot_id) for row in ctx.head_sessions.values() if row.kind == "strength"
+    ]
+    result_lifts = [
+        (row["local_date"], row.get("strength_slot_id")) for row in state.values() if row["kind"] == "strength"
+    ]
+    head_dates = {day for day, _ in head_lifts}
+    result_dates = {day for day, _ in result_lifts}
+    head_slots = {_slot_week(day, slot) for day, slot in head_lifts if day is not None and slot is not None}
+    result_slots = {_slot_week(day, slot) for day, slot in result_lifts if day is not None and slot is not None}
+    shared_slots = _shared_strength_slots(ctx)
+
+    def unique_slot(day: date, slot: uuid.UUID | None) -> tuple[date, uuid.UUID] | None:
+        key = _slot_week(day, slot) if slot else None
+        return key if key not in shared_slots else None
+
+    omissions: set[date] = set()
+    omission_slots: set[tuple[date, uuid.UUID]] = set()
+    for accepted_day in ctx.accepted_strength_omission_dates - head_dates - result_dates:
+        slot = unique_slot(accepted_day, ctx.accepted_strength_omission_slot_ids.get(accepted_day))
+        if slot in head_slots or slot in result_slots:
+            continue
+        omissions.add(accepted_day)
+        if slot is not None:
+            omission_slots.add(slot)
+
+    marked_deletions: set[date] = set()
+    issues: list[ValidationIssue] = []
+    for i, change in enumerate(doc.changes):
+        if "strength_omission" not in change.material_flags:
+            continue
+        path = f"changes.{i}"
+        if change.op == "add" and doc.operation in NO_STRENGTH_EDIT_OPS:
+            issues.append(_issue("V9.daily_strength_change", path))
+        elif not change.reason.strip():
+            issues.append(_issue("V9.strength_omission_invalid", f"{path}.reason", "Explain why the lift is omitted"))
+        else:
+            target = _strength_omission_target(change, ctx, head_dates)
+            day, slot_id = target if target else (None, None)
+            slot = unique_slot(day, slot_id) if day else None
+            if (
+                day is None
+                or day in result_dates
+                or slot in result_slots
+                or (change.op == "add" and slot in head_slots)
+                or change.material_flags != ["strength_omission"]
+            ):
+                issues.append(
+                    _issue(
+                        "V9.strength_omission_invalid",
+                        path,
+                        "Mark the deletion of a planned lift or identify an absent confirmed recurring lift",
+                    )
+                )
+            elif day in omissions or slot in omission_slots:
+                issues.append(_issue("V9.strength_omission_duplicate", path, "This date already has a lift omission"))
+            else:
+                omissions.add(day)
+                if slot is not None:
+                    omission_slots.add(slot)
+                if change.op == "delete":
+                    marked_deletions.add(day)
+    return omissions, marked_deletions, issues
+
+
+def _calendar_shape_rules(
+    state: dict[str, dict],
+    *,
+    start: date,
+    end: date,
+    head_sessions: dict[uuid.UUID, HeadSession],
+    omissions: set[date],
+    marked_deletions: set[date],
+) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     for day_offset in range((end - start).days + 1):
         day = start + timedelta(days=day_offset)
@@ -480,14 +593,22 @@ def _calendar_shape_rules(state: dict[str, dict], *, start: date, end: date) -> 
             issues.append(_issue("V7.multiple_runs_per_day", "changes", day.isoformat()))
     week = start - timedelta(days=start.weekday())
     while week <= end:
-        rows = [row for row in state.values() if week <= row["local_date"] <= week + timedelta(days=6)]
-        if (
-            rows
-            and week >= start
-            and week + timedelta(days=6) <= end
-            and sum(row["kind"] == "strength" for row in rows) < 2
-        ):
-            issues.append(_issue("V9.strength_count", "changes"))
+        week_end = week + timedelta(days=6)
+        rows = [
+            row for row in state.values() if row["local_date"] is not None and week <= row["local_date"] <= week_end
+        ]
+        if week >= start and week_end <= end:
+            head_count = sum(
+                row.kind == "strength" and week <= row.local_date <= week_end for row in head_sessions.values()
+            )
+            strength_count = sum(row["kind"] == "strength" for row in rows)
+            omission_count = sum(week <= day <= week_end for day in omissions)
+            deleted_count = sum(week <= day <= week_end for day in marked_deletions)
+            # Unplanned omissions cannot replace the loss of an already scheduled lift.
+            if (rows or head_count or omission_count) and (
+                strength_count + omission_count < 2 or strength_count + deleted_count < min(2, head_count)
+            ):
+                issues.append(_issue("V9.strength_count", "changes"))
         if sum(row["kind"] == "run" and row.get("recipe_id") == LONG_RECIPE for row in rows) > 1:
             issues.append(_issue("V10.multiple_long", "changes"))
         week += timedelta(days=7)
@@ -572,7 +693,16 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
     state = _resulting(doc, ctx)
     issues = _change_rules(doc, ctx, start=start, end=end, state=state)
     issues += _preserved_rules(doc, ctx)
-    issues += _calendar_shape_rules(state, start=start, end=end)
+    omissions, marked_deletions, omission_issues = _strength_omission_rules(doc, ctx, state)
+    issues += omission_issues
+    issues += _calendar_shape_rules(
+        state,
+        start=start,
+        end=end,
+        head_sessions=ctx.head_sessions,
+        omissions=omissions,
+        marked_deletions=marked_deletions,
+    )
     issues += _kb_rules(doc, ctx)
     issues += _block_change_rules(doc, ctx)
     issues += _anchor_rules(doc, ctx)
@@ -649,6 +779,8 @@ def validate_subset(
     accepted_anchor_keys: set[str],
     ctx: ValidationContext,
 ) -> list[ValidationIssue]:
+    if not accepted_ids and not accept_block_change and not accepted_anchor_keys:
+        return []
     selected = doc.model_copy(
         update={
             "changes": [change for change in doc.changes if change.change_id in accepted_ids],

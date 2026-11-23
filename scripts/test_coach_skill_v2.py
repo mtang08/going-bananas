@@ -209,7 +209,7 @@ class HelperTests(unittest.TestCase):
     def test_manifest_covers_exact_artifact_bytes(self):
         manifest = json.loads((PACKAGE/'coach-helper.manifest.json').read_text())
         self.assertEqual(manifest['activation'], 'manual')
-        self.assertEqual(manifest['artifact_version'], 'going-bananas-coach.MVP-1.4')
+        self.assertEqual(manifest['artifact_version'], 'going-bananas-coach.MVP-1.5')
         names = []
         for entry in manifest['files']:
             path = PACKAGE/entry['path']

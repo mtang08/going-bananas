@@ -152,3 +152,5 @@ class SnapshotInputs:
     review_recommended: list[dict] = field(default_factory=list)
     benchmark_history: list[dict] = field(default_factory=list)
     weekly_digest: list[dict] = field(default_factory=list)
+    confirmed_strength_sessions: list[dict] = field(default_factory=list)
+    accepted_strength_omissions: list[dict] = field(default_factory=list)

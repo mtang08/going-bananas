@@ -29,8 +29,10 @@ from app.models import (
 )
 from app.planning_models import Event, Goal, IntensityAnchor, StrengthRoutineSlot
 from app.read.calendar import head_version
+from app.read.strength_omissions import accepted_strength_omissions
 from app.services.block_benchmark import active_block_version
 from app.services.profile import current_profile
+from app.services.strength_routine import routine_occurrences
 from app.strong_models import StrongWorkoutRow
 
 
@@ -99,6 +101,7 @@ def collect_decision_inputs(
 ) -> dict:
     from app.checkin_models import Checkin as CheckinV2
     from app.checkin_models import SymptomReport
+    from app.services.proposals.schema import HORIZON_MAX_DAYS
 
     profile = current_profile(session)
     checkins = _sorted(session, CheckinV2, CheckinV2.id)
@@ -279,8 +282,24 @@ def collect_decision_inputs(
             "mobility_week_b_days": profile.mobility_week_b_days,
             "mobility_optional_days": profile.mobility_optional_days,
         }
+    end = as_of + timedelta(days=HORIZON_MAX_DAYS)
+    schedule = [
+        {
+            "local_date": row["date"],
+            "intent": row["label"] if row.get("strength_slot_id") else "Strength",
+            **({"strength_slot_id": str(row["strength_slot_id"])} if row.get("strength_slot_id") else {}),
+        }
+        for row in routine_occurrences(
+            session, as_of - timedelta(days=as_of.weekday()), end + timedelta(days=6 - end.weekday())
+        )
+        if row["kind"] == "strength"
+    ]
+    omissions = accepted_strength_omissions(session, as_of, end, schedule)
+    if omissions:
+        source_versions["accepted_strength_omissions"] = omissions
     source_versions = _wire(source_versions)
     return {
+        "confirmed_strength_sessions": schedule,
         "source_versions": source_versions,
         "source_fingerprint": fingerprint(source_versions, kb),
         "safety_guard": guard,

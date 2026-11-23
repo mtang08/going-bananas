@@ -49,7 +49,6 @@ def build_snapshot(
 
             run_detection(session, now)
         inputs = load_inputs(session, as_of, now=now)
-        payload = build_payload(inputs, operation)
         bundle = load_route(
             operation,
             recipe_ids=select_recipe_ids(inputs, operation),
@@ -58,6 +57,9 @@ def build_snapshot(
         )
         kb = VerifiedKnowledge(**verify_selection(tuple(bundle.routes), root=kb_root))
         decision = collect_decision_inputs(session, operation, as_of, now=now, kb=kb)
+        inputs.confirmed_strength_sessions = decision.get("confirmed_strength_sessions", [])
+        inputs.accepted_strength_omissions = decision["source_versions"].get("accepted_strength_omissions", [])
+        payload = build_payload(inputs, operation)
         meta = payload["snapshot_meta"]
         meta["source_fingerprint"] = decision["source_fingerprint"]
         meta["source_provenance"] = source_provenance(decision["source_versions"])

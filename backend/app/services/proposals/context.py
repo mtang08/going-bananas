@@ -109,13 +109,21 @@ def load_context(
     }
     profile = current_profile(session)
     anchor = profile.cycle_anchor if profile and profile.anchor_confirmed else None
-    inputs = (
+    inputs: dict[str, Any] = (
         collect_decision_inputs(session, snapshot.operation, snapshot.as_of, now=now, kb=kb)
         if snapshot
         else {"source_fingerprint": "", "safety_guard": None}
     )
     active = active_block(session)
     active_row = session.get(BlockVersion, active.version_id) if active else None
+    strength_schedule = {
+        date.fromisoformat(row["local_date"]): row.get("strength_slot_id")
+        for row in inputs.get("confirmed_strength_sessions", [])
+    }
+    accepted_omissions = {
+        date.fromisoformat(row["local_date"]): row.get("strength_slot_id")
+        for row in inputs.get("source_versions", {}).get("accepted_strength_omissions", [])
+    }
     return ValidationContext(
         now,
         today,
@@ -137,4 +145,8 @@ def load_context(
         ),
         benchmark=benchmark_status(session, active_row, today) if active_row else None,
         last_benchmark_date=last_credible_result_date(session),
+        confirmed_strength_dates=frozenset(strength_schedule),
+        confirmed_strength_slot_ids={day: uuid.UUID(slot) for day, slot in strength_schedule.items() if slot},
+        accepted_strength_omission_dates=frozenset(accepted_omissions),
+        accepted_strength_omission_slot_ids={day: uuid.UUID(slot) for day, slot in accepted_omissions.items() if slot},
     )

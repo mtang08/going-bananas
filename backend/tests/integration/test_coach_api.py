@@ -10,13 +10,18 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.coach import resolve_kb
 from app.calendar_models import CalendarSessionRevision, CalendarVersion
 from app.coach_v2_models import CoachProposal, CoachSnapshot
 from app.exception_models import ExceptionFinding
 from app.models import AppState
+from app.read.strength_omissions import accepted_strength_omissions
 from app.services import calendar
 from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
+from app.services.profile import current_profile
 from app.services.proposals.lifecycle import submit_proposal
+from app.services.snapshot.build import build_snapshot
+from app.services.strength_routine import replace_routine, routine_view
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
@@ -95,7 +100,8 @@ def api(proposal_session, monkeypatch):
     class Clock(datetime):
         @classmethod
         def now(cls, tz=None):
-            return NOW if tz else NOW.replace(tzinfo=None)
+            now = proposal_session.info.get("coach_api_now", NOW)
+            return now if tz else now.replace(tzinfo=None)
 
     monkeypatch.setattr(coach, "datetime", Clock)
     monkeypatch.setattr(coach, "resolve_kb", _resolve)
@@ -406,6 +412,197 @@ def test_subset_invalid_422(api):
     assert response.status_code == 422, response.text
     assert response.json()["error"]["code"] == "proposal_invalid_subset"
     assert session.get(AppState, 1).calendar_head_version == snapshot.calendar_version_number
+
+
+def test_strength_omissions_are_reviewed_and_scoped_to_their_dates(api, monkeypatch):
+    from app.api import coach
+
+    client, session = api
+    now = NOW + timedelta(days=7)
+    session.info["coach_api_now"] = now
+    monkeypatch.setattr(coach, "resolve_kb", resolve_kb)
+    travel_day = date(2026, 12, 1)
+    recovery_day = date(2026, 12, 4)
+    routine_days = [1, 4]
+    profile = current_profile(session)
+    assert profile is not None and profile.strength_days_confirmed
+    profile.scheduled_strength_days = routine_days
+    replace_routine(
+        session,
+        routine_view(session)["version"],
+        [
+            {"label": label, "default_weekday": weekday, "lower_body_cost": "moderate"}
+            for label, weekday in zip(["Full body A", "Full body B"], routine_days, strict=True)
+        ],
+    )
+    calendar.apply_edits(
+        session,
+        1,
+        [
+            {
+                "op": "move",
+                "session_uid": row["session_uid"],
+                "fields": {"local_date": row["local_date"] + timedelta(days=1)},
+            }
+            for row in calendar.state_at(session, 1)
+            if row["kind"] == "strength" and row["local_date"].weekday() == 0
+        ]
+        + [{"op": "add", "fields": {"local_date": travel_day, "kind": "mobility", "intent": "Travel mobility"}}],
+        "Confirm the Tuesday and Friday routine",
+    )
+    run_uid = next(row["session_uid"] for row in calendar.state_at(session, 1) if row["kind"] == "run")
+
+    def review(at: datetime) -> tuple[dict, dict]:
+        result = build_snapshot(session, "review_rolling_plan", at.date(), now=at)
+        snapshot = session.get(CoachSnapshot, uuid.UUID(result["snapshot_id"]))
+        doc = _doc(snapshot, run_uid)
+        doc.update(evidence_ids=[], recipe_ids=[], policy_ids=[])
+        return doc, result["payload"]["goals_and_constraints"]
+
+    doc, constraints = review(now)
+    expected = {row["local_date"]: row for row in constraints["confirmed_strength_sessions"]}
+    travel_slot = expected[str(travel_day)]
+    friday_slot = expected[str(recovery_day)]
+    assert constraints["accepted_strength_omissions"] == []
+    head = doc["base_calendar_version"]
+    baseline_calendar = calendar.state_at(session, head)
+    doc["summary"] = "Omit Tuesday lifting during travel"
+    doc["rationale"] = "Travel prevents the usual Tuesday lift. Keep Friday lifting."
+    doc["changes"] = [
+        {
+            "change_id": "c1",
+            "op": "add",
+            "after": {"local_date": str(travel_day), "kind": "rest", "intent": travel_slot["intent"]},
+            "material_flags": ["strength_omission"],
+            "reason": "Travel",
+        },
+        {
+            "change_id": "c2",
+            "op": "add",
+            "after": {**friday_slot, "kind": "strength"},
+            "reason": "Keep the confirmed Friday lift",
+        },
+    ]
+    travel = submit_proposal(session, doc, now=now, resolve_kb=resolve_kb)
+    assert travel.status == "pending", travel.issues
+    session.commit()
+    travel_url = f"/api/v1/coach/proposals/{travel.proposal_id}"
+
+    travel_reason = "Flight and hotel check-in prevent the Tuesday lift"
+    doc["changes"][0]["reason"] = travel_reason
+    revised = client.post(
+        travel_url + "/revise", json={"expected_revision": 1, "reason": "Confirm travel timing", "document": doc}
+    )
+    assert revised.status_code == 200, revised.text
+    assert revised.json()["data"]["proposal_id"] == str(travel.proposal_id)
+    assert revised.json()["data"]["revision"] == 2
+    travel_change = client.get(travel_url).json()["data"]["changes"][0]
+    assert travel_change["material_flags"] == ["strength_omission"]
+    assert travel_change["reason"] == travel_reason
+    assert travel_change["after"]["kind"] == "rest"
+
+    invalid = client.post(
+        travel_url + "/decision",
+        json={**decision(head, accept=["c1"], reject=["c2"], key="reject-friday-lift"), "expected_revision": 2},
+    )
+    assert invalid.status_code == 422, invalid.text
+    assert invalid.json()["error"]["code"] == "proposal_invalid_subset"
+    assert any(item["code"] == "V9.strength_count" for item in invalid.json()["error"]["fields"])
+    assert session.get(AppState, 1).calendar_head_version == head
+    assert calendar.state_at(session, head) == baseline_calendar
+
+    accepted = client.post(
+        travel_url + "/decision",
+        json={**decision(head, accept=["c1", "c2"], key="accept-travel"), "expected_revision": 2},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["data"]["status"] == "accepted"
+    travel_change = client.get(travel_url).json()["data"]["changes"][0]
+    assert travel_change["decision"] == "accepted"
+    assert travel_change["session_uid"] is None
+    head = accepted.json()["data"]["calendar_version"]
+    rows = calendar.state_at(session, head)
+    assert [row["kind"] for row in rows if row["local_date"] == travel_day] == ["mobility"]
+    friday = next(row for row in rows if row["local_date"] == recovery_day and row["kind"] == "strength")
+
+    doc, _ = review(now)
+    recovery_reason = "Reduce lower-body load this week while recovering from travel"
+    doc["summary"] = "Omit Friday lifting for recovery"
+    doc["rationale"] = recovery_reason
+    doc["changes"] = [
+        {
+            "change_id": "c1",
+            "op": "delete",
+            "session_uid": str(friday["session_uid"]),
+            "material_flags": ["strength_omission"],
+            "reason": recovery_reason,
+        }
+    ]
+    recovery = submit_proposal(session, doc, now=now, resolve_kb=resolve_kb)
+    assert recovery.status == "pending", recovery.issues
+    session.commit()
+    recovery_url = f"/api/v1/coach/proposals/{recovery.proposal_id}"
+    change = client.get(recovery_url).json()["data"]["changes"][0]
+    assert change["material_flags"] == ["strength_omission"]
+    assert change["reason"] == recovery_reason
+    assert change["current"]["kind"] == "strength"
+    assert session.get(AppState, 1).calendar_head_version == head
+    accepted = client.post(recovery_url + "/decision", json=decision(head, accept=["c1"], key="accept-recovery"))
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["data"]["status"] == "accepted"
+    head = accepted.json()["data"]["calendar_version"]
+    assert not any(row["session_uid"] == friday["session_uid"] for row in calendar.state_at(session, head))
+    assert current_profile(session).scheduled_strength_days == routine_days
+
+    following_now = now + timedelta(days=7)
+    next_doc, constraints = review(following_now)
+    assert constraints["accepted_strength_omissions"] == [
+        {**travel_slot, "reason": travel_reason},
+        {**friday_slot, "reason": recovery_reason},
+    ]
+    following_days = [travel_day + timedelta(days=7), recovery_day + timedelta(days=7)]
+    assert {str(day) for day in following_days} <= {
+        row["local_date"] for row in constraints["confirmed_strength_sessions"]
+    }
+    next_doc.update(summary="Resume usual lifting", rationale="The temporary omissions are over")
+    next_doc["changes"] = [
+        {
+            "change_id": f"c{i}",
+            "op": "add",
+            "after": {"local_date": str(day), "kind": "strength", "intent": "Full body"},
+            "reason": "Resume the confirmed routine",
+        }
+        for i, day in enumerate(following_days, start=1)
+    ]
+    result = submit_proposal(session, next_doc, now=following_now, resolve_kb=resolve_kb)
+    assert result.status == "pending", result.issues
+    session.commit()
+    session.info["coach_api_now"] = following_now
+    accepted = client.post(
+        f"/api/v1/coach/proposals/{result.proposal_id}/decision",
+        json=decision(head, accept=["c1", "c2"], key="resume-routine"),
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["data"]["status"] == "accepted"
+    head = accepted.json()["data"]["calendar_version"]
+    strength_days = {row["local_date"] for row in calendar.state_at(session, head) if row["kind"] == "strength"}
+    assert set(following_days) <= strength_days
+
+    calendar.apply_edits(
+        session,
+        head,
+        [{"op": "add", "fields": {**friday_slot, "local_date": recovery_day + timedelta(days=1), "kind": "strength"}}],
+        "Reinstate Friday's lift on Saturday",
+    )
+    saturday = next(
+        row for row in calendar.state_at(session, head + 1) if row["local_date"] == recovery_day + timedelta(days=1)
+    )
+    calendar.apply_edits(
+        session, head + 1, [{"op": "delete", "session_uid": saturday["session_uid"]}], "Remove Saturday lifting"
+    )
+    assert accepted_strength_omissions(
+        session, travel_day, recovery_day, constraints["confirmed_strength_sessions"]
+    ) == [constraints["accepted_strength_omissions"][0]]
 
 
 def test_revision_api_preserves_link_and_requires_reviewed_revision(api):

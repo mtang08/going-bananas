@@ -103,6 +103,7 @@ When the goal race changes (you move it up or down, cancel it, or its date passe
 Discuss the plan in one chat. Ask for a shorter workout or a different day and the coach will work from the same review context. When the plan looks right, say “looks good” or “publish it.” The coach saves the agreed plan and provides its review link. **Pending your review; nothing applied.** On Home, open **Needs attention → Review** to inspect the rationale and each proposed change, including workout details, block changes, and calibration anchors when present.
 
 - Valid session changes start checked. Uncheck any you want to reject, select any block or anchor changes separately, then choose **Accept selected**.
+- A **Skip lift** row shows the date, the affected lift, and why the coach proposes skipping it. The decision applies only to that lift. Review other sessions on the same date separately.
 - Review related calibration anchors with any targets that depend on them.
 - For a no-change review, the app records your acknowledgment.
 - Opening a proposal or receiving it in chat does not apply it.

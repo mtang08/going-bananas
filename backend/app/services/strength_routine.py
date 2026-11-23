@@ -208,6 +208,8 @@ def routine_occurrences(session: Session, start: date, end: date) -> list[dict]:
     monday = start - timedelta(days=start.weekday())
     sunday = end + timedelta(days=6 - end.weekday())
     all_rows = recurring_sessions(monday, sunday, profile)
+    if not all_rows:
+        return []
     slots = sorted(_current_slots(session), key=lambda row: (row.label, str(row.id)))
     suggested = routine_view(session)["slots"] if not slots else []
     positions: dict[date, int] = defaultdict(int)

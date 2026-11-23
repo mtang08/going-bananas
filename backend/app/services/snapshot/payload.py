@@ -388,7 +388,9 @@ def _prior_decisions(inputs: SnapshotInputs, operation: str) -> list[dict]:
             item = row_view(change, ("change_id", "op", "session_uid", "decision"))
             item["before"] = _safe_revision(change.get("before"))
             item["after"] = _safe_revision(change.get("after"))
-            if change.get("decision") == "accepted" and change.get("session_uid"):
+            if "strength_omission" in change.get("material_flags", []):
+                item.update(material_flags=["strength_omission"], reason=change["reason"])
+            elif change.get("decision") == "accepted" and change.get("session_uid"):
                 date_value = (change.get("after") or {}).get("local_date") or (change.get("before") or {}).get(
                     "local_date"
                 )
@@ -863,6 +865,13 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
             "run_cycle": {"anchor_date": inputs.cycle_anchor, "confirmed": inputs.anchor_confirmed},
             "clinical_restriction": inputs.clinical_restriction,
         }
+        if operation in HORIZON_OPS or inputs.accepted_strength_omissions:
+            goals_view["confirmed_strength_sessions"] = [
+                row for row in inputs.confirmed_strength_sessions if day_between(row["local_date"], start, end)
+            ]
+            goals_view["accepted_strength_omissions"] = [
+                row for row in inputs.accepted_strength_omissions if day_between(row["local_date"], start, end)
+            ]
         if operation not in {DAILY, EXCEPTION}:
             top = next((e for e in events if e["rank"] == 1), None)
             goal_race = (

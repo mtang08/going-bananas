@@ -339,10 +339,13 @@ def decide_proposal(
             )
             anchor_keys.append(create_anchor(session, fields)["anchor_key"])
             changed = True
+    # Accepting an unplanned omission records the review decision only. The
+    # dated marker must never create a rest workout or displace a same-day run.
+    calendar_changes = [
+        change for change in doc.changes if change.change_id in accepted and not change.is_unplanned_strength_omission
+    ]
     edits = []
-    for change in doc.changes:
-        if change.change_id not in accepted:
-            continue
+    for change in calendar_changes:
         edit_fields: dict[str, Any] | None = (
             change.after.model_dump(mode="python", exclude_unset=True) if change.after else None
         )
@@ -383,8 +386,8 @@ def decide_proposal(
                 .order_by(CalendarSessionRevision.session_uid)
             )
         )
-        for change in doc.changes:
-            if change.change_id not in accepted or change.op != "add" or change.after is None:
+        for change in calendar_changes:
+            if change.op != "add" or change.after is None:
                 continue
             supplied = change.after.model_dump(mode="python", exclude_unset=True)
             match = next(

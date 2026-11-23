@@ -367,11 +367,18 @@ def _load_proposals(session: Session) -> list[dict]:
         if proposal_rows
         else []
     )
+    omissions = {
+        (proposal.id, change["change_id"])
+        for proposal in proposal_rows
+        for change in proposal.payload.get("changes", [])
+        if "strength_omission" in change.get("material_flags", [])
+    }
     by_proposal: dict[uuid.UUID, list[dict]] = {}
     for change_row in changes:
-        by_proposal.setdefault(change_row.proposal_id, []).append(
-            row_view(change_row, ("change_id", "op", "session_uid", "decision", "before", "after"))
-        )
+        item = row_view(change_row, ("change_id", "op", "session_uid", "decision", "before", "after"))
+        if (change_row.proposal_id, change_row.change_id) in omissions:
+            item.update(material_flags=["strength_omission"], reason=change_row.reason)
+        by_proposal.setdefault(change_row.proposal_id, []).append(item)
     proposals = [
         dict(
             row_view(row, ("operation", "status", "submitted_at", "decided_at", "summary", "follow_up")),
