@@ -1825,3 +1825,21 @@ def test_provisional_calendar_zones_do_not_imply_night_flight_or_circadian_shift
     assert (
         reported["duration_hours"] == 4 and reported["night_overlap"] is None and reported["zone_shift_hours"] is None
     )
+
+
+def test_travel_section_size_for_eight_round_trips():
+    trips = []
+    for n in range(8):
+        start = AS_OF + timedelta(days=n)
+        departure, arrival = start.isoformat(), (start + timedelta(days=4)).isoformat()
+        ny, la = "America/New_York", "America/Los_Angeles"
+        flights = [
+            leg(f"{departure}T08:05:00-05:00", ny, f"{departure}T11:30:00-08:00", la),
+            leg(f"{arrival}T13:00:00-08:00", la, f"{arrival}T21:25:00-05:00", ny),
+        ]
+        trip = travel_trip(n, start, legs=flights)
+        trip.update(trip_id=str(uuid.UUID(int=n + 1)), travel_days=[departure, arrival])
+        trips.append(trip)
+    section = build_payload(inputs(trips=trips), ROLLING)["travel"]
+    assert section["trips_omitted"] == 0 and len(section["trips"]) == 8
+    assert len(canonical_json(section)) <= 8000
