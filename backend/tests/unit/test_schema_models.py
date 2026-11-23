@@ -14,6 +14,7 @@ import app.fit_models  # noqa: F401
 import app.metric_models  # noqa: F401
 import app.planning_models  # noqa: F401
 import app.strong_models  # noqa: F401
+import app.travel_models  # noqa: F401
 from app.db import Base
 from app.migrations_head import EXPECTED_HEAD
 
@@ -23,7 +24,8 @@ def test_single_chained_schema_head() -> None:
     script = ScriptDirectory.from_config(config)
     assert script.get_heads() == [EXPECTED_HEAD]
     revisions = [revision.revision for revision in script.walk_revisions()]
-    assert revisions[:14] == [
+    assert revisions[:15] == [
+        "0024_google_calendar",
         "0023_treadmill_interval_paces",
         "0022_race_goals",
         "0021_self_reported_completion",
@@ -50,7 +52,7 @@ def test_required_tables_are_in_metadata() -> None:
         blocks block_versions block_decisions goals events strength_routine_slots
         intensity_anchors metric_configs metric_results prompts coach_snapshots
         coach_proposals coach_proposal_revisions coach_proposal_changes coach_decision_keys
-        exception_patches exception_findings block_benchmarks""".split()
+        exception_patches exception_findings block_benchmarks gcal_events trips trip_legs""".split()
     ) <= set(Base.metadata.tables)
     assert Base.metadata.tables["activities"].c.fit_status.server_default.arg == "not_fetched"
     assert "planning_authority" not in Base.metadata.tables["app_state"].c
@@ -79,6 +81,8 @@ def test_integrity_rules_are_declared() -> None:
             "ck_exception_findings_status",
         },
         "block_benchmarks": {"ck_block_benchmarks_match_method", "ck_block_benchmarks_outcome"},
+        "gcal_events": {"ck_gcal_events_time_shape", "ck_gcal_events_category", "ck_gcal_events_response"},
+        "trips": {"ck_trips_source_shape", "ck_trips_review_status", "ck_trips_dates"},
     }
     for name, constraint_names in expected.items():
         actual = {c.name for c in Base.metadata.tables[name].constraints if isinstance(c, CheckConstraint)}

@@ -14,6 +14,7 @@ import app.metric_models  # noqa: F401
 import app.models  # noqa: F401
 import app.planning_models  # noqa: F401
 import app.strong_models  # noqa: F401
+import app.travel_models  # noqa: F401
 from app.config import settings
 from app.db import Base
 
