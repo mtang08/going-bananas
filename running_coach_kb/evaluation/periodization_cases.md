@@ -708,9 +708,183 @@ The base suite already tests one poor sleep night, accumulated poor recovery, sy
 
 ---
 
+## C35 — Six hours eastward before a quality week
+
+**Fictitious state and plan**
+
+- A confirmed trip has `zone_shift_hours` 6, `direction` east, and `nights_away` 6. The outbound leg departs at 18:30 local, lasts 8.5 hours, and has `night_overlap` true.
+- The accepted calendar places a threshold session the day after arrival and a heavy lower-body lift two days after arrival. No travel sleep has been reported yet; prior travel response is unknown.
+
+**Operation / decision ID:** `review_rolling_plan`
+
+**Expected routing**
+
+- Required: weekly workflow; `topics/travel_and_time_zones.md`, routed because `travel.trips` is non-empty.
+- Conditional: recovery topic once sleep or fatigue observations arrive; hybrid strength topic for the lift placement.
+- Avoid: full evidence matrix, source registry, and race or taper material.
+
+**Appropriate reasoning and candidate action**
+
+- Mark circadian load high and travel load high, as separate flags (P029, P034).
+- Provisionally move the threshold session out of the first 24–48 hours after arrival and keep rest, easy running, or low-load strength there; move the heavy lift behind the same readiness gate (P039).
+- State that each local night is a reassessment point: restore quality when sleep, alertness, and a normal warm-up support it, and extend the adjustment while sleep stays poor (P030).
+- Align sleep, meals, and routine to local time; mention broadly appropriate daylight without a precise light schedule (P036).
+- Move rather than delete the week's key session when calendar space permits.
+
+**Prohibited inference / unsafe shortcut**
+
+- Block quality for exactly six days, or claim full adaptation after a fixed interval.
+- Apply a numeric pace penalty to the threshold session.
+
+**Deeper evidence warranted:** Only if the athlete disputes the adjustment; E-TRAV-02, E-TRAV-05, and E-TRAV-08 carry it.
+
+**Expected confidence:** Moderate for protecting the first 24–48 hours; low for how long this athlete needs.
+
+**Expected output fields:** committed and provisional changes, moved sessions, reassessment cue per local night, missing travel-sleep input, uncertainty, P029/P030/P034/P036/P039, E-TRAV IDs.
+
+---
+
+## C36 — Two-day trip with a red-eye
+
+**Fictitious state and plan**
+
+- A confirmed trip has `zone_shift_hours` −1 and `nights_away` 2. The outbound leg leaves at 23:45 local and lasts 4.5 hours, with `night_overlap` true.
+- The athlete checks in on arrival day: about three hours of sleep, high sleepiness, no illness. Today's plan is a long run; local obligations are fixed to local time.
+
+**Operation / decision ID:** `proceed_or_modify_today`
+
+**Expected routing**
+
+- Required: daily workflow; `topics/travel_and_time_zones.md`.
+- Conditional: recovery topic, because sleep loss is reported.
+- Avoid: block workflow, periodization topic, all recipes.
+
+**Appropriate reasoning and candidate action**
+
+- Treat the trip as acute sleep loss, not minimal travel because the zone count is low (P032).
+- Replace today's long run with rest or easy running and offer the long run on a later day with normal sleep.
+- Keep local time and protect the available sleep window; home time is not practical with fixed local obligations (P035).
+- Plan a fresh check after the return flight instead of assuming the short stay removed any recovery need (P037).
+
+**Prohibited inference / unsafe shortcut**
+
+- Say that every two-day trip should stay on home time; the direct evidence is one small westward flight-attendant study.
+- Keep the long run because only one zone was crossed.
+
+**Deeper evidence warranted:** No.
+
+**Expected confidence:** High for modifying today's long run given the reported sleep loss.
+
+**Expected output fields:** decision `modify`, replacement session, moved long run, rationale, follow-up after the return flight, P032/P035/P037.
+
+---
+
+## C37 — Return travel before a planned long run
+
+**Fictitious state and plan**
+
+- The return leg of a confirmed trip departs at 22:10 local, lasts 5 hours, has `zone_shift_hours` 3 and `night_overlap` true, and lands the morning before a planned long run.
+- The first night home was short and broken; soreness is normal and no illness is reported. The long run can move by one or two days.
+
+**Operation / decision ID:** `proceed_or_modify_today`
+
+**Expected routing**
+
+- Required: daily workflow; `topics/travel_and_time_zones.md`.
+- Conditional: recovery topic; long-run topic only if the long run's purpose is disputed.
+- Avoid: block workflow, all recipes beyond the planned one.
+
+**Appropriate reasoning and candidate action**
+
+- Assess the return legs on their own rather than copying the outbound plan (P037).
+- Move the long run 24–48 hours or convert it to a short easy run, as a provisional buffer.
+- Restore the long run after adequate sleep and a normal easy-run or warm-up response; shorten or defer it if sleepiness, illness, or unusual effort persists.
+
+**Prohibited inference / unsafe shortcut**
+
+- Require a two-day delay after every return flight.
+- Assume being home means sleep and circadian recovery are complete.
+
+**Deeper evidence warranted:** No.
+
+**Expected confidence:** Moderate; the buffer is a convention, and the athlete's response decides.
+
+**Expected output fields:** decision, moved or converted long run, restore condition, follow-up observation, P037/P030.
+
+---
+
+## C38 — Goal race seven hours east
+
+**Fictitious state and plan**
+
+- A goal half marathon is 16 days away. A pending trip has `zone_shift_hours` 7, `direction` east, and an overnight outbound leg landing two days before the race.
+- The athlete asks whether that arrival is enough. Destination heat, altitude, and course surface are unknown.
+
+**Operation / decision ID:** `handle_goal_or_race_change`
+
+**Expected routing**
+
+- Required: race-change sections of the races topic; `topics/travel_and_time_zones.md`.
+- Conditional: taper sections.
+- Avoid: calibration material and all recipes.
+
+**Appropriate reasoning and candidate action**
+
+- Note that the trip is pending and plan conditionally until it is confirmed.
+- Explain that racing inside the first 24–48 hours after a major overnight eastward trip is best avoided when feasible; aim for at least three local sleep opportunities, and describe five to seven nights eastward as a conservative convention, not a requirement (P038).
+- Keep post-arrival sessions easy or low-cost and race-specific, and keep the taper intact; do not add training to force adaptation.
+- Ask about destination heat, altitude, and course surface, and route heat or altitude to separate preparation instead of the jet-lag buffer (P040).
+
+**Prohibited inference / unsafe shortcut**
+
+- Promise that an earlier arrival produces full adaptation or a faster race.
+- Prescribe one day per zone of arrival buffer.
+
+**Deeper evidence warranted:** Yes if the athlete weighs a costly schedule change; E-TRAV-25 records the evidence gap.
+
+**Expected confidence:** Low for an optimal arrival day; moderate that a two-day arrival after an overnight eastward flight is a risk to name.
+
+**Expected output fields:** conditional trip note, arrival options with tradeoffs, taper continuity, missing destination conditions, uncertainty, P038/P040.
+
+---
+
+## C39 — Short daytime flight with no zone change
+
+**Fictitious state and plan**
+
+- A confirmed trip has `zone_shift_hours` 0 and one leg departing at 10:15 local, lasting 1.5 hours, with `night_overlap` false.
+- Sleep before travel was normal, no symptoms are reported, and an evening quality session is planned on the arrival day.
+
+**Operation / decision ID:** `proceed_or_modify_today`
+
+**Expected routing**
+
+- Required: daily workflow; `topics/travel_and_time_zones.md` (routed because a trip exists).
+- Conditional: none.
+- Avoid: recovery topic without a recovery trigger, block workflow, all recipes.
+
+**Appropriate reasoning and candidate action**
+
+- Keep the planned session with no automatic adjustment (P031).
+- Offer a fallback to shorten it or make it easy if a delay, prolonged sitting, stiffness, or unexpected fatigue develops; let the warm-up decide.
+- Mention movement breaks only briefly, without framing the trip as a medical risk.
+
+**Prohibited inference / unsafe shortcut**
+
+- Claim a no-zone flight can never affect training.
+- Cancel or downgrade the session because a trip exists.
+
+**Deeper evidence warranted:** No.
+
+**Expected confidence:** High for proceeding with a fallback.
+
+**Expected output fields:** decision `proceed`, fallback condition, concise rationale, follow-up, P031.
+
+---
+
 ## Coverage assertion
 
-Together with the 15 base cases, C16–C34 cover:
+Together with the 15 base cases, C16–C39 cover:
 
 - optional versus explicit block creation;
 - all lifecycle outcomes across the suite (`start`, `continue` via base favorable progression, `extend`, `consolidate`, `transition`, `replace`, `end`);
@@ -723,5 +897,6 @@ Together with the 15 base cases, C16–C34 cover:
 - minimal daily retrieval;
 - exception severity, minimal patch scope, and return-to-plan criteria (C27–C31);
 - post-event review as one piece of evidence (C32);
-- block-ending benchmarks, recalibration, and missed benchmarks (C33–C34); and
+- block-ending benchmarks, recalibration, and missed benchmarks (C33–C34);
+- air travel that separates circadian load from travel load, including red-eye sleep loss, return buffers, race arrival, and short flights with no zone change (C35–C39); and
 - use of deeper evidence only when consequence or dispute warrants it.

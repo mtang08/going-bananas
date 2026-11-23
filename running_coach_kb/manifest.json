@@ -1,9 +1,9 @@
 {
   "schema_version": "1.1",
   "package_name": "running_coach_kb",
-  "package_version": "1.2.0+privacy1",
+  "package_version": "1.3.0+privacy1",
   "created_on": "2026-11-10",
-  "updated_on": "2026-11-13",
+  "updated_on": "2026-11-22",
   "searched_through": "2026-11-11",
   "completion_status": "complete_incremental_extension_with_explicit_gaps",
   "scope_note": "Public generalizable running-coach knowledge base. No public athlete snapshot, application implementation, live Garmin integration, medical diagnosis, activated policy, or personalized training calendar.",
@@ -17,12 +17,12 @@
     "public_privacy_transform_preserved": true
   },
   "counts": {
-    "files_excluding_manifest": 33,
-    "sources": 72,
-    "evidence_findings": 55,
-    "policy_candidates": 28,
-    "evaluation_cases": 34,
-    "topic_guides": 11,
+    "files_excluding_manifest": 34,
+    "sources": 106,
+    "evidence_findings": 89,
+    "policy_candidates": 41,
+    "evaluation_cases": 39,
+    "topic_guides": 12,
     "workflows": 5,
     "session_recipes": 10,
     "method_comparison_entries": 15
@@ -463,7 +463,9 @@
     "Elite periodization and session density are descriptive and cannot be dose-transferred.",
     "Token estimates use a transparent character proxy because an exact model tokenizer was unavailable; measured characters and words are retained.",
     "The exact main-branch commit SHA was not exposed by the available raw-file interface; baseline public hashes and inspection date are recorded.",
-    "Current athlete state, diagnosis/clinical instructions, recent training, thresholds, and live plan are private runtime inputs, not KB content."
+    "Current athlete state, diagnosis/clinical instructions, recent training, thresholds, and live plan are private runtime inputs, not KB content.",
+    "No study enrolled recreational runners who strength train and tested training adjustments around real flights; travel buffers and race-arrival nights are coaching conventions.",
+    "No altitude-adaptation timeline is recorded: the IOC heat/altitude consensus text was not obtained and remains a candidate."
   ],
   "change_summary": {
     "changed": [
@@ -491,14 +493,14 @@
     {
       "path": "COACHING_GUIDE.md",
       "status": "changed",
-      "bytes": 8518,
-      "sha256": "6d95913d9f6caf3ff5230a1d818ea18363e70e3caf733296aeb83cd7e7f018d7"
+      "bytes": 8628,
+      "sha256": "b06de76f988a52003c652f60214da2296d72ce4b5a65cf3a121b235526e95c33"
     },
     {
       "path": "README.md",
       "status": "changed",
-      "bytes": 10581,
-      "sha256": "cedbddccedd887743063bc0c6ac766fbecc61231f11ba26d2c10b32d7fee2733"
+      "bytes": 10908,
+      "sha256": "c964fa60c80bc231ee62ba666a4557fbfe880197d17d3f9fe5a4ce1e9810104d"
     },
     {
       "path": "evaluation/coaching_cases.md",
@@ -509,14 +511,14 @@
     {
       "path": "evaluation/periodization_cases.md",
       "status": "added",
-      "bytes": 37976,
-      "sha256": "639dab371217b8542b3f0c0cfdf79b30818138b8a6ff00912ebe3a1b2159d500"
+      "bytes": 46668,
+      "sha256": "3e95f0e3bb3e00807067364ce8ef78f44d77dd26b69baaf5aef302fb3b66a8e9"
     },
     {
       "path": "policies/coaching_policy_candidates.json",
-      "status": "unchanged_from_1.0.0+privacy1",
-      "bytes": 55323,
-      "sha256": "76546a753a42a9721bf5785742d0db78186340e367a6bec791bc7b780498d5fe"
+      "status": "changed",
+      "bytes": 88548,
+      "sha256": "14379b67431cd12b9322501d19d396feb12f8e1d9bfd69ef8655dc6c511bf411"
     },
     {
       "path": "policies/periodization_policy_candidates.json",
@@ -532,9 +534,9 @@
     },
     {
       "path": "references/evidence_matrix.md",
-      "status": "unchanged_from_1.0.0+privacy1",
-      "bytes": 20758,
-      "sha256": "347bf46a99c2df9f92968550f9485b72166130532843bd0cac84f0507fdbe64e"
+      "status": "changed",
+      "bytes": 45809,
+      "sha256": "56b3651007c8a497cca2bdf8b7b25d23e5ee1055e73db0256063a4b2b428e258"
     },
     {
       "path": "references/method_comparison.md",
@@ -551,8 +553,8 @@
     {
       "path": "references/source_registry.json",
       "status": "changed",
-      "bytes": 65429,
-      "sha256": "a1f6bf37eeee5a2b4206e27e9d4e3a329a3b61dafff1d511576e303a83d9bb73"
+      "bytes": 96845,
+      "sha256": "9b125bee901a17d1a2e11a654d835913bd02061ba3b3068493cd3eeebe237268"
     },
     {
       "path": "research/periodization_search_log_and_gaps.md",
@@ -568,9 +570,9 @@
     },
     {
       "path": "research/search_log_and_gaps.md",
-      "status": "unchanged_from_1.0.0+privacy1",
-      "bytes": 11761,
-      "sha256": "907558078228c51798f67e87f265510684b48b10a22c2d3ef88697eaa3dbe410"
+      "status": "changed",
+      "bytes": 16524,
+      "sha256": "58869e21c5721c9a8d628001ab7f599ef8f74713ff05f4bb524e32c612444788"
     },
     {
       "path": "topics/aerobic_progression.md",
@@ -659,14 +661,14 @@
     {
       "path": "research/coaching_web_intake.md",
       "status": "added",
-      "bytes": 2820,
-      "sha256": "6503989953542aecd09f88f540b7e6f447fb5c70cb17191843d7bb7e0b8bbe20"
+      "bytes": 7002,
+      "sha256": "0eece423541115f07c913cee32feb4e0cd7a6d37ccc2255011a7a521f2e04499"
     },
     {
       "path": "adaptive_coaching/exception_policy.md",
       "status": "added",
-      "bytes": 10466,
-      "sha256": "e816bc7e45d2cbcbcf6bd6a5d24ec82946f4ee5320293bee8c9256c2a80b5d18"
+      "bytes": 10552,
+      "sha256": "ed06d5fa2201c391b74b05979ebcda32506a85a1f3bd241e3a8ad43b6557d0aa"
     },
     {
       "path": "adaptive_coaching/race_and_benchmark_policy.md",
@@ -685,6 +687,12 @@
       "status": "added",
       "bytes": 3598,
       "sha256": "d6774a349f0dcd7490d7dcce1eb410bfb4655a43d0b3e5aa727ef26345bc03bc"
+    },
+    {
+      "path": "topics/travel_and_time_zones.md",
+      "status": "added",
+      "bytes": 13076,
+      "sha256": "e478e8fd13268c5fbd88417e94ef38550b60735628ea1e6a8448dea9d01b3ab8"
     }
   ],
   "manifest_self": {
@@ -823,6 +831,11 @@
       "date": "2026-11-13",
       "version": "1.2.0+privacy1",
       "scope": "Adaptive-coaching candidate guidance: exception policy, race and benchmark policy, exception and post-event review workflows, candidate policies P024-P028, and evaluation cases C27-C34. No new verified physiological evidence or activated policies; searched_through remains unchanged."
+    },
+    {
+      "date": "2026-11-22",
+      "version": "1.3.0+privacy1",
+      "scope": "Targeted air-travel and time-zone review: sources S073-S106, evidence E-TRAV-01-34 in the evidence-matrix travel addendum, candidate policies P029-P041, topic topics/travel_and_time_zones.md (routed by the app when the snapshot lists trips), cases C35-C39, intake and search-log records, and cross-references. The IOC heat/altitude consensus stays a candidate. No policy is activated; searched_through remains unchanged."
     }
   ]
 }

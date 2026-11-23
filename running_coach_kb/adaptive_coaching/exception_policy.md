@@ -70,7 +70,7 @@ Severity `escalate` is a finding severity. It is not the proposal field `escalat
 - For missed work as non-debt, see P013 and `COACHING_GUIDE.md` §3, item 5. Never stack sessions to make up a missed key session. (coaching convention)
 - After one missed key session, usually let it go. An exception review may move it inside the committed window only if spacing and the strength schedule stay intact and no demanding sessions become adjacent. Otherwise the weekly review decides. (coaching convention)
 - When two demanding sessions (quality, long, benchmark) fall on adjacent days, separate them or downgrade one. Prefer to protect the long run or the block's key session. (coaching convention)
-- During travel, keep frequency where practical, shorten or move easy runs, and avoid novel hard work in unfamiliar conditions. Keep the exception response within its existing session and strength constraints. (coaching convention)
+- During travel, keep frequency where practical, shorten or move easy runs, and avoid novel hard work in unfamiliar conditions. Keep the exception response within its existing session and strength constraints. (coaching convention) Dose flights, red-eyes, and time-zone changes with `topics/travel_and_time_zones.md`.
 - Repeated missed runs suggest the plan is unrealistic; leave that to the weekly review, using the P013 review trigger. (inference)
 
 ## Worked examples

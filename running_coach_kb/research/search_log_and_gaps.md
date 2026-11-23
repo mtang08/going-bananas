@@ -217,3 +217,49 @@ Review and update the package when:
 - the athlete receives a diagnosis or clinician criteria;
 - the actual Garmin export changes the assumed training context;
 - the user confirms a race date or changes strength/running priorities.
+
+## Addendum: air travel and time-zone review (2026-11-22)
+
+Targeted review. It does not change the search dates above or the package's comprehensive `searched_through` date. Records: S073–S106, E-TRAV-01–34, P029–P041, and C35–C39; dispositions are in `research/coaching_web_intake.md`.
+
+### Searches
+
+| Date | Database/site | Query or retrieval path | Result and exclusions |
+|---|---|---|---|
+| 2026-11-22 | PubMed and PMC | "jet lag" athletes eastward westward performance sleep | Consensus, reviews, and athlete field studies (Fowler, Lemmer, Wright). Animal studies and unverified snippets excluded. |
+| 2026-11-22 | PubMed and PMC | ("long-haul" OR transmeridian) athlete endurance sleep fatigue performance | Stevens, Doherty, Biggins, Rossiter, Botonis, Benito, Uchiyama, and Varesco. Studies without air travel or circadian exposure excluded. |
+| 2026-11-22 | PubMed and PMC | short-haul air travel no time zone performance early morning flight | Fowler domestic simulation, Stergiopoulos, McGuckin, and domestic soccer studies; simulation status kept explicit. |
+| 2026-11-22 | PubMed and PMC | travel across more time zones fatigue sleep footballers arrival departure return | Clements and Graham cohorts; treated as noncausal because models explained little variance. |
+| 2026-11-22 | PubMed and PMC | home-base sleep hours prevent jet lag two day trip | Lowden and the AASM practice parameters; no athlete trial or three-day comparison found. |
+| 2026-11-22 | PubMed and PMC | bright light preflight eastward westward jet lag circadian phase | Burgess, Boulos, and the Fowler intervention study; medication studies excluded as out of scope. |
+| 2026-11-22 | PubMed and PMC | human circadian phase response curve exercise | Youngstedt laboratory trial; no travel trial showing faster athlete adaptation. |
+| 2026-11-22 | PubMed and PMC | acute sleep loss physical performance systematic review meta-analysis | Craven meta-analysis, to separate the sleep-loss pathway from zone change. |
+| 2026-11-22 | PubMed and PMC | aircraft cabin humidity dehydration athlete performance | Zubac review and candidate hematology reports; no athlete performance dose attributable to dehydration. |
+| 2026-11-22 | PubMed and PMC | commercial airline oxygen saturation athletes hypobaric recovery sleep | Geertsema and Coste; no next-day running-performance evidence. |
+| 2026-11-22 | CDC Yellow Book | air travel deep vein thrombosis pulmonary embolism risk factors symptoms | Official CDC page dated 2025-04-23; consumer-product and medication recommendations excluded; referral boundary only. |
+| 2026-11-22 | BJSM and PMC | consensus training competing heat altitude athletes | Heat consensus promoted as a scoping flag; the IOC heat and altitude consensus text was not accessible and remains a candidate. |
+| 2026-11-22 | PubMed | treadmill overground running systematic review meta-analysis hotel treadmill calibration | Treadmill-overground meta-analysis; no hotel-treadmill calibration or injury study sufficient for a rule. |
+| 2026-11-22 | PubMed | athlete race arrival days before competition time zones jet lag | Recommendations and recovery studies, but no randomized endurance-race arrival-day trial. |
+
+### Access and verification
+
+- An independent check on 2026-11-22 confirmed the identity of all 35 cited records against PubMed or the official page. Thirty-four were promoted; the IOC heat and altitude consensus stays a candidate because its text was not accessible.
+- All 13 numeric spot-checks were found in the source text. S098's in-flight SpO₂ fall uses the abstract's "3-4%" wording.
+- Full text was read for S080, S096, and S100. Other promoted findings rest on abstracts; PMC full text was available for several but was not re-read.
+
+### Gaps that remain
+
+- No study enrolled recreational endurance runners who strength train and randomized training adjustments around real flights.
+- No randomized comparison of race-arrival buffers, and no trial of training before versus after a flight.
+- Home-time evidence covers one 50-hour westward layover; there is no three-day threshold evidence.
+- No hotel-treadmill travel trial.
+- Heat and altitude interactions need dedicated reviews; no altitude-adaptation timeline is recorded.
+- The literature is dominated by small samples of elite male team-sport athletes.
+- Medication, melatonin, supplements, aspirin, anticoagulants, and compression were excluded as clinical topics.
+
+### Update triggers
+
+- A trial tests training adjustments around real flights in recreational endurance runners.
+- An endurance-race arrival-buffer study appears.
+- The IOC heat and altitude consensus text becomes accessible: promote or retire the candidate.
+- Dedicated heat or altitude reviews are added.
