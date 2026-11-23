@@ -19,9 +19,16 @@ from app.db import get_session, global_write_lock
 from app.domain.travel import OPEN_TRIP_MAX
 from app.errors import fail
 from app.models import ImportBatch
-from app.services.gcal_sync import SOURCE_KIND, WINDOW_DAYS_AHEAD, WINDOW_DAYS_BACK
+from app.services.gcal_sync import SOURCE_KIND, WINDOW_DAYS_AHEAD, WINDOW_DAYS_BACK, run_sync
 from app.services.timezone import athlete_today, athlete_tz
-from app.services.trips import create_manual_trip, event_local_date, event_view, patch_trip, trip_view
+from app.services.trips import (
+    create_manual_trip,
+    event_local_date,
+    event_view,
+    patch_trip,
+    set_event_category,
+    trip_view,
+)
 from app.travel_models import (
     CATEGORIES,
     DAY_AVAILABILITY,
@@ -34,6 +41,13 @@ from app.travel_models import (
 )
 
 router = APIRouter()
+
+
+@router.post("/google-calendar/sync")
+def post_gcal_sync(session: Session = Depends(get_session)) -> dict:
+    if settings.app_mode != "real":
+        fail("real_mode_required", "Real mode required", 409)
+    return envelope(session, run_sync(session, settings.private_dir, datetime.now(UTC)))
 
 
 @router.get("/google-calendar/status")
@@ -233,3 +247,26 @@ def post_trip(body: ManualTripInput, session: Session = Depends(get_session)) ->
     trip = create_manual_trip(session, body.model_dump(), datetime.now(UTC))
     session.commit()
     return envelope(session, trip_view(session, trip, athlete_tz(session)))
+
+
+class EventCategoryPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+    category: str | None
+
+    @field_validator("category")
+    @classmethod
+    def known_category(cls, value: str | None) -> str | None:
+        if value is not None and value not in CATEGORIES:
+            raise ValueError("Unknown category")
+        return value
+
+
+@router.patch("/google-calendar/events/{event_id}")
+def patch_gcal_event(event_id: uuid.UUID, body: EventCategoryPatch, session: Session = Depends(get_session)) -> dict:
+    global_write_lock(session)
+    home = athlete_tz(session)
+    event, trips = set_event_category(session, event_id, body.expected_version, body.category, home)
+    trip_id = _trip_ids(session, [event.id]).get(event.id)
+    session.commit()
+    return envelope(session, {"event": event_view(event, trip_id, home), "trips": trips})

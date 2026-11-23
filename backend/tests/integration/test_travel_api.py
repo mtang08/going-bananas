@@ -92,6 +92,22 @@ def test_status_uses_connection_file(api_client, monkeypatch, tmp_path):
     assert client.get("/api/v1/google-calendar/status").json()["data"]["connected"]
 
 
+def test_sync_requires_real_mode(api_client, monkeypatch, tmp_path):
+    monkeypatch.setattr(travel, "settings", SimpleNamespace(app_mode="demo", private_dir=tmp_path))
+    response = api_client(travel.router).post("/api/v1/google-calendar/sync", headers=HEADERS)
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "real_mode_required"
+
+
+def test_sync_returns_service_result(api_client, monkeypatch, tmp_path):
+    expected = {"sync": {"counters": {"fetched": 1}}, "trips": {"created": 0}}
+    monkeypatch.setattr(travel, "settings", SimpleNamespace(app_mode="real", private_dir=tmp_path))
+    monkeypatch.setattr(travel, "run_sync", lambda session, private_dir, now: expected)
+    response = api_client(travel.router).post("/api/v1/google-calendar/sync", headers=HEADERS)
+    assert response.status_code == 200
+    assert response.json()["data"] == expected
+
+
 NOW = datetime(2026, 11, 22, 21, tzinfo=UTC)
 
 
