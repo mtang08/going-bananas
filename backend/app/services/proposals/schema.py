@@ -57,6 +57,65 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+WhyKind = Literal["observation", "research", "inference", "priority"]
+IndicatorSource = Literal["quality_progression", "aerobic_efficiency", "key_sessions", "rpe_vs_intent", "other"]
+Text40 = Annotated[str, Field(min_length=1, max_length=40)]
+Text60 = Annotated[str, Field(min_length=1, max_length=60)]
+Text80 = Annotated[str, Field(min_length=1, max_length=80)]
+Text100 = Annotated[str, Field(min_length=1, max_length=100)]
+Text140 = Annotated[str, Field(min_length=1, max_length=140)]
+
+
+class Why(Strict):
+    kind: WhyKind
+    text: str = Field(
+        min_length=1,
+        max_length=160,
+        description="One reason. observation = measured or reported data; research = KB evidence or policy "
+        "(cite its IDs in evidence_ids/policy_ids, never in text); inference = this athlete's reasoning; "
+        "priority = the athlete's stated goal or constraint.",
+    )
+
+
+class Rule(Strict):
+    when: str = Field(min_length=1, max_length=90, description="Observable sign, e.g. 'Thu tempo RPE 8 or higher'")
+    then: str = Field(min_length=1, max_length=90, description="Action, e.g. 'swap Sat long run for easy 60 min'")
+
+
+class NextCheck(Strict):
+    on: date
+    check: str = Field(
+        min_length=1, max_length=120, description="What to report or look at, e.g. 'Thu tempo RPE and calf response'"
+    )
+
+
+class Effort(Strict):
+    rpe_low: int = Field(ge=1, le=10)
+    rpe_high: int = Field(ge=1, le=10)
+    feel: str = Field(min_length=1, max_length=40, description="Plain feel, e.g. 'controlled, conversational'")
+
+    @model_validator(mode="after")
+    def ordered(self) -> Effort:
+        if self.rpe_low > self.rpe_high:
+            raise ValueError("rpe_low must not exceed rpe_high")
+        return self
+
+
+class SessionBrief(Strict):
+    effort: Effort
+    focus: list[Text80] = Field(
+        default_factory=list, max_length=2, description="Execution cues not already in the steps"
+    )
+    adjust_if: list[Rule] = Field(default_factory=list, max_length=2)
+    why: str = Field(min_length=1, max_length=120, description="This athlete's reason for this session; not research")
+
+
+class Indicator(Strict):
+    source: IndicatorSource
+    label: str = Field(min_length=1, max_length=60, description="e.g. 'Tempo reps at the same RPE'")
+    progress_when: str = Field(min_length=1, max_length=100, description="e.g. 'pace 2% faster at RPE 7 or lower'")
+
+
 class Confidence(Strict):
     decision: Literal["high", "moderate", "low"]
     evidence: Literal["high", "moderate", "low"]
@@ -68,7 +127,7 @@ class Target(Strict):
     low: float | None = Field(None, description="Numeric speed/HR lower bound; must be null for effort targets.")
     high: float | None = Field(None, description="Numeric speed/HR upper bound; must be null for effort targets.")
     effort_cue: str | None = Field(
-        None, max_length=200, description="Required nonblank cue for effort targets; include any RPE range here."
+        None, max_length=60, description="Required nonblank cue for effort targets; include any RPE range here."
     )
 
 
@@ -93,12 +152,17 @@ class SessionFields(Strict):
     custom: bool | None = None
     placeholder: bool | None = None
     locked: bool | None = None
-    intent: str | None = Field(None, max_length=200)
+    intent: str | None = Field(
+        None,
+        min_length=1,
+        max_length=60,
+        description="Session purpose, a short label, e.g. 'Threshold control'; not the prescription",
+    )
     planned_duration_s: int | None = Field(None, gt=0)
     planned_distance_m: int | None = Field(None, gt=0)
     structure: list[StructureStep | RepeatBlock] | None = None
     strength_slot_id: uuid.UUID | None = None
-    notes: str | None = None
+    brief: SessionBrief | None = None
 
 
 class Change(Strict):
@@ -106,7 +170,7 @@ class Change(Strict):
     op: Literal["add", "modify", "move", "delete"]
     session_uid: uuid.UUID | None = None
     after: SessionFields | None = None
-    reason: str = Field(min_length=1)
+    reason: str = Field(min_length=1, max_length=120)
     material_flags: list[Literal["off_cycle_run", "strength_move", "strength_omission"]] = Field(default_factory=list)
 
     @property
@@ -135,38 +199,38 @@ class Change(Strict):
 
 
 class BlockConstraint(Strict):
-    kind: str
-    text: str
+    kind: str = Field(min_length=1, max_length=24)
+    text: str = Field(min_length=1, max_length=120)
 
 
 class BlockBenchmark(Strict):
     kind: Literal["time_trial", "event"]
     event_id: uuid.UUID | None = None
-    protocol: str = Field(max_length=300)
+    protocol: str = Field(min_length=1, max_length=160)
     distance_m: int | None = None
     planned_date: date
-    progress_if: str = Field(max_length=300)
-    consolidate_if: str = Field(max_length=300)
+    progress_if: str = Field(min_length=1, max_length=120)
+    consolidate_if: str = Field(min_length=1, max_length=120)
 
 
 class OutlineStep(Strict):
-    emphasis: str = Field(min_length=1, max_length=120)
+    emphasis: str = Field(min_length=1, max_length=60)
     weeks: int = Field(ge=1, le=8)
 
 
 class BlockVersionFields(Strict):
     status: Literal["draft", "active", "consolidating", "completed", "replaced", "ended"]
-    objective: str
-    rationale: str
-    maintained_qualities: list[str]
-    non_goals: list[str]
+    objective: str = Field(min_length=1, max_length=80)
+    why: list[Why] = Field(min_length=1, max_length=4)
+    maintained_qualities: list[Text40] = Field(max_length=5)
+    non_goals: list[Text60] = Field(max_length=5)
     eligible_recipe_ids: list[str]
     progression_dimension: Literal["duration", "frequency", "long_run", "quality_volume", "intensity", "none"]
-    constraints: list[BlockConstraint]
+    constraints: list[BlockConstraint] = Field(max_length=5)
     start_date: date
     review_date: date
-    completion_indicators: list[str]
-    early_review_triggers: list[str]
+    indicators: list[Indicator] = Field(max_length=4)
+    early_review_triggers: list[Text100] = Field(max_length=4)
     objective_status: Literal["unresolved", "partially_achieved", "achieved", "not_achieved"]
     benchmark: BlockBenchmark | None = None
     target_event_id: uuid.UUID | None = None
@@ -188,14 +252,14 @@ class AnchorChange(Strict):
     confidence: str
     calibrated_at: AwareDatetime
     source_activity_id: uuid.UUID | None = None
-    conditions: str | None = None
+    conditions: str | None = Field(None, max_length=120)
     supersedes_key: str | None = Field(None, max_length=40)
 
 
 RESOLUTION_OPS = {"exception_review", "review_rolling_plan", "review_training_block", "post_event_review"}
 ANCHOR_OPS = {"recalibrate_intensity", "post_event_review"}
 NO_STRENGTH_EDIT_OPS = {"proceed_or_modify_today", "exception_review"}
-Criterion = Annotated[str, Field(max_length=200)]
+Criterion = Annotated[str, Field(max_length=120)]
 
 
 def anchors_allowed(doc: ProposalDoc) -> bool:
@@ -209,7 +273,7 @@ class PatchWindow(Strict):
 
 class UnchangedSession(Strict):
     session_uid: uuid.UUID
-    reason: str = Field(max_length=200)
+    reason: str = Field(max_length=120)
 
 
 class ExceptionBlock(Strict):
@@ -217,45 +281,53 @@ class ExceptionBlock(Strict):
     category: PatchCategory
     severity: Severity
     confidence: Literal["low", "moderate", "high"]
-    triggering_evidence: str = Field(max_length=600)
-    relevant_context: str | None = Field(default=None, max_length=600)
+    triggering_evidence: str = Field(max_length=300)
+    relevant_context: str | None = Field(default=None, max_length=300)
     ladder_level: LadderLevel
     patch_window: PatchWindow
     unchanged: list[UnchangedSession] = Field(default_factory=list, max_length=14)
     reassess_on: date
-    monitor: list[Criterion] = Field(min_length=1, max_length=6)
-    return_criteria: list[Criterion] = Field(min_length=1, max_length=6)
-    escalate_criteria: list[Criterion] = Field(min_length=1, max_length=6)
+    monitor: list[Criterion] = Field(min_length=1, max_length=3)
+    return_criteria: list[Criterion] = Field(min_length=1, max_length=3)
+    escalate_criteria: list[Criterion] = Field(min_length=1, max_length=3)
 
 
 class EventReview(Strict):
     event_id: uuid.UUID | None = None
     activity_id: uuid.UUID | None = None
     outcome: BenchmarkOutcome | None = None
-    compared_with: str | None = Field(default=None, max_length=300)
-    pacing: str = Field(max_length=600)
-    effort_and_limiter: str = Field(max_length=600)
-    conditions: str | None = Field(default=None, max_length=400)
-    symptoms: str | None = Field(default=None, max_length=400)
-    recovery_observation: str = Field(max_length=600)
+    compared_with: str | None = Field(default=None, max_length=120)
+    pacing: str = Field(max_length=240)
+    effort_and_limiter: str = Field(max_length=240)
+    conditions: str | None = Field(default=None, max_length=160)
+    symptoms: str | None = Field(default=None, max_length=160)
+    recovery_observation: str = Field(max_length=240)
     recalibration: Literal["none", "propose_anchors", "defer"]
-    training_implication: str = Field(max_length=600)
+    training_implication: str = Field(max_length=240)
 
 
 class PatchResolution(Strict):
     patch_id: uuid.UUID
     status: Literal["resolved", "escalated"]
-    note: str = Field(max_length=300)
+    note: str = Field(max_length=160)
 
 
 class ProposalDoc(Strict):
-    schema_version: Literal["coach_proposal.v1"]
+    schema_version: Literal["coach_proposal.v2"]
     operation: Operation
     snapshot_id: uuid.UUID
     base_calendar_version: int = Field(ge=0)
     base_block_version_id: uuid.UUID | None
-    summary: str = Field(min_length=1, max_length=2000)
-    rationale: str = Field(min_length=1, max_length=8000)
+    headline: str = Field(min_length=1, max_length=100, description="The decision and its purpose, one line")
+    why: list[Why] = Field(min_length=1, max_length=5)
+    uncertainty: list[Text140] = Field(default_factory=list, max_length=2, description="Main unknowns")
+    change_triggers: list[Rule] = Field(
+        default_factory=list, max_length=3, description="Feedback that would change this decision"
+    )
+    next_check: NextCheck
+    coach_note: str | None = Field(
+        None, min_length=1, max_length=400, description="Optional; only what fits no other field"
+    )
     confidence: Confidence
     changes: list[Change] = Field(max_length=80)
     preserved: list[uuid.UUID] = Field(default_factory=list)
@@ -264,8 +336,6 @@ class ProposalDoc(Strict):
     evidence_ids: list[str]
     policy_ids: list[str]
     recipe_ids: list[str]
-    observations_used: list[str] = Field(default_factory=list)
-    follow_up: str | None = None
     escalation: Operation | None = None
     exception: ExceptionBlock | None = None
     event_review: EventReview | None = None
