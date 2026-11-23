@@ -157,7 +157,9 @@ Unspecified.
 
 ### IDEA-008 — Schedule and share training plans in Google Calendar
 
-Recorded 2026-11-12. Updated 2026-11-23. Status: v1 (read-only travel detection) in progress via `planning1/google_calendar/`; scheduling and sharing remain. Priority: Unspecified.
+Read-only travel detection shipped on 2026-11-23 in `ce8408f`, alongside structured coach proposals and KB version `1.3.0+privacy1`. The real app completed migration `0025_coach_output_v2` and its first Calendar sync. Coaching reviews use the travel topic when a trip falls within scope. [Travel KB](../running_coach_kb/topics/travel_and_time_zones.md)
+
+Workout scheduling and calendar sharing remain open.
 
 **Problem / context**
 The athlete wants planned sessions to fit predetermined times they assign and
@@ -180,9 +182,7 @@ fit around travel.
 Unspecified.
 
 **Open questions**
-Whether calendar sync should be one-way or keep edits synchronized in both
-directions; how the athlete chooses which calendar to share; how flight events
-are identified and what travel details the coach needs.
+Decide whether workout publishing should be one-way or reflect edits made in Google Calendar, and how the athlete selects the calendar to share.
 
 ### IDEA-009 — Support integrated HYROX training
 
@@ -332,7 +332,7 @@ and findings for each scenario) before any model-in-the-loop runs.
 
 ### IDEA-014 — Trip-aware local dates
 
-Recorded 2026-11-23. Status: idea. Priority: after Google Calendar travel (GCAL v1) is in real use.
+Shelved on 2026-11-23. The athlete chose to keep app dates in the home timezone given how rarely they travel.
 
 **Problem / context**
 GCAL v1 shows trips and destination timezones to the coach, but every app date stays in the home timezone. During a trip far east or west of home, a morning run can land on the previous `local_date` and miss its planned session, and "today" changes at home midnight.
@@ -411,6 +411,6 @@ running recommendations.
 The inspected Garmin export is imported for supported activity and recovery
 fields. Export coverage remains partial. Future export shapes and additional
 Health Status metrics require schema/API comparison before mapping. Private
-phone access or hosting needs authentication. Detailed streams/maps, workout
+phone access is paused. The proposed iPhone check-in workflow uses a private tailnet and the Mac as the server. Refresh the plan against current main and revisit the five setup decisions before resuming. Detailed streams/maps, workout
 publishing, broader provider-history verification, and optional agent evaluation
 remain separate projects. No calorie logging is required.
