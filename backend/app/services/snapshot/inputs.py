@@ -529,7 +529,7 @@ def _load_trips(session: Session, as_of: date, zone: ZoneInfo) -> list[dict]:
                         "arrive_timezone": leg["arrive_tz"],
                     }
                     for leg in view["legs"]
-                    if not leg["removed"]
+                    if not leg["removed"] and leg["depart_local"] is not None and leg["arrive_local"] is not None
                 ],
             }
         )

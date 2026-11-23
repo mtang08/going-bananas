@@ -237,6 +237,11 @@ def test_load_inputs_travel_trips_and_meta(seeded):
     ):
         evt = _flight(seeded, str(n), datetime.fromisoformat(dep), datetime.fromisoformat(arr), a, b, removed=n == 2)
         seeded.add(TripLeg(trip_id=outbound.id, gcal_event_id=evt.id, leg_hash=evt.content_hash, seq=n))
+    # An edited provider event can become all-day while its retained trip link awaits review.
+    changed = _flight(seeded, "all-day", NOW, NOW + timedelta(hours=1), zone, dest)
+    changed.all_day, changed.start_at, changed.end_at = True, None, None
+    changed.start_date, changed.end_date = TODAY, TODAY + timedelta(days=1)
+    seeded.add(TripLeg(trip_id=outbound.id, gcal_event_id=changed.id, leg_hash=changed.content_hash, seq=3))
     days = [{"date": "2026-12-21", "availability": "unavailable"}]
     _trip(
         seeded,

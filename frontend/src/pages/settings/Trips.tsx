@@ -5,7 +5,7 @@ import { invalidateKeys, qk } from '../../api/queryKeys'
 import type { Trip, TripPatch, TripStatus } from '../../api/types/travel'
 import { QueryState } from '../../components/QueryState'
 import { Badge, Button } from '../../components/ui'
-import { dateLabel, localDate } from '../../lib/format'
+import { dateLabel } from '../../lib/format'
 import { TripForm, tripWriteError } from './TripForm'
 
 const ALL_STATUSES = 'pending,needs_review,confirmed,dismissed'
@@ -58,7 +58,12 @@ export function Trips({ homeTimezone }: { homeTimezone: string }) {
     onSettled: () => invalidateKeys(qc, [qk.tripsAll, qk.proposals]),
   })
 
-  const today = localDate()
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: homeTimezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
   const items = [...(trips.data?.data?.items ?? [])].sort((a, b) =>
     a.start_date.localeCompare(b.start_date),
   )
