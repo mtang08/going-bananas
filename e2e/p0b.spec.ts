@@ -52,11 +52,20 @@ function submit(document:object) {
 function revise(id:string, revision:number, document:object) {
   return coach('revise',id,'--expected-revision',String(revision),'--reason','Check invalid revision','--file',proposalFile(document))
 }
-function documentFrom(snapshotResult:any, changes:any[], summary:string, extras:Record<string,unknown>={}) {
+const mondayOf=(date:string)=>day(date,-((new Date(`${date}T12:00:00Z`).getUTCDay()+6)%7))
+const WHY_OBSERVED = 'Recent synthetic runs matched the plan'
+const brief = () => ({effort:{rpe_low:3,rpe_high:4,feel:'easy, conversational'},focus:['Keep the pace easy'],
+  adjust_if:[{when:'Legs feel heavy',then:'shorten to 30 min'}],why:'Keeps the week easy before the next quality day'})
+function documentFrom(snapshotResult:any, changes:any[], headline:string, extras:Record<string,unknown>={}) {
   const meta = snapshotResult.payload.snapshot_meta
-  return {schema_version:'coach_proposal.v1',operation:meta.operation,snapshot_id:snapshotResult.snapshot_id,
+  return {schema_version:'coach_proposal.v2',operation:meta.operation,snapshot_id:snapshotResult.snapshot_id,
     base_calendar_version:meta.calendar_version,base_block_version_id:meta.block_version_id,
-    summary,rationale:'Review the current training evidence before changing the plan.',
+    headline,
+    why:[{kind:'observation',text:WHY_OBSERVED},{kind:'inference',text:'A small change fits this synthetic week'}],
+    uncertainty:['Synthetic data only'],
+    change_triggers:[{when:'A run feels harder than planned',then:'drop the next quality session'}],
+    next_check:{on:day(meta.as_of,7),check:'Report effort on the next two runs'},
+    coach_note:null,
     confidence:{decision:'moderate',evidence:'moderate',data:'moderate'},changes,preserved:[],
     evidence_ids:['E-AER-01'],policy_ids:['P001'],recipe_ids:['REC001'],
     skill_version:'running-coach.v1',...extras}
@@ -67,7 +76,7 @@ function runOn(calendar:any, offset:number):any {
   return found
 }
 function change(id:string, session:any, after:Record<string,unknown>) {
-  return {change_id:id,op:'modify',session_uid:session.session_uid,after,reason:'Synthetic reviewed adjustment'}
+  return {change_id:id,op:'modify',session_uid:session.session_uid,after:{brief:brief(),...after},reason:'Synthetic reviewed adjustment'}
 }
 async function calendar(request:APIRequestContext) { return data(await request.get('/api/v1/calendar')) }
 async function decision(request:APIRequestContext,id:string,body:object) {
@@ -93,17 +102,32 @@ test.beforeAll(async ({request})=>{
   expect(envelope.mode).toBe('demo')
 })
 
+test('p0b: calendar session detail shows the coach brief to adjust by',async ({page,request})=>{
+  const current=await calendar(request)
+  const coached=current.sessions.find((item:any)=>item.kind==='run' && ['REC001','REC002'].includes(item.recipe_id) &&
+    item.local_date>=current.today && item.local_date<=day(current.today,13))
+  expect(coached,'the demo seed gives a brief to each REC001 and REC002 run in days 0-13').toBeTruthy()
+  expect(coached.brief.adjust_if.length).toBeGreaterThan(0)
+  await page.goto('/#calendar')
+  const weeks=(Date.parse(mondayOf(coached.local_date))-Date.parse(mondayOf(current.today)))/(7*86400000)
+  for(let i=0;i<weeks;i++) await page.getByRole('button',{name:'Next week'}).click()
+  const row=page.locator(`[data-testid="session-row"][data-date="${coached.local_date}"]`).filter({hasText:'Session details'}).first()
+  await row.getByText('Session details').click()
+  await expect(row.getByText('Adjust if').first()).toBeVisible()
+  await expect(row.getByText(coached.brief.adjust_if[0].when).first()).toBeVisible()
+})
+
 test('p0b: weekly untick one accept rest',async ({page,request})=>{
   test.setTimeout(120_000)
   const before=await calendar(request)
   const run2=runOn(before,2),run4=runOn(before,4),run8=runOn(before,8)
   const snap=snapshot('review_rolling_plan')
-  const summary=`P0-B weekly ${randomUUID().slice(0,8)}`
+  const headline=`P0-B weekly ${randomUUID().slice(0,8)}`
   const changes=[change('c1',run2,{planned_duration_s:run2.planned_duration_s+300}),
     change('c2',run4,{intent:'Synthetic proposed intent'}),
     change('c3',run8,{planned_duration_s:run8.planned_duration_s-300})]
   expect(run8.planned_duration_s).toBeGreaterThan(300)
-  const submitted=submit(documentFrom(snap,changes,summary))
+  const submitted=submit(documentFrom(snap,changes,headline))
   expect(submitted.code,JSON.stringify(submitted.output)).toBe(0)
   expect(submitted.output.status).toBe('pending')
   expect((await calendar(request)).head).toBe(before.head)
@@ -111,10 +135,14 @@ test('p0b: weekly untick one accept rest',async ({page,request})=>{
   await expect(page.getByRole('heading',{name:'Needs attention'})).toBeVisible()
   await page.locator('[data-testid="attention-row"][data-kind="proposal"]').getByRole('link',{name:'Review'}).click()
   await expect(page.getByRole('heading',{name:'Review proposal'})).toBeVisible()
+  await expect(page.getByText(headline).first()).toBeVisible()
+  await expect(page.getByRole('listitem').filter({hasText:WHY_OBSERVED})).toContainText('Observed')
+  await expect(page.getByRole('checkbox',{name:'Accept change c1'})).toBeChecked()
   await page.getByRole('checkbox',{name:'Accept change c1'}).check()
   await page.getByRole('checkbox',{name:'Accept change c2'}).check()
   await page.getByRole('checkbox',{name:'Accept change c2'}).uncheck()
   await page.getByRole('checkbox',{name:'Accept change c3'}).check()
+  await expect(page.getByRole('checkbox',{name:'Accept change c2'})).not.toBeChecked()
   await page.getByRole('button',{name:'Accept selected'}).click()
   await expect(page.getByRole('status').filter({hasText:/Accepted — calendar version/})).toBeVisible()
   const detail=await data(await request.get(`/api/v1/coach/proposals/${submitted.output.proposal_id}`))
@@ -274,7 +302,7 @@ test('p0b: source-only drift and invalid subset',async ({request})=>{
   const run8=runOn(current,8)
   const fresh=snapshot('review_rolling_plan')
   const replacement={change_id:'c2',op:'add',reason:'Replace the same on-cycle session',after:{
-    local_date:run8.local_date,kind:'run',intent:'Custom easy replacement',custom:true,
+    local_date:run8.local_date,kind:'run',intent:'Custom easy replacement',custom:true,brief:brief(),
     structure:[{type:'work',duration_type:'time',duration_value:600}],
   }}
   const subset=submit(documentFrom(fresh,[{change_id:'c1',op:'delete',session_uid:run8.session_uid,reason:'Replace run'},replacement],
@@ -299,10 +327,10 @@ test('p0b: block start',async ({page,request})=>{
   const before=await calendar(request)
   const snap=snapshot('review_training_block')
   const blockChange={decision:'start',block_uid:null,version_fields:{
-    status:'active',objective:'Synthetic aerobic base',rationale:'Review the current plan and build steadily.',
+    status:'active',objective:'Synthetic aerobic base',why:[{kind:'priority',text:'Build steady easy volume before any quality work'},{kind:'inference',text:'Consistent sessions come before intensity'}],
     maintained_qualities:['easy volume'],non_goals:['racing'],eligible_recipe_ids:['REC001','REC002','REC003','REC009'],
     progression_dimension:'duration',constraints:[],start_date:before.today,review_date:day(before.today,7),
-    completion_indicators:['consistent sessions'],early_review_triggers:['symptoms'],objective_status:'unresolved',
+    indicators:[{source:'key_sessions',label:'Key sessions completed',progress_when:'6 of 7 or more done'},{source:'rpe_vs_intent',label:'Easy runs at planned effort',progress_when:'RPE 4 or lower on easy runs'}],early_review_triggers:['symptoms'],objective_status:'unresolved',
     benchmark:{kind:'time_trial',event_id:null,protocol:'5 km solo time trial, flat loop',distance_m:5000,planned_date:before.today,progress_if:'Faster than the previous 5 km time trial',consolidate_if:'Within 20 seconds of the previous 5 km time trial'},
   }}
   const submitted=submit(documentFrom(snap,[],`P0-B block ${randomUUID().slice(0,8)}`,{block_change:blockChange}))
@@ -317,11 +345,15 @@ test('p0b: block start',async ({page,request})=>{
   expect((await calendar(request)).head).toBe(before.head)
   const current=await data(await request.get('/api/v1/blocks/active'))
   expect(current).toMatchObject({objective:'Synthetic aerobic base',version:1,proposal_id:submitted.output.proposal_id})
+  expect(current.why).toHaveLength(2)
+  expect(current.indicators.map((item:any)=>item.label)).toEqual(['Key sessions completed','Easy runs at planned effort'])
+  expect(current.legacy_text).toBeNull()
   await page.goto('/#block')
   await expect(page.getByRole('heading',{name:'Training block'})).toBeVisible()
   await expect(page.getByRole('heading',{name:'Synthetic aerobic base'})).toBeVisible()
+  await expect(page.getByText('Key sessions completed',{exact:true})).toBeVisible()
   await page.getByText('Block history', {exact:true}).click()
-  await expect(page.getByRole('heading',{name:'Version 1 · active'})).toBeVisible()
+  await expect(page.getByText('Version 1 · active · Synthetic aerobic base',{exact:true})).toBeVisible()
   const history=await data(await request.get(`/api/v1/blocks/${current.block_uid}/history`))
   expect(history.items).toHaveLength(1)
 })
