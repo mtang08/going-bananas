@@ -814,19 +814,26 @@ def _night_overlap(dep: datetime, arr: datetime, zone: ZoneInfo) -> bool:
     return False
 
 
+def _offset(instant: datetime) -> timedelta:
+    offset = instant.utcoffset()
+    if offset is None:
+        raise ValueError("Trip times require a UTC offset")
+    return offset
+
+
 def _leg_view(leg: dict) -> dict:
     dep, arr = parse_instant(leg["depart_local"]), parse_instant(leg["arrive_local"])
     return {
         **leg,
         "duration_hours": _half_hours(_hours(arr - dep)),
-        "zone_shift_hours": _hours(arr.utcoffset() - dep.utcoffset()),
+        "zone_shift_hours": _hours(_offset(arr) - _offset(dep)),
         "night_overlap": _night_overlap(dep, arr, ZoneInfo(leg["depart_timezone"])),
     }
 
 
 def _trip_shift(start: date, destination: str, home: ZoneInfo) -> float:
     noon = datetime.combine(start, time(12), home)
-    shift = _hours(noon.astimezone(ZoneInfo(destination)).utcoffset() - noon.utcoffset())
+    shift = _hours(_offset(noon.astimezone(ZoneInfo(destination))) - _offset(noon))
     while shift > 12:
         shift -= 24
     while shift <= -12:

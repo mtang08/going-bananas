@@ -72,8 +72,9 @@ def _check_range(first: date, last: date) -> None:
 
 
 def _event_sort_key(row: GcalEvent, home: ZoneInfo) -> tuple:
-    start = row.start_at if row.start_at is not None else datetime.combine(row.start_date, time(), home)
-    return (event_local_date(row, home), start, str(row.id))
+    day = event_local_date(row, home)
+    start = row.start_at if row.start_at is not None else datetime.combine(day, time(), home)
+    return (day, start, str(row.id))
 
 
 def _trip_ids(session: Session, event_ids: list[uuid.UUID]) -> dict[uuid.UUID, uuid.UUID]:
