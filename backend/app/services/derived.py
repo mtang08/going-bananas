@@ -104,6 +104,7 @@ def _source_types() -> tuple[type, ...]:
         StrengthRoutineSlot,
     )
     from app.strong_models import StrongWorkoutRow
+    from app.travel_models import GcalEvent, Trip, TripLeg
 
     return (
         Activity,
@@ -131,6 +132,9 @@ def _source_types() -> tuple[type, ...]:
         Block,
         BlockVersion,
         BlockDecision,
+        GcalEvent,
+        Trip,
+        TripLeg,
     )
 
 
@@ -279,6 +283,7 @@ def _after_flush(session: Session, _context) -> None:
         StrengthRoutineSlot,
     )
     from app.strong_models import StrongWorkoutRow
+    from app.travel_models import GcalEvent, Trip, TripLeg
 
     pending = session.info.pop("metrics_pending_sources", [])
     if not pending:
@@ -286,7 +291,9 @@ def _after_flush(session: Session, _context) -> None:
     zone = athlete_tz(session)
     scopes = session.info.setdefault("metrics_scopes", set())
     for row, old in pending:
-        if isinstance(row, (CalendarVersion, Goal, Event, Block, BlockVersion, BlockDecision)):
+        if isinstance(
+            row, (CalendarVersion, Goal, Event, Block, BlockVersion, BlockDecision, GcalEvent, Trip, TripLeg)
+        ):
             scopes.add("revision")
             continue
         if isinstance(row, ProfileVersion):
