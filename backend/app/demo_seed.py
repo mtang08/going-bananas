@@ -319,12 +319,48 @@ def _history(today: date, slots: dict[str, StrengthRoutineSlot]) -> list[dict]:
                     "structure": structure,
                     "strength_slot_id": str(strength_id) if strength_id else None,
                     "notes": None,
+                    "brief": None,
                 },
             }
         )
     if len({item["session_uid"] for item in edits}) != len(edits):
         raise ValueError("demo_duplicate_session_uid")
     return edits
+
+
+DEMO_BRIEFS: dict[str, dict] = {
+    "REC001": {
+        "effort": {"rpe_low": 3, "rpe_high": 4, "feel": "conversational, relaxed"},
+        "focus": ["Short, quick steps; keep the shoulders loose"],
+        "adjust_if": [
+            {"when": "Calf or tendon feels tight in the first 10 min", "then": "walk 5 min, then jog easier or stop"}
+        ],
+        "why": "Easy aerobic volume that keeps the quality days fresh",
+    },
+    "REC002": {
+        "effort": {"rpe_low": 4, "rpe_high": 5, "feel": "steady, able to talk in sentences"},
+        "focus": ["Drink and fuel on the run, not after", "Keep the last third no faster than the first"],
+        "adjust_if": [
+            {"when": "RPE climbs above 6 before the halfway mark", "then": "slow down or cut the run to 60 min"},
+            {"when": "Pain changes your stride", "then": "stop and walk home"},
+        ],
+        "why": "Builds endurance on tired legs; the week's main aerobic dose",
+    },
+}
+
+
+def _seed_briefs(session: Session, state: AppState, today: date) -> None:
+    """Coach briefs on the seeded future easy and long runs, through the coach-only calendar path."""
+    head = state.calendar_head_version
+    edits = [
+        {"op": "modify", "session_uid": str(row["session_uid"]), "fields": {"brief": DEMO_BRIEFS[row["recipe_id"]]}}
+        for row in state_at(session, head)
+        if row["kind"] == "run"
+        and row["recipe_id"] in DEMO_BRIEFS
+        and today <= row["local_date"] <= today + timedelta(days=13)
+    ]
+    if edits:
+        apply_edits(session, head, edits, reason="synthetic fixture: coach briefs", actor="coach")
 
 
 def seed_demo(session: Session, private_dir: Path, today: date) -> dict[str, int]:
@@ -470,6 +506,7 @@ def seed_demo(session: Session, private_dir: Path, today: date) -> dict[str, int
                 reason="synthetic fixture: retain one planned long run per week",
                 actor="system",
             )
+        _seed_briefs(session, state, today)
     session.flush()
     from app.metrics.refresh import ensure_windows
     from app.services.derived import recompute

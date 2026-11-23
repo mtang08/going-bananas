@@ -58,6 +58,7 @@ def session(
         "planned_distance_m": None,
         "structure": None,
         "strength_slot_id": slot_id,
+        "brief": None,
     }
 
 
@@ -288,7 +289,7 @@ def test_block_projection_includes_history() -> None:
         "version": 1,
         "status": "active",
         "objective": "Aerobic base",
-        "rationale": "Ready",
+        "why": [{"kind": "inference", "text": "Ready"}],
         "maintained_qualities": [],
         "non_goals": [],
         "eligible_recipe_ids": ["REC001"],
@@ -296,7 +297,7 @@ def test_block_projection_includes_history() -> None:
         "constraints": [],
         "start_date": date(2026, 10, 19),
         "review_date": date(2026, 12, 28),
-        "completion_indicators": [],
+        "indicators": [],
         "early_review_triggers": [],
         "objective_status": "unresolved",
     }
@@ -464,8 +465,8 @@ def test_prior_decisions_include_outcomes() -> None:
         "status": "partially_accepted",
         "submitted_at": NOW,
         "decided_at": NOW,
-        "summary": "Adjust",
-        "follow_up": None,
+        "headline": "Adjust",
+        "next_check": None,
         "changes": [
             {
                 "change_id": "c1",
@@ -763,7 +764,7 @@ def horizon_block(review_date: date) -> dict:
         "version": 1,
         "status": "active",
         "objective": "Aerobic base",
-        "rationale": "Ready",
+        "why": [{"kind": "inference", "text": "Ready"}],
         "maintained_qualities": [],
         "non_goals": [],
         "eligible_recipe_ids": ["REC001"],
@@ -771,7 +772,7 @@ def horizon_block(review_date: date) -> dict:
         "constraints": [],
         "start_date": date(2026, 10, 19),
         "review_date": review_date,
-        "completion_indicators": [],
+        "indicators": [],
         "early_review_triggers": [],
         "objective_status": "unresolved",
         "benchmark": None,
@@ -857,6 +858,48 @@ def test_session_view_modification_reason() -> None:
     assert payload["calendar"]["sessions"][0]["modification_reason"] == "fatigue"
 
 
+def test_session_rows_carry_brief_and_still_no_notes() -> None:
+    brief = {
+        "effort": {"rpe_low": 3, "rpe_high": 4, "feel": "conversational"},
+        "focus": [],
+        "adjust_if": [{"when": "Calf tight", "then": "walk 5 min"}],
+        "why": "Easy aerobic volume",
+    }
+    row = {**session(AS_OF, "run", "REC001"), "brief": brief, "notes": "PRIVATE"}
+    payload = build_payload(inputs(sessions=[row]), ROLLING)
+    view = payload["calendar"]["sessions"][0]
+    assert view["brief"] == brief
+    assert "notes" not in view
+    assert "PRIVATE" not in canonical_json(payload)
+
+
+def test_prior_decisions_carry_headline_and_next_check_without_briefs() -> None:
+    brief = {"effort": {"rpe_low": 3, "rpe_high": 4, "feel": "easy"}, "focus": [], "adjust_if": [], "why": "Easy"}
+    proposal = {
+        "proposal_id": "p1",
+        "operation": ROLLING,
+        "status": "accepted",
+        "submitted_at": NOW,
+        "decided_at": NOW,
+        "headline": "Hold volume",
+        "next_check": {"on": "2026-11-23", "check": "Thu tempo RPE"},
+        "changes": [
+            {
+                "change_id": "c1",
+                "op": "modify",
+                "session_uid": "s1",
+                "decision": "accepted",
+                "before": None,
+                "after": {"intent": "Easy", "brief": brief},
+            },
+        ],
+    }
+    view = build_payload(inputs(proposals=[proposal]), ROLLING)["prior_decisions"][0]
+    assert (view["headline"], view["next_check"]["check"]) == ("Hold volume", "Thu tempo RPE")
+    assert "summary" not in view and "follow_up" not in view
+    assert view["changes"][0]["after"] == {"intent": "Easy"}
+
+
 def test_prior_decisions_include_exception_reviews() -> None:
     def proposal(pid: str, operation: str, hours: int, status: str = "accepted") -> dict:
         return {
@@ -865,8 +908,8 @@ def test_prior_decisions_include_exception_reviews() -> None:
             "status": status,
             "submitted_at": NOW - timedelta(hours=hours),
             "decided_at": None if status == "pending" else NOW - timedelta(hours=hours),
-            "summary": pid,
-            "follow_up": None,
+            "headline": pid,
+            "next_check": None,
             "changes": [],
         }
 
@@ -940,8 +983,8 @@ def test_exception_summary_counts() -> None:
             "status": "accepted",
             "submitted_at": NOW - timedelta(days=6),
             "decided_at": NOW - timedelta(days=6),
-            "summary": "Weekly",
-            "follow_up": None,
+            "headline": "Weekly",
+            "next_check": None,
             "changes": [],
         },
         {
@@ -950,8 +993,8 @@ def test_exception_summary_counts() -> None:
             "status": "accepted",
             "submitted_at": NOW - timedelta(days=1),
             "decided_at": NOW - timedelta(days=1),
-            "summary": "Patch",
-            "follow_up": None,
+            "headline": "Patch",
+            "next_check": None,
             "changes": [
                 {
                     "change_id": "c1",
@@ -1236,7 +1279,7 @@ def test_block_benchmark_sections() -> None:
         "version": 1,
         "status": "active",
         "objective": "Aerobic base",
-        "rationale": "Ready",
+        "why": [{"kind": "inference", "text": "Ready"}],
         "maintained_qualities": [],
         "non_goals": [],
         "eligible_recipe_ids": ["REC001", "REC009"],
@@ -1244,7 +1287,7 @@ def test_block_benchmark_sections() -> None:
         "constraints": [],
         "start_date": date(2026, 10, 19),
         "review_date": date(2026, 12, 28),
-        "completion_indicators": [],
+        "indicators": [],
         "early_review_triggers": [],
         "objective_status": "unresolved",
         "benchmark": {

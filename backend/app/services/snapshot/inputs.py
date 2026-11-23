@@ -77,6 +77,7 @@ def _load_sessions(session: Session, head: int, first: date, as_of: date) -> lis
                     "planned_distance_m",
                     "structure",
                     "strength_slot_id",
+                    "brief",
                 ),
             ),
             certainty=derive_certainty(row["local_date"], as_of),
@@ -299,7 +300,8 @@ def _load_active_block(
     block_keys = (
         "status",
         "objective",
-        "rationale",
+        "why",
+        "legacy_text",
         "maintained_qualities",
         "non_goals",
         "eligible_recipe_ids",
@@ -307,7 +309,7 @@ def _load_active_block(
         "constraints",
         "start_date",
         "review_date",
-        "completion_indicators",
+        "indicators",
         "early_review_triggers",
         "objective_status",
         "benchmark",
@@ -381,7 +383,7 @@ def _load_proposals(session: Session) -> list[dict]:
         by_proposal.setdefault(change_row.proposal_id, []).append(item)
     proposals = [
         dict(
-            row_view(row, ("operation", "status", "submitted_at", "decided_at", "summary", "follow_up")),
+            row_view(row, ("operation", "status", "submitted_at", "decided_at", "headline", "next_check")),
             proposal_id=row.id,
             changes=by_proposal.get(row.id, []),
         )
