@@ -88,7 +88,7 @@ rule or saved athlete-profile setting.
 
 ### IDEA-005 — Vacation, travel, and temporary schedule exceptions
 
-Recorded 2026-11-11. Status: idea. AC-1 logs a `travel` context tag as a finding; date-range travel planning is not built.
+Recorded 2026-11-11. Status: partly delivered by GCAL v1: detected and manual trips with dates, destination timezone, travel days, running and gym access, and per-day availability, shown as calendar badges and in coach context. Remaining: daily training-time windows and non-travel disruption kinds. AC-1 still logs a `travel` context tag as a finding.
 
 Allow the athlete to enter vacation/travel date ranges and other temporary
 schedule disruptions. Capture relevant constraints when known: available
@@ -101,7 +101,7 @@ alternatives, or a planned break consistent with current goals and recovery.
 Preserve the underlying alternating schedule and run parity unless the user
 explicitly chooses a lasting change. Show how the normal rhythm resumes after
 the exception; don't turn missed travel sessions into catch-up debt. Proposed
-plan changes still require explicit acceptance. No implementation yet.
+plan changes still require explicit acceptance.
 
 ### IDEA-006 — Strength goals and integrated hybrid coaching
 
@@ -163,7 +163,7 @@ Unspecified.
 
 ### IDEA-008 — Schedule and share training plans in Google Calendar
 
-Recorded 2026-11-12. Updated 2026-11-20. Status: idea. Priority: Unspecified.
+Recorded 2026-11-12. Updated 2026-11-23. Status: v1 (read-only travel detection) in progress via `planning1/google_calendar/`; scheduling and sharing remain. Priority: Unspecified.
 
 **Problem / context**
 The athlete wants planned sessions to fit predetermined times they assign and
@@ -303,6 +303,58 @@ watch when recording the run. Interval edits preserve those calibrated totals.
 
 **Open questions**
 Should the athlete be able to enter treadmill belt speed as well as pace?
+
+### IDEA-013 — Evaluations that catch coaching-quality regressions
+
+Recorded 2026-11-22. Status: idea. Priority: Low (after Google Calendar travel
+integration and the coach-output UI restructure).
+
+**Problem / context**
+New features change what the coach sees (snapshot sections) and what it writes
+(proposal fields), but nothing checks whether coaching quality degrades. The
+behavior cases in `running_coach_kb/evaluation/` describe expected behavior and
+prohibited inferences, and have never been executed. The athlete does not need
+this now: they are the only user, usage is light, and much of the value comes
+from talking back and forth with the coach rather than from a fixed
+prescription. When a feature does not fit how they use it, they adapt it.
+
+**Desired behavior**
+Run a set of synthetic scenarios through the real coach on demand and see
+whether its decisions still match each case's expected behavior, compared with
+an earlier run.
+
+**Acceptance checks**
+- Running the suite on demand reports, per case, whether the coach's decision
+  matches the expected behavior and avoids the prohibited inferences.
+
+**Constraints**
+Synthetic data only; never real mode. Not part of routine checks. No guardrails
+that restrict how the athlete uses the coach.
+
+**Open questions**
+Whether a headless Codex run can reach the local app and load the repo skill;
+which model grades results; whether to start with input-only checks (snapshot
+and findings for each scenario) before any model-in-the-loop runs.
+
+### IDEA-014 — Trip-aware local dates
+
+Recorded 2026-11-23. Status: idea. Priority: after Google Calendar travel (GCAL v1) is in real use.
+
+**Problem / context**
+GCAL v1 shows trips and destination timezones to the coach, but every app date stays in the home timezone. During a trip far east or west of home, a morning run can land on the previous `local_date` and miss its planned session, and "today" changes at home midnight.
+
+**Desired behavior**
+While a confirmed trip is active, dates and "today" follow the destination timezone, so runs match the sessions planned for the athlete's local day.
+
+**Acceptance checks**
+- A run recorded on a trip day matches that day's planned session in the destination timezone.
+- Stored local dates and metric results stay consistent when a trip is confirmed, edited, or dismissed.
+
+**Constraints**
+Dates come from one profile timezone at about 70 call sites in 36 files. The metric identity hash includes the profile timezone, and each activity's `local_date` is fixed at import. A per-date zone changes metric identity and needs stored local dates re-derived when a trip changes. Back up before any real recompute.
+
+**Open questions**
+Whether the zone applies to the whole trip or only from the arrival leg; how a change to a confirmed trip re-derives stored dates and metrics.
 
 ## Coaching depth and evaluation
 

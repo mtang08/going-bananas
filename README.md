@@ -178,6 +178,23 @@ safe: the verified replay created no new source revisions or canonical changes.
 This parser is specific to the inspected Garmin export schema; the browser does
 not accept arbitrary ZIPs.
 
+## Google Calendar travel
+
+The app reads the primary Google Calendar, read-only, to find trips from the flight events Gmail adds. It stores a reduced copy of each event: title, times and timezones, busy or free, your own response, a category, and up to four airport codes from the location. The request selects only the attendee `self` and `responseStatus` fields needed to retain your own response; it does not request descriptions, attendee names, or email addresses, and stores no raw locations or raw responses. Nothing from Google is written to logs.
+
+Connect once in real mode. Create a Desktop OAuth client for the Google Calendar API with the read-only scope, save its JSON as `private/real/google-calendar-client.json`, and run `chmod 600` on it. The token is written next to it with owner-only permissions. Neither file is included in backups.
+
+```sh
+./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli calendar-connect'
+./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli calendar-probe --days 120'
+```
+
+`calendar-probe` prints a redacted summary (event types, timezones, and masked title shapes) for checking trip detection without exposing details. In real mode, **Sync calendar** under Settings → **Travel and Google Calendar** fetches 30 days back and 180 days ahead, marks events deleted in Google as removed, and re-detects trips. Detected trips wait for you to confirm, edit, or dismiss them, and a sync never overwrites your edits. You can also add a trip by hand. The coach sees confirmed and unconfirmed trips with dates, timezones, local flight times, and the access and availability you entered. App dates stay in your home timezone during trips.
+
+For the combined rollout, before migrating to the latest head, the operator decides what to do with open coach drafts and copies any notes they want to retain. Then back up and apply the migration. Connecting Google Calendar remains a separate real-mode step.
+
+To revoke access, remove the app under myaccount.google.com → Security → Third-party access. To reconnect, run `calendar-connect` again.
+
 ## Strong import
 
 The inspected Strong CSV has already been imported into the real workspace.

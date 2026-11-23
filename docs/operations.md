@@ -23,6 +23,8 @@ make backup
 
 In real mode, `make migrate` backs up to `$PRIVATE_DIR/backups/` and stops if the backup fails. Demo and test migrations run directly.
 
+For the combined Google Calendar rollout, before migrating to the latest head, the operator decides what to do with open coach drafts and copies any notes they want to retain. Then back up and apply the migration; migration does not accept or activate drafts.
+
 Before applying `0022_race_goals` to the real database, check its current revision and retain a pre-migration backup. This migration deletes existing events, clears their links on retained benchmark and anchor records, and expires outstanding post-race review findings. Restoring the backup recovers the old events. After migrating, enter upcoming races under **Settings → Events**, choose their purposes, and put the goal race first. The next block review can link the accepted block to that race.
 
 Explicit real-mode backup and restore (replace the archive path and new target):
@@ -81,6 +83,12 @@ inspect the app's dataset status and coverage.
 - Readiness unavailable: start the database and run migrations for the active mode.
 - Credential attention: replace/renew the private Garmin key; don't paste it into
   chat. Imported history stays readable.
+- Google Calendar sync says access expired, was revoked, or lacks read access:
+  rerun `calendar-connect` in real mode (README, "Google Calendar travel").
+  A rate-limit message means wait and press **Sync calendar** again. To revoke
+  access, remove the app under myaccount.google.com → Security → Third-party
+  access. The client file and token are not backed up; after a restore,
+  copy the client file back into `private/real/` and reconnect.
 - Partial dataset: inspect the safe reason and coverage; valid records remain.
 - Same sync requested twice: use the existing job. Rate limits use bounded retries
   and delayed retry timestamps. Failed jobs can be explicitly re-requested.

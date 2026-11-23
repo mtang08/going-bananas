@@ -36,6 +36,8 @@ America/New_York; travel/source dates remain inspectable.
 | `completion_links` | accepted session to canonical actual; explicit user confirmation, unique actual per planned session pairing; absent link is unlinked, not missed |
 | `weekly_snapshots` | local date range, schema/metric version, data/profile/plan revisions, generated_at, deterministic summary |
 | `app_state` | data revision updated in same transaction as canonical/manual changes |
+| `gcal_events` | allowlisted projection of primary-calendar events: Google event ID, type, status, title, up to four airport codes, all-day or timed shape with times and zones, busy, own response, category and its source (auto or athlete), content hash, removal time, version; no descriptions, attendee names or email addresses, raw locations, or raw JSON |
+| `trips`, `trip_legs` | detected or manual trips: status (pending, confirmed, dismissed, needs_review), dates, destination label and zone, confidence (null for manual), running and gym access (null = unknown), per-day availability (an unlisted day is unknown), edited flag, detected copy, review reason, version; legs link flight events with the event hash at detection; a sync never overwrites athlete edits or touches manual trips |
 
 Reviewed KB files remain versioned on disk, with private originals and athlete
 context excluded from Git. `coach_recommendations` persist an input snapshot,
@@ -278,6 +280,8 @@ free text as text (no unsanitized HTML). Backups and local context exports are
 private artifacts. CI uses synthetic data; tests never contact live Garmin by
 default. A secret canary test covers logs, API errors, built JS, and exported
 context. No third-party analytics or external fonts are necessary.
+
+Google Calendar access is read-only (`calendar.readonly`). Event descriptions are never requested. The request selects only attendee `self` and `responseStatus` fields, without attendee names or email addresses, to retain the athlete's own response. The OAuth client file and token live in `private/<mode>/` with owner-only permissions, are excluded from backups, and are never printed. No Google response body, event title, token, or email address appears in logs, API errors, or test output; tests and demo mode use synthetic events and never call Google.
 
 ## Future research KB and agent interface
 

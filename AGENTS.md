@@ -42,6 +42,7 @@ all migrations, the full research library, or private data to orient yourself.
 | Check-ins, prompts, exception findings | `backend/app/api/{checkins,exceptions}.py`, `backend/app/services/{checkins,prompts}.py`, `backend/app/services/exceptions/` |
 | Metrics, FIT, weekly mileage | `backend/app/metrics/`, `backend/app/services/{fit_ingest,weekly_projection}.py` |
 | Garmin/Strong ingestion | `backend/app/adapters/`, `backend/app/services/{sync,export_import,strong_import}.py` |
+| Google Calendar, trips | `backend/app/adapters/google_calendar.py`, `backend/app/services/{gcal_sync,trips}.py`, `backend/app/api/travel.py`, `backend/app/domain/travel.py` |
 | UI and navigation | [frontend/AGENTS.md](frontend/AGENTS.md), `frontend/src/App.tsx`, the relevant file in `frontend/src/pages/` |
 | Research content/retrieval | [running_coach_kb/AGENTS.md](running_coach_kb/AGENTS.md), `backend/app/services/knowledge.py` |
 | Startup, modes, backups | `Makefile`, `scripts/serve.py`, `scripts/with-mode`, [docs/operations.md](docs/operations.md) |

@@ -12,7 +12,7 @@ frontend/src (React, React Query, hash routing)
         backend/app/read/       shared database queries and read models
         backend/app/metrics/    calculators, result storage and reads, and recomputation
         backend/app/domain/     pure calculations (no database, no framework)
-        backend/app/adapters/   parse Garmin and Strong provider formats
+        backend/app/adapters/   parse Garmin, Strong, and Google Calendar formats
         backend/app/*_models.py SQLAlchemy models, with schema changes in backend/migrations/versions/
    -> PostgreSQL (the only supported database)
 ```
@@ -27,7 +27,7 @@ frontend/src (React, React Query, hash routing)
 Source writes and the refreshes they trigger share a transaction.
 
 1. A request handler, the sync worker, or the CLI changes source rows (activities, check-ins, completions, calendar revisions, planning rows, profile versions, recovery observations, Strong and manual workouts, coverage) through one SQLAlchemy session and commits.
-2. The API and CLI call `services.derived.install()`. Its session listeners use the old and new values of changed rows to emit refresh scopes (`activity`, `checkin`, `strength`, `plan`, `manual_completion`, `date`, `since`, `coverage_date`, `recovery_dates`, `timezone`, `revision`). Planning-only rows emit `revision`. A date gains or loses activity coverage when the union of complete, fully enumerated activity intervals changes across the transaction.
+2. The API and CLI call `services.derived.install()`. Its session listeners use the old and new values of changed rows to emit refresh scopes (`activity`, `checkin`, `strength`, `plan`, `manual_completion`, `date`, `since`, `coverage_date`, `recovery_dates`, `timezone`, `revision`). Planning-only rows and Google Calendar events, trips, and trip legs emit only `revision`. A date gains or loses activity coverage when the union of complete, fully enumerated activity intervals changes across the transaction.
 3. At commit, the listeners take `db.global_write_lock` and bump `data_revision`. When the scopes require refresh, they rematch affected days, recompute metrics through `metrics/refresh.py`, and update prompts in the same transaction. A refresh failure rolls back the source write.
 4. Metric GETs take the shared advisory lock and serve current stored results or compute missing results and results from an outdated configuration in memory. In-memory results have a null ID. `metrics-refresh-today` refreshes metrics and prompts at server startup. The workout-progression views and weekly digest serve stored rows. After a metric configuration change, use `metrics-recompute` to refresh those rows.
 
