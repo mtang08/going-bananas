@@ -495,7 +495,7 @@ def apply_edits(
             supplied = edit.get("fields")
             if not isinstance(supplied, dict):
                 fail("invalid_calendar_edit", "Fields required")
-            if "brief" in supplied and actor != "coach":
+            if ("brief" in supplied and actor != "coach") or ("notes" in supplied and actor == "coach"):
                 fail("invalid_session_fields", "Unexpected session field")
             if op == "move" and "local_date" not in supplied:
                 fail("invalid_calendar_edit", "Move requires local date")
@@ -508,9 +508,7 @@ def apply_edits(
             if previous and fields == base:
                 fail("edit_no_change", "Session is unchanged")
             if (
-                previous
-                and base
-                and op == "modify"
+                base
                 and (actor != "coach" or "brief" not in supplied)
                 and any(fields[key] != base[key] for key in ("kind", "recipe_id", "structure", "intent"))
             ):
