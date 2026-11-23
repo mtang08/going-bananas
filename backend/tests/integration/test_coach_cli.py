@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from app.coach_v2_models import CoachProposal, CoachSnapshot
 from app.models import AppState
@@ -158,6 +158,37 @@ def test_revise_same_id_and_retry(cli_db, tmp_path):
         write_doc(tmp_path, document),
     )
     assert code == 2 and conflict["error"] == "proposal_revision_conflict", (conflict, error)
+
+
+def test_revise_reports_missing_database_column_and_preserves_draft(cli_db, tmp_path):
+    import json
+
+    run, session = cli_db
+    _, document = snapshot_doc(run, session)
+    code, draft, error = run("submit", "--file", write_doc(tmp_path, document))
+    assert code == 0, error
+    document["rationale"] = "Revised training context"
+    command = (
+        "revise",
+        draft["proposal_id"],
+        "--expected-revision",
+        "1",
+        "--reason",
+        "Update context",
+        "--file",
+        write_doc(tmp_path, document),
+    )
+    # Simulate a newer ORM reading a database that lacks an expected activity column.
+    session.execute(text("ALTER TABLE activities RENAME COLUMN distance_m TO old_distance_m"))
+    code, _, error = run(*command)
+    assert code == 1
+    assert json.loads(error)["error"] == "database_schema_mismatch"
+    saved = session.get(CoachProposal, uuid.UUID(draft["proposal_id"]), populate_existing=True)
+    assert (saved.status, saved.revision, saved.rationale) == ("pending", 1, "Ready for a small increase")
+    session.execute(text("ALTER TABLE activities RENAME COLUMN old_distance_m TO distance_m"))
+    code, revised, error = run(*command)
+    assert code == 0, error
+    assert (revised["status"], revised["revision"]) == ("pending", 2)
 
 
 def test_submit_invalid_exit_2_nothing_written(cli_db, tmp_path):

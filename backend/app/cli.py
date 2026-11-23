@@ -15,12 +15,13 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import MetaData, select, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import SessionLocal, engine, global_write_lock
 from app.domain.local_time import date_in_zone
-from app.logs import configure
+from app.logs import configure, exception_summary, get
 from app.models import AppState
 from app.services.backup import BackupError, create_backup, restore_backup
 from app.services.export_import import import_export
@@ -261,8 +262,22 @@ def _coach(args) -> int:
     except AppError as exc:
         output({"error": exc.code}, error=True)
         return 4 if exc.status_code == 404 else 2
-    except Exception:
-        output({"error": "unexpected_error"}, error=True)
+    except Exception as exc:
+        get("coach").error("coach command=%s failed %s", args.coach_command, exception_summary(exc))
+        if isinstance(exc, ProgrammingError) and getattr(exc.orig, "sqlstate", None) in {"42703", "42P01"}:
+            from app.migrations_head import EXPECTED_HEAD
+
+            output(
+                {
+                    "error": "database_schema_mismatch",
+                    "message": "The coach could not find a required database column or table. Check the migration "
+                    "version for this workspace before retrying.",
+                    "expected_migration": EXPECTED_HEAD,
+                },
+                error=True,
+            )
+        else:
+            output({"error": "unexpected_error"}, error=True)
         return 1
 
 
