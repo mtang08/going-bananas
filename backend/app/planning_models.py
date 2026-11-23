@@ -39,7 +39,7 @@ class BlockVersion(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     objective: Mapped[str] = mapped_column(Text, nullable=False)
-    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    why: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     maintained_qualities: Mapped[list[Any]] = mapped_column(
         ARRAY(Text), nullable=False, default=list, server_default="{}"
     )
@@ -51,9 +51,7 @@ class BlockVersion(Base):
     constraints: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     review_date: Mapped[date] = mapped_column(Date, nullable=False)
-    completion_indicators: Mapped[list[Any]] = mapped_column(
-        ARRAY(Text), nullable=False, default=list, server_default="{}"
-    )
+    indicators: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     early_review_triggers: Mapped[list[Any]] = mapped_column(
         ARRAY(Text), nullable=False, default=list, server_default="{}"
     )
@@ -63,6 +61,7 @@ class BlockVersion(Base):
     benchmark: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     target_event_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"))
     build_outline: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
+    legacy_text: Mapped[str | None] = mapped_column(Text)
     __table_args__ = (
         UniqueConstraint("block_uid", "version"),
         CheckConstraint(
