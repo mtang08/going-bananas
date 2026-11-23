@@ -158,7 +158,7 @@ app.include_router(exceptions_router, prefix="/api/v1")
 app.include_router(planning_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")
 app.include_router(sync_router, prefix="/api/v1")
-app.include_router(travel_router,prefix="/api/v1")
+app.include_router(travel_router, prefix="/api/v1")
 app.include_router(coach_router, prefix="/api/v1")
 
 
