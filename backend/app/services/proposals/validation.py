@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections import Counter
 from datetime import date, timedelta
@@ -45,6 +46,54 @@ from app.services.proposals.schema import (
     scope,
 )
 
+ID_TOKEN = re.compile(
+    r"\b(?:E-[A-Z]{2,8}-\d{2}|P\d{3}|REC\d{3}|S\d{3})\b"
+    r"|\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
+)
+PROSE_KEYS = frozenset(
+    {
+        "headline",
+        "text",
+        "when",
+        "then",
+        "check",
+        "coach_note",
+        "uncertainty",
+        "reason",
+        "intent",
+        "feel",
+        "focus",
+        "why",
+        "effort_cue",
+        "objective",
+        "maintained_qualities",
+        "non_goals",
+        "early_review_triggers",
+        "label",
+        "progress_when",
+        "protocol",
+        "progress_if",
+        "consolidate_if",
+        "emphasis",
+        "conditions",
+        "triggering_evidence",
+        "relevant_context",
+        "monitor",
+        "return_criteria",
+        "escalate_criteria",
+        "pacing",
+        "effort_and_limiter",
+        "symptoms",
+        "recovery_observation",
+        "training_implication",
+        "compared_with",
+        "note",
+    }
+)
+NEXT_CHECK_MAX_DAYS = 14
+BRIEF_WINDOW_DAYS = 13
+BRIEF_OPTIONAL_FIELDS = frozenset({"slot", "locked", "brief"})
+
 
 def _issue(code: str, path: str, message: str | None = None) -> ValidationIssue:
     return ValidationIssue(code, path, message or code)
@@ -75,6 +124,73 @@ def _resulting(doc: ProposalDoc, ctx: ValidationContext) -> dict[str, dict]:
         elif uid in state and change.after:
             state[uid].update(change.after.model_dump(include=change.after.model_fields_set))
     return state
+
+
+def _id_in_text(doc: ProposalDoc) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+
+    def walk(value: Any, path: str, prose: bool) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                walk(item, f"{path}.{key}" if path else key, key in PROSE_KEYS)
+        elif isinstance(value, list):
+            for j, item in enumerate(value):
+                walk(item, f"{path}.{j}", prose)
+        elif prose and isinstance(value, str) and ID_TOKEN.search(value):
+            issues.append(
+                _issue("V24.id_in_text", path, "Cite IDs in evidence_ids, policy_ids, or recipe_ids, not in text")
+            )
+
+    walk(doc.model_dump(mode="json"), "", False)
+    return issues
+
+
+def _unsourced_research_path(doc: ProposalDoc) -> str | None:
+    if doc.evidence_ids or doc.policy_ids:
+        return None
+    groups = [("why", doc.why)]
+    if doc.block_change is not None:
+        groups.append(("block_change.version_fields.why", doc.block_change.version_fields.why))
+    for prefix, items in groups:
+        for j, item in enumerate(items):
+            if item.kind == "research":
+                return f"{prefix}.{j}"
+    return None
+
+
+def _text_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
+    issues = _id_in_text(doc)
+    if doc.confidence.decision != "high" and not doc.uncertainty:
+        issues.append(_issue("V24.uncertainty_required", "uncertainty", "Name the main unknowns"))
+    if doc.operation != "exception_review" and not doc.change_triggers:
+        issues.append(
+            _issue("V24.triggers_required", "change_triggers", "Name the feedback that would change this decision")
+        )
+    last = ctx.today + timedelta(days=NEXT_CHECK_MAX_DAYS)
+    if not ctx.today <= doc.next_check.on <= last:
+        issues.append(
+            _issue(
+                "V24.next_check_date",
+                "next_check.on",
+                f"Next check must fall between {ctx.today.isoformat()} and {last.isoformat()}",
+            )
+        )
+    research = _unsourced_research_path(doc)
+    if research is not None:
+        issues.append(_issue("V24.research_unsourced", research, "A research reason needs evidence_ids or policy_ids"))
+    return issues
+
+
+def _brief_missing(ctx: ValidationContext, change: Change, fields: set[str], result: dict[str, Any]) -> bool:
+    day = result.get("local_date")
+    reworked = change.op == "add" or (change.op == "modify" and bool(fields - BRIEF_OPTIONAL_FIELDS))
+    return (
+        reworked
+        and result.get("kind") == "run"
+        and day is not None
+        and ctx.today <= day <= ctx.today + timedelta(days=BRIEF_WINDOW_DAYS)
+        and (change.after is None or change.after.brief is None)
+    )
 
 
 def _exception_block_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[ValidationIssue]:
@@ -194,8 +310,8 @@ def _benchmark_rules(doc: ProposalDoc, ctx: ValidationContext) -> list[Validatio
                         _benchmark_required_message(last),
                     )
                 )
-            elif not fields.completion_indicators:
-                issues.append(_issue("V22.indicators_required", "block_change.version_fields.completion_indicators"))
+            elif not fields.indicators:
+                issues.append(_issue("V22.indicators_required", "block_change.version_fields.indicators"))
         else:
             earliest = fields.review_date - timedelta(days=HORIZON_MIN_DAYS)
             if not earliest <= planned.planned_date <= latest:
@@ -462,9 +578,13 @@ def _change_issues(
     ):
         issues.append(_issue("V15.not_quality_slot", path))
     if doc.operation == "recalibrate_intensity" and (
-        change.op != "modify" or not fields <= {"intent", "structure", "notes"}
+        change.op != "modify" or not fields <= {"intent", "structure", "brief"}
     ):
         issues.append(_issue("V15.recalibrate_change_not_allowed", path))
+    if _brief_missing(ctx, change, fields, result):
+        issues.append(
+            _issue("V25.brief_required", f"{path}.after.brief", "A run added or reworked within 14 days needs a brief")
+        )
     return issues
 
 
@@ -708,6 +828,7 @@ def _rules(doc: ProposalDoc, ctx: ValidationContext, *, exception_checks: bool =
     issues += _anchor_rules(doc, ctx)
     if exception_checks:
         issues += _exception_rules(doc, ctx)
+        issues += _text_rules(doc, ctx)
     return issues
 
 

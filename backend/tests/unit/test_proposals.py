@@ -27,7 +27,7 @@ from app.services.proposals.schema import (
     parse_document,
     scope,
 )
-from app.services.proposals.validation import proposal_freshness, validate_document, validate_subset
+from app.services.proposals.validation import ID_TOKEN, proposal_freshness, validate_document, validate_subset
 
 TODAY = date(2026, 11, 16)
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
@@ -46,6 +46,14 @@ KB = VerifiedKnowledge(
     frozenset(f"REC{i:03d}" for i in range(1, 11)),
     frozenset({"E-AER-01", "E-PER-02"}),
 )
+
+
+BRIEF = {
+    "effort": {"rpe_low": 3, "rpe_high": 4, "feel": "conversational"},
+    "focus": ["Relax shoulders"],
+    "adjust_if": [{"when": "Calf tight", "then": "walk 5 min"}],
+    "why": "Easy aerobic volume",
+}
 
 
 def head(n: int, day: int, kind: str, recipe: str | None = None, *, placeholder: bool = False) -> HeadSession:
@@ -117,20 +125,23 @@ def context(op: str = "review_rolling_plan", *, guard: dict | None = None, block
 
 def valid_doc(op: str = "review_rolling_plan") -> dict:
     return {
-        "schema_version": "coach_proposal.v1",
+        "schema_version": "coach_proposal.v2",
         "operation": op,
         "snapshot_id": str(U(200)),
         "base_calendar_version": 7,
         "base_block_version_id": str(U(101)),
-        "summary": "Adjust the week",
-        "rationale": "Observed load",
+        "headline": "Adjust the week",
+        "why": [{"kind": "observation", "text": "Observed load"}],
+        "uncertainty": ["Sleep data is thin"],
+        "change_triggers": [{"when": "Easy runs feel hard", "then": "hold the duration"}],
+        "next_check": {"on": (TODAY + timedelta(days=7)).isoformat(), "check": "Easy run RPE"},
         "confidence": {"decision": "moderate", "evidence": "moderate", "data": "moderate"},
         "changes": [
             {
                 "change_id": "c1",
                 "op": "modify",
                 "session_uid": str(U(3)),
-                "after": {"planned_duration_s": 2400, "intent": "Easy"},
+                "after": {"planned_duration_s": 2400, "intent": "Easy", "brief": BRIEF},
                 "reason": "More time",
             }
         ],
@@ -180,7 +191,7 @@ def exception_block(**overrides) -> dict:
 
 def exception_doc(**overrides) -> dict:
     doc = valid_doc("exception_review")
-    doc["changes"] = [change("c1", "modify", 2, {"intent": "Easy instead of quality"})]
+    doc["changes"] = [change("c1", "modify", 2, {"intent": "Easy instead of quality", "brief": BRIEF})]
     doc["exception"] = exception_block(**overrides)
     return doc
 
@@ -342,9 +353,9 @@ def test_v5_daily_scope_today_plus_4() -> None:
 
 def test_v6_recipe_must_be_eligible() -> None:
     doc = valid_doc()
-    doc["changes"] = [change("c1", "modify", 3, {"recipe_id": "REC005"})]
+    doc["changes"] = [change("c1", "modify", 3, {"recipe_id": "REC005", "brief": BRIEF})]
     assert outcome(doc) == ("invalid", [("V6.recipe_not_eligible", "changes.0.after.recipe_id")])
-    doc["changes"] = [change("c1", "modify", 2, {"intent": "Quality slot"})]
+    doc["changes"] = [change("c1", "modify", 2, {"intent": "Quality slot", "brief": BRIEF})]
     assert outcome(doc) == ("pending", [])
 
 
@@ -355,7 +366,13 @@ def test_v7_two_runs_same_date() -> None:
             "c1",
             "add",
             None,
-            {"local_date": TODAY.replace(day=20).isoformat(), "kind": "run", "intent": "Easy", "recipe_id": "REC001"},
+            {
+                "local_date": TODAY.replace(day=20).isoformat(),
+                "kind": "run",
+                "intent": "Easy",
+                "recipe_id": "REC001",
+                "brief": BRIEF,
+            },
         )
     ]
     assert outcome(doc) == ("invalid", [("V7.multiple_runs_per_day", "changes")])
@@ -572,7 +589,7 @@ def test_v9_strength_move_requires_flag() -> None:
 
 def test_v10_two_long_runs_in_week() -> None:
     doc = valid_doc()
-    doc["changes"] = [change("c1", "modify", 3, {"recipe_id": "REC002"})]
+    doc["changes"] = [change("c1", "modify", 3, {"recipe_id": "REC002", "brief": BRIEF})]
     assert outcome(doc) == ("invalid", [("V10.multiple_long", "changes")])
 
 
@@ -590,7 +607,7 @@ def test_v11_unknown_policy_id() -> None:
 
 def test_v12_blocks_increase_after_severity_6_5() -> None:
     doc = valid_doc()
-    doc["changes"] = [change("c1", "modify", 1, {"planned_duration_s": 3000})]
+    doc["changes"] = [change("c1", "modify", 1, {"planned_duration_s": 3000, "brief": BRIEF})]
     assert outcome(doc, context(guard={"max_symptom_severity": 7.0})) == (
         "invalid",
         [("V12.safety_guard", "changes.0")],
@@ -610,7 +627,7 @@ def test_v13_start_only_without_active_block() -> None:
         "version_fields": {
             "status": "active",
             "objective": "Build",
-            "rationale": "Ready",
+            "why": [{"kind": "inference", "text": "Ready to build"}],
             "maintained_qualities": [],
             "non_goals": [],
             "eligible_recipe_ids": ["REC001", "REC002", "REC009"],
@@ -618,7 +635,7 @@ def test_v13_start_only_without_active_block() -> None:
             "constraints": [],
             "start_date": "2026-11-16",
             "review_date": "2026-12-28",
-            "completion_indicators": [],
+            "indicators": [],
             "early_review_triggers": [],
             "objective_status": "unresolved",
             "benchmark": BENCH,
@@ -659,9 +676,9 @@ def test_v14_anchor_low_gt_high() -> None:
 
 def test_v15_non_quality_slot() -> None:
     doc = valid_doc("select_quality_session")
-    doc["changes"] = [change("c1", "modify", 3, {"recipe_id": "REC003"})]
+    doc["changes"] = [change("c1", "modify", 3, {"recipe_id": "REC003", "brief": BRIEF})]
     assert outcome(doc, context("select_quality_session")) == ("invalid", [("V15.not_quality_slot", "changes.0")])
-    doc["changes"] = [change("c1", "modify", 2, {"recipe_id": "REC003"})]
+    doc["changes"] = [change("c1", "modify", 2, {"recipe_id": "REC003", "brief": BRIEF})]
     assert outcome(doc, context("select_quality_session")) == ("pending", [])
 
 
@@ -713,6 +730,7 @@ def test_subset_numeric_target_requires_matching_anchor_modality() -> None:
             "modify",
             3,
             {
+                "brief": BRIEF,
                 "structure": [
                     {
                         "type": "work",
@@ -720,7 +738,7 @@ def test_subset_numeric_target_requires_matching_anchor_modality() -> None:
                         "duration_value": 600,
                         "target": {"modality": "hr", "low": 150, "high": 160},
                     }
-                ]
+                ],
             },
         )
     ]
@@ -776,7 +794,7 @@ def test_subset_unchanged_numeric_target_needs_no_anchor() -> None:
             "target": {"modality": "hr", "low": 150, "high": 160},
         }
     ]
-    doc["changes"] = [change("c1", "modify", 3, {"structure": revised})]
+    doc["changes"] = [change("c1", "modify", 3, {"structure": revised, "brief": BRIEF})]
     doc["anchor_changes"] = [
         {
             "kind": "hr_threshold_lower",
@@ -912,7 +930,7 @@ LADDER_MISMATCH = ("invalid", [("V18.ladder_mismatch", "exception.ladder_level")
 
 def test_v18_next_session_allows_one_change() -> None:
     doc = exception_doc(severity="hold", patch_window={"start": "2026-11-16", "end": "2026-11-20"})
-    doc["changes"].append(change("c2", "modify", 3, {"intent": "Easy"}))
+    doc["changes"].append(change("c2", "modify", 3, {"intent": "Easy", "brief": BRIEF}))
     assert outcome(doc, exc_ctx()) == LADDER_MISMATCH
 
 
@@ -1074,7 +1092,7 @@ def block_start_doc(**field_overrides) -> dict:
         "version_fields": {
             "status": "active",
             "objective": "Build",
-            "rationale": "Ready",
+            "why": [{"kind": "inference", "text": "Ready to build"}],
             "maintained_qualities": [],
             "non_goals": [],
             "eligible_recipe_ids": ["REC001", "REC002", "REC009"],
@@ -1082,7 +1100,7 @@ def block_start_doc(**field_overrides) -> dict:
             "constraints": [],
             "start_date": "2026-11-16",
             "review_date": "2026-12-28",
-            "completion_indicators": [],
+            "indicators": [],
             "early_review_triggers": [],
             "objective_status": "unresolved",
             "benchmark": BENCH,
@@ -1194,7 +1212,16 @@ def test_v9_skips_empty_weeks_but_not_partial_weeks() -> None:
 
 
 def test_v22_benchmark_optional_after_recent_credible_result() -> None:
-    doc = block_start_doc(benchmark=None, completion_indicators=["REC002 reps hold at RPE 7 or lower"])
+    doc = block_start_doc(
+        benchmark=None,
+        indicators=[
+            {
+                "source": "quality_progression",
+                "label": "Long-run reps at the same RPE",
+                "progress_when": "reps hold at RPE 7 or lower",
+            }
+        ],
+    )
     ctx = context("review_training_block", block=False)
     required = ("invalid", [("V22.benchmark_required", "block_change.version_fields.benchmark")])
     assert outcome(doc, replace(ctx, last_benchmark_date=date(2026, 11, 10))) == ("pending", [])
@@ -1202,17 +1229,26 @@ def test_v22_benchmark_optional_after_recent_credible_result() -> None:
     assert outcome(doc, ctx) == required
     message = validate_document(doc, replace(ctx, last_benchmark_date=date(2026, 11, 9))).issues[0].message
     assert "2026-11-09" in message and "2026-12-27" in message
-    doc["block_change"]["version_fields"]["completion_indicators"] = []
+    doc["block_change"]["version_fields"]["indicators"] = []
     assert outcome(doc, replace(ctx, last_benchmark_date=date(2026, 11, 10))) == (
         "invalid",
-        [("V22.indicators_required", "block_change.version_fields.completion_indicators")],
+        [("V22.indicators_required", "block_change.version_fields.indicators")],
     )
 
 
 def test_v22_result_recorded_in_this_review_counts_unless_inconclusive() -> None:
     doc = block_review_doc("2026-12-14", "2026-12-05")
     doc["changes"] = []
-    doc["block_change"]["version_fields"].update(benchmark=None, completion_indicators=["Easy runs stay at RPE 3"])
+    doc["block_change"]["version_fields"].update(
+        benchmark=None,
+        indicators=[
+            {
+                "source": "rpe_vs_intent",
+                "label": "Easy runs at the planned RPE",
+                "progress_when": "easy runs stay at RPE 3",
+            }
+        ],
+    )
     doc["event_review"] = {**EVENT, "event_id": None, "activity_id": str(U(600)), "outcome": "progress"}
     ctx = replace(
         bench_ctx(),
@@ -1384,7 +1420,7 @@ def test_v14_block_review_anchor_needs_event_review() -> None:
 def test_rule_issue_order_is_pinned() -> None:
     doc = valid_doc()
     doc["changes"] = [
-        change("c1", "modify", 3, {"recipe_id": "REC099"}),
+        change("c1", "modify", 3, {"recipe_id": "REC099", "brief": BRIEF}),
         change("c1", "move", 11, {"local_date": "2026-11-17"}),
         change(
             "c3",
@@ -1399,7 +1435,7 @@ def test_rule_issue_order_is_pinned() -> None:
             },
         ),
         change("c4", "modify", 99, {"intent": "Unknown"}),
-        change("c5", "modify", 3, {"intent": "Again"}),
+        change("c5", "modify", 3, {"intent": "Again", "brief": BRIEF}),
     ]
     doc["preserved"] = [str(U(98))]
     doc["evidence_ids"] = ["E-NOPE-01"]
@@ -1506,3 +1542,121 @@ def test_freshness_no_active_block_matches_a_missing_base_block() -> None:
 @pytest.mark.parametrize("change", [{"current_source_fingerprint": "other"}, {"current_kb_digest": "1" * 64}])
 def test_freshness_changed_sources_are_stale(change: dict) -> None:
     assert freshness(replace(context(), **change)) == ["stale_sources"]
+
+
+@pytest.mark.parametrize(
+    "text,hit",
+    [
+        ("see E-AER-01", True),
+        ("P015", True),
+        ("REC003 reps", True),
+        ("S012", True),
+        (str(U(5)), True),
+        ("RPE 7", False),
+        ("5K TT", False),
+        ("P15", False),
+        ("E-AER-1", False),
+        ("Zone 2 for 40 min", False),
+    ],
+)
+def test_v24_id_token(text: str, hit: bool) -> None:
+    assert bool(ID_TOKEN.search(text)) is hit
+
+
+def test_v24_id_in_text_flags_each_prose_value() -> None:
+    doc = valid_doc()
+    doc["why"] = [
+        {"kind": "observation", "text": "Observed load"},
+        {"kind": "research", "text": "Threshold work holds gains [E-AER-01]"},
+    ]
+    doc["uncertainty"] = [f"Session {U(3)} has no RPE"]
+    doc["changes"][0]["after"]["brief"] = {**BRIEF, "adjust_if": [{"when": "Calf tight", "then": "switch to REC001"}]}
+    assert outcome(doc) == (
+        "invalid",
+        [
+            ("V24.id_in_text", "why.1.text"),
+            ("V24.id_in_text", "uncertainty.0"),
+            ("V24.id_in_text", "changes.0.after.brief.adjust_if.0.then"),
+        ],
+    )
+
+
+def test_v24_ids_in_id_fields_and_near_misses_pass() -> None:
+    doc = valid_doc()
+    doc["changes"][0]["after"].update(recipe_id="REC001", brief={**BRIEF, "why": "Builds 5K pace at RPE 4"})
+    assert outcome(doc) == ("pending", [])
+
+
+def test_v24_uncertainty_required_unless_decision_confidence_is_high() -> None:
+    doc = valid_doc()
+    doc["uncertainty"] = []
+    assert outcome(doc) == ("invalid", [("V24.uncertainty_required", "uncertainty")])
+    doc["confidence"] = {**doc["confidence"], "decision": "high"}
+    assert outcome(doc) == ("pending", [])
+
+
+def test_v24_triggers_required_except_exception_review() -> None:
+    doc = valid_doc()
+    doc["change_triggers"] = []
+    assert outcome(doc) == ("invalid", [("V24.triggers_required", "change_triggers")])
+    exc = exception_doc()
+    exc["change_triggers"] = []
+    assert outcome(exc, exc_ctx()) == ("pending", [])
+
+
+@pytest.mark.parametrize("offset,ok", [(-1, False), (0, True), (14, True), (15, False)])
+def test_v24_next_check_within_fourteen_days(offset: int, ok: bool) -> None:
+    doc = valid_doc()
+    doc["next_check"] = {"on": (TODAY + timedelta(days=offset)).isoformat(), "check": "Easy run RPE"}
+    expected = ("pending", []) if ok else ("invalid", [("V24.next_check_date", "next_check.on")])
+    assert outcome(doc) == expected
+
+
+def test_v24_research_reason_needs_cited_sources() -> None:
+    doc = valid_doc()
+    doc["why"] = [
+        {"kind": "observation", "text": "Observed load"},
+        {"kind": "research", "text": "One threshold day a week sustains gains"},
+    ]
+    doc["evidence_ids"], doc["policy_ids"] = [], []
+    assert outcome(doc) == ("invalid", [("V24.research_unsourced", "why.1")])
+    doc["policy_ids"] = ["P001"]
+    assert outcome(doc) == ("pending", [])
+    block = block_start_doc(why=[{"kind": "research", "text": "Base before intensity"}])
+    block["evidence_ids"], block["policy_ids"] = [], []
+    ctx = context("review_training_block", block=False)
+    assert outcome(block, ctx) == ("invalid", [("V24.research_unsourced", "block_change.version_fields.why.0")])
+
+
+def test_v25_brief_required_for_added_or_reworked_runs_within_14_days() -> None:
+    doc = valid_doc()
+    del doc["changes"][0]["after"]["brief"]
+    assert outcome(doc) == ("invalid", [("V25.brief_required", "changes.0.after.brief")])
+    add = {"local_date": "2026-11-20", "kind": "run", "intent": "Easy", "recipe_id": "REC001"}
+    doc["changes"] = [change("c1", "delete", 3), change("c2", "add", None, add)]
+    assert outcome(doc) == ("invalid", [("V25.brief_required", "changes.1.after.brief")])
+    doc["changes"][1]["after"] = {**add, "brief": BRIEF}
+    assert outcome(doc) == ("pending", [])
+
+
+def test_strength_omission_marker_takes_no_brief_and_no_id_text() -> None:
+    ctx = replace(context(), confirmed_strength_dates=frozenset({date(2026, 11, 17)}))
+    doc = valid_doc()
+    doc["changes"] = [omission("c1", 17)]
+    assert outcome(doc, ctx) == ("pending", [])
+    doc["changes"][0]["after"]["intent"] = "Omit S101"
+    assert outcome(doc, ctx) == ("invalid", [("V24.id_in_text", "changes.0.after.intent")])
+    doc["changes"] = [omission("c1", 17)]
+    doc["changes"][0]["after"]["brief"] = BRIEF
+    assert outcome(doc, ctx) == ("invalid", [("V9.strength_omission_invalid", "changes.0")])
+
+
+def test_v25_brief_not_required_for_bookkeeping_edits_or_later_runs() -> None:
+    doc = valid_doc()
+    doc["changes"] = [change("c1", "modify", 3, {"locked": True})]
+    assert outcome(doc) == ("pending", [])
+    ctx = context()
+    far = replace(ctx, active_block=replace(ctx.active_block, review_date=TODAY + timedelta(days=28)))
+    later = {"local_date": "2026-11-30", "kind": "run", "intent": "Easy", "recipe_id": "REC001"}
+    doc["changes"] = [*week_adds(), change("c3", "add", None, later)]
+    assert outcome(doc, far) == ("pending", [])
