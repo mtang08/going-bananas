@@ -958,6 +958,661 @@
         "Night/rest pain or systemic symptoms",
         "Repeated inability to progress"
       ]
+    },
+    {
+      "policy_id": "P029",
+      "title": "Separate circadian load from travel load",
+      "decision_question": "How should an itinerary be scored so zone change and travel burden are not collapsed into one jet-lag variable?",
+      "trigger": [
+        "Every itinerary in travel.trips[], whether zone_shift_hours is 0 or large."
+      ],
+      "required_inputs": [
+        "travel.trips[].zone_shift_hours",
+        "travel.trips[].direction",
+        "travel.trips[].legs[].duration_hours",
+        "travel.trips[].legs[].night_overlap",
+        "travel.trips[].legs[].depart_local",
+        "door_to_door_hours_if_reported"
+      ],
+      "suggested_action": [
+        "Compute a circadian-load flag from zone_shift_hours and direction.",
+        "Compute a separate travel-load flag from door-to-door time, biological-night overlap, early wake, confinement, and transfers.",
+        "Carry both flags into every later travel decision; do not merge them into one jet-lag variable."
+      ],
+      "alternatives": [
+        "When only city names are known, ask for departure and arrival local times before scoring."
+      ],
+      "do_not_apply_when": [
+        "Do not infer low burden merely because zones=0, or high jet lag merely because a flight is long."
+      ],
+      "rationale": "Research plus consensus (directness b, c): travel fatigue can occur without a clock shift, and acute sleep loss can lower physical performance independently of zones. Keeping two flags is a modeling convention built on that evidence.",
+      "evidence_ids": [
+        "E-TRAV-01",
+        "E-TRAV-10",
+        "E-TRAV-11",
+        "E-TRAV-12",
+        "E-TRAV-13",
+        "E-TRAV-31"
+      ],
+      "source_ids": [
+        "S073",
+        "S074",
+        "S075",
+        "S084",
+        "S085",
+        "S086",
+        "S087",
+        "S096",
+        "S104",
+        "S105",
+        "S106"
+      ],
+      "evidence_certainty": "Moderate for separating sleep loss from circadian shift; low-moderate for short-trip and long-duration effects",
+      "athlete_applicability": "Moderate: generalized from small elite team-sport and endurance cohorts to a recreational runner who strength trains",
+      "threshold_basis": "No numeric threshold; three or more zones is a practical jet-lag boundary, not a biological cliff",
+      "calibration_needed": "Learn separately how this athlete responds to zone-shift trips and to sleep-loss trips with few zones.",
+      "uncertainty": "Travel variables explain limited variance, and local transfers and delays are often missing from itineraries.",
+      "review_triggers": [
+        "Athlete reports a no-zone trip hurt training",
+        "Itinerary data lacks leg times or night overlap",
+        "Repeated mismatch between load flags and reported response"
+      ]
+    },
+    {
+      "policy_id": "P030",
+      "title": "Let observed response override the itinerary prior",
+      "decision_question": "After departure, what should control training progression: the itinerary plan or the athlete's actual response?",
+      "trigger": [
+        "Any travel.trips[] entry underway or just completed, especially a leg with night_overlap or an absolute zone_shift_hours of 3 or more."
+      ],
+      "required_inputs": [
+        "travel.trips[].zone_shift_hours",
+        "reported_travel_sleep_or_null",
+        "daytime_sleepiness_or_null",
+        "illness_or_unusual_symptoms_or_null",
+        "warm_up_or_easy_session_response_or_null",
+        "planned_session_type_and_priority"
+      ],
+      "suggested_action": [
+        "Use the itinerary to set a provisional plan; after travel, let actual sleep, daytime sleepiness, illness symptoms, and warm-up or easy-session response control progression.",
+        "Apply a hierarchy: safety symptoms first, then sleepiness or illness, then session-specific warm-up response, then the itinerary prior."
+      ],
+      "alternatives": [
+        "Ask one short question about sleep and symptoms when none were reported."
+      ],
+      "do_not_apply_when": [
+        "Do not let a wearable score alone approve or cancel training; do not ignore safety symptoms."
+      ],
+      "rationale": "Research plus inference (directness a, b): sleep and fatigue are disrupted more consistently than measured performance, and travel variables explain little variance. The hierarchy is an inference framework, not a validated score.",
+      "evidence_ids": [
+        "E-TRAV-05",
+        "E-TRAV-08",
+        "E-TRAV-32",
+        "E-TRAV-33",
+        "E-TRAV-34"
+      ],
+      "source_ids": [
+        "S073",
+        "S075",
+        "S077",
+        "S078",
+        "S079",
+        "S080",
+        "S081",
+        "S088",
+        "S096",
+        "S103",
+        "S104",
+        "S106"
+      ],
+      "evidence_certainty": "Moderate for sleep and fatigue disruption; low-moderate for the recovery window; low for session-context rules",
+      "athlete_applicability": "Moderate: generalized from small elite team-sport and endurance cohorts to a recreational runner who strength trains",
+      "threshold_basis": "No numeric threshold; no single sleep value predicts safe or effective training",
+      "calibration_needed": "Record this athlete's prior travel response and which warm-up signs have tracked a good or poor session.",
+      "uncertainty": "Consumer sleep measures and self-report are noisy, and no validated composite travel-readiness score exists.",
+      "review_triggers": [
+        "Wearable score conflicts with reported feeling",
+        "Symptoms persist beyond the first week",
+        "Athlete response differs from prior trips"
+      ]
+    },
+    {
+      "policy_id": "P031",
+      "title": "Keep training for a short daytime flight",
+      "decision_question": "Should a short daytime flight with little or no zone change change the planned session?",
+      "trigger": [
+        "A short daytime trip with an absolute travel.trips[].zone_shift_hours of 0–2, normal sleep, no illness, and no major delay."
+      ],
+      "required_inputs": [
+        "travel.trips[].zone_shift_hours",
+        "travel.trips[].legs[].duration_hours",
+        "travel.trips[].legs[].night_overlap",
+        "reported_travel_sleep_or_null",
+        "illness_or_unusual_symptoms_or_null",
+        "destination_heat_altitude_terrain_flags_or_null"
+      ],
+      "suggested_action": [
+        "Retain the planned training by default.",
+        "Keep an easy fallback if logistics or symptoms deteriorate, rather than preemptively deleting training."
+      ],
+      "alternatives": [
+        "Shorten the session or make it easy if delay, prolonged sitting, stiffness, or unexpected fatigue develops."
+      ],
+      "do_not_apply_when": [
+        "Do not apply to red-eyes, very early departures, long door-to-door days, heat or altitude changes, or reported poor sleep."
+      ],
+      "rationale": "Research-informed inference (directness b): small domestic and simulated team-sport studies showed little effect from a five-hour daytime flight, with some sleepiness and leg tiredness. The default is an inference for runners.",
+      "evidence_ids": [
+        "E-TRAV-12"
+      ],
+      "source_ids": [
+        "S084",
+        "S086",
+        "S087"
+      ],
+      "evidence_certainty": "Low-moderate",
+      "athlete_applicability": "Low-moderate: generalized from small elite, mostly male team-sport cohorts to a recreational runner who strength trains",
+      "threshold_basis": "No numeric threshold; the 0–2 zone band is a coaching convention",
+      "calibration_needed": "Learn whether this athlete reports stiffness or sleepiness after short flights.",
+      "uncertainty": "Evidence is small-sample team-sport data, and travel logistics vary.",
+      "review_triggers": [
+        "Athlete reports poor sleep before the flight",
+        "Unexpected delay extends the travel day",
+        "Repeated stiffness after short flights"
+      ]
+    },
+    {
+      "policy_id": "P032",
+      "title": "Treat red-eyes as sleep-loss events",
+      "decision_question": "How should a red-eye or very early departure change training even when few zones are crossed?",
+      "trigger": [
+        "A leg in travel.trips[].legs[] has night_overlap, or requires an unusually early wake, and the athlete reports substantial sleep loss or sleepiness."
+      ],
+      "required_inputs": [
+        "travel.trips[].legs[].night_overlap",
+        "travel.trips[].legs[].depart_local",
+        "travel.trips[].legs[].arrive_local",
+        "travel.trips[].zone_shift_hours",
+        "reported_travel_sleep_or_null",
+        "daytime_sleepiness_or_null",
+        "planned_session_type_and_priority"
+      ],
+      "suggested_action": [
+        "Treat the itinerary as an acute sleep-loss event independent of zone count.",
+        "When sleep is materially curtailed, move hard or long training away from the first postflight day; use rest or easy running instead.",
+        "Record local arrival time and biological-night overlap, and choose training times that do not sacrifice sleep."
+      ],
+      "alternatives": [
+        "Keep the session with an easy fallback when sleep and readiness are normal."
+      ],
+      "do_not_apply_when": [
+        "Do not impose a fixed cancellation when normal sleep was obtained and readiness is normal; do not use a universal hour cutoff."
+      ],
+      "rationale": "Research plus inference (directness b): acute sleep loss lowers physical performance on average, and a simulated early-morning short-haul flight preceded by reduced sleep worsened next-day sprint and jump outcomes. Applying this to runners is an inference.",
+      "evidence_ids": [
+        "E-TRAV-10",
+        "E-TRAV-11",
+        "E-TRAV-19"
+      ],
+      "source_ids": [
+        "S085",
+        "S096",
+        "S105",
+        "S106"
+      ],
+      "evidence_certainty": "Moderate for sleep loss in general; low-moderate for early departures; low-moderate for arrival-time effects",
+      "athlete_applicability": "Low-moderate: generalized from small elite, mostly male team-sport cohorts to a recreational runner who strength trains",
+      "threshold_basis": "No numeric threshold; no universal departure-hour cutoff",
+      "calibration_needed": "Learn how much curtailed sleep this athlete tolerates before easy running feels off.",
+      "uncertainty": "The sleep-loss effect is highly heterogeneous across studies, and simulation cannot separate early wake from sitting.",
+      "review_triggers": [
+        "Athlete trains well after short red-eyes",
+        "Arrival timing seems to matter more than departure",
+        "Sleepiness persists past the first postflight day"
+      ]
+    },
+    {
+      "policy_id": "P033",
+      "title": "Prefer sleep over before-or-after flight timing",
+      "decision_question": "Should a hard session happen before a flight or after arrival?",
+      "trigger": [
+        "A key or hard session falls on a departure or arrival day in travel.trips[]."
+      ],
+      "required_inputs": [
+        "travel.trips[].travel_days",
+        "travel.trips[].legs[].depart_local",
+        "travel.trips[].legs[].arrive_local",
+        "travel.trips[].legs[].night_overlap",
+        "reported_travel_sleep_or_null",
+        "warm_up_or_easy_session_response_or_null",
+        "planned_session_type_and_priority"
+      ],
+      "suggested_action": [
+        "Treat before versus after flight as having no evidence-based winner; prefer the timing that preserves sleep and recovery.",
+        "After overnight or long-haul arrival, default to rest or low-to-moderate activity.",
+        "Require normal alertness and a normal warm-up before hard training."
+      ],
+      "alternatives": [
+        "Move the hard session to a day with normal sleep opportunity.",
+        "Use an easy run as a routine and readiness check, not as a jet-lag cure."
+      ],
+      "do_not_apply_when": [
+        "Do not schedule exercise to flush out jet lag, and do not force a preflight hard session that sacrifices sleep or creates unsafe rush or logistics."
+      ],
+      "rationale": "Convention plus inference (directness c): no trial compares hard training before versus after a flight, and consensus favors sleep protection and low-to-moderate activity after arrival. Easy exercise has not been shown to speed adaptation.",
+      "evidence_ids": [
+        "E-TRAV-17",
+        "E-TRAV-18"
+      ],
+      "source_ids": [
+        "S073",
+        "S074",
+        "S093"
+      ],
+      "evidence_certainty": "Low",
+      "athlete_applicability": "Low-moderate: consensus and coaching convention, not tested in recreational runners",
+      "threshold_basis": "No numeric threshold; consensus convention",
+      "calibration_needed": "Learn whether this athlete does better with a light shake-out or full rest on arrival day.",
+      "uncertainty": "Consensus may reflect team schedules and practical constraints more than physiology.",
+      "review_triggers": [
+        "Athlete misses sleep to fit a preflight session",
+        "Easy arrival runs feel consistently poor",
+        "Athlete reports impaired coordination"
+      ]
+    },
+    {
+      "policy_id": "P034",
+      "title": "Protect the first day after major eastward travel",
+      "decision_question": "How should key quality work be handled after eastward travel across six or more zones?",
+      "trigger": [
+        "travel.trips[].direction is east and zone_shift_hours is 6 or more, especially overnight or before an important week."
+      ],
+      "required_inputs": [
+        "travel.trips[].zone_shift_hours",
+        "travel.trips[].direction",
+        "travel.trips[].legs[].night_overlap",
+        "reported_travel_sleep_or_null",
+        "warm_up_or_easy_session_response_or_null",
+        "planned_session_type_and_priority"
+      ],
+      "suggested_action": [
+        "Provisionally protect the first 24–48 hours from key quality work and reassess daily.",
+        "Extend protection when sleep or symptoms remain abnormal.",
+        "Move rather than automatically delete one key session when calendar space permits."
+      ],
+      "alternatives": [
+        "Use rest, easy running, or low-load strength during the protected window."
+      ],
+      "do_not_apply_when": [
+        "Do not interpret 24–48 hours as full circadian adaptation or as a mandatory no-training period; individual athletes may need less or more."
+      ],
+      "rationale": "Research-informed inference (directness a, b): eastward travel generally disrupts sleep and fatigue more than westward, and endurance cohorts show sleep disruption concentrated in the first 48 hours. The window is a provisional convention.",
+      "evidence_ids": [
+        "E-TRAV-02",
+        "E-TRAV-05",
+        "E-TRAV-08"
+      ],
+      "source_ids": [
+        "S073",
+        "S077",
+        "S078",
+        "S079",
+        "S080",
+        "S081",
+        "S088",
+        "S103",
+        "S104",
+        "S106"
+      ],
+      "evidence_certainty": "Moderate for eastward direction and sleep disruption; low-moderate for the recovery window",
+      "athlete_applicability": "Moderate: generalized from small elite team-sport and endurance cohorts to a recreational runner who strength trains",
+      "threshold_basis": "Provisional 24–48 h review window; coaching convention, not a validated threshold",
+      "calibration_needed": "Learn how long this athlete's sleep and alertness take to normalize after eastward trips.",
+      "uncertainty": "Not universal: beyond about eight eastward zones, adaptation may occur by delaying rather than advancing.",
+      "review_triggers": [
+        "Sleep normal on first night",
+        "Symptoms persist past 48 hours",
+        "Quality week at risk of being lost"
+      ]
+    },
+    {
+      "policy_id": "P035",
+      "title": "Use home time only for very short stays",
+      "decision_question": "Should the athlete stay on home time or switch to local time during a trip?",
+      "trigger": [
+        "travel.trips[].nights_away is about two or fewer and the local schedule is flexible; the strongest match is westward travel."
+      ],
+      "required_inputs": [
+        "travel.trips[].nights_away",
+        "travel.trips[].direction",
+        "travel.trips[].zone_shift_hours",
+        "travel.trips[].confirmed",
+        "local_fixed_obligations_if_reported",
+        "prior_travel_response_or_null"
+      ],
+      "suggested_action": [
+        "For stays of about 48 hours or less, treat home-time or partial home-time as an optional strategy only when local obligations allow.",
+        "For longer stays, transition to local time for sleep, meals, light, and training, individualizing the first several days.",
+        "Treat the two-to-three-day crossover as a pragmatic boundary."
+      ],
+      "alternatives": [
+        "Use local time and protect the available sleep window when local obligations conflict with home time."
+      ],
+      "do_not_apply_when": [
+        "Do not generalize the evidence to three-day stays, eastward travel, or athletes with fixed local event times."
+      ],
+      "rationale": "Limited research plus convention (directness b, c): one 50-hour, nine-zone westward study in flight attendants found home-time sleep reduced layover symptoms without post-return benefit. The local-time rule for longer stays is consensus inference.",
+      "evidence_ids": [
+        "E-TRAV-20",
+        "E-TRAV-21"
+      ],
+      "source_ids": [
+        "S073",
+        "S090",
+        "S095"
+      ],
+      "evidence_certainty": "Low",
+      "athlete_applicability": "Low: one small westward study in non-athlete flight attendants plus consensus",
+      "threshold_basis": "Coaching convention; the two-to-three-day boundary is not an experimentally validated threshold",
+      "calibration_needed": "Learn whether home-time sleep was practical and helpful for this athlete on short trips.",
+      "uncertainty": "Direct evidence is a single westward layover study with no athlete performance endpoint.",
+      "review_triggers": [
+        "Trip lengthens past two nights",
+        "Fixed local event times appear",
+        "Athlete finds home-time sleep impractical"
+      ]
+    },
+    {
+      "policy_id": "P036",
+      "title": "Use light and exercise timing cautiously",
+      "decision_question": "How should light and exercise timing be used to help adapt to a new time zone?",
+      "trigger": [
+        "A trip long enough to adapt locally, especially with an absolute zone_shift_hours of 3 or more."
+      ],
+      "required_inputs": [
+        "travel.trips[].zone_shift_hours",
+        "travel.trips[].direction",
+        "travel.trips[].nights_away",
+        "travel.trips[].legs[].depart_local",
+        "travel.trips[].legs[].arrive_local",
+        "prior_travel_response_or_null"
+      ],
+      "suggested_action": [
+        "Use destination light exposure and avoidance only from a validated direction and time plan.",
+        "Keep exercise timing secondary to sleep and light.",
+        "On longer trips, broadly align sleep, meals, and activity to local time."
+      ],
+      "alternatives": [
+        "Recommend destination daylight at broadly appropriate times without a precise schedule."
+      ],
+      "do_not_apply_when": [
+        "Do not prescribe precise bright-light timing from clock time alone when body phase or route is ambiguous; do not claim light or exercise guarantees faster performance recovery."
+      ],
+      "rationale": "Research plus consensus (directness b, c): timed light and exercise shift circadian phase in laboratory and field trials, but symptom and performance benefits in athletes are less certain, and mistimed light can oppose adaptation.",
+      "evidence_ids": [
+        "E-TRAV-21",
+        "E-TRAV-22",
+        "E-TRAV-23"
+      ],
+      "source_ids": [
+        "S073",
+        "S074",
+        "S090",
+        "S091",
+        "S092",
+        "S093",
+        "S094",
+        "S095"
+      ],
+      "evidence_certainty": "Moderate for phase shift from light; low-moderate for exercise phase shift; low for athlete performance",
+      "athlete_applicability": "Low-moderate: healthy-traveler and laboratory evidence, with no direct recreational-athlete performance data",
+      "threshold_basis": "No numeric threshold; baseline phase and chronotype are usually unknown",
+      "calibration_needed": "Learn this athlete's usual sleep timing and prior response to destination daylight.",
+      "uncertainty": "Clock time may not map cleanly to body time after travel, and no trial shows exercise timing speeds athlete adaptation.",
+      "review_triggers": [
+        "Trip crosses ambiguous direction or very large shift",
+        "Athlete reports worse sleep after outdoor light",
+        "Validated light plan becomes available"
+      ]
+    },
+    {
+      "policy_id": "P037",
+      "title": "Recompute the return trip",
+      "decision_question": "How should training be gated after a return flight?",
+      "trigger": [
+        "A return leg in travel.trips[] has an absolute zone_shift_hours of 3 or more, night_overlap, a very early wake, or a long door-to-door day."
+      ],
+      "required_inputs": [
+        "travel.trips[].zone_shift_hours",
+        "travel.trips[].direction",
+        "travel.trips[].legs[].night_overlap",
+        "travel.trips[].legs[].arrive_local",
+        "reported_travel_sleep_or_null",
+        "warm_up_or_easy_session_response_or_null",
+        "planned_session_type_and_priority"
+      ],
+      "suggested_action": [
+        "Recalculate the itinerary for the return rather than reusing outbound recovery days.",
+        "After major or sleep-disruptive return travel, place a provisional 24–48-hour buffer before a long run or key session.",
+        "Retain, shorten, or move the session based on sleep and warm-up response."
+      ],
+      "alternatives": [
+        "Convert the long run to an easy or short session."
+      ],
+      "do_not_apply_when": [
+        "Do not delay every long run after every flight. A short daytime no-zone return may need no change."
+      ],
+      "rationale": "Inference (directness b, c): eastward return was worse than westward outbound in one crossover and return trips were linked to more fatigue in female football data, though most measures improved by day two. The buffer is a provisional convention.",
+      "evidence_ids": [
+        "E-TRAV-24"
+      ],
+      "source_ids": [
+        "S078",
+        "S090",
+        "S105",
+        "S106"
+      ],
+      "evidence_certainty": "Low-moderate",
+      "athlete_applicability": "Low-moderate: generalized from small elite, mostly male team-sport cohorts to a recreational runner who strength trains",
+      "threshold_basis": "Provisional 24–48 h buffer; coaching convention, not a validated threshold",
+      "calibration_needed": "Learn how this athlete's return responses compare with outbound responses.",
+      "uncertainty": "Findings are observational, return direction depends on origin, and no long-run trial exists.",
+      "review_triggers": [
+        "Sleepiness persists after return",
+        "Long run repeatedly moved",
+        "Easy-run response abnormal"
+      ]
+    },
+    {
+      "policy_id": "P038",
+      "title": "Plan arrival buffers for goal races",
+      "decision_question": "How early should the athlete arrive for a goal race across time zones?",
+      "trigger": [
+        "A goal race or important time trial needs transmeridian travel with an absolute travel.trips[].zone_shift_hours of 6 or more."
+      ],
+      "required_inputs": [
+        "travel.trips[].zone_shift_hours",
+        "travel.trips[].direction",
+        "travel.trips[].nights_away",
+        "travel.trips[].legs[].arrive_local",
+        "goal_race_date_and_local_start_time",
+        "prior_travel_response_or_null",
+        "destination_heat_altitude_terrain_flags_or_null"
+      ],
+      "suggested_action": [
+        "When feasible, avoid arriving inside the first 24–48 hours before the race.",
+        "Target at least three local sleep opportunities.",
+        "Treat 5–7 nights eastward and 3–5 westward as conservative planning conventions, not requirements."
+      ],
+      "alternatives": [
+        "Shorten the buffer when work or taper constraints make a longer stay costly.",
+        "Keep post-arrival sessions easy or race-specific but low-cost until sleep and alertness normalize."
+      ],
+      "do_not_apply_when": [
+        "Do not promise full adaptation, prescribe one day per zone, or use this buffer for heat or altitude preparation without separate policies."
+      ],
+      "rationale": "Inference and convention with weak performance evidence (directness b, c): the first 48–72 hours are commonly the most disrupted, but no trial defines an optimal race-arrival day. The night counts are planning conventions.",
+      "evidence_ids": [
+        "E-TRAV-25"
+      ],
+      "source_ids": [
+        "S078",
+        "S080",
+        "S081",
+        "S088",
+        "S103"
+      ],
+      "evidence_certainty": "Low",
+      "athlete_applicability": "Low: no endurance-race trials; evidence is from small athlete field studies",
+      "threshold_basis": "Coaching convention; three nights is a defensible lower bound and 5–7 and 3–5 nights are conservative conventions, not validated",
+      "calibration_needed": "Learn how many local nights this athlete needs to feel normal before key efforts.",
+      "uncertainty": "More days are not automatically better if travel disrupts the taper, and resources and history matter.",
+      "review_triggers": [
+        "Race date or start time changes",
+        "Taper disrupted by long stay",
+        "Athlete reports poor sleep after arrival"
+      ]
+    },
+    {
+      "policy_id": "P039",
+      "title": "Gate heavy strength work after travel",
+      "decision_question": "How should heavy or technical strength training be handled after travel?",
+      "trigger": [
+        "Heavy compound lifting, plyometrics, maximal work, or unfamiliar equipment is planned soon after travel, especially after a leg with night_overlap or a large zone_shift_hours."
+      ],
+      "required_inputs": [
+        "travel.trips[].gym_access",
+        "travel.trips[].legs[].night_overlap",
+        "reported_travel_sleep_or_null",
+        "warm_up_or_easy_session_response_or_null",
+        "planned_session_type_and_priority",
+        "illness_or_unusual_symptoms_or_null"
+      ],
+      "suggested_action": [
+        "Apply the same sleep and readiness gate as for a hard run.",
+        "Use a normal warm-up with a velocity or coordination check before heavy or technical work.",
+        "Prefer reduced volume or rescheduling after overnight long-haul travel."
+      ],
+      "alternatives": [
+        "Substitute easy accessory work or mobility."
+      ],
+      "do_not_apply_when": [
+        "Do not claim travel reduced maximal strength without testing; easy accessory work is not equivalent to maximal lifting."
+      ],
+      "rationale": "Inference from neuromuscular evidence (directness b): overnight long-haul travel reduced reactive jump in rugby players, but direct maximal-strength evidence is insufficient. Applying this to lifting is an inference.",
+      "evidence_ids": [
+        "E-TRAV-09",
+        "E-TRAV-34"
+      ],
+      "source_ids": [
+        "S075",
+        "S077",
+        "S088"
+      ],
+      "evidence_certainty": "Low",
+      "athlete_applicability": "Low-moderate: generalized from small elite, mostly male team-sport cohorts to a recreational runner who strength trains",
+      "threshold_basis": "No numeric threshold; no evidence on maximal strength",
+      "calibration_needed": "Learn how this athlete's lifts and warm-up feel after travel.",
+      "uncertainty": "Jump performance is not equivalent to maximal strength, and no recreational concurrent runners were studied.",
+      "review_triggers": [
+        "Warm-up feels flat or uncoordinated",
+        "Lift performance drops after travel",
+        "Unfamiliar equipment at destination"
+      ]
+    },
+    {
+      "policy_id": "P040",
+      "title": "Flag destination heat, altitude, terrain, and treadmills",
+      "decision_question": "How should destination conditions be handled so they are not blamed on or fixed with jet-lag rules?",
+      "trigger": [
+        "A trip destination brings a material climate or elevation change, unfamiliar terrain, or an unfamiliar treadmill."
+      ],
+      "required_inputs": [
+        "travel.trips[].running_access",
+        "travel.trips[].days",
+        "travel.trips[].zone_shift_hours",
+        "destination_heat_altitude_terrain_flags_or_null",
+        "planned_session_type_and_priority",
+        "prior_travel_response_or_null"
+      ],
+      "suggested_action": [
+        "Flag destination heat, altitude, unfamiliar terrain, and unfamiliar treadmill separately from time-zone load.",
+        "Use the first session for familiarization and effort-based control rather than displayed pace.",
+        "Route heat and altitude to dedicated policies; a flight cabin is not altitude acclimation, and destination altitude needs a separate review."
+      ],
+      "alternatives": [
+        "Avoid a critical workout on unknown terrain or equipment when alternatives exist."
+      ],
+      "do_not_apply_when": [
+        "Do not solve heat or altitude with a generic jet-lag buffer; do not assume treadmill display pace equals outdoor pace."
+      ],
+      "rationale": "Consensus plus convention (directness a, b, c): heat and altitude need their own reviews, cabin exposure is not acclimation, and treadmill and overground responses are not interchangeable at all speeds. Familiarization is a coaching convention.",
+      "evidence_ids": [
+        "E-TRAV-26",
+        "E-TRAV-27",
+        "E-TRAV-28"
+      ],
+      "source_ids": [
+        "S079",
+        "S097",
+        "S098",
+        "S101",
+        "S102"
+      ],
+      "evidence_certainty": "Moderate for heat as a separate topic, not its travel interaction; low for altitude, terrain, and treadmill guidance",
+      "athlete_applicability": "Moderate: heat consensus applies to athletes generally; treadmill evidence is not hotel- or travel-specific",
+      "threshold_basis": "No numeric threshold; treadmill endurance performance was lower on average in pooled studies",
+      "calibration_needed": "Learn how this athlete responds to heat, elevation, and unfamiliar surfaces.",
+      "uncertainty": "No integrated trial covers jet lag plus heat or altitude, and hotel treadmill calibration was not tested.",
+      "review_triggers": [
+        "Large climate or elevation change",
+        "Unfamiliar surface injury concern",
+        "Dedicated heat or altitude policy added"
+      ]
+    },
+    {
+      "policy_id": "P041",
+      "title": "Give a long-travel mobility and safety reminder",
+      "decision_question": "What safety guidance should accompany long flights, and when does it go to a clinician?",
+      "trigger": [
+        "A flight leg with duration_hours over about 4, a long travel day, or reported VTE risk factors or symptoms."
+      ],
+      "required_inputs": [
+        "travel.trips[].legs[].duration_hours",
+        "travel.trips[].travel_days",
+        "vte_risk_factors_if_reported",
+        "illness_or_unusual_symptoms_or_null",
+        "travel.trips[].confirmed"
+      ],
+      "suggested_action": [
+        "Give a brief reminder to avoid prolonged immobility, with periodic walking and ankle-calf movements when practical.",
+        "Escalate known VTE risk factors before long travel to a clinician.",
+        "Escalate new unilateral leg swelling, pain, warmth, or redness, or unexplained breathlessness, chest pain, coughing blood, or fainting, to prompt or urgent medical evaluation."
+      ],
+      "alternatives": [
+        "Frame the reminder as routine for an otherwise low-risk traveler, not a medical warning."
+      ],
+      "do_not_apply_when": [
+        "The coach must not diagnose VTE, recommend aspirin, anticoagulants, or compression devices, or claim hydration prevents VTE."
+      ],
+      "rationale": "Official safety guidance (directness b, c): long-distance travel slightly raises VTE risk, absolute risk is low, immobility is central, and most cases have additional risk factors. This is a referral boundary, not diagnosis or treatment advice.",
+      "evidence_ids": [
+        "E-TRAV-29",
+        "E-TRAV-30"
+      ],
+      "source_ids": [
+        "S100"
+      ],
+      "evidence_certainty": "Moderate for the general risk boundary; high for the safety-escalation boundary",
+      "athlete_applicability": "Moderate: general-population guidance; athlete-specific incidence is unknown",
+      "threshold_basis": "CDC page dated 2025-04-23 uses travel over about four hours as a commonly used risk threshold",
+      "calibration_needed": "Record any VTE risk factors the athlete reports and whether a clinician has reviewed them.",
+      "uncertainty": "Risk varies sharply by individual factors, and athlete-specific incidence is unknown.",
+      "review_triggers": [
+        "Athlete reports a VTE risk factor",
+        "New leg or cardiopulmonary symptoms after travel",
+        "Guidance page updated"
+      ]
     }
   ],
   "sources": [

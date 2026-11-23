@@ -1,0 +1,20 @@
+{"fixture": "gcal.v1", "synthetic": true, "home_timezone": "America/New_York", "today": "2026-11-22",
+ "calendars": [
+  {"id": "cal-synthetic", "summary": "athlete@example.invalid", "accessRole": "owner", "primary": true},
+  {"id": "cal-synthetic-team", "summary": "Synthetic Team Calendar", "accessRole": "reader"}
+ ],
+ "pages": [
+  {"items": [
+   {"id": "evt-flight-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic City (ZZ 101)", "location": "JFK Terminal 4", "description": "Confirmation ZZCONF1", "htmlLink": "https://calendar.example.invalid/evt-flight-1", "organizer": {"email": "airline@example.invalid"}, "attendees": [{"email": "athlete@example.invalid", "self": true, "responseStatus": "accepted"}], "start": {"dateTime": "2026-12-03T08:05:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2026-12-03T11:30:00-08:00", "timeZone": "America/Los_Angeles"}, "transparency": "opaque", "updated": "2026-11-20T10:00:00Z"},
+   {"id": "evt-lodging-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Stay at Synthetic Inn", "location": "Synthetic Inn, 1 Example Way", "description": "Reservation ZZROOM7", "start": {"date": "2026-12-03"}, "end": {"date": "2026-12-07"}, "transparency": "transparent", "updated": "2026-11-20T10:05:00Z"},
+   {"id": "evt-declined-1", "status": "confirmed", "eventType": "default", "summary": "Synthetic planning meeting", "attendees": [{"email": "athlete@example.invalid", "self": true, "responseStatus": "declined"}, {"email": "colleague@example.invalid", "responseStatus": "accepted"}], "start": {"dateTime": "2026-11-24T14:00:00-05:00"}, "end": {"dateTime": "2026-11-24T15:00:00-05:00"}, "updated": "2026-11-18T09:00:00Z"}
+  ], "nextPageToken": "p2"},
+  {"items": [
+   {"id": "evt-focus-1", "status": "confirmed", "eventType": "focusTime", "summary": "Synthetic focus block", "start": {"dateTime": "2026-11-25T09:00:00-05:00"}, "end": {"dateTime": "2026-11-25T11:00:00-05:00"}, "transparency": "transparent", "updated": "2026-11-18T09:30:00Z"},
+   {"id": "evt-cancelled-1", "status": "cancelled"},
+   {"id": "evt-ooo-1", "status": "confirmed", "eventType": "outOfOffice", "summary": "Out of office", "start": {"dateTime": "2026-12-03T00:00:00-05:00"}, "end": {"dateTime": "2026-12-08T00:00:00-05:00"}, "updated": "2026-11-19T12:00:00Z"},
+   {"id": "evt-noend-1", "status": "confirmed", "eventType": "default", "summary": "Synthetic broken item", "start": {"dateTime": "2026-11-26T10:00:00-05:00"}, "updated": "2026-11-19T12:30:00Z"}
+  ]}
+ ],
+ "expect": {"categories": {"evt-flight-1": "flight", "evt-lodging-1": "lodging", "evt-declined-1": "other", "evt-focus-1": "other", "evt-ooo-1": "out_of_office"},
+            "skipped": ["evt-cancelled-1", "evt-noend-1"]}}

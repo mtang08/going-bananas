@@ -8,10 +8,11 @@ import os
 import sys
 import time
 import uuid
+from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, available_timezones
 
 from sqlalchemy import MetaData, select, text
 from sqlalchemy.engine import make_url
@@ -93,6 +94,10 @@ def _parse() -> argparse.Namespace:
     strong = sub.add_parser("strong-import")
     strong.add_argument("csv", type=Path)
     strong.add_argument("--apply", action="store_true")
+    connect = sub.add_parser("calendar-connect")
+    connect.add_argument("--no-browser", action="store_true")
+    probe = sub.add_parser("calendar-probe")
+    probe.add_argument("--days", type=int, default=60)
     coach = sub.add_parser("coach")
     coach_sub = coach.add_subparsers(dest="coach_command", required=True)
     coach_sub.add_parser("schema")
@@ -281,8 +286,89 @@ def _coach(args) -> int:
         return 1
 
 
+def probe_lines(calendars: list[dict[str, Any]], items: list[dict[str, Any]]) -> list[str]:
+    """Contracts §8 report: no IDs, dates, times, emails, or unmasked text."""
+    from app.adapters.google_calendar import mask_title, to_record
+
+    roles = ("freeBusyReader", "reader", "writer", "owner")
+    event_types = ("default", "fromGmail", "outOfOffice", "focusTime", "workingLocation", "birthday")
+    timezone_names = available_timezones()
+    lines = []
+    for calendar in calendars:
+        primary = calendar.get("primary") is True
+        summary = calendar.get("summary")
+        name = "<email>" if isinstance(summary, str) and "@" in summary else "<X>"
+        if primary:
+            name = "<primary>"
+        role = calendar.get("accessRole")
+        role = role if role in roles else "-"
+        lines.append(f"calendar name={name} access_role={role} primary={str(primary).lower()}")
+    types: Counter[str] = Counter()
+    differs = missing = 0
+    for item in items:
+        record = to_record(item)
+        if record is None:
+            continue
+        event_type = record["event_type"] if record["event_type"] in event_types else "unknown"
+        types[event_type] += 1
+        start_tz = record["start_tz"] if record["start_tz"] in timezone_names else None
+        end_tz = record["end_tz"] if record["end_tz"] in timezone_names else None
+        if record["all_day"]:
+            kind = "all_day"
+            hours = (date.fromisoformat(record["end_date"]) - date.fromisoformat(record["start_date"])).days * 24.0
+        else:
+            kind = "timed"
+            span = datetime.fromisoformat(record["end_at"]) - datetime.fromisoformat(record["start_at"])
+            hours = span.total_seconds() / 3600
+            if start_tz is None or end_tz is None:
+                missing += 1
+            elif start_tz != end_tz:
+                differs += 1
+        location = item.get("location")
+        masked_location = mask_title(location if isinstance(location, str) else None)
+        lines.append(
+            f"event type={event_type} kind={kind} start_tz={start_tz or '-'} "
+            f"end_tz={end_tz or '-'} transparency={record['transparency']} "
+            f"response={record['response_status'] or '-'} dur_h={round(hours * 2) / 2:.1f} "
+            f'title="{mask_title(record["summary"])}" location="{masked_location}"'
+        )
+    counts = " ".join(f"{name}={count}" for name, count in sorted(types.items()))
+    counts = f" {counts}" if counts else ""
+    lines.append(f"summary events={sum(types.values())}{counts} tz_differs={differs} tz_missing={missing}")
+    return lines
+
+
+def _calendar(args: argparse.Namespace) -> int:
+    from app.adapters import google_calendar as gcal
+
+    try:
+        if settings.app_mode != "real":
+            raise gcal.GcalError("real_mode_required")
+        if args.command == "calendar-connect":
+            gcal.connect_flow(settings.private_dir, open_browser=not args.no_browser)
+            print(json.dumps({"connected": True, "scope": "calendar.readonly"}))
+            return 0
+        if not 1 <= args.days <= 180:
+            raise gcal.GcalError("invalid_date_window")
+        http = gcal.authorized_session(settings.private_dir)
+        now = datetime.now(UTC)
+        calendars = gcal.list_calendars(http)
+        items = gcal.fetch_events(http, now, now + timedelta(days=args.days))
+        for line in probe_lines(calendars, items):
+            print(line)
+        return 0
+    except gcal.GcalError as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return 2
+    except OSError:
+        print(json.dumps({"error": "gcal_remote_error"}), file=sys.stderr)
+        return 2
+
+
 def main() -> int:
     args = _parse()
+    if args.command in {"calendar-connect", "calendar-probe"}:
+        return _calendar(args)
     configure(settings.private_dir)
     from app.services import derived
 

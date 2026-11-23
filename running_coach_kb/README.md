@@ -1,6 +1,6 @@
 # Running Coach Knowledge Base
 
-**Package version:** `1.2.0+privacy1`
+**Package version:** `1.3.0+privacy1`
 **Evidence searched through:** 2026-11-11  
 **Original athlete context snapshot:** stored privately; current application state is authoritative  
 **Status:** complete for the requested incremental scope, with explicit scientific, data, and product gaps
@@ -58,7 +58,8 @@ running_coach_kb/
 │   ├── fueling_and_energy_availability.md
 │   ├── periodization_and_training_blocks.md
 │   ├── intensity_calibration_and_testing.md
-│   └── races_tapers_and_transitions.md
+│   ├── races_tapers_and_transitions.md
+│   └── travel_and_time_zones.md
 ├── recipes/
 │   └── running_session_families.json
 ├── references/
@@ -93,6 +94,7 @@ running_coach_kb/
 | Add/change/postpone/cancel race | Race-transition topic, block workflow, current event/block state | Calibration or taper sections only when the event is sufficiently defined |
 | Long-run tenderness/delayed symptoms | PTT/load-tolerance and aerobic topics | Existing P005–P008; block escalation only if the premise changes |
 | Poor recovery/illness/fueling concern | Existing recovery/fueling topics and policies | Weekly/block review only when the pattern is persistent |
+| Air travel or time-zone change | Current state with the snapshot `travel` section; `topics/travel_and_time_zones.md`, routed when trips exist | Recovery topic for reported sleep loss; P029–P041 |
 | Deep evidence audit | Relevant evidence matrix/addendum, then source registry | Research logs and method comparison |
 | Regression/evaluation | Base cases plus incremental periodization cases | Retrieval log and route assertions |
 
@@ -118,13 +120,13 @@ The manifest provides detailed route profiles. Retrieve Markdown by heading and 
 
 ## Evidence inventory
 
-- 72 stable source records
-- 55 material evidence findings (43 base + 12 addendum)
-- 23 reviewable policy candidates (18 base + 5 addendum)
+- 106 stable source records (S073–S106 from the 2026-11-22 travel review)
+- 89 material evidence findings (43 base + 12 periodization addendum + 34 travel addendum)
+- 41 reviewable policy candidates (P001–P041)
 - 15 method-comparison entries
-- 26 evaluation scenarios (15 base + 11 incremental)
-- 11 topic guides
-- 3 operation workflows
+- 39 evaluation scenarios (15 base + 24 incremental, C16–C39)
+- 12 topic guides
+- 5 operation workflows
 - 10 session-family recipe records
 
 Certainty describes confidence in a finding; applicability is separate. Source access is recorded as full text, abstract-only, manufacturer documentation, or another explicit level. Recipe numbers are qualified studied protocols or coaching conventions, not personal prescriptions.

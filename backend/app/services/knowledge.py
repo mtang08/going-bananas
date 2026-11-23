@@ -18,8 +18,8 @@ from pathlib import Path, PurePosixPath
 from app.services.operations import OPERATIONS
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[3] / "running_coach_kb"
-MAX_FILE_BYTES = 100_000
-MAX_ROUTED_CONTEXT_CHARS = 180_000
+MAX_FILE_BYTES = 200_000
+MAX_ROUTED_CONTEXT_CHARS = 200_000
 
 
 class KnowledgeIntegrityError(ValueError):

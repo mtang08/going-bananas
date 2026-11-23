@@ -23,6 +23,7 @@ Then retrieve only what the trigger requires:
 - block purpose/lifecycle/horizons → `topics/periodization_and_training_blocks.md`
 - wearable/environment interpretation → `topics/wearables_and_metric_interpretation.md`
 - fueling/low-energy concern → `topics/fueling_and_energy_availability.md`
+- air travel/time-zone change → `topics/travel_and_time_zones.md` (the snapshot routes it when trips exist)
 
 Use base and addendum policy JSON for compact decision support. Consult evidence matrices and source registry only for consequential, disputed, or novel choices. A routine daily check must not load block literature, all recipes, or the full corpus.
 

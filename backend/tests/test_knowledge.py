@@ -39,17 +39,17 @@ def test_manifest_covers_all_imported_files():
 def test_incremental_ids_are_unique_and_references_resolve():
     registry = json.loads((DEFAULT_ROOT / "references/source_registry.json").read_text())["sources"]
     sources = {s["source_id"] for s in registry}
-    assert len(sources) == len(registry) == 72
+    assert len(sources) == len(registry) == 106
     policies = []
     for path in sorted((DEFAULT_ROOT / "policies").glob("*.json")):
         policies.extend(json.loads(path.read_text())["policies"])
-    assert len({p["policy_id"] for p in policies}) == len(policies) == 28
+    assert len({p["policy_id"] for p in policies}) == len(policies) == 41
     recipes = json.loads((DEFAULT_ROOT / "recipes/running_session_families.json").read_text())["recipes"]
     assert len({r["recipe_id"] for r in recipes}) == len(recipes) == 10
     evidence = set()
     for rel in ("references/evidence_matrix.md", "references/periodization_evidence_addendum.md"):
         evidence.update(re.findall(r"\| (E-[A-Z]+-\d+) \|", (DEFAULT_ROOT / rel).read_text()))
-    assert len(evidence) == 55
+    assert len(evidence) == 89
 
     def check_references(value):
         if isinstance(value, dict):
@@ -75,8 +75,8 @@ def tmp_kb(tmp_path):
 def test_overlay_matches_manifest():
     manifest = load_manifest()
     assert manifest["schema_version"] == "1.1"
-    assert manifest["package_version"] == "1.2.0+privacy1"
-    assert len(manifest["files"]) == 33
+    assert manifest["package_version"] == "1.3.0+privacy1"
+    assert len(manifest["files"]) == 34
     assert manifest["baseline_revision"]["public_privacy_transform_preserved"] is True
 
 
@@ -105,7 +105,7 @@ def test_extract_section_bounds():
         zip(
             SUPPORTED_OPERATIONS,
             (6, 7, 9, 14, 9, 11, 14, 14),
-            (6118, 8490, 10451, 23005, 8673, 16667, 15604, 14916),
+            (6118, 8490, 10451, 23005, 8673, 16667, 15690, 14916),
             strict=True,
         )
     ),
@@ -233,9 +233,9 @@ def test_manifest_missing_or_malformed(tmp_kb, contents):
 
 def test_kb_index():
     index = kb_index()
-    assert len(index.policy_ids) == 28 and {"P011", "P023", "P028"} <= index.policy_ids
+    assert len(index.policy_ids) == 41 and {"P011", "P023", "P028", "P041"} <= index.policy_ids
     assert index.recipe_ids == {f"REC{i:03}" for i in range(1, 11)}
-    assert len(index.evidence_ids) == 55 and {"E-AER-01", "E-PER-02"} <= index.evidence_ids
+    assert len(index.evidence_ids) == 89 and {"E-AER-01", "E-PER-02", "E-TRAV-34"} <= index.evidence_ids
 
 
 def test_saved_selection_verifies_exact_content_and_order(tmp_kb):
