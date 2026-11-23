@@ -22,6 +22,7 @@ import { addDays, dateLabel, fmtDistance, fmtDuration, type Unit } from '../lib/
 import { invalidateKeys, qk } from '../api/queryKeys'
 import { pageHref } from '../lib/routes'
 import type { Activity } from '../api/types/activity'
+import type { Trip } from '../api/types/travel'
 import { mondayOfWeek, SessionSummary } from '../components/PlanOverview'
 import { downloadWeeklyWorkouts } from '../components/weeklyWorkoutExport'
 import { Modal } from '../components/Modal'
@@ -80,6 +81,12 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
       api<CalendarDiff>(`/calendar/diff${query({ from: viewVersion! - 1, to: viewVersion! })}`),
   })
   const data = view.data?.data
+  const trips = useQuery({
+    queryKey: qk.trips(data?.start ?? '', data?.end ?? ''),
+    enabled: !!data,
+    placeholderData: keepPreviousData,
+    queryFn: () => api<{ items: Trip[] }>(`/trips${query({ start: data?.start, end: data?.end })}`),
+  })
   const today = data?.today ?? ''
   const nearDate = outcomeFor?.local_date ?? today
   const near = useQuery({
@@ -172,6 +179,43 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
       )}
     </p>
   )
+  const tripBadges = (day: string) =>
+    (trips.data?.data.items ?? [])
+      .filter(
+        (t) =>
+          t.status !== 'dismissed' &&
+          (t.end_date ? t.start_date <= day && day <= t.end_date : day === t.start_date),
+      )
+      .map((t) => {
+        const prefix =
+          t.status === 'confirmed'
+            ? 'Travel'
+            : t.status === 'pending'
+              ? 'Possible travel'
+              : 'Travel changed'
+        const availability = t.day_availability.find((d) => d.date === day)?.availability
+        const parts = [
+          `${prefix} · ${t.destination_label ?? t.destination_tz}`,
+          availability === 'unavailable'
+            ? 'unavailable'
+            : availability === 'reduced'
+              ? 'shorter session'
+              : null,
+          t.travel_days.includes(day) ? 'travel day' : null,
+        ].filter(Boolean)
+        return (
+          <Badge
+            asChild
+            key={t.id}
+            variant={t.status === 'pending' ? 'outline' : 'secondary'}
+            data-testid="trip-badge"
+            data-status={t.status}
+          >
+            <a href={pageHref.settings}>{parts.join(' · ')}</a>
+          </Badge>
+        )
+      })
+
   const renderDay = (day: string) => {
     if (!data) return null
     const sessions = data.sessions
@@ -188,6 +232,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
         key={day}
       >
         <h3>{dateLabel(day, { weekday: 'long', month: 'short', day: 'numeric' })}</h3>
+        {tripBadges(day)}
         {sessions.map((s) => {
           const completion = data.completions.find((c) => c.session_uid === s.session_uid)
           const selfReported =
@@ -412,6 +457,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
             </Button>
           </div>
         </div>
+        {trips.error && <p className="notice muted">Trips could not be loaded.</p>}
         <QueryState loading={view.isPlaceholderData}>
           <div className="calendar-week-grid">
             {Array.from({ length: 7 }, (_, i) => renderDay(addDays(start, i)))}

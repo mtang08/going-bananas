@@ -12,6 +12,7 @@ import { QueryState } from '../components/QueryState'
 import { SyncCard } from '../components/SyncCard'
 import { Goals } from './settings/Goals'
 import { Events } from './settings/Events'
+import { Travel } from './settings/Travel'
 import { Anchors } from './settings/Anchors'
 import { StrengthSchedule } from './settings/StrengthSchedule'
 import { Routine } from './settings/strengthRoutine'
@@ -89,6 +90,7 @@ export function PlanningSettings({ unit, setUnit }: { unit: Unit; setUnit: (unit
               <Goals />
               <Events unit={unit} />
             </div>
+            <Travel homeTimezone={p.timezone} />
             <Disclosure
               variant="card"
               className="training-disclosure"
