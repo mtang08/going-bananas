@@ -1,0 +1,25 @@
+{"fixture": "gcal.v1", "synthetic": true, "home_timezone": "America/New_York", "today": "2026-11-22",
+ "calendars": [{"id": "cal-synthetic", "summary": "athlete@example.invalid", "accessRole": "owner", "primary": true}],
+ "pages": [{"items": [
+  {"id": "evt-a-out-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Hub (ZZ 101)", "location": "JFK", "start": {"dateTime": "2026-12-03T08:05:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2026-12-03T10:30:00-07:00", "timeZone": "America/Denver"}},
+  {"id": "evt-a-out-2", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic City (ZZ 102)", "location": "DEN", "start": {"dateTime": "2026-12-03T12:00:00-07:00", "timeZone": "America/Denver"}, "end": {"dateTime": "2026-12-03T13:30:00-08:00", "timeZone": "America/Los_Angeles"}},
+  {"id": "evt-a-ret-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Home (ZZ 103)", "location": "SFO", "start": {"dateTime": "2026-12-07T22:30:00-08:00", "timeZone": "America/Los_Angeles"}, "end": {"dateTime": "2026-12-08T07:05:00-05:00", "timeZone": "America/New_York"}},
+  {"id": "evt-x-declined", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Nowhere (ZZ 999)", "attendees": [{"email": "athlete@example.invalid", "self": true, "responseStatus": "declined"}], "start": {"dateTime": "2026-12-20T09:00:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2026-12-20T12:00:00-08:00", "timeZone": "America/Los_Angeles"}},
+  {"id": "evt-b-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Coast (ZZ 201)", "start": {"dateTime": "2027-01-10T09:00:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2027-01-10T12:30:00-08:00", "timeZone": "America/Los_Angeles"}},
+  {"id": "evt-b-2", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Isle (ZZ 202)", "start": {"dateTime": "2027-01-14T10:00:00-08:00", "timeZone": "America/Los_Angeles"}, "end": {"dateTime": "2027-01-14T13:00:00-10:00", "timeZone": "Pacific/Honolulu"}},
+  {"id": "evt-b-3", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Home (ZZ 203)", "start": {"dateTime": "2027-01-18T21:00:00-10:00", "timeZone": "Pacific/Honolulu"}, "end": {"dateTime": "2027-01-19T12:30:00-05:00", "timeZone": "America/New_York"}}
+ ], "nextPageToken": "p2"},
+ {"items": [
+  {"id": "evt-d-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Old Town (ZZ 401)", "start": {"dateTime": "2027-02-01T18:00:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2027-02-02T06:00:00+00:00", "timeZone": "Europe/London"}},
+  {"id": "evt-d-2", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Home (ZZ 402)", "start": {"dateTime": "2027-03-15T10:00:00+00:00", "timeZone": "Europe/London"}, "end": {"dateTime": "2027-03-15T13:00:00-04:00", "timeZone": "America/New_York"}},
+  {"id": "evt-e-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Lake (ZZ 501)", "start": {"dateTime": "2027-03-20T07:00:00-04:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2027-03-20T08:30:00-05:00", "timeZone": "America/Chicago"}},
+  {"id": "evt-e-2", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Home (ZZ 502)", "start": {"dateTime": "2027-03-20T19:00:00-05:00", "timeZone": "America/Chicago"}, "end": {"dateTime": "2027-03-20T22:00:00-04:00", "timeZone": "America/New_York"}},
+  {"id": "evt-c-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Far (ZZ 301)", "start": {"dateTime": "2027-04-20T11:00:00-04:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2027-04-21T14:00:00+09:00", "timeZone": "Asia/Tokyo"}}
+ ]}],
+ "expect": {"trips": [
+  {"start_date": "2026-12-03", "end_date": "2026-12-08", "destination_tz": "America/Los_Angeles", "destination_label": "Synthetic City", "confidence": "high", "leg_ids": ["evt-a-out-1", "evt-a-out-2", "evt-a-ret-1"]},
+  {"start_date": "2027-01-10", "end_date": "2027-01-19", "destination_tz": "America/Los_Angeles", "destination_label": "Synthetic Coast", "confidence": "high", "leg_ids": ["evt-b-1", "evt-b-2", "evt-b-3"]},
+  {"start_date": "2027-02-01", "end_date": null, "destination_tz": "Europe/London", "destination_label": "Synthetic Old Town", "confidence": "low", "leg_ids": ["evt-d-1"]},
+  {"start_date": "2027-03-20", "end_date": "2027-03-20", "destination_tz": "America/Chicago", "destination_label": "Synthetic Lake", "confidence": "high", "leg_ids": ["evt-e-1", "evt-e-2"]},
+  {"start_date": "2027-04-20", "end_date": null, "destination_tz": "Asia/Tokyo", "destination_label": "Synthetic Far", "confidence": "low", "leg_ids": ["evt-c-1"]}
+ ]}}

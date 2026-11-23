@@ -1,0 +1,20 @@
+{"fixture": "gcal.v1", "synthetic": true, "home_timezone": "America/New_York", "today": "2026-11-22",
+ "calendars": [{"id": "cal-synthetic", "summary": "athlete@example.invalid", "accessRole": "owner", "primary": true}],
+ "pages": [{"items": [
+  {"id": "evt-r-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Home (ZZ 621)", "start": {"dateTime": "2026-10-25T17:00:00-04:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2026-10-25T18:15:00-04:00", "timeZone": "America/New_York"}},
+  {"id": "evt-s-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Harbor (ZZ 601)", "start": {"dateTime": "2026-12-12T08:00:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2026-12-12T09:15:00-05:00", "timeZone": "America/New_York"}},
+  {"id": "evt-s-2", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Home (ZZ 602)", "start": {"dateTime": "2026-12-14T18:00:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2026-12-14T19:15:00-05:00", "timeZone": "America/New_York"}},
+  {"id": "evt-m-1", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Harbor (ZZ 611)", "start": {"dateTime": "2027-01-05T08:00:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2027-01-05T09:15:00-05:00", "timeZone": "America/New_York"}},
+  {"id": "evt-m-2", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Capital (ZZ 612)", "start": {"dateTime": "2027-01-07T08:00:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2027-01-07T09:30:00-05:00", "timeZone": "America/New_York"}},
+  {"id": "evt-m-3", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Home (ZZ 613)", "start": {"dateTime": "2027-01-09T17:00:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2027-01-09T18:30:00-05:00", "timeZone": "America/New_York"}},
+  {"id": "evt-p-out", "status": "confirmed", "eventType": "fromGmail", "summary": "Flight to Synthetic Peninsula (ZZ 701)", "transparency": "transparent", "start": {"dateTime": "2027-02-12T08:00:00-08:00", "timeZone": "America/Los_Angeles"}, "end": {"dateTime": "2027-02-12T13:00:00-08:00", "timeZone": "America/Los_Angeles"}},
+  {"id": "evt-p-return", "status": "confirmed", "eventType": "default", "summary": "Flight: ZZ 702 from XAA to XBB", "start": {"dateTime": "2027-02-16T20:00:00-08:00"}, "end": {"dateTime": "2027-02-17T07:00:00-05:00"}},
+  {"id": "evt-p-reservation", "status": "confirmed", "eventType": "fromGmail", "summary": "Synthetic restaurant reservation", "transparency": "opaque", "start": {"dateTime": "2027-02-19T13:00:00-05:00", "timeZone": "America/New_York"}, "end": {"dateTime": "2027-02-19T15:00:00-08:00", "timeZone": "America/Los_Angeles"}}
+ ]}],
+ "expect": {"trips": [
+  {"start_date": "2026-10-25", "end_date": null, "destination_tz": "America/New_York", "destination_label": "Synthetic Home", "confidence": "low", "leg_ids": ["evt-r-1"]},
+  {"start_date": "2026-12-12", "end_date": "2026-12-14", "destination_tz": "America/New_York", "destination_label": "Synthetic Harbor", "confidence": "low", "leg_ids": ["evt-s-1", "evt-s-2"]},
+  {"start_date": "2027-01-05", "end_date": "2027-01-07", "destination_tz": "America/New_York", "destination_label": "Synthetic Harbor", "confidence": "low", "leg_ids": ["evt-m-1", "evt-m-2"]},
+  {"start_date": "2027-01-09", "end_date": null, "destination_tz": "America/New_York", "destination_label": "Synthetic Home", "confidence": "low", "leg_ids": ["evt-m-3"]},
+  {"start_date": "2027-02-12", "end_date": "2027-02-17", "destination_tz": "America/Los_Angeles", "destination_label": "Synthetic Peninsula", "confidence": "low", "leg_ids": ["evt-p-out", "evt-p-return"]}
+ ]}}
