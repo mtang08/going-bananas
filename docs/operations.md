@@ -27,6 +27,8 @@ For the combined Google Calendar rollout, before migrating to the latest head, t
 
 Before applying `0022_race_goals` to the real database, check its current revision and retain a pre-migration backup. This migration deletes existing events, clears their links on retained benchmark and anchor records, and expires outstanding post-race review findings. Restoring the backup recovers the old events. After migrating, enter upcoming races under **Settings → Events**, choose their purposes, and put the goal race first. The next block review can link the accepted block to that race.
 
+Before applying `0025_coach_output_v2` to the real database, run `make backup` and check the current revision. This migration moves every old coach rationale, follow-up, and block rationale into an **Earlier format** block on its proposal or block version, with ID tags removed from the coach text the app shows. The submitted documents keep their original wording, except that ID tags are also removed from their exception, race-review, and patch text, which the app shows. It discards every open proposal (pending, stale, or invalid), so accept anything you want to keep in the app first; the coach starts fresh at the next review. It also clears every existing session note, because the coach wrote all of them: notes are now yours alone and start empty. The coach protocol is now `coach_proposal.v2`: reinstall the coach helper and start a new Codex session, because an old copy stops with `incompatible_coach_protocol`. The migration cannot be downgraded once new-format proposals, block reasons, or session briefs exist (`restore_required_coach_output_v2`); restore the backup instead.
+
 Explicit real-mode backup and restore (replace the archive path and new target):
 
 ```sh
@@ -111,7 +113,7 @@ inspect the app's dataset status and coverage.
 ## Reviewed coaching MVP
 
 The source skill is `.codex/skills/going-bananas-coach`; its manifest pins every
-artifact hash, protocol `coach_proposal.v1`, manual activation, and required
+artifact hash, protocol `coach_proposal.v2`, manual activation, and required
 calendar authority. The installed skill must match that reviewed artifact.
 
 Do not reset or reseed the real database. Legacy planning history stays in its
