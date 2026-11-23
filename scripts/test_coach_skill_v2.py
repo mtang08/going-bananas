@@ -17,7 +17,7 @@ PACKAGE = Path(os.environ.get('GB_COACH_SKILL_TEST_PACKAGE', ROOT / '.codex/skil
 spec = importlib.util.spec_from_file_location('coach_helper_v2', PACKAGE/'scripts/coach_app.py')
 helper = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(helper)
-SCHEMA = {'protocol':'coach_proposal.v1', 'activation':'manual', 'required_authority':'calendar'}
+SCHEMA = {'protocol':'coach_proposal.v2', 'activation':'manual', 'required_authority':'calendar'}
 UID = '00000000-0000-4000-8000-000000000042'
 
 
@@ -100,7 +100,7 @@ class HelperTests(unittest.TestCase):
     def test_private_copy_preserves_document_and_pending_link(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            document = {'schema_version':'coach_proposal.v1','snapshot_id':UID,
+            document = {'schema_version':'coach_proposal.v2','snapshot_id':UID,
                 'base_calendar_version':7,'changes':[{'change_id':'c1','reason':'synthetic'}]}
             source = root/'draft.json'
             source.write_text(json.dumps(document))
@@ -122,7 +122,7 @@ class HelperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = root/'draft.json'
-            source.write_text(json.dumps({'schema_version':'coach_proposal.v1','snapshot_id':UID}))
+            source.write_text(json.dumps({'schema_version':'coach_proposal.v2','snapshot_id':UID}))
             with patch.object(helper, 'repo_root', return_value=root), \
                  patch.object(helper, 'run_cli', side_effect=[(0,SCHEMA),(3,{'status':'stale','errors':[]})]) as run, \
                  patch('sys.stdout', new_callable=io.StringIO):
@@ -133,7 +133,7 @@ class HelperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = root/'draft.json'
-            document = {'schema_version':'coach_proposal.v1','snapshot_id':UID}
+            document = {'schema_version':'coach_proposal.v2','snapshot_id':UID}
             source.write_text(json.dumps(document))
             response = {'proposal_id':UID,'revision':2,'status':'pending','errors':[]}
             with patch.object(helper, 'repo_root', return_value=root), \
@@ -206,10 +206,23 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(client.request.call_args.args, ('POST','/calendar/rollback',
             {'expected_head':2,'to_version':1,'reason':'Explicit athlete request'}))
 
+    def test_v1_protocol_and_document_are_rejected(self):
+        old_schema = dict(SCHEMA, protocol='coach_proposal.v1')
+        cases = [('schema', old_schema, 'coach_proposal.v2'), ('document', SCHEMA, 'coach_proposal.v1')]
+        for name, schema, version in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root/'draft.json'
+                source.write_text(json.dumps({'schema_version':version,'snapshot_id':UID}))
+                with patch.object(helper, 'repo_root', return_value=root), \
+                     patch.object(helper, 'run_cli', return_value=(0,schema)) as run, patch('sys.stderr', new_callable=io.StringIO):
+                    self.assertEqual(helper.main(['--mode','real','submit','--file',str(source)]), 2)
+                self.assertEqual(run.call_count, 1)
+
     def test_manifest_covers_exact_artifact_bytes(self):
         manifest = json.loads((PACKAGE/'coach-helper.manifest.json').read_text())
         self.assertEqual(manifest['activation'], 'manual')
-        self.assertEqual(manifest['artifact_version'], 'going-bananas-coach.MVP-1.5')
+        self.assertEqual(manifest['artifact_version'], 'going-bananas-coach.MVP-1.6')
         names = []
         for entry in manifest['files']:
             path = PACKAGE/entry['path']

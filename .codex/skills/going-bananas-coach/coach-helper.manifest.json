@@ -1,12 +1,12 @@
 {
-  "artifact_version": "going-bananas-coach.MVP-1.5",
-  "protocol": "coach_proposal.v1",
+  "artifact_version": "going-bananas-coach.MVP-1.6",
+  "protocol": "coach_proposal.v2",
   "required_authority": "calendar",
   "activation": "manual",
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "7ebbf6bcb96f672effc4c9d7d8be8156e28de9264c85bd269398dc7ae7f8ff38"
+      "sha256": "c8227d68dbf5bc77ddc280867cf5e7260b3f63d9dd786734384d839299475ee1"
     },
     {
       "path": "agents/openai.yaml",
@@ -18,7 +18,7 @@
     },
     {
       "path": "references/coaching-workflows.md",
-      "sha256": "e6f1f669d1a37d5efaa2c74bc66121ac33fd8efbe1a880742ee7c8fac585d4bd"
+      "sha256": "41adb46fa9ce24537ddc36cb84ca2cf6f3304a8d17b4e3822d2a93aed618e8d1"
     },
     {
       "path": "references/model-and-research.md",
@@ -26,7 +26,7 @@
     },
     {
       "path": "references/proposal-format.md",
-      "sha256": "549ce5ad19067cc67dea6a4a1423ed47ddf7563cf150033802eb3d47cdd3e949"
+      "sha256": "d5847be9ef432a8dd94a958acd870b3449e08bec3a030ded3920d115ae6cd7fe"
     },
     {
       "path": "references/research-intake.md",
@@ -34,7 +34,7 @@
     },
     {
       "path": "scripts/coach_app.py",
-      "sha256": "910d4b554c6f34c45ad232df6c06dbbc774e78d85fc6904cf7a8705f975aa572"
+      "sha256": "e517c8427cd4ee9eeed3d5d4e0d0ad5bdf646926fa68dcd2f68349ee8fca8a8e"
     }
   ]
 }
