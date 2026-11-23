@@ -57,6 +57,7 @@ CONDITIONAL_TOPICS = tuple(
         "intensity_calibration_and_testing",
         "periodization_and_training_blocks",
         "races_tapers_and_transitions",
+        "travel_and_time_zones",
     )
 )
 POLICY_MAP: dict[str, tuple[str, ...]] = {

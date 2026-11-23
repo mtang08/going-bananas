@@ -281,6 +281,32 @@ def test_strength_trigger_adds_hybrid_topic() -> None:
     assert "topics/hybrid_strength_and_scheduling.md" in {e.path for e in bundle.excerpts}
 
 
+def test_trip_in_scope_adds_travel_topic() -> None:
+    travel = "topics/travel_and_time_zones.md"
+
+    def trip(start: int, end: int | None) -> dict:
+        return {
+            "trip_id": f"trip-{start}",
+            "status": "pending",
+            "start_date": (AS_OF + timedelta(days=start)).isoformat(),
+            "end_date": None if end is None else (AS_OF + timedelta(days=end)).isoformat(),
+        }
+
+    def topics(operation: str, *trips: dict) -> list[str]:
+        return select_conditional_topics(replace(minimal(), trips=list(trips)), operation)
+
+    assert topics(DAILY, trip(3, 5)) == [travel]
+    assert topics(DAILY, trip(-9, -5)) == [travel]
+    assert topics(DAILY, trip(-20, None)) == [travel]
+    assert travel not in topics(DAILY, trip(20, 24))
+    assert travel not in topics(ROLLING, trip(20, 24))
+    assert travel in topics(RACE, trip(20, 24))
+    assert travel not in topics(CALIB, trip(3, 5))
+    bundle = load_route(DAILY, recipe_ids=["REC001"], conditional_topics=[travel])
+    excerpt = next(e for e in bundle.excerpts if e.path == travel)
+    assert excerpt.section is None and "E-TRAV-" in excerpt.text
+
+
 def test_block_projection_includes_history() -> None:
     block = {
         "block_uid": "block-1",
@@ -1156,7 +1182,7 @@ def test_exception_sections_size_bounded() -> None:
             canonical_json(build_payload(large, operation))
         )
     assert len(canonical_json(build_payload(large, EXCEPTION))) <= 21_000
-    assert len(canonical_json(build_payload(large, ROLLING))) <= 11_000
+    assert len(canonical_json(build_payload(large, ROLLING))) <= 11_150
 
 
 QUALITY_STRUCTURE = [

@@ -6,6 +6,7 @@ from datetime import timedelta
 from typing import Any
 
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
+from app.domain.travel import OPEN_TRIP_MAX
 from app.services.knowledge import CONDITIONAL_TOPICS
 from app.services.proposals.schema import is_quality_slot, scope
 from app.services.snapshot.common import (
@@ -42,6 +43,21 @@ def _has_numeric_target(structure: Any) -> bool:
                 and step["target"].get("modality") in {"speed", "hr"}
             ):
                 return True
+    return False
+
+
+def _travel_in_scope(inputs: SnapshotInputs, operation: str) -> bool:
+    if operation == CALIB or not inputs.trips:
+        return False
+    if operation in {BLOCK, RACE}:
+        return True
+    start, end = scope(operation, inputs.as_of, active_review_date(inputs))
+    first = start - timedelta(days=7)
+    for trip in inputs.trips:
+        trip_start = parse_day(trip["start_date"])
+        trip_end = parse_day(trip["end_date"]) if trip.get("end_date") else trip_start + OPEN_TRIP_MAX
+        if trip_start <= end and trip_end >= first:
+            return True
     return False
 
 
@@ -102,6 +118,7 @@ def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[st
         ),
         operation in {BLOCK, RACE, POST_EVENT},
         operation in {RACE, POST_EVENT},
+        _travel_in_scope(inputs, operation),
     ]
     return [topic for topic, enabled in zip(CONDITIONAL_TOPICS, active, strict=True) if enabled]
 
