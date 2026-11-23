@@ -26,7 +26,7 @@ def test_manifest_covers_all_imported_files():
     actual = {
         str(path.relative_to(DEFAULT_ROOT))
         for path in DEFAULT_ROOT.rglob("*")
-        if path.is_file() and path.name != "AGENTS.md"
+        if path.is_file() and path.name not in {"AGENTS.md", ".DS_Store"}
     }
     assert actual - {"manifest.json"} == listed
     assert "athlete_context.md" not in listed
