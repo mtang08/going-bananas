@@ -34,6 +34,7 @@ from app.services.block_benchmark import active_block_version
 from app.services.profile import current_profile
 from app.services.strength_routine import routine_occurrences
 from app.strong_models import StrongWorkoutRow
+from app.travel_models import Trip
 
 
 @dataclass(frozen=True)
@@ -265,6 +266,24 @@ def collect_decision_inputs(
     if events:
         source_versions["events"] = _project(
             events, ("id", "version", "event_date", "status", "purpose", "rank", "goal_time_s")
+        )
+    trips = _sorted(session, Trip, Trip.id)
+    if trips:
+        source_versions["trips"] = _project(
+            trips,
+            (
+                "id",
+                "version",
+                "status",
+                "source",
+                "start_date",
+                "end_date",
+                "destination_tz",
+                "destination_label",
+                "running_access",
+                "gym_access",
+                "day_availability",
+            ),
         )
     block = active_block_version(session)
     if block:

@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.calendar_models import SessionCompletion
@@ -17,8 +17,9 @@ from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange
 from app.domain.athlete_facts import clinical_restriction
 from app.domain.local_time import date_in_zone
+from app.domain.travel import OPEN_TRIP_MAX
 from app.metric_models import MetricResult, Prompt
-from app.models import Activity, AppState
+from app.models import Activity, AppState, ImportBatch
 from app.planning_models import (
     BlockBenchmarkResult,
     BlockDecision,
@@ -45,8 +46,10 @@ from app.services.snapshot.common import (
     row_view,
 )
 from app.services.timezone import athlete_tz
+from app.services.trips import trip_view
 from app.services.weekly_digest import load_week, week_bounds
 from app.strong_models import StrongWorkoutRow
+from app.travel_models import Trip
 
 
 def _effective_rpe(rpe_rows: Sequence[SessionRpe], strong_id: Any) -> Any:
@@ -478,6 +481,69 @@ def _load_benchmark_history(session: Session, block_rows: Sequence[BlockVersion]
     return benchmark_history
 
 
+TRAVEL_DAYS_BACK = 7
+TRAVEL_DAYS_AHEAD = 120
+
+
+def _local_iso(value: Any) -> str:
+    return value.isoformat() if isinstance(value, datetime) else str(value)
+
+
+def _load_trips(session: Session, as_of: date, zone: ZoneInfo) -> list[dict]:
+    first = as_of - timedelta(days=TRAVEL_DAYS_BACK)
+    last = as_of + timedelta(days=TRAVEL_DAYS_AHEAD)
+    rows = session.scalars(
+        select(Trip)
+        .where(
+            Trip.status != "dismissed",
+            Trip.start_date <= last,
+            or_(Trip.end_date >= first, and_(Trip.end_date.is_(None), Trip.start_date >= first - OPEN_TRIP_MAX)),
+        )
+        .order_by(Trip.start_date, Trip.id)
+    )
+    trips = []
+    for row in rows:
+        view = trip_view(session, row, zone)
+        trips.append(
+            {
+                "trip_id": view["id"],
+                "status": view["status"],
+                "confirmed": view["status"] == "confirmed",
+                "start_date": view["start_date"],
+                "end_date": view["end_date"],
+                "destination": view["destination_label"],
+                "destination_timezone": view["destination_tz"],
+                "source": view["source"],
+                "confidence": view["confidence"],
+                "running_access": view["running_access"],
+                "gym_access": view["gym_access"],
+                "days": list(view["day_availability"]),
+                "travel_days": list(view["travel_days"]),
+                "legs": [
+                    {
+                        "depart_local": _local_iso(leg["depart_local"]),
+                        "depart_timezone": leg["depart_tz"],
+                        "arrive_local": _local_iso(leg["arrive_local"]),
+                        "arrive_timezone": leg["arrive_tz"],
+                    }
+                    for leg in view["legs"]
+                    if not leg["removed"]
+                ],
+            }
+        )
+    return trips
+
+
+def _load_travel_meta(session: Session, zone: ZoneInfo) -> dict:
+    synced = session.scalar(
+        select(ImportBatch.finished_at)
+        .where(ImportBatch.source_kind == "google_calendar", ImportBatch.status == "complete")
+        .order_by(ImportBatch.finished_at.desc().nulls_last())
+        .limit(1)
+    )
+    return {"home_timezone": zone.key, "calendar_synced_at": synced}
+
+
 def _load_review_recommended(session: Session, as_of: date) -> list[dict]:
     from app.services.exceptions.detector import review_recommended
 
@@ -551,4 +617,6 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         review_recommended=_load_review_recommended(session, as_of),
         benchmark_history=benchmark_history,
         weekly_digest=weekly,
+        trips=_load_trips(session, as_of, zone),
+        travel_meta=_load_travel_meta(session, zone),
     )

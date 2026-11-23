@@ -154,3 +154,5 @@ class SnapshotInputs:
     weekly_digest: list[dict] = field(default_factory=list)
     confirmed_strength_sessions: list[dict] = field(default_factory=list)
     accepted_strength_omissions: list[dict] = field(default_factory=list)
+    trips: list[dict] = field(default_factory=list)
+    travel_meta: dict = field(default_factory=dict)

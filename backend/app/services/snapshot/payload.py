@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+import math
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -788,6 +789,76 @@ def _weekly_digest_view(inputs: SnapshotInputs) -> dict:
     }
 
 
+TRAVEL_TRIPS_MAX = 8
+NIGHT_START = time(23)
+NIGHT_END = time(6)
+
+
+def _hours(delta: timedelta) -> float:
+    return delta.total_seconds() / 3600
+
+
+def _half_hours(value: float) -> float:
+    return math.floor(value * 2 + 0.5) / 2
+
+
+def _night_overlap(dep: datetime, arr: datetime, zone: ZoneInfo) -> bool:
+    start, end = dep.astimezone(zone), arr.astimezone(zone)
+    day = start.date() - timedelta(days=1)
+    while day <= end.date():
+        night_start = datetime.combine(day, NIGHT_START, zone)
+        night_end = datetime.combine(day + timedelta(days=1), NIGHT_END, zone)
+        if start < night_end and end > night_start:
+            return True
+        day += timedelta(days=1)
+    return False
+
+
+def _leg_view(leg: dict) -> dict:
+    dep, arr = parse_instant(leg["depart_local"]), parse_instant(leg["arrive_local"])
+    return {
+        **leg,
+        "duration_hours": _half_hours(_hours(arr - dep)),
+        "zone_shift_hours": _hours(arr.utcoffset() - dep.utcoffset()),
+        "night_overlap": _night_overlap(dep, arr, ZoneInfo(leg["depart_timezone"])),
+    }
+
+
+def _trip_shift(start: date, destination: str, home: ZoneInfo) -> float:
+    noon = datetime.combine(start, time(12), home)
+    shift = _hours(noon.astimezone(ZoneInfo(destination)).utcoffset() - noon.utcoffset())
+    while shift > 12:
+        shift -= 24
+    while shift <= -12:
+        shift += 24
+    return shift
+
+
+def _trip_view(trip: dict, home: ZoneInfo) -> dict:
+    start = parse_day(trip["start_date"])
+    shift = _trip_shift(start, trip["destination_timezone"], home)
+    end = trip.get("end_date")
+    return {
+        **trip,
+        "zone_shift_hours": shift,
+        "direction": "east" if shift > 0 else "west" if shift < 0 else "none",
+        "nights_away": (parse_day(end) - start).days if end else None,
+        "legs": [_leg_view(leg) for leg in trip.get("legs", [])],
+    }
+
+
+def _travel_section(inputs: SnapshotInputs) -> dict:
+    home_name = inputs.travel_meta.get("home_timezone") or inputs.timezone
+    trips = sorted(inputs.trips, key=lambda t: (str(t["start_date"]), str(t["trip_id"])))
+    kept = trips[:TRAVEL_TRIPS_MAX]
+    return {
+        "home_timezone": home_name,
+        "calendar_synced_at": inputs.travel_meta.get("calendar_synced_at"),
+        "trips": [_trip_view(t, ZoneInfo(home_name)) for t in kept],
+        "trips_omitted": len(trips) - len(kept),
+    }
+
+
 def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
     if operation not in OPERATIONS:
         raise ValueError("unsupported_operation")
@@ -970,4 +1041,6 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         payload["benchmark_history"] = list(inputs.benchmark_history)
         if (benchmark_event := _benchmark_event(inputs)) is not None:
             payload["event"] = benchmark_event
+    if operation != CALIB:
+        payload["travel"] = _travel_section(inputs)
     return strip_private(to_wire(payload))

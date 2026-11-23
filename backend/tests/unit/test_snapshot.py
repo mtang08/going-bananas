@@ -591,7 +591,9 @@ def test_projection_sections_per_operation() -> None:
         },
     }
     for operation, sections in expectations.items():
-        assert set(build_payload(inputs(), operation)) == common | sections
+        assert set(build_payload(inputs(), operation)) == common | sections | (
+            {"travel"} if operation != CALIB else set()
+        )
 
 
 def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
@@ -1619,3 +1621,114 @@ def test_weekly_digest_budget() -> None:
         assert week["key_sessions_omitted"] == 0
         assert week["not_done_omitted"] == 2
         assert week["unplanned_omitted"] == 2
+
+
+def travel_trip(
+    n: int, start: date, destination: str = "America/Los_Angeles", end_days: int | None = 4, legs=()
+) -> dict:
+    return {
+        "trip_id": f"trip-{n}",
+        "status": "pending",
+        "confirmed": False,
+        "start_date": start,
+        "end_date": start + timedelta(days=end_days) if end_days is not None else None,
+        "destination": "Synthetic City",
+        "destination_timezone": destination,
+        "source": "detected",
+        "confidence": "high",
+        "running_access": None,
+        "gym_access": None,
+        "days": [],
+        "travel_days": [],
+        "legs": list(legs),
+    }
+
+
+def leg(dep: str, dep_tz: str, arr: str, arr_tz: str) -> dict:
+    return {"depart_local": dep, "depart_timezone": dep_tz, "arrive_local": arr, "arrive_timezone": arr_tz}
+
+
+def test_travel_section_shape_cap_and_operations():
+    assert build_payload(inputs(), ROLLING)["travel"] == {
+        "home_timezone": "America/New_York",
+        "calendar_synced_at": None,
+        "trips": [],
+        "trips_omitted": 0,
+    }
+    source = inputs(
+        trips=[travel_trip(n, AS_OF + timedelta(days=10 - n)) for n in range(10)],
+        travel_meta={
+            "home_timezone": "America/New_York",
+            "calendar_synced_at": datetime(2026, 11, 15, 21, 4, tzinfo=UTC),
+        },
+    )
+    section = build_payload(source, ROLLING)["travel"]
+    assert section["trips_omitted"] == 2
+    assert [t["trip_id"] for t in section["trips"]] == [f"trip-{n}" for n in range(9, 1, -1)]
+    assert section["calendar_synced_at"] == "2026-11-15T21:04:00+00:00"
+    for op in (DAILY, QUALITY_OP, BLOCK, RACE, EXCEPTION, POST_EVENT):
+        assert build_payload(source, op)["travel"] == section
+    assert "travel" not in build_payload(source, CALIB)
+
+
+@pytest.mark.parametrize(
+    "destination,day,shift,direction",
+    [
+        ("Europe/Berlin", "2026-12-03", 6, "east"),
+        ("America/Los_Angeles", "2026-12-03", -3, "west"),
+        ("America/Toronto", "2026-12-03", 0, "none"),
+        ("Pacific/Auckland", "2026-12-03", -6, "west"),
+        ("Europe/London", "2027-03-20", 4, "east"),
+        ("Europe/London", "2026-12-03", 5, "east"),
+    ],
+)
+def test_trip_zone_shift_direction_and_nights(destination, day, shift, direction):
+    trip = travel_trip(1, date.fromisoformat(day), destination)
+    view = build_payload(inputs(trips=[trip]), ROLLING)["travel"]["trips"][0]
+    assert (view["zone_shift_hours"], view["direction"], view["nights_away"]) == (shift, direction, 4)
+    trip["end_date"] = None
+    assert build_payload(inputs(trips=[trip]), ROLLING)["travel"]["trips"][0]["nights_away"] is None
+
+
+@pytest.mark.parametrize(
+    "dep,arr,zone,end_zone,expected",
+    [
+        (
+            "2026-12-03T08:05:00-05:00",
+            "2026-12-03T11:30:00-08:00",
+            "America/New_York",
+            "America/Los_Angeles",
+            (6.5, -3, False),
+        ),
+        ("2026-12-03T23:30:00-05:00", "2026-12-04T11:15:00+00:00", "America/New_York", "Europe/London", (7, 5, True)),
+        (
+            "2026-12-03T10:00:00-05:00",
+            "2026-12-03T12:15:00-05:00",
+            "America/New_York",
+            "America/New_York",
+            (2.5, 0, False),
+        ),
+        (
+            "2026-12-03T05:00:00-05:00",
+            "2026-12-03T07:00:00-05:00",
+            "America/New_York",
+            "America/New_York",
+            (2, 0, True),
+        ),
+        (
+            "2026-12-03T20:00:00-05:00",
+            "2026-12-03T23:00:00-05:00",
+            "America/New_York",
+            "America/New_York",
+            (3, 0, False),
+        ),
+        ("2027-03-20T10:00:00+00:00", "2027-03-20T13:00:00-04:00", "Europe/London", "America/New_York", (7, -4, False)),
+    ],
+)
+def test_leg_duration_shift_and_night_overlap(dep, arr, zone, end_zone, expected):
+    flight = leg(dep, zone, arr, end_zone)
+    view = build_payload(inputs(trips=[travel_trip(1, AS_OF, legs=[flight])]), ROLLING)["travel"]["trips"][0]["legs"][0]
+    assert view == {
+        **flight,
+        **dict(zip(("duration_hours", "zone_shift_hours", "night_overlap"), expected, strict=True)),
+    }

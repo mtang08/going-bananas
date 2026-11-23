@@ -13,11 +13,14 @@ from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin, SymptomReport
 from app.metric_models import MetricResult
 from app.metrics.engine import REGISTRY, metric_modules
+from app.models import ImportBatch
 from app.planning_models import Block, BlockVersion, Event, Goal
 from app.services import calendar, weekly_digest
+from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
 from app.services.snapshot.common import ROLLING
 from app.services.snapshot.inputs import _load_metrics, load_inputs
 from app.services.snapshot.payload import build_payload
+from app.travel_models import GcalEvent, Trip, TripLeg
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
@@ -151,3 +154,132 @@ def test_rolling_snapshot_carries_weekly_digest(seeded):
     assert [row["outcome"] for row in current["not_done"]] == ["missed"]
     assert current["key_sessions"] == []
     assert "quality_sessions" not in payload["exception_summary"]
+
+
+def _flight(session, gid: str, dep: datetime, arr: datetime, dep_tz: str, arr_tz: str, *, removed: bool = False):
+    row = GcalEvent(
+        google_event_id=gid,
+        event_type="fromGmail",
+        google_status="confirmed",
+        summary="Flight to Synthetic City (ZZ 101)",
+        location_codes=[],
+        all_day=False,
+        start_at=dep,
+        end_at=arr,
+        start_date=None,
+        end_date=None,
+        start_tz=dep_tz,
+        end_tz=arr_tz,
+        transparency="opaque",
+        response_status=None,
+        busy=True,
+        flight_code="ZZ 101",
+        destination_label="Synthetic City",
+        category="flight",
+        auto_category="flight",
+        category_source="auto",
+        flight_confidence="high",
+        content_hash=gid.ljust(64, "0")[:64],
+        first_seen_at=NOW,
+        changed_at=NOW,
+        removed_at=NOW if removed else None,
+        version=1,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def _trip(session, start: date, end: date | None, *, status: str = "pending", source: str = "detected", **extra):
+    fields = dict(
+        status=status,
+        start_date=start,
+        end_date=end,
+        destination_label="Synthetic City",
+        destination_tz="America/Los_Angeles",
+        source=source,
+        confidence=None if source == "manual" else "high",
+        running_access=None,
+        gym_access=None,
+        day_availability=[],
+        edited=source == "manual",
+        detected={},
+        review_reason="source_changed" if status == "needs_review" else None,
+        version=1,
+    )
+    row = Trip(**(fields | extra))
+    session.add(row)
+    session.flush()
+    return row
+
+
+def test_load_inputs_travel_trips_and_meta(seeded):
+    zone, dest = "America/New_York", "America/Los_Angeles"
+    outbound = _trip(seeded, date(2026, 12, 3), date(2026, 12, 8))
+    for n, (dep, arr, a, b) in enumerate(
+        [
+            ("2026-12-03T13:05Z", "2026-12-03T19:30Z", zone, dest),
+            ("2026-12-08T06:00Z", "2026-12-08T11:30Z", dest, zone),
+            ("2026-12-08T12:00Z", "2026-12-08T14:30Z", dest, zone),
+        ]
+    ):
+        evt = _flight(seeded, str(n), datetime.fromisoformat(dep), datetime.fromisoformat(arr), a, b, removed=n == 2)
+        seeded.add(TripLeg(trip_id=outbound.id, gcal_event_id=evt.id, leg_hash=evt.content_hash, seq=n))
+    days = [{"date": "2026-12-21", "availability": "unavailable"}]
+    _trip(
+        seeded,
+        date(2026, 12, 20),
+        date(2026, 12, 22),
+        source="manual",
+        status="confirmed",
+        destination_tz=zone,
+        gym_access="none",
+        day_availability=days,
+    )
+    _trip(seeded, date(2026, 12, 10), date(2026, 12, 12), status="dismissed")
+    _trip(seeded, date(2026, 10, 1), date(2026, 10, 5), status="confirmed")
+    _trip(seeded, date(2026, 10, 20), None)
+    for source, status, offset in [
+        ("google_calendar", "complete", 1),
+        ("google_calendar", "failed", 2),
+        ("garmin_api", "complete", 3),
+    ]:
+        seeded.add(
+            ImportBatch(
+                source_kind=source,
+                status=status,
+                started_at=NOW,
+                finished_at=NOW + timedelta(hours=offset),
+                adapter_version="synthetic",
+                counters={},
+            )
+        )
+    seeded.flush()
+    inputs = load_inputs(seeded, TODAY, now=NOW)
+    assert [str(t["start_date"]) for t in inputs.trips] == ["2026-10-20", "2026-12-03", "2026-12-20"]
+    trip = inputs.trips[1]
+    assert trip["travel_days"] == ["2026-12-03", "2026-12-07", "2026-12-08"]
+    assert [item["depart_local"] for item in trip["legs"]] == ["2026-12-03T08:05:00-05:00", "2026-12-07T22:00:00-08:00"]
+    assert inputs.trips[2]["days"] == days and inputs.trips[2]["gym_access"] == "none"
+    assert inputs.travel_meta == {"home_timezone": zone, "calendar_synced_at": NOW + timedelta(hours=1)}
+
+
+def test_trips_enter_the_fingerprint(seeded):
+    kb = VerifiedKnowledge("0" * 64, (), (), frozenset(), frozenset(), frozenset())
+
+    def state():
+        return collect_decision_inputs(seeded, ROLLING, TODAY, now=NOW, kb=kb)
+
+    before = state()
+    assert "trips" not in before["source_versions"]
+    trip = _trip(seeded, TODAY, None)
+    pending = state()
+    assert before["source_fingerprint"] != pending["source_fingerprint"]
+    trip.status = "dismissed"
+    trip.version += 1
+    seeded.flush()
+    dismissed = state()
+    assert dismissed["source_versions"]["trips"][0]["status"] == "dismissed"
+    assert dismissed["source_fingerprint"] != pending["source_fingerprint"]
+    _flight(seeded, "unrelated", NOW, NOW + timedelta(hours=1), "UTC", "UTC")
+    assert state()["source_fingerprint"] == dismissed["source_fingerprint"]
