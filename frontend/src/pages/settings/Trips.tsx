@@ -20,6 +20,11 @@ const range = (start: string, end: string | null | undefined) =>
 const localTime = (iso: string | null) =>
   iso ? `${dateLabel(iso.slice(0, 10))} ${iso.slice(11, 16)}` : 'Time unavailable'
 
+const reviewDestinationZone = (trip: Trip) =>
+  (trip.status === 'pending' ||
+    (trip.status === 'needs_review' && trip.review_reason === 'source_changed')) &&
+  trip.legs.some((leg) => !leg.removed && leg.timezone_basis !== 'calendar_endpoints')
+
 type TripChange = Omit<TripPatch, 'expected_version'>
 
 function actions(trip: Trip): [string, TripChange][] {
@@ -154,10 +159,17 @@ export function Trips({ homeTimezone }: { homeTimezone: string }) {
                         trip.review_reason === 'source_removed' && (
                           <p>Calendar changed: its flights were removed or recategorized.</p>
                         )}
+                      {reviewDestinationZone(trip) && (
+                        <p className="notice">
+                          The calendar’s timezone may differ from the destination’s. Check the
+                          destination timezone in Edit before confirming.
+                        </p>
+                      )}
                       {trip.legs.length > 0 && (
                         <ul>
                           {trip.legs.map((leg) => (
                             <li key={leg.event_id}>
+                              {leg.timezone_basis !== 'calendar_endpoints' && 'Calendar times · '}
                               Departs {localTime(leg.depart_local)} ({leg.depart_tz}) → arrives{' '}
                               {localTime(leg.arrive_local)} ({leg.arrive_tz})
                               {leg.flight_code && ` · ${leg.flight_code}`}

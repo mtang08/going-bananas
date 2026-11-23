@@ -111,7 +111,7 @@ The app can read your Google Calendar and find trips from the flight events Gmai
 
 Trip days show a badge on the [Calendar](#calendar): **Travel**, **Possible travel**, or **Travel changed**, followed by "unavailable", "shorter session", or "travel day" where they apply. Each badge links to Settings.
 
-The coach sees each trip's dates, destination timezone, local flight times, access, availability, and whether you confirmed it. It plans around unconfirmed trips conditionally and may ask you to confirm them. It keeps your strength schedule and run rhythm through a trip and does not turn missed travel sessions into catch-up work. Changing a trip makes an open coach draft stale. App dates stay in your home timezone during trips, so a morning run far from home can appear on the previous day; the coach reads your day in the destination timezone.
+The coach sees each trip’s dates, destination timezone, flight times with their timezone source, access, availability, and confirmation status. It plans around unconfirmed trips conditionally and may ask you to verify the destination timezone before placing a session. It keeps your strength schedule and run rhythm through a trip and does not turn missed travel sessions into catch-up work. Changing a trip makes an open coach draft stale. App dates stay in your home timezone during trips, so a morning run far from home can appear on the previous day; the coach reads your day in the destination timezone.
 
 ## Review and revise a proposal
 

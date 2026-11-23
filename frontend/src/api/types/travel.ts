@@ -115,17 +115,20 @@ export interface EventPatchResult {
   event: CalendarEvent
   trips: GcalTripCounters
 }
+export type LegTimezoneBasis = 'calendar_endpoints' | 'calendar_display' | 'fallback'
+
 export interface TripLeg {
   event_id: string
   seq: number
   summary: string | null
   flight_code: string | null
-  depart_at: string
-  arrive_at: string
+  depart_at: string | null
+  arrive_at: string | null
   depart_tz: string
   arrive_tz: string
-  depart_local: string
-  arrive_local: string
+  depart_local: string | null
+  arrive_local: string | null
+  timezone_basis: LegTimezoneBasis
   removed: boolean
 }
 export interface DetectedTrip {

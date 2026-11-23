@@ -52,7 +52,8 @@ export function Travel({ homeTimezone }: { homeTimezone: string }) {
           <p className="error-text">The last calendar sync attempt failed.</p>
         )}
         <p className="notice muted">
-          Dates in the app use your home timezone, {homeTimezone}. Trip legs show local times.
+          Dates in the app use your home timezone, {homeTimezone}. Flight times use the timezones
+          available from your calendar.
         </p>
         {real ? (
           <Button

@@ -5,6 +5,7 @@ import type {
   CalendarEvent,
   EventCategory,
   GcalStatus,
+  LegTimezoneBasis,
   ManualTripInput,
   Trip,
   TripPatch,
@@ -331,6 +332,7 @@ it('labels manual trips and shows local leg times', async () => {
           arrive_tz: WEST,
           depart_local: '2099-12-03T08:05:00-05:00',
           arrive_local: '2099-12-03T11:30:00-08:00',
+          timezone_basis: 'calendar_endpoints',
           removed: false,
         },
       ],
@@ -348,6 +350,42 @@ it('labels manual trips and shows local leg times', async () => {
     ),
   ).toBeVisible()
 })
+
+it.each<LegTimezoneBasis>(['calendar_display', 'fallback'])(
+  'labels %s flight times and prompts the athlete to check the destination zone',
+  async (timezoneBasis) => {
+    trips = [
+      trip('ambiguous', 'pending', '2099-12-03', {
+        confidence: 'low',
+        destination_tz: HOME,
+        legs: [
+          {
+            event_id: 'e1',
+            seq: 0,
+            summary: 'Flight',
+            flight_code: null,
+            depart_at: '2099-12-03T13:05:00+00:00',
+            arrive_at: '2099-12-03T19:30:00+00:00',
+            depart_tz: HOME,
+            arrive_tz: HOME,
+            depart_local: '2099-12-03T08:05:00-05:00',
+            arrive_local: '2099-12-03T14:30:00-05:00',
+            timezone_basis: timezoneBasis,
+            removed: false,
+          },
+        ],
+      }),
+    ]
+    mount()
+    const pending = await row('City ambiguous')
+    expect(pending.getByText(/Calendar times · Departs Dec 3 08:05/)).toBeVisible()
+    expect(
+      pending.getByText(/Check the destination timezone in Edit before confirming/),
+    ).toBeVisible()
+    fireEvent.click(pending.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByLabelText('Destination timezone')).toHaveValue(HOME)
+  },
+)
 
 it('refreshes and explains a version conflict', async () => {
   trips = [trip('pend', 'pending', '2099-02-01')]
