@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.adapters.google_calendar import to_record
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.checkin_models import Checkin, SessionRpe, SymptomReport
 from app.fit_models import ActivityLap, ActivityStream, ActivityWorkoutStep
@@ -28,14 +29,121 @@ from app.models import (
 )
 from app.planning_models import StrengthRoutineSlot
 from app.services.calendar import apply_edits, seed_demo_calendar, state_at
+from app.services.gcal_sync import sync_window, upsert_events
 from app.services.profile import current_profile
 from app.services.sync import import_activity_page, store_raw
+from app.services.trips import create_manual_trip, reconcile_trips
+from app.travel_models import GcalEvent, Trip, TripLeg
 
 TZ = ZoneInfo("America/New_York")
 
 
 def _at(day: date, hour: int, minute: int = 0) -> datetime:
     return datetime.combine(day, time(hour, minute), TZ).astimezone(UTC)
+
+
+LA = ZoneInfo("America/Los_Angeles")
+CHICAGO = ZoneInfo("America/Chicago")
+
+
+def _gcal_time(day: date, hour: int, minute: int, zone: ZoneInfo) -> dict:
+    return {"dateTime": datetime.combine(day, time(hour, minute), zone).isoformat(), "timeZone": zone.key}
+
+
+def _gcal_item(gid: str, summary: str, start: dict, end: dict, **extra) -> dict:
+    item = {
+        "id": gid,
+        "status": "confirmed",
+        "eventType": extra.pop("event_type", "fromGmail"),
+        "summary": summary,
+        "start": start,
+        "end": end,
+        "transparency": extra.pop("transparency", "opaque"),
+        "updated": "2026-01-01T00:00:00Z",
+    }
+    if "response" in extra:
+        item["attendees"] = [{"self": True, "responseStatus": extra.pop("response")}]
+    item.update(extra)
+    return item
+
+
+def _travel(session: Session, today: date, now: datetime) -> None:
+    """Synthetic calendar events and trips through the real ingestion path; never calls Google."""
+
+    def day(n: int) -> date:
+        return today + timedelta(days=n)
+
+    items = [
+        _gcal_item(
+            "demo-flight-past-out",
+            "Flight to Chicago (ZZ 201)",
+            _gcal_time(day(-20), 7, 0, TZ),
+            _gcal_time(day(-20), 8, 45, CHICAGO),
+            location="JFK",
+        ),
+        _gcal_item(
+            "demo-flight-past-back",
+            "Flight to New York (ZZ 202)",
+            _gcal_time(day(-17), 17, 0, CHICAGO),
+            _gcal_time(day(-17), 20, 5, TZ),
+            location="ORD",
+        ),
+        _gcal_item(
+            "demo-flight-out",
+            "Flight to Los Angeles (ZZ 101)",
+            _gcal_time(day(10), 8, 5, TZ),
+            _gcal_time(day(10), 11, 30, LA),
+            location="JFK",
+        ),
+        _gcal_item(
+            "demo-flight-back",
+            "Flight to New York (ZZ 102)",
+            _gcal_time(day(14), 13, 0, LA),
+            _gcal_time(day(14), 21, 25, TZ),
+            location="LAX",
+        ),
+        _gcal_item(
+            "demo-hotel",
+            "Stay at Synthetic Hotel",
+            {"date": day(10).isoformat()},
+            {"date": day(14).isoformat()},
+            transparency="transparent",
+        ),
+        _gcal_item(
+            "demo-meeting",
+            "Team sync",
+            _gcal_time(day(2), 10, 0, TZ),
+            _gcal_time(day(2), 11, 0, TZ),
+            event_type="default",
+            response="declined",
+        ),
+        _gcal_item(
+            "demo-focus",
+            "Focus time",
+            _gcal_time(day(3), 14, 0, TZ),
+            _gcal_time(day(3), 16, 0, TZ),
+            event_type="focusTime",
+            transparency="transparent",
+        ),
+    ]
+    records = [record for record in map(to_record, items) if record is not None]
+    upsert_events(session, records, sync_window(TZ, today), now)
+    reconcile_trips(session, TZ)
+    past = session.scalars(select(Trip).where(Trip.start_date == day(-20))).one()
+    past.status = "confirmed"
+    create_manual_trip(
+        session,
+        {
+            "start_date": day(30),
+            "end_date": day(33),
+            "destination_tz": TZ.key,
+            "destination_label": "Family visit",
+            "gym_access": "none",
+            "day_availability": [{"date": day(31).isoformat(), "availability": "unavailable"}],
+        },
+        now,
+    )
+    session.flush()
 
 
 def _structure(count: int = 4, work_s: int = 300) -> list[dict]:
@@ -507,6 +615,8 @@ def seed_demo(session: Session, private_dir: Path, today: date) -> dict[str, int
                 actor="system",
             )
         _seed_briefs(session, state, today)
+    if first_run:
+        _travel(session, today, now)
     session.flush()
     from app.metrics.refresh import ensure_windows
     from app.services.derived import recompute
@@ -529,6 +639,9 @@ def seed_demo(session: Session, private_dir: Path, today: date) -> dict[str, int
 def demo_totals(session: Session) -> dict[str, int]:
     """Whole-table totals; call after commit to include commit-time derived refresh."""
     tables = {
+        "gcal_events": GcalEvent,
+        "trip_legs": TripLeg,
+        "trips": Trip,
         "activities": Activity,
         "activity_laps": ActivityLap,
         "activity_streams": ActivityStream,

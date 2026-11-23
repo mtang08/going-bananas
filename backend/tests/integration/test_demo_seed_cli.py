@@ -27,6 +27,7 @@ from app.services import calendar
 from app.services.calendar import state_at
 from app.services.proposals.schema import SessionBrief
 from app.services.proposals.validation import ID_TOKEN
+from app.travel_models import GcalEvent, Trip
 
 
 @pytest.fixture
@@ -71,6 +72,7 @@ def test_calendar_preview_initializes_fresh_migrated_database(demo_cli, capsys, 
     assert cli.main() == 0
     totals = json.loads(capsys.readouterr().out)
     assert totals["activities"] > 0 and totals["calendar_session_revisions"] > 0
+    assert (totals["gcal_events"], totals["trips"], totals["trip_legs"]) == (7, 3, 4)
     with demo_cli() as session:
         state = session.get(AppState, 1)
         assert state.calendar_head_version > 0
@@ -118,6 +120,40 @@ def test_calendar_preview_initializes_fresh_migrated_database(demo_cli, capsys, 
         current = next(row for row in rows if row["kind"] == "run" and row["local_date"] == today)
         if weekday in {5, 6}:
             assert current["recipe_id"] == "REC001"
+        trips = {row.start_date: row for row in session.scalars(select(Trip))}
+        upcoming = trips[today + timedelta(days=10)]
+        assert (upcoming.status, upcoming.source, upcoming.end_date, upcoming.destination_tz, upcoming.confidence) == (
+            "pending",
+            "detected",
+            today + timedelta(days=14),
+            "America/Los_Angeles",
+            "high",
+        )
+        past = trips[today - timedelta(days=20)]
+        assert (past.status, past.end_date, past.destination_tz) == (
+            "confirmed",
+            today - timedelta(days=17),
+            "America/Chicago",
+        )
+        manual = trips[today + timedelta(days=30)]
+        assert (manual.source, manual.status, manual.confidence, manual.gym_access) == (
+            "manual",
+            "confirmed",
+            None,
+            "none",
+        )
+        assert manual.day_availability == [
+            {"date": (today + timedelta(days=31)).isoformat(), "availability": "unavailable"}
+        ]
+        events = {row.google_event_id: row for row in session.scalars(select(GcalEvent))}
+        assert {gid for gid, row in events.items() if row.category == "flight"} == {
+            "demo-flight-past-out",
+            "demo-flight-past-back",
+            "demo-flight-out",
+            "demo-flight-back",
+        }
+        assert events["demo-hotel"].category == "lodging"
+        assert not events["demo-meeting"].busy and not events["demo-focus"].busy
 
 
 @pytest.mark.parametrize("existing", ["profile", "activity"])
