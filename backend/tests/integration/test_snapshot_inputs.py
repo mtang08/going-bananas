@@ -167,7 +167,7 @@ def test_rolling_snapshot_carries_weekly_digest(seeded):
 
 def test_load_inputs_session_brief_reaches_payload_without_notes(seeded):
     uid = next(
-        str(row["session_uid"])
+        row["session_uid"]
         for row in calendar.state_at(seeded, 1)
         if row["local_date"] == date(2026, 11, 20) and row["kind"] == "strength"
     )
@@ -179,7 +179,7 @@ def test_load_inputs_session_brief_reaches_payload_without_notes(seeded):
     row = next(row for row in inputs.sessions if row["session_uid"] == uid)
     assert row["brief"] == BRIEF and "notes" not in row
     assert all(row["brief"] is None for row in inputs.sessions if row["session_uid"] != uid)
-    view = next(row for row in build_payload(inputs, ROLLING)["calendar"]["sessions"] if row["session_uid"] == uid)
+    view = next(row for row in build_payload(inputs, ROLLING)["calendar"]["sessions"] if row["session_uid"] == str(uid))
     assert view["brief"] == BRIEF and "notes" not in view
 
 
