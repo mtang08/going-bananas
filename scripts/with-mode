@@ -5,6 +5,7 @@ source "$(dirname "$0")/env.sh"
 mode="${1:?Usage: scripts/with-mode demo|real|test COMMAND ...}"
 shift
 case "$mode" in demo|real|test) ;; *) echo 'Invalid application mode' >&2; exit 2;; esac
+export GB_MODE_ROOT="$ROOT_DIR"
 export APP_MODE="$mode"
 export DATABASE_URL="${DATABASE_URL%/*}/garmin_$mode"
 export PRIVATE_DIR="$ROOT_DIR/private/$mode"
