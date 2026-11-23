@@ -824,11 +824,12 @@ def _offset(instant: datetime) -> timedelta:
 
 def _leg_view(leg: dict) -> dict:
     dep, arr = parse_instant(leg["depart_local"]), parse_instant(leg["arrive_local"])
+    known = leg.get("timezone_basis") == "calendar_endpoints"
     return {
         **leg,
         "duration_hours": _half_hours(_hours(arr - dep)),
-        "zone_shift_hours": _hours(_offset(arr) - _offset(dep)),
-        "night_overlap": _night_overlap(dep, arr, ZoneInfo(leg["depart_timezone"])),
+        "zone_shift_hours": _hours(_offset(arr) - _offset(dep)) if known else None,
+        "night_overlap": _night_overlap(dep, arr, ZoneInfo(leg["depart_timezone"])) if known else None,
     }
 
 
@@ -844,12 +845,19 @@ def _trip_shift(start: date, destination: str, home: ZoneInfo) -> float:
 
 def _trip_view(trip: dict, home: ZoneInfo) -> dict:
     start = parse_day(trip["start_date"])
-    shift = _trip_shift(start, trip["destination_timezone"], home)
+    legs = trip.get("legs", [])
+    # Pending itineraries can carry Google's display zone as a provisional destination.
+    known = (
+        trip["confirmed"]
+        or trip["source"] == "manual"
+        or (bool(legs) and all(leg.get("timezone_basis") == "calendar_endpoints" for leg in legs))
+    )
+    shift = _trip_shift(start, trip["destination_timezone"], home) if known else None
     end = trip.get("end_date")
     return {
         **trip,
         "zone_shift_hours": shift,
-        "direction": "east" if shift > 0 else "west" if shift < 0 else "none",
+        "direction": None if shift is None else "east" if shift > 0 else "west" if shift < 0 else "none",
         "nights_away": (parse_day(end) - start).days if end else None,
         "legs": [_leg_view(leg) for leg in trip.get("legs", [])],
     }

@@ -1714,7 +1714,13 @@ def travel_trip(
 
 
 def leg(dep: str, dep_tz: str, arr: str, arr_tz: str) -> dict:
-    return {"depart_local": dep, "depart_timezone": dep_tz, "arrive_local": arr, "arrive_timezone": arr_tz}
+    return {
+        "depart_local": dep,
+        "depart_timezone": dep_tz,
+        "arrive_local": arr,
+        "arrive_timezone": arr_tz,
+        "timezone_basis": "calendar_endpoints",
+    }
 
 
 def test_travel_section_shape_cap_and_operations():
@@ -1752,7 +1758,7 @@ def test_travel_section_shape_cap_and_operations():
     ],
 )
 def test_trip_zone_shift_direction_and_nights(destination, day, shift, direction):
-    trip = travel_trip(1, date.fromisoformat(day), destination)
+    trip = travel_trip(1, date.fromisoformat(day), destination) | {"confirmed": True, "status": "confirmed"}
     view = build_payload(inputs(trips=[trip]), ROLLING)["travel"]["trips"][0]
     assert (view["zone_shift_hours"], view["direction"], view["nights_away"]) == (shift, direction, 4)
     trip["end_date"] = None
@@ -1801,3 +1807,21 @@ def test_leg_duration_shift_and_night_overlap(dep, arr, zone, end_zone, expected
         **flight,
         **dict(zip(("duration_hours", "zone_shift_hours", "night_overlap"), expected, strict=True)),
     }
+
+
+@pytest.mark.parametrize("basis", ["fallback", "calendar_display"])
+def test_provisional_calendar_zones_do_not_imply_night_flight_or_circadian_shift(basis):
+    flight = leg("2026-12-03T23:00:00-05:00", "America/New_York", "2026-12-04T03:00:00-05:00", "America/New_York")
+    trip = travel_trip(1, AS_OF, legs=[flight | {"timezone_basis": basis}])
+
+    def view():
+        return build_payload(inputs(trips=[trip]), ROLLING)["travel"]["trips"][0]
+
+    assert view()["direction"] is None and view()["zone_shift_hours"] is None
+    trip.update(status="confirmed", confirmed=True, destination_timezone="America/Los_Angeles")
+    result = view()
+    assert result["zone_shift_hours"] == -3
+    reported = result["legs"][0]
+    assert (
+        reported["duration_hours"] == 4 and reported["night_overlap"] is None and reported["zone_shift_hours"] is None
+    )
