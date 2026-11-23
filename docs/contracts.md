@@ -322,7 +322,7 @@ Optional `since_revision` reports changes or explicitly falls back to a full
 snapshot; don't build a general event-stream system for this release.
 
 Future recommendations are separate versioned artifacts recording workflow/KB
-hashes, context revision, rationale, uncertainty, proposed session/plan changes,
+hashes, context revision, headline, reasons, uncertainty, change triggers, proposed session/plan changes,
 and user acceptance. Historical recommendations must remain reproducible even
 after research is updated. Store decision records then, not a speculative
 rule engine now. Application validators enforce schedule/acceptance boundaries;

@@ -14,19 +14,13 @@ plan in [running-coach-workflow.md](running-coach-workflow.md), and resume state
 in [live-progress.md](archive/live-progress.md). Strength prescription remains outside
 this phase; preserve the confirmed hybrid schedule as running context.
 
-Proposal presentation: start with a concise focus sentence, followed by one or
-two coherent rationale paragraphs, then a concise activity table with the
-workout prescription, then the next check-in. Keep the rationale at the top,
-not as stream-of-consciousness bullets after the table. Include session-level
-reasons only for material tradeoffs instead of repeating rationale in every
-row. Remove evidence tags from the athlete-facing presentation.
+Proposal presentation (structured short form, implemented 2026-11-23): the app shows a brief card with a headline, a typed why-list (observed, research, inference, priority), uncertainty, change triggers, and a next check; each session change carries an effort, focus cues, adjust-if rules, and a one-line why behind its row; sources appear as titles, never IDs. Every field has a character limit that validation enforces, and one optional coach note of 400 characters or fewer is the only free text. Depth (observations, research, trade-offs, alternatives) stays in the chat with the coach, which also keeps the day table, the would-change-this list, and the next check-in. Notes on a session belong to the athlete only.
 
 Implemented 2026-11-12: proposal review supports dated session changes, hidden
-evidence tags, individual acceptance, and expandable comparisons. The intro uses
-a compact focus statement with confidence details collapsed. Current
-presentation direction places concise rationale paragraphs before the activity
-table, with follow-up after it; the coach's `references/proposal-format.md`
-defines this format. Pending-proposal revision with a stable review link was
+evidence tags, individual acceptance, and expandable comparisons. The intro was
+later replaced by the structured brief card, with confidence details collapsed;
+the coach's `references/proposal-format.md` defines the saved fields and the
+chat format. Pending-proposal revision with a stable review link was
 implemented and verified on 2026-11-12: the coach edits an existing draft,
 the app retains revision history and highlights changed sessions, and acceptance
 requires the reviewed revision. Invalid edits preserve the saved draft;
