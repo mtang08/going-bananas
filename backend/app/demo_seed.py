@@ -29,10 +29,8 @@ from app.models import (
 )
 from app.planning_models import StrengthRoutineSlot
 from app.services.calendar import apply_edits, seed_demo_calendar, state_at
-from app.services.gcal_sync import sync_window, upsert_events
 from app.services.profile import current_profile
 from app.services.sync import import_activity_page, store_raw
-from app.services.trips import create_manual_trip, reconcile_trips
 from app.travel_models import GcalEvent, Trip, TripLeg
 
 TZ = ZoneInfo("America/New_York")
@@ -69,6 +67,9 @@ def _gcal_item(gid: str, summary: str, start: dict, end: dict, **extra) -> dict:
 
 def _travel(session: Session, today: date, now: datetime) -> None:
     """Synthetic calendar events and trips through the real ingestion path; never calls Google."""
+
+    from app.services.gcal_sync import sync_window, upsert_events
+    from app.services.trips import create_manual_trip, reconcile_trips
 
     def day(n: int) -> date:
         return today + timedelta(days=n)

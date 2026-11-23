@@ -20,6 +20,7 @@ from app.api.exceptions import router as exceptions_router
 from app.api.metrics import router as metrics_router
 from app.api.planning import router as planning_router
 from app.api.sync import router as sync_router
+from app.api.travel import router as travel_router
 from app.config import settings
 from app.db import SessionLocal, get_revision, get_session, global_write_lock
 from app.errors import fail
@@ -157,6 +158,7 @@ app.include_router(exceptions_router, prefix="/api/v1")
 app.include_router(planning_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")
 app.include_router(sync_router, prefix="/api/v1")
+app.include_router(travel_router,prefix="/api/v1")
 app.include_router(coach_router, prefix="/api/v1")
 
 
