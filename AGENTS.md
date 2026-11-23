@@ -24,6 +24,9 @@ speed and useful end-to-end features are the highest engineering priorities.**
   not the entire application suite. Do not add tests that merely mirror code.
 - Preserve unrelated user work. Permission to break software contracts is not
   permission to lose the athlete's real history, expose secrets, or fabricate data.
+- Keep project planning and working files inside this repository directory. Record
+  deferred features in `docs/backlog.md`. Use the Git-ignored `private/` directory
+  for local planning archives, worktrees, logs, and other project scratch files.
 - When a feature or bug fix is complete and its relevant checks pass, commit the
   changes for that work and push the commit to the remote branch.
 

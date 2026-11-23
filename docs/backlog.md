@@ -159,7 +159,7 @@ Unspecified.
 
 Read-only travel detection shipped on 2026-11-23 in `ce8408f`, alongside structured coach proposals and KB version `1.3.0+privacy1`. The real app completed migration `0025_coach_output_v2` and its first Calendar sync. Coaching reviews use the travel topic when a trip falls within scope. [Travel KB](../running_coach_kb/topics/travel_and_time_zones.md)
 
-Workout scheduling and calendar sharing remain open.
+Workout scheduling and calendar sharing remain open. A future scheduler could propose local start times using work hours, gym hours, permitted training windows, commute time, and buffers around flights. Publishing accepted sessions to an app-created calendar would require separate Google authorization.
 
 **Problem / context**
 The athlete wants planned sessions to fit predetermined times they assign and
@@ -348,7 +348,34 @@ While a confirmed trip is active, dates and "today" follow the destination timez
 Dates come from one profile timezone at about 70 call sites in 36 files. The metric identity hash includes the profile timezone, and each activity's `local_date` is fixed at import. A per-date zone changes metric identity and needs stored local dates re-derived when a trip changes. Back up before any real recompute.
 
 **Open questions**
-Whether the zone applies to the whole trip or only from the arrival leg; how a change to a confirmed trip re-derives stored dates and metrics.
+If this resumes, keep the departure day in the origin zone and use the last confirmed dates while a trip change awaits review. The athlete preferred the device date in the header and did not require device-offset dates for recordings. Decide how to handle open-ended trips and how to recompute stored dates and metrics after edits or dismissal.
+
+### IDEA-015 — Private phone access for check-ins
+
+Paused. The proposed iPhone Today page would show the planned session and support check-ins, post-run effort, symptoms, and manual sync through a private tailnet. The Mac would host the app and coaching reviews. Before resuming, refresh the plan against current main and settle five choices: Mac sleep behavior, an offline page, the tailnet machine name and login, device key expiry, and whether Today belongs in desktop navigation.
+
+Later options include push reminders, offline capture and queued writes, phone-sized proposal review, a request-path allowlist, and an access rule limiting HTTPS to the athlete’s phone.
+
+### IDEA-016 — Race and threshold estimates
+
+Open. Combine benchmark results with completed threshold sessions to estimate race performance and threshold with an uncertainty range. The coach should be able to explain the evidence behind a goal-pace or anchor adjustment.
+
+### IDEA-017 — Shoe and gear mileage
+
+Open. Track distance by gear and flag shoes approaching their retirement mileage. First check whether the personal Garmin client exposes reliable gear assignments.
+
+## Deferred follow-ups from shipped features
+
+| Area | Follow-up and condition for revisiting |
+| --- | --- |
+| Training insights | Add a coach query for older workout progression by signature if the four observations in a snapshot prove insufficient. Include watch-only structured workouts once repetitions can be represented without a linked plan. Assess the steady part of runs with strides up to the first work step. |
+| Aerobic trends | Revisit a separate treadmill trend if the athlete wants it. Validate grade-adjusted pace, temperature, and heart-rate sensor data before using them in comparisons. |
+| Proposal freshness | Include metric configuration in the proposal fingerprint so a configuration change can invalidate a draft that relies on those metrics. |
+| Weekly digest | Consider a multiweek adherence trend, an older-week coach query, projected weekly mileage on the digest, and planned duration estimates for distance-only sessions. Revisit a phone digest once phone access resumes. Comparing with the plan as it stood on Monday is lower priority because the coach can already inspect calendar revisions. |
+| Workout comparison | Inspect a relevant FIT file for split messages before adding split and workout-step event decoding. Revisit heart-rate percentage and zone targets, power offsets, and secondary targets. Consider assessing a run recorded as two activities together and detecting duplicates on re-sync. |
+| Backend organization | Reconsider moving timezone reads into the shared read layer if a stricter service import rule is adopted. |
+
+The athlete declined two ideas for now on 2026-11-18: sending structured sessions to the watch (or exporting a FIT workout), and prompting for a one-tap explanation after a material difference between a planned and recorded run. Cross-training substitutions and tuning expected effort ranges remain under AC-1 above.
 
 ## Coaching depth and evaluation
 
@@ -411,6 +438,6 @@ running recommendations.
 The inspected Garmin export is imported for supported activity and recovery
 fields. Export coverage remains partial. Future export shapes and additional
 Health Status metrics require schema/API comparison before mapping. Private
-phone access is paused. The proposed iPhone check-in workflow uses a private tailnet and the Mac as the server. Refresh the plan against current main and revisit the five setup decisions before resuming. Detailed streams/maps, workout
+phone access is tracked under IDEA-015. Detailed streams/maps, workout
 publishing, broader provider-history verification, and optional agent evaluation
 remain separate projects. No calorie logging is required.
