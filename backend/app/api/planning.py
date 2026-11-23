@@ -18,6 +18,7 @@ from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.models import Activity
 from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, Event, Goal
+from app.services import knowledge
 from app.services.block_benchmark import active_block_version, benchmark_spec, benchmark_status, status_data
 from app.services.events import ranked_upcoming, renumber, target_status
 from app.services.strength_routine import replace_routine, routine_view
@@ -154,7 +155,9 @@ def _block(row: BlockVersion) -> dict:
             "version",
             "status",
             "objective",
-            "rationale",
+            "why",
+            "indicators",
+            "legacy_text",
             "maintained_qualities",
             "non_goals",
             "eligible_recipe_ids",
@@ -162,7 +165,6 @@ def _block(row: BlockVersion) -> dict:
             "constraints",
             "start_date",
             "review_date",
-            "completion_indicators",
             "early_review_triggers",
             "objective_status",
             "created_at",
@@ -274,6 +276,21 @@ def put_event_order(body: EventOrder, session: Session = Depends(get_session)) -
     return envelope(session, {"items": [_event(current[item.id][1], ranks) for item in body.items]})
 
 
+def _block_sources(session: Session, row: BlockVersion) -> list[dict]:
+    decision = session.scalar(
+        select(BlockDecision)
+        .where(BlockDecision.block_uid == row.block_uid, BlockDecision.to_version == row.version)
+        .order_by(desc(BlockDecision.decided_at))
+        .limit(1)
+    )
+    if decision is None:
+        return []
+    try:
+        return knowledge.cited_sources(decision.evidence_ids, decision.policy_ids)
+    except knowledge.KnowledgeIntegrityError:
+        return []
+
+
 @router.get("/blocks/active")
 def get_active_block(session: Session = Depends(get_session)) -> dict:
     row = active_block_version(session)
@@ -298,6 +315,7 @@ def get_active_block(session: Session = Depends(get_session)) -> dict:
         {
             **_block(row),
             "benchmark_status": status_data(benchmark_status(session, row, today)),
+            "sources": _block_sources(session, row),
             "target_event": target_event,
             "target_event_status": target_status(row.target_event_id, top_id),
         },

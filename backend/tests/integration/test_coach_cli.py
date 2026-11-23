@@ -14,24 +14,33 @@ from app.services import calendar
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
+BRIEF = {
+    "effort": {"rpe_low": 3, "rpe_high": 4, "feel": "conversational"},
+    "focus": ["Relax shoulders"],
+    "adjust_if": [{"when": "Calf tight", "then": "walk 5 min"}],
+    "why": "Easy aerobic volume",
+}
 
 
 def _doc(snapshot: CoachSnapshot, uid: uuid.UUID) -> dict:
     return {
-        "schema_version": "coach_proposal.v1",
+        "schema_version": "coach_proposal.v2",
         "operation": snapshot.operation,
         "snapshot_id": str(snapshot.id),
         "base_calendar_version": snapshot.calendar_version_number,
         "base_block_version_id": None,
-        "summary": "Add easy time",
-        "rationale": "Ready for a small increase",
+        "headline": "Add easy time",
+        "why": [{"kind": "observation", "text": "Ready for a small increase"}],
+        "uncertainty": ["Sleep data is thin"],
+        "change_triggers": [{"when": "Easy run feels hard", "then": "hold the duration"}],
+        "next_check": {"on": (TODAY + timedelta(days=7)).isoformat(), "check": "Easy run RPE"},
         "confidence": {"decision": "moderate", "evidence": "moderate", "data": "moderate"},
         "changes": [
             {
                 "change_id": "c1",
                 "op": "modify",
                 "session_uid": str(uid),
-                "after": {"planned_duration_s": 2400},
+                "after": {"planned_duration_s": 2400, "brief": BRIEF},
                 "reason": "Progression",
             }
         ],
@@ -127,7 +136,7 @@ def test_revise_same_id_and_retry(cli_db, tmp_path):
     _, document = snapshot_doc(run, session)
     code, first, error = run("submit", "--file", write_doc(tmp_path, document))
     assert code == 0, (first, error)
-    document["rationale"] = "Updated coaching context"
+    document["headline"] = "Updated coaching headline"
     path = write_doc(tmp_path, document)
     command = (
         "revise",
@@ -146,7 +155,7 @@ def test_revise_same_id_and_retry(cli_db, tmp_path):
     assert code == 0 and retry == second, (retry, error)
     assert session.scalar(select(func.count()).select_from(CoachProposal)) == 1
     assert session.get(AppState, 1, populate_existing=True).calendar_head_version == 1
-    document["rationale"] = "Different context"
+    document["headline"] = "Different headline"
     code, conflict, error = run(
         "revise",
         first["proposal_id"],
@@ -167,7 +176,7 @@ def test_revise_reports_missing_database_column_and_preserves_draft(cli_db, tmp_
     _, document = snapshot_doc(run, session)
     code, draft, error = run("submit", "--file", write_doc(tmp_path, document))
     assert code == 0, error
-    document["rationale"] = "Revised training context"
+    document["headline"] = "Revised training headline"
     command = (
         "revise",
         draft["proposal_id"],
@@ -184,7 +193,7 @@ def test_revise_reports_missing_database_column_and_preserves_draft(cli_db, tmp_
     assert code == 1
     assert json.loads(error)["error"] == "database_schema_mismatch"
     saved = session.get(CoachProposal, uuid.UUID(draft["proposal_id"]), populate_existing=True)
-    assert (saved.status, saved.revision, saved.rationale) == ("pending", 1, "Ready for a small increase")
+    assert (saved.status, saved.revision, saved.headline) == ("pending", 1, "Add easy time")
     session.execute(text("ALTER TABLE activities RENAME COLUMN old_distance_m TO distance_m"))
     code, revised, error = run(*command)
     assert code == 0, error
@@ -247,6 +256,9 @@ def test_query_commands_and_schema(cli_db):
     run, session = cli_db
     code, schema, _ = run("schema")
     assert code == 0 and schema["activation"] == "manual" and schema["required_authority"] == "calendar"
+    assert schema["protocol"] == "coach_proposal.v2"
+    assert schema["proposal"]["properties"]["headline"]["maxLength"] == 100
+    assert "summary" not in schema["proposal"]["properties"]
     code, data, error = run("query", "calendar_diff", "--from", "0", "--to", "1")
     assert code == 0, error
     assert "changes" in data["data"]

@@ -145,7 +145,7 @@ def _add_version(session, uid, version, status, **extra):
         version=version,
         status=status,
         objective="Synthetic objective",
-        rationale="Synthetic rationale",
+        why=[{"kind": "inference", "text": "Synthetic"}],
         maintained_qualities=[],
         non_goals=[],
         eligible_recipe_ids=[],
@@ -153,7 +153,7 @@ def _add_version(session, uid, version, status, **extra):
         constraints={},
         start_date=date(2026, 11, 2),
         review_date=date(2026, 12, 2),
-        completion_indicators=[],
+        indicators=[],
         early_review_triggers=[],
         objective_status="unresolved",
     )
@@ -293,7 +293,7 @@ def test_put_events_order_conflicts(planning_fixture):
     assert _events(client) == [past, first, second]
 
 
-def _decide(session, uid, decision, to_version):
+def _decide(session, uid, decision, to_version, **extra):
     session.add(
         BlockDecision(
             block_uid=uid,
@@ -302,6 +302,7 @@ def _decide(session, uid, decision, to_version):
             rationale="Synthetic rationale",
             confidence="moderate",
             decided_at=datetime(2026, 11, 1, tzinfo=UTC),
+            **extra,
         )
     )
 
@@ -351,6 +352,39 @@ def test_block_responses_echo_build_outline(planning_fixture):
     assert _active(client)["build_outline"] == outline
     history = client.get(f"/api/v1/blocks/{block_uid}/history").json()["data"]["items"]
     assert [item["build_outline"] for item in history] == [[], outline]
+
+
+def test_block_responses_carry_why_indicators_legacy_text_and_sources(planning_fixture):
+    client, connection = planning_fixture
+    block_uid = uuid.uuid4()
+    why = [{"kind": "observation", "text": "Tempo held at RPE 6"}, {"kind": "inference", "text": "Calf is quiet"}]
+    indicators = [
+        {"source": "quality_progression", "label": "Tempo at the same RPE", "progress_when": "pace 2% faster"}
+    ]
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        session.add(Block(block_uid=block_uid))
+        session.flush()
+        _add_version(session, block_uid, 1, "active", why=why, indicators=indicators)
+        _decide(session, block_uid, "start", 1, evidence_ids=["E-AER-01"], policy_ids=["P001"])
+        session.commit()
+    active = _active(client)
+    assert {"why", "indicators", "legacy_text", "sources"} <= set(active)
+    assert {"rationale", "completion_indicators"}.isdisjoint(active)
+    assert (active["why"], active["indicators"], active["legacy_text"]) == (why, indicators, None)
+    assert [(s["kind"], s["title"]) for s in active["sources"]] == [
+        ("policy", "Work with missing or stale data"),
+        ("evidence", "Aerobic progression"),
+    ]
+    assert "E-AER" not in str(active["sources"]) and "P001" not in str(active["sources"])
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        _add_version(session, block_uid, 2, "active", why=[], legacy_text="Earlier prose")
+        session.commit()
+    migrated = _active(client)
+    assert (migrated["why"], migrated["indicators"], migrated["legacy_text"]) == ([], [], "Earlier prose")
+    assert migrated["sources"] == []
+    history = client.get(f"/api/v1/blocks/{block_uid}/history").json()["data"]["items"]
+    assert [item["why"] for item in history] == [why, []]
+    assert all("sources" not in item and "rationale" not in item for item in history)
 
 
 def test_event_blocks_returns_one_row_per_training_block_oldest_first(planning_fixture):

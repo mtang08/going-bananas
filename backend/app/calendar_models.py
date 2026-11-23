@@ -71,6 +71,7 @@ class CalendarSessionRevision(Base):
     structure: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     strength_slot_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     notes: Mapped[str | None] = mapped_column(Text)
+    brief: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     __table_args__ = (
         UniqueConstraint("session_uid", "revision"),
         CheckConstraint(

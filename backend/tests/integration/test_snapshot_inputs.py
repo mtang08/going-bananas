@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin, SymptomReport
+from app.coach_v2_models import CoachProposal, CoachSnapshot
 from app.metric_models import MetricResult
 from app.metrics.engine import REGISTRY, metric_modules
 from app.models import ImportBatch
@@ -24,6 +25,16 @@ from app.travel_models import GcalEvent, Trip, TripLeg
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 TODAY = date(2026, 11, 16)
+BLOCK_WHY = [{"kind": "priority", "text": "Build easy volume first"}]
+BLOCK_INDICATORS = [
+    {"source": "key_sessions", "label": "Tempo at the same RPE", "progress_when": "pace 2% faster at RPE 7 or lower"}
+]
+BRIEF = {
+    "effort": {"rpe_low": 3, "rpe_high": 4, "feel": "conversational"},
+    "focus": ["Relax shoulders"],
+    "adjust_if": [{"when": "Calf tight", "then": "walk 5 min"}],
+    "why": "Easy aerobic volume",
+}
 
 
 @pytest.fixture
@@ -60,7 +71,6 @@ def seeded(proposal_session):
             version=1,
             status="active",
             objective="Build",
-            rationale="Ready",
             maintained_qualities=[],
             non_goals=[],
             eligible_recipe_ids=["REC001"],
@@ -68,7 +78,9 @@ def seeded(proposal_session):
             constraints=[],
             start_date=TODAY,
             review_date=date(2026, 12, 28),
-            completion_indicators=[],
+            why=BLOCK_WHY,
+            indicators=BLOCK_INDICATORS,
+            legacy_text="Earlier rationale",
             early_review_triggers=[],
             objective_status="unresolved",
         )
@@ -283,3 +295,75 @@ def test_trips_enter_the_fingerprint(seeded):
     assert dismissed["source_fingerprint"] != pending["source_fingerprint"]
     _flight(seeded, "unrelated", NOW, NOW + timedelta(hours=1), "UTC", "UTC")
     assert state()["source_fingerprint"] == dismissed["source_fingerprint"]
+
+
+def test_load_inputs_session_brief_reaches_payload_without_notes(seeded):
+    uid = next(
+        str(row["session_uid"])
+        for row in calendar.state_at(seeded, 1)
+        if row["local_date"] == date(2026, 11, 20) and row["kind"] == "strength"
+    )
+    calendar.apply_edits(
+        seeded, 1, [{"op": "modify", "session_uid": uid, "fields": {"brief": BRIEF}}], "Coach brief", actor="coach"
+    )
+    seeded.commit()
+    inputs = load_inputs(seeded, TODAY, now=NOW)
+    row = next(row for row in inputs.sessions if row["session_uid"] == uid)
+    assert row["brief"] == BRIEF and "notes" not in row
+    assert all(row["brief"] is None for row in inputs.sessions if row["session_uid"] != uid)
+    view = next(row for row in build_payload(inputs, ROLLING)["calendar"]["sessions"] if row["session_uid"] == uid)
+    assert view["brief"] == BRIEF and "notes" not in view
+
+
+def test_load_inputs_active_block_carries_why_indicators_legacy_text(seeded):
+    block = load_inputs(seeded, TODAY, now=NOW).active_block
+    assert block["why"] == BLOCK_WHY
+    assert block["indicators"] == BLOCK_INDICATORS
+    assert block["legacy_text"] == "Earlier rationale"
+    assert "rationale" not in block and "completion_indicators" not in block
+
+
+def test_load_inputs_proposals_carry_headline_and_next_check(seeded):
+    snapshot = CoachSnapshot(
+        operation=ROLLING,
+        as_of=TODAY,
+        generated_at=NOW,
+        calendar_version_number=1,
+        data_revision=0,
+        payload={},
+        source_fingerprint="a" * 64,
+        source_versions={},
+        kb_digest="b" * 64,
+        payload_sha256="c" * 64,
+        kb_package_version="fixture",
+        kb_routes=[],
+        approx_tokens=1,
+    )
+    seeded.add(snapshot)
+    seeded.flush()
+    next_check = {"on": "2026-11-23", "check": "Thu tempo RPE"}
+    seeded.add(
+        CoachProposal(
+            operation=ROLLING,
+            snapshot_id=snapshot.id,
+            base_calendar_version=1,
+            status="accepted",
+            submitted_at=NOW,
+            decided_at=NOW,
+            headline="Hold volume",
+            next_check=next_check,
+            confidence={},
+            evidence_ids=[],
+            policy_ids=[],
+            recipe_ids=[],
+            payload={},
+            skill_version="fixture",
+            input_hash="d" * 64,
+        )
+    )
+    seeded.commit()
+    inputs = load_inputs(seeded, TODAY, now=NOW)
+    proposal = inputs.proposals[0]
+    assert proposal["headline"] == "Hold volume" and proposal["next_check"] == next_check
+    assert "summary" not in proposal and "follow_up" not in proposal
+    assert build_payload(inputs, ROLLING)["prior_decisions"][0]["headline"] == "Hold volume"

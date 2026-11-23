@@ -183,6 +183,7 @@ def _session_view(row: dict, completion: dict | None) -> dict:
             "planned_distance_m",
             "structure",
             "strength_slot_id",
+            "brief",
         ),
     )
     result["is_original"] = row["revision"] == 1
@@ -382,7 +383,7 @@ def _prior_decisions(inputs: SnapshotInputs, operation: str) -> list[dict]:
     patch_status = {str(p["proposal_id"]): p["status"] for p in inputs.exception_patches}
     for proposal in proposals:
         view = row_view(
-            proposal, ("proposal_id", "operation", "status", "submitted_at", "decided_at", "summary", "follow_up")
+            proposal, ("proposal_id", "operation", "status", "submitted_at", "decided_at", "headline", "next_check")
         )
         changes = []
         for change in proposal.get("changes", []):

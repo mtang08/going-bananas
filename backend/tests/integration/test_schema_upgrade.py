@@ -836,8 +836,7 @@ def test_exception_schema_constraints_and_downgrade_guard(isolated_schema):
         base_calendar_version=0,
         status="accepted",
         submitted_at=STAMP,
-        summary="s",
-        rationale="r",
+        headline="s",
         confidence="{}",
         payload='{"changes":[]}',
         skill_version="running-coach.v1",
@@ -891,7 +890,6 @@ def test_exception_schema_constraints_and_downgrade_guard(isolated_schema):
         version=1,
         status="active",
         objective="o",
-        rationale="r",
         progression_dimension="none",
         constraints="{}",
         start_date=STAMP.date(),
@@ -1039,7 +1037,6 @@ def test_race_goals_upgrade_deletes_events_keeps_references_and_guards_downgrade
         version=1,
         status="active",
         objective="o",
-        rationale="r",
         progression_dimension="none",
         constraints="{}",
         start_date=STAMP.date(),
@@ -1179,6 +1176,266 @@ def test_google_calendar_constraints_cascade_and_downgrade_guard(isolated_schema
     connection.commit()
     for table in ("gcal_events", "trips", "trip_legs"):
         assert not connection.execute(text(f"SELECT to_regclass('{table}') IS NOT NULL")).scalar_one()
+    _migration(connection, HEAD)
+    connection.commit()
+    assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
+
+
+def test_coach_output_v2_moves_prose_to_legacy_text_and_guards_downgrade(isolated_schema):
+    connection = isolated_schema
+    previous = "0024_google_calendar"
+    _migration(connection, previous)
+    snapshot = dict(
+        as_of=STAMP.date(),
+        generated_at=STAMP,
+        calendar_version_number=0,
+        data_revision=0,
+        payload="{}",
+        source_fingerprint="a" * 64,
+        source_versions="{}",
+        kb_digest="b" * 64,
+        payload_sha256="c" * 64,
+        kb_package_version="test",
+        kb_routes="[]",
+        approx_tokens=0,
+    )
+    snapshot_id = _insert(connection, "coach_snapshots", operation="review_training_block", **snapshot)
+    slot_id = uuid.uuid4()
+    block_change = {
+        "decision": "start",
+        "block_uid": None,
+        "version_fields": {
+            "status": "active",
+            "objective": "Threshold durability [E-AER-01]",
+            "rationale": "Base is complete.",
+            "completion_indicators": ["Tempo pace at RPE 6", "Calf stays quiet"],
+            "eligible_recipe_ids": ["REC001"],
+        },
+    }
+    document = {
+        "schema_version": "coach_proposal.v1",
+        "summary": "Start a threshold block (P015)",
+        "rationale": "Tempo held at RPE 6 [E-AER-01].",
+        "follow_up": "Report Thursday tempo RPE.",
+        "block_change": block_change,
+        "changes": [],
+    }
+    proposal = dict(
+        operation="review_training_block",
+        snapshot_id=snapshot_id,
+        base_calendar_version=0,
+        submitted_at=STAMP,
+        confidence="{}",
+        skill_version="running-coach.v1",
+    )
+    pending_id = _insert(
+        connection,
+        "coach_proposals",
+        **proposal,
+        status="pending",
+        summary=document["summary"],
+        rationale=document["rationale"],
+        follow_up=document["follow_up"],
+        block_change=json.dumps(block_change),
+        payload=json.dumps(document),
+        input_hash="a" * 64,
+    )
+    accepted_document = {
+        "schema_version": "coach_proposal.v1",
+        "summary": "Keep the week",
+        "rationale": "",
+        "policy_ids": ["P015"],
+        "exception": {"triggering_evidence": "Calf sore [E-AER-01]", "monitor": ["Calf P015"]},
+        "event_review": {"pacing": "Even (P015)"},
+        "patch_resolutions": [{"patch_id": str(snapshot_id), "note": "Closed [E-AER-01]"}],
+    }
+    accepted_id = _insert(
+        connection,
+        "coach_proposals",
+        **proposal,
+        status="accepted",
+        summary="Keep the week",
+        rationale="",
+        block_change="null",
+        payload=json.dumps(accepted_document),
+        input_hash="b" * 64,
+    )
+    _insert(
+        connection,
+        "coach_proposal_changes",
+        proposal_id=accepted_id,
+        change_id="c1",
+        op="add",
+        after=json.dumps(
+            {
+                "intent": "Tempo P015",
+                "notes": "Even [E-AER-01]",
+                "recipe_id": "REC001",
+                "strength_slot_id": str(slot_id),
+            }
+        ),
+        reason="Adds tempo [E-AER-01]",
+        decision="accepted",
+    )
+    connection.execute(
+        text(
+            "INSERT INTO coach_proposal_revisions (proposal_id, revision, saved_at, reason, payload, "
+            "changed_change_ids, changed_fields) VALUES (:id, 1, :at, 'Cut P015', :payload, '{}', '{}')"
+        ),
+        {"id": pending_id, "at": STAMP, "payload": json.dumps(document)},
+    )
+    block_uid = uuid.uuid4()
+    _insert(connection, "blocks", block_uid=block_uid)
+    version = dict(
+        block_uid=block_uid,
+        status="active",
+        objective="Aerobic base P015",
+        progression_dimension="none",
+        constraints='[{"kind": "calf", "text": "No hills P015"}]',
+        start_date=STAMP.date(),
+        review_date=STAMP.date(),
+        objective_status="unresolved",
+    )
+    first_version = _insert(
+        connection,
+        "block_versions",
+        **version,
+        version=1,
+        rationale="Aerobic base first.",
+        completion_indicators='{"Easy pace at HR 140","Three long runs"}',
+        maintained_qualities='{"Strides P015"}',
+        non_goals='{"Speed [E-AER-01]"}',
+        early_review_triggers='{"Calf P015"}',
+        benchmark='{"protocol": "5K TT P015", "progress_if": "faster", "consolidate_if": "slower"}',
+        build_outline='[{"emphasis": "Volume [E-AER-01]"}]',
+    )
+    second_version = _insert(connection, "block_versions", **version, version=2, rationale="")
+    _insert(
+        connection, "block_benchmarks", block_uid=block_uid, block_version=1, match_method="manual", protocol="5K P015"
+    )
+    _insert(connection, "calendar_versions", number=1, kind="proposal_accept", actor="coach", reason="Keep P015")
+    _insert(
+        connection,
+        "calendar_session_revisions",
+        session_uid=uuid.uuid4(),
+        revision=1,
+        calendar_version_number=1,
+        local_date=STAMP.date(),
+        kind="run",
+        intent="Easy P015",
+        certainty="committed",
+        structure='{"steps": [{"target": {"effort_cue": "easy [E-AER-01]"}}]}',
+        notes="Coach: keep it conversational",
+    )
+    connection.commit()
+    pending_payload = connection.execute(
+        text("SELECT payload::text FROM coach_proposals WHERE id = :id"), {"id": pending_id}
+    ).scalar_one()
+    _migration(connection, HEAD)
+    connection.commit()
+    rows = {
+        row.id: row
+        for row in connection.execute(
+            text(
+                "SELECT id, status, discarded_at, headline, why, uncertainty, change_triggers, next_check, coach_note, "
+                "legacy_text, block_change, payload::text AS payload FROM coach_proposals"
+            )
+        )
+    }
+    pending, accepted = rows[pending_id], rows[accepted_id]
+    assert (pending.status, pending.headline) == ("discarded", "Start a threshold block") and pending.discarded_at
+    assert pending.legacy_text == (
+        "Tempo held at RPE 6.\n\n"
+        "Next check-in: Report Thursday tempo RPE.\n\n"
+        "Block rationale: Base is complete.\n\n"
+        "Completion indicators:\n- Tempo pace at RPE 6\n- Calf stays quiet"
+    )
+    assert (pending.why, pending.uncertainty, pending.change_triggers, pending.next_check) == ([], [], [], None)
+    assert pending.block_change == {
+        "decision": "start",
+        "block_uid": None,
+        "version_fields": {
+            "status": "active",
+            "objective": "Threshold durability",
+            "eligible_recipe_ids": ["REC001"],
+            "why": [],
+            "indicators": [],
+        },
+    }
+    assert (accepted.status, accepted.discarded_at, accepted.legacy_text) == ("accepted", None, None)
+    assert accepted.block_change is None
+    assert pending.payload == pending_payload
+    assert json.loads(accepted.payload) == {
+        **accepted_document,
+        "exception": {"triggering_evidence": "Calf sore", "monitor": ["Calf"]},
+        "event_review": {"pacing": "Even"},
+        "patch_resolutions": [{"patch_id": str(snapshot_id), "note": "Closed"}],
+    }
+    displayed = connection.execute(
+        text(
+            "SELECT string_agg(v, ' | ') FROM ("
+            "SELECT concat_ws(' ', headline, legacy_text, block_change) AS v FROM coach_proposals "
+            "UNION ALL SELECT concat_ws(' ', reason, after) FROM coach_proposal_changes "
+            "UNION ALL SELECT reason FROM coach_proposal_revisions "
+            "UNION ALL SELECT concat_ws(' ', objective, maintained_qualities, non_goals, early_review_triggers, "
+            "constraints, benchmark, build_outline, legacy_text) FROM block_versions "
+            "UNION ALL SELECT protocol FROM block_benchmarks "
+            "UNION ALL SELECT reason FROM calendar_versions "
+            "UNION ALL SELECT concat_ws(' ', intent, structure) FROM calendar_session_revisions) AS t"
+        )
+    ).scalar_one()
+    assert "E-AER-01" not in displayed and "P015" not in displayed and '"notes"' not in displayed
+    assert '"recipe_id": "REC001"' in displayed and '"eligible_recipe_ids": ["REC001"]' in displayed
+    assert f'"strength_slot_id": "{slot_id}"' in displayed
+    versions = {
+        row.id: row
+        for row in connection.execute(text("SELECT id, objective, why, indicators, legacy_text FROM block_versions"))
+    }
+    assert (versions[first_version].objective, versions[first_version].legacy_text) == (
+        "Aerobic base",
+        "Aerobic base first.\n\nCompletion indicators:\n- Easy pace at HR 140\n- Three long runs",
+    )
+    assert (versions[first_version].why, versions[first_version].indicators) == ([], [])
+    assert versions[second_version].legacy_text is None
+    assert connection.execute(text("SELECT notes, brief FROM calendar_session_revisions")).one() == (None, None)
+
+    for apply, undo in [
+        (
+            "UPDATE coach_proposals SET payload = jsonb_set(payload, '{schema_version}', '\"coach_proposal.v2\"')",
+            "UPDATE coach_proposals SET payload = jsonb_set(payload, '{schema_version}', '\"coach_proposal.v1\"')",
+        ),
+        ("UPDATE block_versions SET why = '[{}]'", "UPDATE block_versions SET why = '[]'"),
+        ("UPDATE block_versions SET indicators = '[{}]'", "UPDATE block_versions SET indicators = '[]'"),
+        ("UPDATE calendar_session_revisions SET brief = '{}'", "UPDATE calendar_session_revisions SET brief = NULL"),
+    ]:
+        connection.execute(text(apply))
+        connection.commit()
+        with pytest.raises(RuntimeError, match="restore_required_coach_output_v2"):
+            _migration(connection, previous, down=True)
+        connection.rollback()
+        connection.execute(text(undo))
+        connection.commit()
+    # A JSON null brief, as the ORM writes for None, holds no v2 data and must not block the downgrade.
+    connection.execute(text("UPDATE calendar_session_revisions SET brief = 'null'::jsonb"))
+    connection.commit()
+    _migration(connection, previous, down=True)
+    connection.commit()
+    restored = {
+        row.id: row
+        for row in connection.execute(
+            text("SELECT id, summary, rationale, follow_up, block_change FROM coach_proposals")
+        )
+    }
+    assert (restored[pending_id].summary, restored[pending_id].rationale, restored[pending_id].follow_up) == (
+        "Start a threshold block",
+        "Tempo held at RPE 6 [E-AER-01].",
+        "Report Thursday tempo RPE.",
+    )
+    assert restored[pending_id].block_change == block_change
+    assert (restored[accepted_id].rationale, restored[accepted_id].follow_up) == ("", None)
+    assert connection.execute(
+        text("SELECT rationale, completion_indicators FROM block_versions WHERE id = :id"), {"id": first_version}
+    ).one() == (versions[first_version].legacy_text, [])
     _migration(connection, HEAD)
     connection.commit()
     assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD

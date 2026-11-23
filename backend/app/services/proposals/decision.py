@@ -87,6 +87,8 @@ def _save_block(
         session.flush()
     fields = change.version_fields.model_dump(mode="python")
     fields["constraints"] = [item.model_dump() for item in change.version_fields.constraints]
+    fields["why"] = [item.model_dump() for item in change.version_fields.why]
+    fields["indicators"] = [item.model_dump() for item in change.version_fields.indicators]
     fields["benchmark"] = (
         change.version_fields.benchmark.model_dump(mode="json") if change.version_fields.benchmark else None
     )
@@ -106,7 +108,7 @@ def _save_block(
             decision=change.decision,
             from_version=old.version if old else None,
             to_version=version.version,
-            rationale=doc.rationale,
+            rationale="\n".join(f"{w.kind}: {w.text}" for w in change.version_fields.why),
             evidence_ids=doc.evidence_ids,
             policy_ids=doc.policy_ids,
             confidence=doc.confidence.decision,
@@ -311,7 +313,7 @@ def decide_proposal(
         raise DecisionError(code, message, 409, commit=True)
     accepted, rejected, anchors = set(req.accept_change_ids), set(req.reject_change_ids), set(req.accept_anchor_changes)
     required = {change.change_id for change in doc.changes}
-    known_anchors = {anchor_key(item, ctx.tz) for item in doc.anchor_changes}
+    known_anchors = {anchor_key(item.kind, item.calibrated_at, ctx.tz) for item in doc.anchor_changes}
     if (
         accepted & rejected
         or accepted | rejected != required
@@ -330,7 +332,7 @@ def decide_proposal(
             changed = True
     anchor_keys: list[str] = []
     for item in doc.anchor_changes:
-        if anchor_key(item, ctx.tz) in anchors:
+        if anchor_key(item.kind, item.calibrated_at, ctx.tz) in anchors:
             fields = item.model_dump(mode="python")
             fields.update(
                 proposal_id=proposal_id,
@@ -365,7 +367,7 @@ def decide_proposal(
             session,
             state.calendar_head_version,
             edits,
-            doc.summary,
+            doc.headline,
             kind="proposal_accept",
             actor="coach",
             proposal_id=proposal_id,

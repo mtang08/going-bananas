@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import asdict
 from datetime import UTC, datetime
-from typing import Any, Literal, cast
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -22,7 +22,7 @@ from app.services.decision_inputs import VerifiedKnowledge
 from app.services.proposals.context import load_context, snapshot_ref
 from app.services.proposals.decision import DecisionRequest, decide_proposal
 from app.services.proposals.lifecycle import RevisionRequest, discard_proposal, revise_proposal
-from app.services.proposals.schema import AnchorChange, DecisionError, SessionFields, anchor_key
+from app.services.proposals.schema import DecisionError, SessionFields, anchor_key
 from app.services.proposals.validation import proposal_freshness
 from app.services.timezone import athlete_tz
 
@@ -45,7 +45,7 @@ def proposal_summary(proposal: CoachProposal) -> dict:
                 "submitted_at",
                 "decided_at",
                 "discarded_at",
-                "summary",
+                "headline",
                 "base_calendar_version",
             )
         },
@@ -85,13 +85,17 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
             "submitted_at",
             "decided_at",
             "discarded_at",
-            "summary",
-            "rationale",
+            "headline",
+            "why",
+            "uncertainty",
+            "change_triggers",
+            "next_check",
+            "coach_note",
+            "legacy_text",
             "confidence",
             "evidence_ids",
             "policy_ids",
             "recipe_ids",
-            "follow_up",
             "escalation",
             "base_calendar_version",
             "base_block_version_id",
@@ -103,6 +107,10 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
     data["decision_result"] = (
         {"proposal_id": proposal.id, **proposal.decision_result} if proposal.decision_result else None
     )
+    try:
+        data["sources"] = knowledge.cited_sources(proposal.evidence_ids, proposal.policy_ids)
+    except knowledge.KnowledgeIntegrityError:
+        data["sources"] = []
     data["revisions"] = [
         {key: getattr(row, key) for key in ("revision", "saved_at", "reason", "changed_change_ids", "changed_fields")}
         for row in session.scalars(
@@ -112,8 +120,11 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
         )
     ]
     data["anchor_changes"] = [
-        {**item, "anchor_key": anchor_key(AnchorChange.model_validate(item), athlete_tz(session))}
-        for item in cast(list[dict[str, Any]], proposal.anchor_changes or [])
+        {
+            **item,
+            "anchor_key": anchor_key(item["kind"], datetime.fromisoformat(item["calibrated_at"]), athlete_tz(session)),
+        }
+        for item in proposal.anchor_changes or []
     ]
     stored = {item["change_id"]: item for item in proposal.payload.get("changes", [])}
     changes = list(session.scalars(select(CoachProposalChange).where(CoachProposalChange.proposal_id == proposal.id)))

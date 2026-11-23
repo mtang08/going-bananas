@@ -42,6 +42,7 @@ WRITE_FIELDS = frozenset(
         "structure",
         "strength_slot_id",
         "notes",
+        "brief",
         "locked",
     }
 )
@@ -332,6 +333,7 @@ def _validate_fields(fields: dict, *, existing: dict | None = None, legacy_unstr
                 "structure": None,
                 "strength_slot_id": None,
                 "notes": None,
+                "brief": None,
                 "locked": False,
             }
         ),
@@ -364,6 +366,8 @@ def _validate_fields(fields: dict, *, existing: dict | None = None, legacy_unstr
         fail("invalid_session_fields", "Unknown recipe ID")
     if result.get("notes") is not None and not isinstance(result["notes"], str):
         fail("invalid_session_fields", "Notes must be text")
+    if result.get("brief") is not None and not isinstance(result["brief"], dict):
+        fail("invalid_session_fields", "Brief must be an object")
     if result.get("kind") == "run" and not (recipe or result["custom"] or result["placeholder"] or legacy_unstructured):
         fail("invalid_session_fields", "Run needs a recipe, custom flag, or placeholder")
     if result["placeholder"] and (result.get("recipe_id") is not None or result["custom"]):
@@ -491,6 +495,8 @@ def apply_edits(
             supplied = edit.get("fields")
             if not isinstance(supplied, dict):
                 fail("invalid_calendar_edit", "Fields required")
+            if "brief" in supplied and actor != "coach":
+                fail("invalid_session_fields", "Unexpected session field")
             if op == "move" and "local_date" not in supplied:
                 fail("invalid_calendar_edit", "Move requires local date")
             base = _fields(previous) if previous else None
@@ -501,6 +507,14 @@ def apply_edits(
             )
             if previous and fields == base:
                 fail("edit_no_change", "Session is unchanged")
+            if (
+                previous
+                and base
+                and op == "modify"
+                and (actor != "coach" or "brief" not in supplied)
+                and any(fields[key] != base[key] for key in ("kind", "recipe_id", "structure", "intent"))
+            ):
+                fields["brief"] = None
             deleted = False
             if fields["local_date"] < today:
                 fail("protected_session", "Historical session cannot change")
@@ -659,6 +673,7 @@ def bootstrap_plan(
                 "structure": None,
                 "strength_slot_id": None,
                 "notes": None,
+                "brief": None,
                 "locked": False,
                 "legacy_unstructured": False,
                 "legacy_payload": None,
@@ -688,6 +703,7 @@ def bootstrap_plan(
                 "structure": None,
                 "strength_slot_id": slot_id,
                 "notes": None,
+                "brief": None,
                 "locked": False,
                 "legacy_unstructured": False,
                 "legacy_payload": {"optional": True} if occurrence.get("optional") else None,

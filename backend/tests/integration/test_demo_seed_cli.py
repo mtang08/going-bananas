@@ -25,6 +25,8 @@ from app.migrations_head import EXPECTED_HEAD
 from app.models import Activity, AppState, ProfileVersion
 from app.services import calendar
 from app.services.calendar import state_at
+from app.services.proposals.schema import SessionBrief
+from app.services.proposals.validation import ID_TOKEN
 
 
 @pytest.fixture
@@ -80,6 +82,20 @@ def test_calendar_preview_initializes_fresh_migrated_database(demo_cli, capsys, 
             row for row in rows if row["kind"] == "run" and row["local_date"] == today - timedelta(days=2)
         )
         assert historical["recipe_id"] == "REC002"
+        window = [
+            row for row in rows if row["kind"] == "run" and today <= row["local_date"] <= today + timedelta(days=13)
+        ]
+        briefed = [row for row in window if row["recipe_id"] in {"REC001", "REC002"}]
+        assert {row["recipe_id"] for row in briefed} == {"REC001", "REC002"}
+        for row in briefed:
+            brief = SessionBrief.model_validate(row["brief"])
+            assert brief.effort.rpe_low <= brief.effort.rpe_high and brief.adjust_if
+            assert not ID_TOKEN.search(json.dumps(row["brief"]))
+        assert all(row["brief"] is None for row in rows if row not in briefed)
+        assert (
+            session.scalar(select(func.count()).select_from(CalendarVersion).where(CalendarVersion.actor == "coach"))
+            == 1
+        )
         activity = session.execute(
             select(Activity).where(Activity.local_date == today - timedelta(days=14))
         ).scalar_one()
