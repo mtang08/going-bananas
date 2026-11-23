@@ -88,7 +88,7 @@ def run_cli(root: Path, mode: str, arguments: list[str]):
 def verify_protocol(root: Path, mode: str):
     code, schema = run_cli(root, mode, ['schema'])
     if code or any(schema.get(k) != value for k, value in {
-            'protocol': 'coach_proposal.v1', 'activation': 'manual', 'required_authority': 'calendar'}.items()):
+            'protocol': 'coach_proposal.v2', 'activation': 'manual', 'required_authority': 'calendar'}.items()):
         raise HelperError('incompatible_coach_protocol', 2)
     return schema
 
@@ -96,7 +96,7 @@ def verify_protocol(root: Path, mode: str):
 def save_proposal(root: Path, mode: str, source: Path) -> Path:
     try:
         raw = json.loads(source.read_text(encoding='utf-8'))
-        if not isinstance(raw, dict) or raw.get('schema_version') != 'coach_proposal.v1':
+        if not isinstance(raw, dict) or raw.get('schema_version') != 'coach_proposal.v2':
             raise ValueError()
         UUID(raw['snapshot_id'])
         json.dumps(raw, allow_nan=False)
