@@ -206,7 +206,10 @@ def to_record(item: dict[str, Any]) -> dict[str, Any] | None:
         raise GcalError("gcal_invalid_response")
     try:
         times = _times(start, end)
-    except (TypeError, ValueError):
+        updated = item.get("updated")
+        if updated is not None:
+            _utc(updated)
+    except (TypeError, ValueError, OverflowError):
         raise GcalError("gcal_invalid_response") from None
     if times is None:
         return None
@@ -226,19 +229,19 @@ def to_record(item: dict[str, Any]) -> dict[str, Any] | None:
         "end_at": end_at,
         "start_date": start_date,
         "end_date": end_date,
-        "start_tz": _optional_string(start.get("timeZone")),
-        "end_tz": _optional_string(end.get("timeZone")),
+        "start_tz": _optional_string(start.get("timeZone"), max_length=64),
+        "end_tz": _optional_string(end.get("timeZone"), max_length=64),
         "transparency": transparency,
         "response_status": response,
         "busy": transparency != "transparent" and response != "declined",
-        "google_updated_at": _optional_string(item.get("updated")),
+        "google_updated_at": updated,
     }
     record["content_hash"] = content_hash(record)
     return record
 
 
-def _optional_string(value: Any) -> str | None:
-    if value is not None and not isinstance(value, str):
+def _optional_string(value: Any, *, max_length: int | None = None) -> str | None:
+    if value is not None and (not isinstance(value, str) or (max_length is not None and len(value) > max_length)):
         raise GcalError("gcal_invalid_response")
     return value
 

@@ -203,6 +203,8 @@ def test_to_record_skips_cancelled_and_incomplete():
         {"id": "y", "start": {"date": "2026-13-40"}, "end": {"date": "2026-12-04"}},
         {**ITEMS["evt-flight-1"], "attendees": ["private@example.invalid"]},
         {**ITEMS["evt-flight-1"], "start": ["private"]},
+        {**ITEMS["evt-flight-1"], "updated": "unknown"},
+        {**ITEMS["evt-flight-1"], "start": {**ITEMS["evt-flight-1"]["start"], "timeZone": "X" * 65}},
     ],
 )
 def test_to_record_rejects_malformed_items(item):
