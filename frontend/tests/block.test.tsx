@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Block } from '../src/pages/Block'
 import { fmtDuration } from '../src/lib/format'
-import type { BlockVersion, BenchmarkStatus } from '../src/api/types/blocks'
+import type { ActiveBlock, BenchmarkStatus } from '../src/api/types/blocks'
 const BM = {
   kind: 'time_trial' as const,
   event_id: null,
@@ -28,18 +28,20 @@ const status = (over: Partial<BenchmarkStatus> = {}): BenchmarkStatus => ({
 })
 let calls: { url: string; method: string; body: unknown; headers: Headers }[] = []
 let runsError = false
-let block: BlockVersion | null
+let block: ActiveBlock | null
+let history: ActiveBlock[] | null
 const clients: QueryClient[] = []
 beforeEach(() => {
   calls = []
   runsError = false
+  history = null
   block = {
     id: 'v1',
     block_uid: 'b1',
     version: 1,
     status: 'active',
     objective: 'Build consistency',
-    rationale: 'Keep the week repeatable',
+    why: [],
     maintained_qualities: ['Easy endurance'],
     non_goals: ['Peak racing'],
     eligible_recipe_ids: ['REC001'],
@@ -47,11 +49,19 @@ beforeEach(() => {
     constraints: [{ kind: 'schedule', text: 'Keep strength days' }],
     start_date: '2026-11-01',
     review_date: '2026-12-13',
-    completion_indicators: ['Tolerated weeks'],
+    indicators: [
+      {
+        source: 'key_sessions',
+        label: 'Tolerated weeks',
+        progress_when: '7 of 8 sessions or more',
+      },
+    ],
     early_review_triggers: ['Symptoms increase'],
     objective_status: 'unresolved',
     created_at: '2026-11-01T12:00:00Z',
     proposal_id: 'p1',
+    legacy_text: null,
+    sources: [],
   }
   vi.stubGlobal(
     'fetch',
@@ -101,7 +111,7 @@ beforeEach(() => {
           : url.endsWith('/calendar')
             ? { today: '2026-11-12' }
             : url.endsWith('/history')
-              ? { items: block ? [block] : [] }
+              ? { items: history ?? (block ? [block] : []) }
               : block
       return {
         ok: true,
@@ -171,7 +181,7 @@ it('labels review due today without a completion percentage', async () => {
 it('shows a block without a benchmark', async () => {
   mount()
   expect(await screen.findByTestId('block-benchmark')).toHaveTextContent(
-    'No benchmark in this block. Its review judges the completion indicators above.',
+    "No benchmark in this block. Its review judges the block's review criteria instead.",
   )
   expect(screen.queryByLabelText('Choose activity')).toBeNull()
 })
@@ -245,4 +255,130 @@ it('shows activity loading failure and retries without changing the match', asyn
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
   expect(await screen.findByRole('option', { name: 'Nov 8 · 3.1 mi' })).toBeInTheDocument()
   expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(0)
+})
+
+it('shows indicators as a table with source labels', async () => {
+  block!.indicators = [
+    {
+      source: 'quality_progression',
+      label: 'Tempo reps at the same RPE',
+      progress_when: 'pace 2% faster at RPE 7 or lower',
+    },
+    { source: 'rpe_vs_intent', label: 'Easy days stay easy', progress_when: 'RPE 4 or lower' },
+  ]
+  mount()
+  expect(await screen.findByRole('heading', { name: 'Review this block by' })).toBeVisible()
+  expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+    'Indicator',
+    'Progress when',
+    'Source',
+  ])
+  expect(
+    screen.getByRole('row', {
+      name: /Tempo reps at the same RPE.*pace 2% faster.*Workout progression/,
+    }),
+  ).toBeVisible()
+  expect(screen.getByRole('row', { name: /Easy days stay easy.*Effort vs plan/ })).toBeVisible()
+})
+
+it('shows the review-early line and maintains chips', async () => {
+  block!.early_review_triggers = ['Calf 3/10 twice', '2 missed key sessions']
+  mount()
+  expect((await screen.findByText('Review early if:')).closest('p')).toHaveTextContent(
+    'Review early if: Calf 3/10 twice · 2 missed key sessions',
+  )
+  expect(screen.getByText('Maintains:')).toBeVisible()
+  expect(screen.getByText('Easy endurance')).toBeVisible()
+})
+
+it('keeps why, sources, constraints and eligible sessions in disclosures', async () => {
+  block!.why = [
+    { kind: 'observation', text: 'Tempo held two weeks running' },
+    { kind: 'priority', text: 'City 10K is the goal race' },
+  ]
+  block!.sources = [
+    { kind: 'policy', title: 'Progress one variable at a time', papers: ['Paper A (2020)'] },
+  ]
+  mount()
+  const summaries = await Promise.all(
+    ['Why this block', 'Constraints and out of scope', 'Eligible sessions'].map((text) =>
+      screen.findByText(text),
+    ),
+  )
+  for (const summary of summaries) {
+    expect(summary.tagName).toBe('SUMMARY')
+    expect(summary.closest('details')).not.toHaveAttribute('open')
+    fireEvent.click(summary)
+  }
+  expect(screen.getByText('Observed')).toBeVisible()
+  expect(screen.getByText('Your priority')).toBeVisible()
+  expect(screen.getByText('Tempo held two weeks running')).toBeVisible()
+  expect(screen.getByText('City 10K is the goal race')).toBeVisible()
+  fireEvent.click(screen.getByText('Sources (1)'))
+  expect(screen.getByText('Progress one variable at a time')).toHaveAttribute(
+    'title',
+    'Paper A (2020)',
+  )
+  expect(screen.getByText('Easy run')).toBeVisible()
+  expect(screen.getByText('Keep strength days')).toBeVisible()
+  expect(screen.getByText('Peak racing')).toBeVisible()
+})
+
+it('shows only Earlier format for a migrated block without structured criteria', async () => {
+  block = {
+    ...block!,
+    why: [],
+    indicators: [],
+    early_review_triggers: [],
+    maintained_qualities: [],
+    non_goals: [],
+    constraints: [],
+    eligible_recipe_ids: [],
+    sources: [],
+    legacy_text: 'Keep the week repeatable\n\nReview goals:\n- Tolerated weeks',
+  }
+  mount()
+  const direction = within(
+    (await screen.findByRole('heading', { name: 'Build consistency' })).closest(
+      '.block-direction',
+    )!,
+  )
+  expect(direction.getByText('Earlier format').closest('details')).not.toHaveAttribute('open')
+  expect(direction.getByText('Keep the week repeatable')).not.toBeVisible()
+  for (const label of [
+    'Review this block by',
+    'Why this block',
+    'Review early if:',
+    'Maintains:',
+    'Eligible sessions',
+    'Constraints and out of scope',
+  ]) {
+    expect(direction.queryByText(label)).not.toBeInTheDocument()
+  }
+})
+
+it('lists block history one line per version with why on expand', async () => {
+  history = [
+    block!,
+    {
+      ...block!,
+      id: 'v0',
+      version: 0,
+      status: 'replaced',
+      objective: 'Earlier base',
+      why: [{ kind: 'inference', text: 'Base first' }],
+      legacy_text: null,
+    },
+  ]
+  mount()
+  fireEvent.click(await screen.findByText('Block history'))
+  const current = await screen.findByText('Version 1 · active · Build consistency')
+  const earlier = screen.getByText('Version 0 · replaced · Earlier base')
+  for (const summary of [current, earlier]) {
+    expect(summary.tagName).toBe('SUMMARY')
+    expect(summary.closest('details')).not.toHaveAttribute('open')
+  }
+  fireEvent.click(earlier)
+  expect(screen.getByText('Inference')).toBeVisible()
+  expect(screen.getByText('Base first')).toBeVisible()
 })

@@ -135,6 +135,7 @@ const base: ActivityExecution = {
     recipe_id: null,
     custom: true,
     intent: '4 × 800 m',
+    brief: null,
     planned_duration_s: null,
     planned_distance_m: null,
     structure,
@@ -570,6 +571,53 @@ describe('Activity execution', () => {
     await waitFor(() => expect(screen.getByText('Could not load this view')).toBeInTheDocument())
     expect(screen.getByText('Activity not found')).toBeInTheDocument()
   })
+  it('shows effort and adjust-if from the session brief before athlete notes', async () => {
+    fixture = {
+      ...base,
+      planned: {
+        ...base.planned!,
+        notes: 'Felt flat after travel',
+        brief: {
+          effort: { rpe_low: 6, rpe_high: 7, feel: 'controlled' },
+          focus: ['Even splits'],
+          adjust_if: [{ when: 'Rep pace fades more than 5%', then: 'stop after rep 4' }],
+          why: 'Last two sessions hit pace at RPE 7',
+        },
+      },
+    }
+    mount()
+    const card = within(
+      (await screen.findByRole('heading', { name: 'Planned vs actual' })).parentElement!,
+    )
+    expect(card.getByText('RPE 6–7')).toBeVisible()
+    expect(card.getByText('controlled')).toBeVisible()
+    expect(card.getByText('Rep pace fades more than 5%').closest('li')).toHaveTextContent(
+      'Rep pace fades more than 5% → stop after rep 4',
+    )
+    const note = card.getByText('Felt flat after travel')
+    expect(note).toBeVisible()
+    expect(
+      card.getByRole('heading', { name: 'Adjust if' }).compareDocumentPosition(note) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(card.queryByText('Even splits')).not.toBeInTheDocument()
+    expect(card.queryByText('Last two sessions hit pace at RPE 7')).not.toBeInTheDocument()
+  })
+
+  it.each([null, 'Keep the route flat'])(
+    'renders no brief controls for an unbriefed activity with notes %s',
+    async (notes) => {
+      fixture = { ...base, planned: { ...base.planned!, notes } }
+      mount()
+      const planned = (await screen.findByRole('heading', { name: 'Planned vs actual' }))
+        .parentElement!
+      expect(planned.querySelector('.session-brief')).toBeNull()
+      expect(within(planned).queryByText('Adjust if')).not.toBeInTheDocument()
+      if (notes) expect(within(planned).getByText(notes)).toBeVisible()
+      else expect(planned.querySelector('.activity-planned-notes')).toBeNull()
+    },
+  )
+
   it('preserves imported prescription notes without claiming structured comparison', async () => {
     fixture = {
       ...base,

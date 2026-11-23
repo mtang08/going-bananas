@@ -8,6 +8,8 @@ import { ProposalReview } from '../src/pages/ProposalReview'
 import type { ProposalDecision, ProposalDetail } from '../src/api/types/coach'
 import type { PlannedStep, SessionState } from '../src/api/types/calendar'
 
+Object.defineProperty(Element.prototype, 'scrollIntoView', { value: vi.fn(), configurable: true })
+
 const unchangedSession: SessionState = {
   id: 's7-rev',
   session_uid: 's7',
@@ -30,6 +32,7 @@ const unchangedSession: SessionState = {
   structure: null,
   strength_slot_id: null,
   notes: null,
+  brief: null,
   is_original: true,
   changed_by_version: 2,
   exception_patch: null,
@@ -74,8 +77,13 @@ beforeEach(() => {
     status: 'pending',
     submitted_at: '2026-11-12T12:00:00Z',
     decided_at: null,
-    summary: 'Adjust the next week',
-    rationale: 'Keep the run manageable',
+    headline: 'Adjust the next week',
+    why: [{ kind: 'observation', text: 'Keep the run manageable' }],
+    uncertainty: [],
+    change_triggers: [],
+    coach_note: null,
+    legacy_text: null,
+    sources: [],
     confidence: { decision: 'moderate', evidence: 'high', data: 'moderate' },
     base_calendar_version: 7,
     base_block_version_id: null,
@@ -87,7 +95,7 @@ beforeEach(() => {
     evidence_ids: ['E-AER-01'],
     policy_ids: ['P001'],
     recipe_ids: ['REC001'],
-    follow_up: 'Review after the run',
+    next_check: { on: '2026-11-19', check: 'Review after the run' },
     escalation: null,
     decision_result: null,
     exception: null,
@@ -251,20 +259,22 @@ async function select(...ids: string[]) {
 }
 
 it('renders coach paragraphs and bullets safely with confidence collapsed and follow-up after the plan', async () => {
-  proposal.summary = 'Keep this week manageable.\n\nPreserve the confirmed strength days.'
-  proposal.rationale = '- Recent runs felt harder. [E-AER-01]\n- Hold volume steady.'
+  proposal.headline = 'Keep this week manageable.'
+  proposal.why = [
+    { kind: 'observation', text: 'Recent runs felt harder.' },
+    { kind: 'inference', text: 'Hold volume steady.' },
+  ]
   proposal.changes[0].reason = '<script>alert("test")</script>'
   const { container } = mount()
   await screen.findByText('Keep this week manageable.')
-  expect(screen.getByText('Preserve the confirmed strength days.').tagName).toBe('P')
-  expect(screen.getByText('Recent runs felt harder.').tagName).toBe('LI')
+  expect(screen.getByText('Recent runs felt harder.')).toBeVisible()
   expect(screen.getByText('Confidence details').closest('details')).not.toHaveAttribute('open')
   expect(screen.getByText('<script>alert("test")</script>')).toBeInTheDocument()
   expect(container.querySelector('script')).toBeNull()
   const table = screen.getByRole('table', { name: 'Proposed plan changes' })
   expect(
-    table.compareDocumentPosition(screen.getByText('Review after the run')) &
-      Node.DOCUMENT_POSITION_FOLLOWING,
+    table.compareDocumentPosition(screen.getByText(/Review after the run/)) &
+      Node.DOCUMENT_POSITION_PRECEDING,
   ).toBeTruthy()
 })
 
@@ -320,6 +330,10 @@ it.each(['delete', 'add'] as const)(
     expect(row.getByText(reason)).toBeInTheDocument()
     expect(row.getByText('This change applies only to the lift.')).toBeInTheDocument()
     expect(row.queryByText('Rest')).not.toBeInTheDocument()
+    expect(row.queryByText(/^RPE/)).not.toBeInTheDocument()
+    expect(omission.closest('tr')?.nextElementSibling).not.toHaveClass('proposal-detail-row')
+    fireEvent.click(row.getByRole('link', { name: 'Read reason 1' }))
+    expect(document.getElementById('proposal-reason-1')).toBeNull()
     expect(omission).toBeChecked()
 
     fireEvent.click(omission)
@@ -628,7 +642,7 @@ it('shows saved block and anchor decisions after reopening a terminal proposal',
 })
 
 it('shows the complete proposed workouts in date order with matching numbered reasons and no evidence tags', async () => {
-  proposal.rationale = 'Keep the training manageable. [E-AER-01, P001]'
+  proposal.why = [{ kind: 'inference', text: 'Keep the training manageable.' }]
   proposal.changes = [
     {
       change_id: 'c1',
@@ -645,7 +659,7 @@ it('shows the complete proposed workouts in date order with matching numbered re
       },
       after: { planned_duration_s: 2100 },
       current: null,
-      reason: 'Add five easy minutes. [P001]',
+      reason: 'Add five easy minutes.',
       decision: 'pending',
       material_flags: [],
     },
@@ -678,7 +692,7 @@ it('shows the complete proposed workouts in date order with matching numbered re
       },
       after: null,
       current: null,
-      reason: 'Allow more recovery. [E-AER-01]',
+      reason: 'Allow more recovery.',
       decision: 'pending',
       material_flags: [],
     },
@@ -687,7 +701,11 @@ it('shows the complete proposed workouts in date order with matching numbered re
   const table = await screen.findByRole('table', { name: 'Proposed plan changes' })
   const rows = within(table)
     .getAllByRole('row')
-    .filter((row) => !row.classList.contains('proposal-week-row'))
+    .filter(
+      (row) =>
+        !row.classList.contains('proposal-week-row') &&
+        !row.classList.contains('proposal-detail-row'),
+    )
     .slice(1)
   expect(rows).toHaveLength(3)
   expect(within(rows[0]).getByText('Full body A')).toBeInTheDocument()
@@ -700,13 +718,9 @@ it('shows the complete proposed workouts in date order with matching numbered re
     'href',
     '#proposal-reason-3',
   )
-  const reasons = screen.getByText('Session reasons and comparisons').parentElement!
-  const items = within(reasons).getAllByRole('listitem')
-  expect(items.map((item) => item.querySelector('p')?.textContent)).toEqual([
-    'Preserve the lifting commitment.',
-    'Allow more recovery.',
-    'Add five easy minutes.',
-  ])
+  expect(
+    rows.map((row) => row.nextElementSibling?.querySelector('details > summary')?.textContent),
+  ).toEqual(['Preserve the lifting commitment.', 'Allow more recovery.', 'Add five easy minutes.'])
   expect(
     screen.queryByText(/E-AER-01|P001|REC001|REC002|Evidence and policies/),
   ).not.toBeInTheDocument()
@@ -734,7 +748,12 @@ it('shows moved dates and preserves explicit cleared values in the proposal', as
   const table = await screen.findByRole('table', { name: 'Proposed plan changes' })
   expect(within(table).getByText(/Previously Thu, Nov 12/)).toBeInTheDocument()
   expect(within(table).getByText('Distance: Not specified')).toBeInTheDocument()
-  expect(within(table).queryByText('Old note')).not.toBeInTheDocument()
+  expect(within(table).getByText('Old note')).not.toBeVisible()
+  expect(
+    within(screen.getByRole('checkbox', { name: 'Accept change c1' }).closest('tr')!).queryByText(
+      'Old note',
+    ),
+  ).not.toBeInTheDocument()
 })
 
 it('confirms discard at the reviewed revision without making a decision', async () => {
@@ -888,7 +907,7 @@ it('shows the exception card after the intro', async () => {
     await within(card).findByText('Wed, Nov 18 · Easy run — Easy run stays'),
   ).toBeInTheDocument()
   expect(
-    screen.getByRole('heading', { name: 'Plan focus' }).compareDocumentPosition(card) &
+    screen.getByTestId('proposal-intro').compareDocumentPosition(card) &
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy()
   expect(
@@ -1052,4 +1071,259 @@ it('says no event when the block has no goal race', async () => {
   mount()
   expect(await screen.findByText('Builds toward: no event')).toBeInTheDocument()
   expect(screen.queryByRole('list', { name: 'Build outline' })).toBeNull()
+})
+
+it('shows confidence, unknowns, rationale rows, triggers, and a next check inside the brief', async () => {
+  proposal.why = [
+    { kind: 'observation', text: 'Tempo held two weeks running' },
+    { kind: 'research', text: 'Progress one variable at a time' },
+    { kind: 'inference', text: 'One more repeat may fit the week' },
+    { kind: 'priority', text: 'Keep Thursday easy' },
+  ]
+  proposal.uncertainty = ['No sleep data since Wed']
+  proposal.change_triggers = [{ when: 'Calf gets sore', then: 'Reduce volume' }]
+  proposal.next_check = { on: '2026-11-29', check: 'Thu tempo RPE and calf response' }
+  proposal.escalation = 'block_review'
+  mount()
+  const card = await screen.findByTestId('proposal-intro')
+  const contents = within(card)
+  for (const text of [
+    'Observed',
+    'Research',
+    'Inference',
+    'Your priority',
+    'Would change this',
+    'Calf gets sore',
+    'Reduce volume',
+  ]) {
+    expect(contents.getByText(text)).toBeVisible()
+  }
+  for (const text of [
+    'Confidence: moderate',
+    'Unknown: No sleep data since Wed',
+    'Next check: Sun, Nov 29',
+    'Thu tempo RPE and calf response',
+    'Suggested next review: block review',
+  ]) {
+    expect(card).toHaveTextContent(text)
+  }
+})
+
+it('reports missing confidence and hides empty brief sections', async () => {
+  proposal.confidence = {}
+  proposal.why = []
+  proposal.uncertainty = []
+  proposal.change_triggers = []
+  mount()
+  const card = await screen.findByTestId('proposal-intro')
+  expect(card).toHaveTextContent('Confidence: Not stated')
+  expect(card).not.toHaveTextContent('Confidence: undefined')
+  expect(within(card).getByText(proposal.headline)).toBeVisible()
+  for (const label of ['Why', 'Would change this', 'Unknown:', 'Earlier format', /^Sources/]) {
+    expect(within(card).queryByText(label)).not.toBeInTheDocument()
+  }
+})
+
+it('keeps the coach note, sources, and earlier format collapsed', async () => {
+  proposal.coach_note = 'Short note'
+  proposal.legacy_text = 'Prior rationale\n\nNext check after the run'
+  proposal.sources = [
+    { kind: 'policy', title: 'Progress one variable at a time', papers: ['Paper A (2020)'] },
+  ]
+  mount()
+  const card = within(await screen.findByTestId('proposal-intro'))
+  for (const label of ['Coach note', 'Sources (1)', 'Earlier format']) {
+    expect(card.getByText(label).closest('details')).not.toHaveAttribute('open')
+  }
+  expect(card.getByText('Prior rationale')).not.toBeVisible()
+  expect(card.getByText('Short note')).not.toBeVisible()
+  expect(card.getByText('Progress one variable at a time')).toHaveAttribute(
+    'title',
+    'Paper A (2020)',
+  )
+})
+
+it('the numbered reason link opens the expander and shows the session brief', async () => {
+  proposal.changes[0].after = {
+    intent: 'Threshold control',
+    brief: {
+      effort: { rpe_low: 6, rpe_high: 7, feel: 'controlled' },
+      focus: ['Even splits'],
+      adjust_if: [{ when: 'Rep pace fades more than 5%', then: 'stop after rep 4' }],
+      why: 'Last two sessions hit pace at RPE 7',
+    },
+  }
+  mount()
+  const link = await screen.findByRole('link', { name: 'Read reason 1' })
+  const details = document.getElementById('proposal-reason-1')!
+  expect(details.tagName).toBe('DETAILS')
+  expect(details).not.toHaveAttribute('open')
+  expect(within(link.closest('tr')!).getByText('RPE 6–7')).toBeVisible()
+  fireEvent.click(link)
+  expect(details).toHaveAttribute('open')
+  for (const text of [
+    'Adjust if',
+    'Rep pace fades more than 5%',
+    'stop after rep 4',
+    'Even splits',
+    'Last two sessions hit pace at RPE 7',
+  ]) {
+    expect(within(details).getByText(text)).toBeVisible()
+  }
+})
+
+it('shows notes in the row and the comparison without creating a coach brief', async () => {
+  proposal.changes[0].before = {
+    local_date: '2026-11-16',
+    kind: 'run',
+    notes: 'Keep the route flat',
+  }
+  mount()
+  const link = await screen.findByRole('link', { name: 'Read reason 1' })
+  expect(within(link.closest('tr')!).getByText('Keep the route flat')).toBeVisible()
+  expect(screen.queryByText(/^RPE/)).not.toBeInTheDocument()
+  fireEvent.click(link)
+  const detail = within(document.getElementById('proposal-reason-1')!)
+  expect(detail.queryByText('Adjust if')).not.toBeInTheDocument()
+  fireEvent.click(detail.getByText('Compare with previous plan'))
+  expect(detail.getByRole('heading', { name: 'Notes' })).toBeVisible()
+  expect(detail.getByText('Keep the route flat')).toBeVisible()
+})
+
+it('shows the current session in the comparison for a stale proposal', async () => {
+  proposal.status = 'stale'
+  proposal.is_current = false
+  proposal.changes[0].current = { intent: 'Keep it easy' }
+  mount()
+  fireEvent.click(await screen.findByRole('link', { name: 'Read reason 1' }))
+  const detail = within(document.getElementById('proposal-reason-1')!)
+  fireEvent.click(detail.getByText('Compare with saved and current plan'))
+  expect(detail.getByRole('heading', { name: 'Current session' })).toBeVisible()
+  expect(detail.getByText('Keep it easy')).toBeVisible()
+})
+
+const blockFields: NonNullable<ProposalDetail['block_change']>['version_fields'] = {
+  objective: 'Threshold durability',
+  status: 'active',
+  start_date: '2026-11-23',
+  review_date: '2026-12-20',
+  progression_dimension: 'quality_volume',
+  objective_status: 'unresolved',
+  why: [
+    { kind: 'observation', text: 'Tempo held 4:08/km at RPE 6 two weeks running' },
+    { kind: 'priority', text: 'City 10K is the goal race' },
+  ],
+  indicators: [
+    {
+      source: 'quality_progression',
+      label: 'Tempo reps at the same RPE',
+      progress_when: 'pace 2% faster at RPE 7 or lower',
+    },
+    { source: 'rpe_vs_intent', label: 'Easy days stay easy', progress_when: 'RPE 4 or lower' },
+  ],
+  early_review_triggers: ['Calf 3/10 twice', '2 missed key sessions'],
+  maintained_qualities: ['aerobic volume', 'strides'],
+  non_goals: ['Peak racing'],
+  constraints: [{ kind: 'schedule', text: 'Keep strength days' }],
+  eligible_recipe_ids: ['REC001'],
+}
+
+async function mountBlockChange(fields: typeof blockFields) {
+  proposal.changes = []
+  proposal.block_change = { decision: 'continue', block_uid: 'b1', version_fields: fields }
+  mount()
+  return within(
+    (await screen.findByRole('heading', { name: 'Training block: continue' })).closest(
+      '.block-change-card',
+    )!,
+  )
+}
+
+it('shows block objective and summary chips followed by collapsible criteria', async () => {
+  const card = await mountBlockChange(blockFields)
+  expect(card.getByText('Threshold durability').tagName).toBe('STRONG')
+  for (const text of [
+    'active',
+    'Progression: quality volume',
+    'Objective: unresolved',
+    'Builds toward: no event',
+  ]) {
+    expect(card.getByText(text)).toBeVisible()
+  }
+  for (const label of [
+    'Why this block',
+    'Review by',
+    'Qualities, constraints, eligible sessions',
+  ]) {
+    const summary = card.getByText(label)
+    expect(summary.closest('details')).not.toHaveAttribute('open')
+    fireEvent.click(summary)
+  }
+  expect(card.getByText('Observed')).toBeVisible()
+  expect(card.getByText('Your priority')).toBeVisible()
+  expect(card.getByText('Tempo held 4:08/km at RPE 6 two weeks running')).toBeVisible()
+  expect(card.getByText('City 10K is the goal race')).toBeVisible()
+  expect(card.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+    'Indicator',
+    'Progress when',
+    'Source',
+  ])
+  expect(
+    card.getByRole('row', {
+      name: /Tempo reps at the same RPE.*pace 2% faster.*Workout progression/,
+    }),
+  ).toBeVisible()
+  expect(card.getByRole('row', { name: /Easy days stay easy.*Effort vs plan/ })).toBeVisible()
+  expect(card.getByText('Review early if:').closest('p')).toHaveTextContent(
+    'Calf 3/10 twice · 2 missed key sessions',
+  )
+  for (const text of [
+    'Review early if:',
+    'Maintains:',
+    'Outside this block:',
+    'Peak racing',
+    'schedule: Keep strength days',
+    'Easy run',
+  ]) {
+    expect(card.getByText(text)).toBeVisible()
+  }
+})
+
+it('shows the proposed benchmark date as a chip', async () => {
+  const card = await mountBlockChange({
+    ...blockFields,
+    benchmark: {
+      kind: 'time_trial',
+      event_id: null,
+      protocol: '5 km time trial',
+      distance_m: 5000,
+      planned_date: '2026-12-13',
+      progress_if: 'Faster than 21:40',
+      consolidate_if: 'Within 20 s of 21:40',
+    },
+  })
+  expect(card.getByText('Benchmark: Dec 13')).toBeVisible()
+})
+
+it('renders no empty block disclosures for a migrated change', async () => {
+  const card = await mountBlockChange({
+    objective: 'Continue',
+    status: 'active',
+    why: [],
+    indicators: [],
+    early_review_triggers: [],
+    maintained_qualities: [],
+    non_goals: [],
+    constraints: [],
+    eligible_recipe_ids: [],
+  })
+  for (const label of [
+    'Why this block',
+    'Review by',
+    'Qualities, constraints, eligible sessions',
+    'Not specified',
+  ]) {
+    expect(card.queryByText(label)).not.toBeInTheDocument()
+  }
+  expect(card.getByRole('checkbox', { name: 'Accept block change' })).toBeVisible()
 })

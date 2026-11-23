@@ -48,11 +48,19 @@ function proposalFile(document:object):string {
 function submit(document:object) {
   return coach('submit','--file',proposalFile(document))
 }
-function documentFrom(snapshotResult:any, changes:any[], summary:string, extras:Record<string,unknown>={}) {
+const WHY_OBSERVED = 'Fatigue was 8 on two days in a row'
+const brief = () => ({effort:{rpe_low:3,rpe_high:4,feel:'easy, conversational'},focus:['Keep the pace easy'],
+  adjust_if:[{when:'Legs feel heavy',then:'shorten to 30 min'}],why:'Keeps the week easy before the next quality day'})
+function documentFrom(snapshotResult:any, changes:any[], headline:string, extras:Record<string,unknown>={}) {
   const meta = snapshotResult.payload.snapshot_meta
-  return {schema_version:'coach_proposal.v1',operation:meta.operation,snapshot_id:snapshotResult.snapshot_id,
+  return {schema_version:'coach_proposal.v2',operation:meta.operation,snapshot_id:snapshotResult.snapshot_id,
     base_calendar_version:meta.calendar_version,base_block_version_id:meta.block_version_id,
-    summary,rationale:'Review the current training evidence before changing the plan.',
+    headline,
+    why:[{kind:'observation',text:WHY_OBSERVED},{kind:'inference',text:'A small change fits this synthetic week'}],
+    uncertainty:['Synthetic data only'],
+    change_triggers:[{when:'A run feels harder than planned',then:'drop the next quality session'}],
+    next_check:{on:day(meta.as_of,7),check:'Report effort on the next two runs'},
+    coach_note:null,
     confidence:{decision:'moderate',evidence:'moderate',data:'moderate'},changes,preserved:[],
     evidence_ids:['E-AER-01'],policy_ids:['P001'],recipe_ids:['REC001'],
     skill_version:'running-coach.v1',...extras}
@@ -63,7 +71,7 @@ function runOn(calendar:any, offset:number):any {
   return found
 }
 function change(id:string, session:any, after:Record<string,unknown>) {
-  return {change_id:id,op:'modify',session_uid:session.session_uid,after,reason:'Synthetic reviewed adjustment'}
+  return {change_id:id,op:'modify',session_uid:session.session_uid,after:{brief:brief(),...after},reason:'Synthetic reviewed adjustment'}
 }
 async function calendar(request:APIRequestContext) { return data(await request.get('/api/v1/calendar')) }
 async function review(page:Page,id:string) {
@@ -123,11 +131,14 @@ test('p1: exception review patches one committed session',async ({page,request})
     patch_window:{start:current.today,end:day(current.today,2)},unchanged:[],reassess_on:current.today,
     monitor:['Morning fatigue'],return_criteria:['Fatigue below 6 on two mornings'],
     escalate_criteria:['Fatigue 8 or higher through the weekend']}
+  const headline=`P1 exception ${randomUUID().slice(0,8)}`
   const submitted=submit(documentFrom(snap,[change('c1',run2,{planned_duration_s:run2.planned_duration_s-600})],
-    `P1 exception ${randomUUID().slice(0,8)}`,{exception}))
+    headline,{exception}))
   expect(submitted.code,JSON.stringify(submitted.output)).toBe(0)
   expect(submitted.output.status).toBe('pending')
   await review(page,submitted.output.proposal_id)
+  await expect(page.getByText(headline).first()).toBeVisible()
+  await expect(page.getByRole('listitem').filter({hasText:WHY_OBSERVED})).toContainText('Observed')
   const details=page.getByTestId('proposal-exception')
   await expect(details).toContainText('Next session only')
   await expect(details).toContainText('Fatigue and recovery')

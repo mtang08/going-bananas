@@ -3,7 +3,12 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Calendar } from '../src/pages/Calendar'
 import { weeklyWorkoutText } from '../src/components/weeklyWorkoutExport'
-import type { CalendarVersion, CalendarView, SessionState } from '../src/api/types/calendar'
+import type {
+  CalendarVersion,
+  CalendarView,
+  SessionBrief,
+  SessionState,
+} from '../src/api/types/calendar'
 import type { Trip } from '../src/api/types/travel'
 import { addDays } from '../src/lib/format'
 
@@ -33,6 +38,12 @@ const trip = (
   version: 1,
   ...extra,
 })
+const brief: SessionBrief = {
+  effort: { rpe_low: 6, rpe_high: 7, feel: 'controlled' },
+  focus: ['Even splits'],
+  adjust_if: [{ when: 'Rep pace fades more than 5%', then: 'stop after rep 4' }],
+  why: 'Last two sessions hit pace at RPE 7',
+}
 
 const base = {
   id: '',
@@ -56,6 +67,7 @@ const base = {
   structure: null,
   strength_slot_id: null,
   notes: null,
+  brief: null,
   is_original: true,
   changed_by_version: 2,
   exception_patch: null,
@@ -493,6 +505,21 @@ describe('Calendar', () => {
     expect(text.match(/Notes: Stay relaxed/g)).toHaveLength(1)
   })
 
+  it('exports effort and adjust-if before notes and omits missing controls', () => {
+    const planned = { ...sessions[0], local_date: '2026-11-09', notes: 'Stay relaxed' }
+    const text = weeklyWorkoutText([{ ...planned, brief }], '2026-11-09', 'mi')
+    expect(text).toContain(
+      '    Effort: RPE 6–7 (controlled)\n    Adjust if: Rep pace fades more than 5% → stop after rep 4\n    Notes: Stay relaxed',
+    )
+    const easy = { ...brief, effort: { rpe_low: 5, rpe_high: 5, feel: 'steady' }, adjust_if: [] }
+    const steady = weeklyWorkoutText([{ ...planned, brief: easy }], '2026-11-09', 'mi')
+    expect(steady).toContain('Effort: RPE 5 (steady)')
+    expect(steady).not.toContain('Adjust if:')
+    expect(weeklyWorkoutText([{ ...planned, brief: null }], '2026-11-09', 'mi')).not.toMatch(
+      /Effort:|Adjust if:/,
+    )
+  })
+
   it('links coach versions to their proposal', async () => {
     const original = versions[0]
     try {
@@ -666,11 +693,28 @@ describe('Calendar', () => {
     })
   })
 
-  it('edits changed fields only and omits empty reason', async () => {
+  it('labels the required editor field Purpose and captions notes as athlete-only', async () => {
     mount()
     await screen.findByText('Version 2')
     fireEvent.click(within(row('2026-11-12')).getByRole('button', { name: 'Edit' }))
-    fireEvent.change(screen.getByLabelText('Intent'), { target: { value: 'Easy, flat' } })
+    const purpose = screen.getByLabelText('Purpose')
+    expect(purpose).toHaveValue('Easy')
+    expect(screen.queryByLabelText('Intent')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Only you write here; the coach reads the session brief instead.'),
+    ).toBeVisible()
+    fireEvent.change(purpose, { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save session' }))
+    expect(await screen.findByText('Purpose is required.')).toBeVisible()
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('edits changed fields without resending the brief or an empty reason', async () => {
+    head = { ...view, sessions: [session('s1', '2026-11-12', { brief })] }
+    mount()
+    await screen.findByText('Version 2')
+    fireEvent.click(within(row('2026-11-12')).getByRole('button', { name: 'Edit' }))
+    fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'Easy, flat' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save session' }))
     await waitFor(() => expect(writes()).toHaveLength(1))
     expect(writes()[0].body).toEqual({
@@ -682,7 +726,7 @@ describe('Calendar', () => {
     mount()
     await screen.findByText('Version 2')
     fireEvent.click(within(day('2026-11-14')).getByRole('button', { name: 'Add session' }))
-    fireEvent.change(screen.getByLabelText('Intent'), { target: { value: 'Shakeout' } })
+    fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'Shakeout' } })
     fireEvent.change(screen.getByLabelText('Planned duration (minutes)'), {
       target: { value: '20' },
     })
@@ -874,7 +918,7 @@ describe('Calendar', () => {
     await screen.findByText('Version 2')
     fireEvent.click(within(row('2026-11-12')).getByRole('button', { name: 'Edit' }))
     fireEvent.change(screen.getByLabelText('Session'), { target: { value: 'REC002' } })
-    fireEvent.change(screen.getByLabelText('Intent'), { target: { value: 'Long and easy' } })
+    fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'Long and easy' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save session' }))
     await waitFor(() => expect(writes()).toHaveLength(1))
     expect(writes()[0].body).toEqual({
@@ -953,7 +997,7 @@ describe('Calendar', () => {
     mount()
     await screen.findByText('Version 2')
     fireEvent.click(within(row('2026-11-12')).getByRole('button', { name: 'Edit' }))
-    fireEvent.change(screen.getByLabelText('Intent'), { target: { value: 'Changed' } })
+    fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'Changed' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save session' }))
     const dialog = screen.getByRole('dialog', { name: 'Edit session' })
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Rejected')
@@ -963,7 +1007,7 @@ describe('Calendar', () => {
     mount()
     await screen.findByText('Version 2')
     fireEvent.click(within(row('2026-11-12')).getByRole('button', { name: 'Edit' }))
-    fireEvent.change(screen.getByLabelText('Intent'), { target: { value: 'Old form edit' } })
+    fireEvent.change(screen.getByLabelText('Purpose'), { target: { value: 'Old form edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save session' }))
     const dialog = screen.getByRole('dialog', { name: 'Edit session' })
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Reload calendar' }))
@@ -974,7 +1018,7 @@ describe('Calendar', () => {
       ).toBeGreaterThanOrEqual(2),
     )
     fireEvent.click(within(row('2026-11-12')).getByRole('button', { name: 'Edit' }))
-    expect(screen.getByLabelText('Intent')).toHaveValue('Easy')
+    expect(screen.getByLabelText('Purpose')).toHaveValue('Easy')
   })
   it('shows imported prose and includes mobility in the editor', async () => {
     head = {

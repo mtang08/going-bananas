@@ -1,4 +1,5 @@
 import type { SessionPatchRef } from './exceptions'
+import type { Rule } from './coachText'
 import type { PlannedActualValue } from './metrics'
 export type SessionKind = 'run' | 'strength' | 'cross' | 'rest' | 'mobility'
 export type Certainty = 'committed' | 'provisional'
@@ -26,6 +27,18 @@ export interface ExpandedStep extends PlannedStep {
   expanded_step: number
   repeat_index: number | null
 }
+export interface Effort {
+  rpe_low: number
+  rpe_high: number
+  feel: string
+}
+export interface SessionBrief {
+  effort: Effort
+  focus: string[]
+  adjust_if: Rule[]
+  why: string
+}
+
 export interface SessionFields {
   local_date: string
   slot: number
@@ -40,6 +53,7 @@ export interface SessionFields {
   structure: StructureItem[] | null
   strength_slot_id: string | null
   notes: string | null
+  brief: SessionBrief | null
 }
 export interface SessionState extends SessionFields {
   id: string

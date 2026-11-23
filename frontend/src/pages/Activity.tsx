@@ -42,6 +42,7 @@ import type { SessionKind } from '../api/types/calendar'
 import { QueryState } from '../components/QueryState'
 import { WorkoutProgressionTable } from '../components/WorkoutProgression'
 import { WorkoutStructure } from '../components/WorkoutStructure'
+import { SessionBrief } from '../components/SessionBrief'
 const FIT = {
   not_fetched: 'not fetched yet',
   fetched: 'fetched, not decoded',
@@ -220,7 +221,12 @@ export function Activity({
                 <>
                   <strong>{plannedTitle(planned)}</strong>
                   <p>{planned.intent}</p>
-                  {planned.notes && <p>{planned.notes}</p>}
+                  <SessionBrief brief={planned.brief} notes={null} layout="check" />
+                  {planned.notes && (
+                    <p className="activity-planned-notes">
+                      <small>Notes</small> <span>{planned.notes}</span>
+                    </p>
+                  )}
                   {planned.structure && (
                     <Disclosure>
                       <summary>Planned workout structure</summary>

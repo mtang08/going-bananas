@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mondayOfWeek, SessionSummary } from '../src/components/PlanOverview'
-import type { SessionState } from '../src/api/types/calendar'
+import type { SessionBrief, SessionState } from '../src/api/types/calendar'
 
 const base = {
   id: 's1-rev',
@@ -25,6 +25,7 @@ const base = {
   structure: null,
   strength_slot_id: null,
   notes: null,
+  brief: null,
   is_original: true,
   changed_by_version: 2,
   exception_patch: null,
@@ -94,13 +95,13 @@ describe('session notes', () => {
     expect(screen.queryByText('Session notes')).not.toBeInTheDocument()
   })
 
-  it('shows notes under the intent on the Today card', () => {
+  it('keeps notes in a closed Why and notes disclosure on the Today card', () => {
     render(<SessionSummary session={{ ...base, notes }} today="2026-11-11" unit="mi" showWorkout />)
     const paragraph = screen.getByText(notes)
+    expect(paragraph).not.toBeVisible()
+    fireEvent.click(screen.getByText('Why and notes'))
     expect(paragraph).toBeVisible()
-    expect(paragraph.closest('details')).toBeNull()
   })
-
   it('shows imported notes the same way', () => {
     render(
       <SessionSummary
@@ -110,9 +111,8 @@ describe('session notes', () => {
         showWorkout
       />,
     )
-    const paragraph = screen.getByText('Old easy prescription')
-    expect(paragraph).toBeVisible()
-    expect(paragraph.closest('details')).toBeNull()
+    fireEvent.click(screen.getByText('Why and notes'))
+    expect(screen.getByText('Old easy prescription')).toBeVisible()
   })
 
   it('omits blank notes', () => {
@@ -153,4 +153,67 @@ it('distinguishes a recorded run with unknown comparison from an unrecorded plan
     />,
   )
   expect(screen.getByText('Not recorded')).toBeInTheDocument()
+})
+
+describe('session brief', () => {
+  const brief: SessionBrief = {
+    effort: { rpe_low: 6, rpe_high: 7, feel: 'controlled' },
+    focus: ['Even splits; last rep no faster than first'],
+    adjust_if: [{ when: 'Rep pace fades more than 5%', then: 'stop after rep 4' }],
+    why: 'Last two threshold sessions hit pace at RPE 7',
+  }
+  const coached = {
+    ...base,
+    intent: 'Threshold control',
+    brief,
+    notes: 'Felt flat after travel',
+    structure: [
+      { type: 'work' as const, duration_type: 'time' as const, duration_value: 600, target: null },
+    ],
+  }
+
+  it('opens focus, why and notes on demand', () => {
+    render(<SessionSummary session={coached} showWorkout today="2026-11-11" unit="mi" />)
+    expect(screen.getByText('RPE 6–7')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Adjust if' })).toBeVisible()
+    expect(screen.getByText(brief.why)).not.toBeVisible()
+    fireEvent.click(screen.getByText('Why and notes'))
+    expect(screen.getByText(brief.why)).toBeVisible()
+    expect(screen.getByText(brief.focus[0])).toBeVisible()
+    expect(screen.getByText(coached.notes)).toBeVisible()
+  })
+  it('orders purpose, effort, workout, then adjust-if', () => {
+    const { container } = render(
+      <SessionSummary session={coached} showWorkout today="2026-11-11" unit="mi" />,
+    )
+    const purpose = screen.getByText('Threshold control')
+    const effort = screen.getByText('RPE 6–7')
+    const workout = container.querySelector('.compact-workout')!
+    const adjustIf = screen.getByRole('heading', { name: 'Adjust if' })
+    for (const [first, second] of [
+      [purpose, effort],
+      [effort, workout],
+      [workout, adjustIf],
+    ]) {
+      expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    expect(screen.getByText('controlled')).toBeVisible()
+    expect(screen.getByText('Rep pace fades more than 5%').closest('li')).toHaveTextContent(
+      'Rep pace fades more than 5% → stop after rep 4',
+    )
+  })
+
+  it('renders no brief controls without a brief or notes', () => {
+    render(<SessionSummary session={base} showWorkout today="2026-11-11" unit="mi" />)
+    expect(screen.queryByText('Why and notes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Adjust if')).not.toBeInTheDocument()
+  })
+
+  it('shows the entire brief when session details are opened', () => {
+    render(<SessionSummary session={coached} today="2026-11-11" unit="mi" />)
+    fireEvent.click(screen.getByText('Session details'))
+    expect(screen.getByText(brief.why)).toBeVisible()
+    expect(screen.getByText(brief.focus[0])).toBeVisible()
+    expect(screen.queryByText('Why and notes')).toBeNull()
+  })
 })

@@ -1,6 +1,18 @@
-import { Button, Card, Disclosure, NativeSelect } from '../components/ui'
+import { INDICATOR_LABELS, LegacyText, SourceChips, WhyList } from '../components/CoachText'
+import {
+  Button,
+  Card,
+  Disclosure,
+  NativeSelect,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../components/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { RUN_SPORTS, type BlockVersion } from '../api/types/blocks'
+import { RUN_SPORTS, type ActiveBlock, type BlockVersion } from '../api/types/blocks'
 import { addDays, dateLabel, fmtDistance, fmtDuration, fmtRpe, type Unit } from '../lib/format'
 import { api, put, query } from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
@@ -13,7 +25,7 @@ import './TrainingDesign.css'
 export function Block({ unit = 'mi' }: { unit?: Unit }) {
   const active = useQuery({
     queryKey: qk.blocksActive,
-    queryFn: () => api<BlockVersion | null>('/blocks/active'),
+    queryFn: () => api<ActiveBlock | null>('/blocks/active'),
   })
   const calendar = useQuery({
     queryKey: qk.calendarView('head'),
@@ -127,64 +139,99 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
                   Today’s date unavailable
                 </p>
               )}
-              <h3>Maintained qualities</h3>
-              <div className="direction-chips">
-                {block.maintained_qualities.length
-                  ? block.maintained_qualities.map((value) => <span key={value}>{value}</span>)
-                  : 'Not specified'}
-              </div>
-              <h3>Completion indicators to review</h3>
-              <p className="fineprint">Review criteria; achievement has not been verified here.</p>
-              <ul className="review-checklist">
-                {block.completion_indicators.map((value) => (
-                  <li key={value}>
-                    <span aria-hidden="true">□</span>
-                    {value}
-                  </li>
-                ))}
-              </ul>
-              <h3>Earlier review triggers</h3>
-              <ul>
-                {block.early_review_triggers.map((value) => (
-                  <li key={value}>{value}</li>
-                ))}
-              </ul>
-              <Disclosure className="training-disclosure">
-                <summary>Why this block & session guidance</summary>
-                <p>{block.rationale}</p>
-                <h3>Eligible sessions</h3>
-                <p>
-                  {block.eligible_recipe_ids.map((id) => RECIPE_LABELS[id] || id).join(', ') ||
-                    'Not specified'}
-                </p>
-                <h3>Constraints</h3>
-                {block.constraints.length ? (
-                  <ul>
-                    {block.constraints.map((constraint, index) => (
-                      <li key={index}>{constraint.text}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>Not specified</p>
-                )}
-                {block.non_goals.length > 0 && (
-                  <>
-                    <h3>Outside this block's focus</h3>
-                    <ul>
-                      {block.non_goals.map((value) => (
-                        <li key={value}>{value}</li>
+              {block.indicators.length > 0 && (
+                <section className="block-indicators">
+                  <h3>Review this block by</h3>
+                  <p className="fineprint">
+                    Review criteria; achievement has not been verified here.
+                  </p>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Indicator</TableHead>
+                        <TableHead>Progress when</TableHead>
+                        <TableHead>Source</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {block.indicators.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{item.label}</TableCell>
+                          <TableCell>{item.progress_when}</TableCell>
+                          <TableCell>{INDICATOR_LABELS[item.source]}</TableCell>
+                        </TableRow>
                       ))}
-                    </ul>
-                  </>
-                )}
-              </Disclosure>
+                    </TableBody>
+                  </Table>
+                </section>
+              )}
+              {block.early_review_triggers.length > 0 && (
+                <p className="block-review-early">
+                  <strong>Review early if:</strong>{' '}
+                  {block.early_review_triggers.map((value, index) => (
+                    <span key={index}>
+                      {index > 0 && ' · '}
+                      {value}
+                    </span>
+                  ))}
+                </p>
+              )}
+              {block.maintained_qualities.length > 0 && (
+                <div className="block-maintains">
+                  <strong>Maintains:</strong>
+                  <div className="direction-chips">
+                    {block.maintained_qualities.map((value) => (
+                      <span key={value}>{value}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(block.why.length > 0 || block.sources.length > 0) && (
+                <Disclosure className="training-disclosure">
+                  <summary>Why this block</summary>
+                  <WhyList items={block.why} />
+                  <SourceChips sources={block.sources} />
+                </Disclosure>
+              )}
+              {(block.constraints.length > 0 || block.non_goals.length > 0) && (
+                <Disclosure className="training-disclosure">
+                  <summary>Constraints and out of scope</summary>
+                  {block.constraints.length > 0 && (
+                    <>
+                      <h3>Constraints</h3>
+                      <ul>
+                        {block.constraints.map((constraint, index) => (
+                          <li key={index}>{constraint.text}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {block.non_goals.length > 0 && (
+                    <>
+                      <h3>Outside this block's focus</h3>
+                      <ul>
+                        {block.non_goals.map((value) => (
+                          <li key={value}>{value}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </Disclosure>
+              )}
+              {block.eligible_recipe_ids.length > 0 && (
+                <Disclosure className="training-disclosure">
+                  <summary>Eligible sessions</summary>
+                  <p>{block.eligible_recipe_ids.map((id) => RECIPE_LABELS[id] || id).join(', ')}</p>
+                </Disclosure>
+              )}
+              <LegacyText text={block.legacy_text} />
             </Card>
             <Card className="block-benchmark" data-testid="block-benchmark">
               <h2>Block benchmark</h2>
               {!bm ? (
                 <p>
-                  No benchmark in this block. Its review judges the completion indicators above. A
-                  block gets a benchmark when the last result is about 6 weeks old or a race falls
+                  No benchmark in this block. Its review judges the block's review criteria instead.
+                  A block gets a benchmark when the last result is about 6 weeks old or a race falls
                   in it.
                 </p>
               ) : (
@@ -269,18 +316,18 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
                 }}
               >
                 {history.data?.data.items.map((version) => (
-                  <article className="block-history" key={version.id}>
-                    <h3>
-                      Version {version.version} · {version.status}
-                    </h3>
-                    <p>{version.objective}</p>
-                    <p>{version.rationale}</p>
+                  <Disclosure className="block-history" key={version.id}>
+                    <summary>
+                      Version {version.version} · {version.status} · {version.objective}
+                    </summary>
+                    <WhyList items={version.why} />
+                    <LegacyText text={version.legacy_text} />
                     {version.proposal_id && (
                       <a href={`#proposal/${encodeURIComponent(version.proposal_id)}`}>
                         View reviewed proposal
                       </a>
                     )}
-                  </article>
+                  </Disclosure>
                 ))}
               </QueryState>
             </Disclosure>

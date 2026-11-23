@@ -69,7 +69,7 @@ const activeBlock = (planned: string | null): BlockVersion => ({
   version: 1,
   status: 'active',
   objective: 'Build consistency',
-  rationale: 'Keep the week repeatable',
+  why: [],
   maintained_qualities: ['Easy endurance'],
   non_goals: ['Peak racing'],
   eligible_recipe_ids: ['REC001'],
@@ -77,11 +77,12 @@ const activeBlock = (planned: string | null): BlockVersion => ({
   constraints: [{ kind: 'schedule', text: 'Keep strength days' }],
   start_date: '2026-11-01',
   review_date: '2026-12-13',
-  completion_indicators: ['Tolerated weeks'],
+  indicators: [],
   early_review_triggers: ['Symptoms increase'],
   objective_status: 'unresolved',
   created_at: '2026-11-01T12:00:00Z',
   proposal_id: 'p1',
+  legacy_text: null,
   benchmark: planned ? { ...BM, planned_date: planned } : null,
   benchmark_status: {
     status: 'pending',
@@ -113,6 +114,7 @@ const session = (id: string, day: string, overrides: Partial<SessionState> = {})
   structure: null,
   strength_slot_id: null,
   notes: null,
+  brief: null,
   certainty: 'committed',
   legacy_unstructured: false,
   legacy_payload: null,
@@ -301,6 +303,24 @@ describe('training home', () => {
     expect(within(card).getByText('Easy run')).toBeInTheDocument()
     expect(within(card).getByText('30m')).toBeInTheDocument()
   })
+  it('shows the coach brief on the Today card', async () => {
+    calendar.sessions[0].intent = 'Threshold control'
+    calendar.sessions[0].brief = {
+      effort: { rpe_low: 6, rpe_high: 7, feel: 'controlled' },
+      focus: ['Even splits'],
+      adjust_if: [{ when: 'Rep pace fades more than 5%', then: 'stop after rep 4' }],
+      why: 'Last two sessions hit pace at RPE 7',
+    }
+    mount()
+    const card = within(await screen.findByTestId('today-card'))
+    expect(card.getByText('RPE 6–7')).toBeVisible()
+    expect(card.getByRole('heading', { name: 'Adjust if' })).toBeVisible()
+    expect(card.getByText('Rep pace fades more than 5%').closest('li')).toHaveTextContent(
+      'Rep pace fades more than 5% → stop after rep 4',
+    )
+    expect(card.getByText('Why and notes').closest('details')).not.toHaveAttribute('open')
+  })
+
   it('prompt actions open the right check-in', async () => {
     mount()
     await screen.findByText('Rate your run on Nov 10 · 4.0 mi')
@@ -505,6 +525,7 @@ describe('training home', () => {
     expect(within(card).getByText('2 ×').closest('details')).toBeNull()
     expect(within(card).queryByText('Session details')).not.toBeInTheDocument()
     expect(within(card).queryByText('Session notes')).not.toBeInTheDocument()
+    for (const toggle of within(card).getAllByText('Why and notes')) fireEvent.click(toggle)
     expect(within(card).getByText('Stop if form deteriorates')).toBeVisible()
     expect(within(card).getByText('Original prescribed easy progression')).toBeVisible()
     expect(within(card).getByText('Work 1:00 · effort')).toBeInTheDocument()
@@ -524,7 +545,7 @@ describe('training home', () => {
         operation: 'review_rolling_plan',
         submitted_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
         change_count: 3,
-        summary: 'Keep tomorrow easy',
+        headline: 'Keep tomorrow easy',
       } as ProposalSummary,
     ]
     mount()
@@ -619,7 +640,7 @@ describe('training home', () => {
         operation: 'review_rolling_plan',
         submitted_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
         change_count: 3,
-        summary: 'Keep tomorrow easy',
+        headline: 'Keep tomorrow easy',
       } as ProposalSummary,
     ]
     exceptionsData = {

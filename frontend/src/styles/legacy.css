@@ -585,8 +585,7 @@
 
 /* Read the proposed schedule first, then its numbered explanations. */
 .proposal-review > .panel,
-.proposal-review .proposal-plan,
-.proposal-review .proposal-reasons {
+.proposal-review .proposal-plan {
   margin-bottom: 20px;
 }
 
@@ -656,37 +655,6 @@
   cursor: pointer;
 }
 
-.proposal-reasons > ol {
-  padding-left: 24px;
-}
-
-.proposal-reasons > ol > li {
-  padding: 14px 0 18px 8px;
-  border-bottom: 1px solid light-dark(#edf0e9, var(--border));
-  scroll-margin-top: 20px;
-}
-
-.proposal-reasons > ol > li::marker {
-  font-weight: 700;
-  color: light-dark(#465d3d, var(--muted-foreground));
-}
-
-.proposal-reasons p {
-  white-space: pre-wrap;
-  max-width: 80ch;
-  margin: 8px 0 12px;
-}
-
-.proposal-reasons details > summary {
-  cursor: pointer;
-  color: light-dark(#53694a, var(--muted-foreground));
-  font-size: 0.8rem;
-}
-
-.proposal-reasons .proposal-diff {
-  margin-bottom: 0;
-}
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -737,25 +705,31 @@
   cursor: pointer;
 }
 
-.proposal-next-check {
-  background: var(--muted);
+.proposal-headline {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 10px 0 4px;
 }
 
-.proposal-rationale {
-  margin-top: 14px;
+.proposal-confidence-line {
+  margin: 4px 0 12px;
+  color: light-dark(#4d5a43, var(--muted-foreground));
 }
 
-.proposal-rationale h3 {
+.proposal-why h3 {
   font-size: 1rem;
-  margin-bottom: 4px;
+  margin: 12px 0 4px;
+}
+
+.proposal-next-check {
+  margin: 12px 0 0;
 }
 
 .proposal-revision-details {
   margin-top: 12px;
 }
 
-.proposal-revision-details summary,
-.proposal-reasons > summary {
+.proposal-revision-details summary {
   cursor: pointer;
   font-weight: 600;
 }
@@ -823,4 +797,49 @@
     display: inline;
     font-weight: 600;
   }
+}
+
+.proposal-table .proposal-detail-row td {
+  padding: 0 10px 14px;
+}
+
+.proposal-row-details > summary {
+  white-space: pre-line;
+  max-width: 80ch;
+  color: light-dark(#53694a, var(--muted-foreground));
+}
+
+.proposal-row-details > :not(summary) {
+  margin-top: 8px;
+}
+
+.proposal-row-details .proposal-diff {
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .proposal-table tr.proposal-detail-row {
+    margin-top: -10px;
+    border-top: 0;
+    border-radius: 0 0 8px 8px;
+  }
+}
+
+.block-change-summary {
+  margin: 4px 0 8px;
+}
+
+.block-change-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.block-change-section {
+  margin-top: 8px;
+}
+
+.block-change-section > :not(summary) {
+  margin-top: 6px;
 }

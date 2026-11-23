@@ -1,3 +1,4 @@
+import type { CitedSource, Rule, Why } from './coachText'
 import type {
   Patch,
   ProposalEventReview,
@@ -13,7 +14,7 @@ export interface ProposalSummary {
   submitted_at: string
   decided_at: string | null
   discarded_at?: string | null
-  summary: string
+  headline: string
   base_calendar_version: number
   change_count: number
   revision: number
@@ -55,12 +56,17 @@ export interface ProposalDetail extends Omit<ProposalSummary, 'change_count'> {
   revisions: ProposalRevision[]
   decision_result: ProposalDecisionResult | null
   snapshot_id: string
-  rationale: string
+  why: Why[]
+  uncertainty: string[]
+  change_triggers: Rule[]
+  next_check: { on: string; check: string } | null
+  coach_note: string | null
+  legacy_text: string | null
+  sources: CitedSource[]
   confidence: Record<string, string>
   evidence_ids: string[]
   policy_ids: string[]
   recipe_ids: string[]
-  follow_up: string | null
   escalation: string | null
   base_block_version_id: string | null
   block_change: {

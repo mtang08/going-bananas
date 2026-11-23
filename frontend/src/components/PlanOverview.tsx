@@ -1,9 +1,16 @@
 import { Badge, Button, Disclosure } from './ui'
 import type { ReactNode } from 'react'
 import { addDays, dateLabel, fmtDistance, fmtDuration, type Unit } from '../lib/format'
-import { MARKER_LABELS, type Completion, type SessionState } from '../api/types/calendar'
+import {
+  MARKER_LABELS,
+  type Completion,
+  type SessionBrief as SessionBriefData,
+  type SessionState,
+} from '../api/types/calendar'
 import { sessionMarker, sessionTitle } from '../lib/session'
 import { WorkoutStructure } from './WorkoutStructure'
+import { EffortLabel } from './CoachText'
+import { SessionBrief } from './SessionBrief'
 import './plan-overview.css'
 
 // Calendar dates come from the server's athlete timezone; UTC is only date arithmetic.
@@ -18,6 +25,26 @@ const kindLabels = {
   rest: 'Rest',
   mobility: 'Mobility',
 }
+function PurposeEffort({
+  intent,
+  brief,
+}: {
+  intent: string | null
+  brief: SessionBriefData | null
+}) {
+  if (!intent && !brief) return null
+  return (
+    <div className="plan-session-purpose">
+      {intent && (
+        <p>
+          <small>Purpose</small> <span>{intent}</span>
+        </p>
+      )}
+      {brief && <EffortLabel effort={brief.effort} />}
+    </div>
+  )
+}
+
 export function SessionSummary({
   session: s,
   completion,
@@ -66,46 +93,45 @@ export function SessionSummary({
           </Badge>
         )}
       </div>
-      {showWorkout && s.structure && <WorkoutStructure structure={s.structure} unit={unit} />}
       {showWorkout ? (
         <>
-          {s.intent && s.intent !== title && <p>{s.intent}</p>}
-          {s.notes?.trim() && <p className="plan-session-notes">{s.notes}</p>}
+          <PurposeEffort
+            intent={s.intent && s.intent !== title ? s.intent : null}
+            brief={s.brief}
+          />
+          {s.structure && <WorkoutStructure structure={s.structure} unit={unit} />}
+          <SessionBrief brief={s.brief} notes={s.notes} layout="today" />
           {s.legacy_unstructured && <small>Structured comparison unavailable</small>}
         </>
       ) : (
-        <>
-          <Disclosure
-            className="plan-session-details"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.currentTarget.open = false
-                event.currentTarget.querySelector('summary')?.focus()
+        <Disclosure
+          className="plan-session-details"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.currentTarget.open = false
+              event.currentTarget.querySelector('summary')?.focus()
+            }
+          }}
+        >
+          <summary>Session details</summary>
+          <PurposeEffort intent={s.intent || null} brief={s.brief} />
+          {s.structure && <WorkoutStructure structure={s.structure} unit={unit} />}
+          <SessionBrief brief={s.brief} notes={s.notes} layout="full" />
+          {s.legacy_unstructured && <small>Structured comparison unavailable</small>}
+          {children}
+          <Button
+            variant="link"
+            onClick={(event) => {
+              const details = event.currentTarget.closest('details')
+              if (details) {
+                details.open = false
+                details.querySelector('summary')?.focus()
               }
             }}
           >
-            <summary>Session details</summary>
-            {s.intent && <p>{s.intent}</p>}
-            {!showWorkout && s.structure && (
-              <WorkoutStructure structure={s.structure} unit={unit} />
-            )}
-            {s.notes?.trim() && <p className="plan-session-notes">{s.notes}</p>}
-            {s.legacy_unstructured && <small>Structured comparison unavailable</small>}
-            {children}
-            <Button
-              variant="link"
-              onClick={(event) => {
-                const details = event.currentTarget.closest('details')
-                if (details) {
-                  details.open = false
-                  details.querySelector('summary')?.focus()
-                }
-              }}
-            >
-              Close details
-            </Button>
-          </Disclosure>
-        </>
+            Close details
+          </Button>
+        </Disclosure>
       )}
     </article>
   )

@@ -32,17 +32,3 @@ export function sessionDate(value: ProposalSession | null): string {
     ? dateLabel(value.local_date, { weekday: 'short', month: 'short', day: 'numeric' })
     : 'Date not specified'
 }
-
-export function stripReferenceIds(text: string, referenceIds: string[]): string {
-  let result = text
-  for (const id of referenceIds) {
-    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    result = result.replace(new RegExp(`\\b${escaped}\\b`, 'g'), '')
-  }
-  return result
-    .replace(/\[\s*[,;·\s]*\]/g, '')
-    .replace(/\(\s*[,;·\s]*\)/g, '')
-    .replace(/[ \t]+([.,;:])/g, '$1')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim()
-}

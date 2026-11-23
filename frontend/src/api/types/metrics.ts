@@ -320,6 +320,7 @@ export interface ActivityExecution {
     custom: boolean
     intent: string
     notes?: string | null
+    brief: import('./calendar').SessionBrief | null
     planned_duration_s: number | null
     planned_distance_m: number | null
     structure: import('./calendar').StructureItem[] | null
