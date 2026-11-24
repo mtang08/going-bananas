@@ -227,22 +227,26 @@ benchmarks to track progress.
 
 **Desired behavior**
 Put posterior tibial tendonitis (PTT) rehab on the training calendar as an
-additional session on a few days each week. Keep the broader request for hip
-mobility and progress benchmarks.
+additional session on the days the coach proposes. At weekly review, use the
+PTT knowledge base, the surrounding runs and lifts, and the athlete's reported
+response to choose the frequency and explain any change. Keep the broader
+request for hip mobility and progress benchmarks.
 
 **Acceptance checks**
 - The athlete can include PTT and hip mobility work in the plan and track
   progress against relevant benchmarks.
 - On a day with both a run or lift and PTT rehab, the calendar shows both
   sessions and the athlete can record completing rehab independently.
+- The weekly proposal can include rehab on any number of days, including
+  daily when warranted, within a 15-minute rehab budget per day.
 
 **Constraints**
 Unspecified.
 
 **Open questions**
 Should the coach schedule an existing routine or help choose and progress it?
-Which days or placement constraints matter? The hip mobility routine and
-desired benchmarks remain open. The [existing PTT topic](../running_coach_kb/topics/ptt_and_load_tolerance.md)
+The hip mobility routine and desired benchmarks remain open.
+The [existing PTT topic](../running_coach_kb/topics/ptt_and_load_tolerance.md)
 is the starting point for evidence.
 
 ### IDEA-011 — Reduce Garmin sync time spent refreshing local metrics
