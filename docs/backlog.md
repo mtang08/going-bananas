@@ -99,7 +99,7 @@ plan changes still require explicit acceptance.
 
 ### IDEA-006 — Strength goals and integrated hybrid coaching
 
-Recorded 2026-11-11. Status: idea; dedicated research round planned, not started.
+Recorded 2026-11-11. Updated 2026-11-24. Status: idea; dedicated research round planned, not started. Revisit after PTT rehab scheduling (IDEA-010).
 
 Extend the Strong integration beyond browsing imported lifting history so the
 coach can recommend how to pursue explicit lifting goals alongside running
@@ -122,6 +122,17 @@ Before interpreting load progression, resolve the Strong export's unknown
 weight units and dumbbell recording convention where relevant. Do not compare
 loads across an unverified convention change or infer effort from load alone.
 No research or implementation is authorized merely by recording this idea.
+
+**Where to resume the requirements conversation**
+
+How much of a gym session should the coach own? Options discussed were to
+schedule an athlete-authored routine, retain chosen core lifts while proposing
+changes to accessories or progression, or design the session down to lifts,
+sets and reps. The athlete has yet to choose and may want a different level of
+direction for HYROX (IDEA-009). Walk through a Sunday review where a mixed
+run-and-station session competes with a planned run and a lower-body lift.
+What work does it cover, which goal takes priority that week, and which changes
+should the coach bring back for acceptance?
 
 ### IDEA-007 — Athlete counterproposals with coach review
 
@@ -186,7 +197,7 @@ Decide whether workout publishing should be one-way or reflect edits made in Goo
 
 ### IDEA-009 — Support integrated HYROX training
 
-Recorded 2026-11-12. Status: idea. Priority: Unspecified.
+Recorded 2026-11-12. Updated 2026-11-24. Status: idea. Revisit with IDEA-006 after PTT rehab scheduling (IDEA-010).
 
 **Problem / context**
 The athlete wants HYROX training supported alongside the existing running and
@@ -208,26 +219,31 @@ Unspecified.
 
 ### IDEA-010 — Integrate PTT and hip mobility work with benchmarks
 
-Recorded 2026-11-19. Status: idea. Priority: Unspecified.
+Recorded 2026-11-19. Updated 2026-11-24. Status: idea. Priority: PTT rehab scheduling comes before strength and HYROX planning.
 
 **Problem / context**
 The athlete wants PTT and hip mobility routine work included in training, with
 benchmarks to track progress.
 
 **Desired behavior**
-Support scheduling and tracking PTT and hip mobility routine work alongside
-the training plan, with benchmarks that show progress over time.
+Put posterior tibial tendonitis (PTT) rehab on the training calendar as an
+additional session on a few days each week. Keep the broader request for hip
+mobility and progress benchmarks.
 
 **Acceptance checks**
 - The athlete can include PTT and hip mobility work in the plan and track
   progress against relevant benchmarks.
+- On a day with both a run or lift and PTT rehab, the calendar shows both
+  sessions and the athlete can record completing rehab independently.
 
 **Constraints**
 Unspecified.
 
 **Open questions**
-The meaning of PTT, the specific routine, and the desired benchmarks are
-unspecified.
+Should the coach schedule an existing routine or help choose and progress it?
+Which days or placement constraints matter? The hip mobility routine and
+desired benchmarks remain open. The [existing PTT topic](../running_coach_kb/topics/ptt_and_load_tolerance.md)
+is the starting point for evidence.
 
 ### IDEA-011 — Reduce Garmin sync time spent refreshing local metrics
 
