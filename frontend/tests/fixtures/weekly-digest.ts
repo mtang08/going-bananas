@@ -13,7 +13,7 @@ const outcomes: Record<DigestOutcome, number> = {
 }
 const totals: WeeklyDigest['totals'] = {
   sessions: { ...counts, by_outcome: outcomes, removed: 0, unplanned: 0 },
-  by_kind: { run: counts, strength: counts, cross: counts, mobility: counts },
+  by_kind: { run: counts, strength: counts, cross: counts, mobility: counts, rehab: counts },
   time: {
     planned_s: 0,
     planned_to_date_s: 0,
@@ -36,6 +36,7 @@ const totals: WeeklyDigest['totals'] = {
 export function digest(overrides: Partial<WeeklyDigest> = {}): WeeklyDigest {
   return {
     schema: 'weekly_digest.v1',
+    decision_follow_up: null,
     week_start: '2026-11-09',
     week_end: '2026-11-15',
     today: '2026-11-11',

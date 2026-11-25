@@ -1535,3 +1535,131 @@ def test_revising_a_stale_draft_clears_legacy_text_and_fills_v2_columns(proposal
     assert row.uncertainty == raw["uncertainty"]
     assert row.change_triggers == raw["change_triggers"]
     assert row.next_check == raw["next_check"]
+
+
+def test_changed_running_limit_requires_refresh_and_compatible_revision_can_be_accepted(proposal_session):
+    from app.services.proposals.lifecycle import RevisionRequest, revise_proposal
+
+    session = proposal_session
+    previous, uid = _snapshot(session)
+    initial = submit_proposal(session, _doc(previous, uid), now=NOW, resolve_kb=_resolve)
+    assert initial.status == "pending"
+    profile = session.scalars(select(ProfileVersion).order_by(ProfileVersion.version.desc()).limit(1)).one()
+    profile.facts = {
+        **profile.facts,
+        "running_restriction": {
+            "starts_on": "2026-11-17",
+            "review_on": "2026-11-17",
+            "max_duration_s": 2100,
+            "source": "Athlete",
+        },
+    }
+    session.flush()
+    with pytest.raises(DecisionError) as stale:
+        decide_proposal(session, initial.proposal_id, _req(1, "before-limit", ["c1"]), now=NOW, resolve_kb=_resolve)
+    assert stale.value.code == "stale_evidence"
+
+    refreshed, _ = _snapshot(session)
+    raw = _doc(refreshed, uid)
+    with pytest.raises(DecisionError) as blocked:
+        revise_proposal(
+            session,
+            initial.proposal_id,
+            RevisionRequest(expected_revision=1, reason="Running limit", document=raw),
+            now=NOW,
+            resolve_kb=_resolve,
+        )
+    assert blocked.value.code == "invalid_proposal"
+    raw["changes"][0]["after"]["planned_duration_s"] = 2100
+    revision = revise_proposal(
+        session,
+        initial.proposal_id,
+        RevisionRequest(expected_revision=1, reason="Respect the confirmed time cap", document=raw),
+        now=NOW,
+        resolve_kb=_resolve,
+    )
+    assert revision.status == "pending" and revision.proposal_id == initial.proposal_id
+    decision = decide_proposal(
+        session,
+        initial.proposal_id,
+        _req(1, "after-limit", ["c1"]).model_copy(update={"expected_revision": revision.revision}),
+        now=NOW,
+        resolve_kb=_resolve,
+    )
+    assert decision.status == "accepted"
+    assert next(row for row in calendar.state_at(session, 2) if row["session_uid"] == uid)["planned_duration_s"] == 2100
+
+
+def test_sunday_follows_only_applied_run_and_keeps_accepted_dose(proposal_session: Session) -> None:
+    from app.checkin_models import Checkin
+    from app.services.weekly_digest import load_week
+
+    session = proposal_session
+    snapshot, uid = _snapshot(session)
+    raw = _doc(snapshot, uid)
+    raw["changes"].append(
+        {
+            "op": "add",
+            "change_id": "c2",
+            "after": {"local_date": "2026-11-19", "kind": "mobility", "intent": "Stretch"},
+            "reason": "Rejected option",
+        }
+    )
+    draft = submit_proposal(session, raw, now=NOW, resolve_kb=_resolve)
+    assert draft.status == "pending", draft.issues
+    sunday = NOW + timedelta(days=6)
+    assert load_week(session, TODAY, today=sunday.date(), now=sunday)["decision_follow_up"] is None
+    decision = decide_proposal(
+        session, draft.proposal_id, _req(1, "weekly-follow-up", ["c1"], ["c2"]), now=NOW, resolve_kb=_resolve
+    )
+    assert decision.status == "partially_accepted"
+    calendar.apply_edits(
+        session, 2, [{"op": "modify", "session_uid": uid, "fields": {"planned_duration_s": 2220}}], "Adjust time"
+    )
+    start = NOW + timedelta(days=2)
+    finish = start + timedelta(minutes=36)
+    activity = Activity(
+        start_at=start,
+        original_start=start.isoformat(),
+        local_date=start.date(),
+        end_at=finish,
+        sport="running",
+        distance_m=5000,
+        timer_s=2160,
+        workout_rpe=5,
+        resolution_state="resolved",
+    )
+    session.add(activity)
+    session.flush()
+    session.add(
+        SessionCompletion(
+            session_uid=uid,
+            activity_id=activity.id,
+            status="completed_modified",
+            match_method="explicit",
+            updated_at=finish,
+            modification_reason="schedule",
+        )
+    )
+    session.flush()
+    unknown = load_week(session, TODAY, today=sunday.date(), now=sunday)["decision_follow_up"]
+    assert unknown["accepted"]["duration_s"] == 2400 and unknown["edited_since"] is True
+    assert unknown["op"] == "modify" and unknown["reason"] == "Progression"
+    assert unknown["outcome"] == "modified" and unknown["response"] is None
+    assert unknown["actual"]["rpe"] == 5 and unknown["actual"]["duration_s"] == 2160
+    session.add(
+        Checkin(
+            kind="delayed_followup",
+            idempotency_key="weekly-response",
+            activity_id=activity.id,
+            observed_at=finish + timedelta(hours=24),
+            recorded_at=finish + timedelta(hours=25),
+            pain_reported=False,
+        )
+    )
+    session.flush()
+    follow = load_week(session, TODAY, today=sunday.date(), now=sunday)["decision_follow_up"]
+    assert follow["response"]["pain_reported"] is False and follow["response"]["hours_after_end"] == 24
+    assert follow["next_check"] == raw["next_check"]
+    packet = build_snapshot(session, "review_rolling_plan", sunday.date(), now=sunday)
+    assert packet["payload"]["weekly_digest"]["weeks"][-1]["decision_follow_up"] == follow

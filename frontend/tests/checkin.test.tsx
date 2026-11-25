@@ -22,6 +22,8 @@ let requests: {
 }[]
 let failPosts: number, completed: boolean
 let failFindings = false
+let loseCompletionResponse = false
+let completionSaved = false
 let errorStatus = 500
 const close = vi.fn()
 const clients: QueryClient[] = []
@@ -29,6 +31,8 @@ beforeEach(() => {
   checkinExceptions = { new_finding_ids: ['f1'], review_recommended: [rec] }
   requests = []
   failFindings = false
+  loseCompletionResponse = false
+  completionSaved = false
   failPosts = 0
   completed = false
   errorStatus = 500
@@ -63,11 +67,26 @@ beforeEach(() => {
             },
           }),
         }
+      if (loseCompletionResponse && url.includes('/completions/')) {
+        if (!completionSaved) {
+          completionSaved = true
+          throw new Error('Response lost after commit')
+        }
+        return {
+          ok: false,
+          status: 409,
+          json: async () => ({
+            error: { code: 'version_conflict', message: 'Completion changed' },
+          }),
+        }
+      }
       const completion = {
         session_uid: 's1',
         status: completed ? 'completed_as_planned' : 'completed_modified',
-        version: 2,
+        version: completionSaved ? 3 : 2,
         activity_id: 'a1',
+        modification_reason: completionSaved ? 'fatigue' : null,
+        reason_note: null,
       }
       const data = url.endsWith('/execution')
         ? { completion }
@@ -280,6 +299,20 @@ it('post-run retry skips already successful writes', async () => {
   expect(posts()[1].body).toEqual(posts()[0].body)
 })
 
+it('recovers a saved reason after its completion response is lost', async () => {
+  loseCompletionResponse = true
+  mount(postRun())
+  await screen.findByLabelText('What changed the session? (optional)')
+  fireEvent.click(screen.getByRole('button', { name: '6' }))
+  change('What changed the session? (optional)', 'fatigue')
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await screen.findByText(/Cannot reach the local server/)
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(close).toHaveBeenCalledTimes(1))
+  expect(requests.filter((r) => r.method === 'PUT' && r.url.endsWith('/rpe'))).toHaveLength(1)
+  expect(posts()).toHaveLength(1)
+})
+
 it('post-run without prompt or note only saves RPE', async () => {
   completed = true
   mount({ ...postRun(), prompt: null })
@@ -292,28 +325,32 @@ it('post-run without prompt or note only saves RPE', async () => {
   expect(requests.filter((r) => r.method === 'PUT').map((r) => r.body)).toEqual([{ rpe: 7 }])
 })
 
-it('delayed follow-up requires pain and gait then links the correct prompt', async () => {
-  const request = postRun()
-  request.kind = 'delayed_followup'
-  request.prompt = { ...request.prompt!, id: 'p2', kind: 'delayed_symptom' }
-  mount(request)
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-  await screen.findByText('Answer the pain question.')
-  fireEvent.click(screen.getByRole('button', { name: 'No' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-  await screen.findByText('Answer the gait question.')
-  expect(posts()).toHaveLength(0)
-  change('Gait change?', 'no')
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-  await waitFor(() => expect(close).toHaveBeenCalledTimes(1))
-  expect(posts()[0].body).toMatchObject({
-    kind: 'delayed_followup',
-    gait_change: 'no',
-    symptoms: [],
-    activity_id: 'a1',
-    prompt_id: 'p2',
-  })
-})
+it.each([
+  ['No', false],
+  [null, null],
+])(
+  'preserves the delayed pain answer %s and links the correct prompt',
+  async (choice, expected) => {
+    const request = postRun()
+    request.kind = 'delayed_followup'
+    request.prompt = { ...request.prompt!, id: 'p2', kind: 'delayed_symptom' }
+    mount(request)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await screen.findByText('Answer a question or add a note.')
+    if (choice) fireEvent.click(screen.getByRole('button', { name: choice }))
+    else change('Gait change?', 'no')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(close).toHaveBeenCalledTimes(1))
+    expect(posts()[0].body).toMatchObject({
+      kind: 'delayed_followup',
+      gait_change: choice ? null : 'no',
+      pain_reported: expected,
+      symptoms: [],
+      activity_id: 'a1',
+      prompt_id: 'p2',
+    })
+  },
+)
 
 it('shows server validation messages', async () => {
   failPosts = 1

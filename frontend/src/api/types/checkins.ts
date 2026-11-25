@@ -18,6 +18,7 @@ export interface SymptomReport extends SymptomInput {
 export interface CheckinCreate {
   kind: CheckinKind
   observed_at: string
+  pain_reported?: boolean | null
   fatigue?: number | null
   illness?: Illness | null
   gait_change?: GaitChange | null
@@ -34,6 +35,7 @@ export interface CheckinV2 {
   kind: CheckinKind
   observed_at: string
   recorded_at: string
+  pain_reported: boolean | null
   fatigue: number | null
   illness: Illness | null
   gait_change: GaitChange | null
@@ -54,6 +56,16 @@ export interface Prompt {
   opens_at: string
   closes_at: string | null
   status: 'open' | 'answered' | 'dismissed' | 'expired'
+}
+export interface WorkoutFeedback {
+  prompt: (Omit<Prompt, 'status'> & { status: Prompt['status'] | 'scheduled' }) | null
+  checkin_id: string | null
+  observed_at: string | null
+  recorded_at: string | null
+  hours_after_end: number | null
+  pain_reported: boolean | null
+  gait_change: GaitChange | null
+  symptoms: SymptomInput[]
 }
 export interface PromptList {
   items: Prompt[]

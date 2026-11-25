@@ -706,7 +706,13 @@ def test_build_snapshot_stable_hash_and_verified_selection(monkeypatch) -> None:
     assert len(canonical_json(first["payload"])) < 30_000
     assert isinstance(session.rows[0].kb_routes, list)
     assert captured[0].digest == session.rows[0].kb_digest
-    assert captured[0].selected_records == tuple(first["payload"]["snapshot_meta"]["knowledge"]["selected_records"])
+    records = first["payload"]["snapshot_meta"]["knowledge"]["selected_records"]
+    excerpts = {(e["path"], e.get("record_id")): e for e in first["kb"]["excerpts"]}
+    for original, saved in zip(captured[0].selected_records, records, strict=True):
+        if "content" not in saved:
+            assert json.loads(excerpts[(saved["path"], saved["record_id"])]["text"]) == original["content"]
+        else:
+            assert saved == original
     assert "research_notes" in first["payload"]["snapshot_meta"]["knowledge"]["selected_records"][-1]["content"]
     advisory_lock, row_lock, windows, nights = session.calls[:4]
     assert advisory_lock == "SELECT pg_advisory_xact_lock(71382413)"
@@ -1843,3 +1849,158 @@ def test_travel_section_size_for_eight_round_trips():
     section = build_payload(inputs(trips=trips), ROLLING)["travel"]
     assert section["trips_omitted"] == 0 and len(section["trips"]) == 8
     assert len(canonical_json(section)) <= 8000
+
+
+def test_next_review_distinguishes_delayed_pain_no_from_silence_and_legacy():
+    opened = NOW - timedelta(days=5)
+    observed = NOW - timedelta(days=2)
+    data = inputs(
+        prompts=[
+            {
+                "prompt_id": f"prompt-{activity}",
+                "kind": "delayed_symptom",
+                "activity_id": activity,
+                "status": "expired" if activity == "untouched" else "answered",
+                "opens_at": opened,
+            }
+            for activity in ("untouched", "explicit-no", "legacy")
+        ],
+        checkins=[
+            {
+                "activity_id": activity,
+                "kind": "delayed_followup",
+                "checkin_id": f"checkin-{activity}",
+                "local_date": observed.date(),
+                "observed_at": observed,
+                "hours_after_end": 88,
+                **extra,
+            }
+            for activity, extra in (("explicit-no", {"pain_reported": False}), ("legacy", {}))
+        ],
+    )
+    delayed = {
+        row["activity_id"]: row["response"] for row in build_payload(data, ROLLING)["symptoms"]["delayed_responses"]
+    }
+    assert delayed["untouched"] is None
+    assert delayed["explicit-no"]["pain_reported"] is False
+    assert delayed["explicit-no"]["hours_after_end"] == 88
+    assert delayed["legacy"]["pain_reported"] is None
+    assert delayed["legacy"]["checkin_id"] == "checkin-legacy"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ({"sleep": {"value": 25000, "adverse": True}}, True),
+        ({"hrv": {"value": 42, "adverse": False, "reason_codes": ["BASELINE_INSUFFICIENT"]}}, True),
+        ({"resting_hr": {"value": 50, "quality_flags": ["SOURCE_DEVICE_UNKNOWN"]}}, True),
+        ({"discordance": True}, True),
+        ({"subjective_poor": True}, True),
+        ({"flags": ["legacy"]}, True),
+        ({"sleep": {"value": None, "reason_codes": ["RECOVERY_MISSING"]}}, False),
+        ({"sleep": {"value": 25000, "adverse": False}, "discordance": False}, False),
+    ],
+)
+def test_recovery_topic_uses_night_signals_and_relevant_quality(value, expected):
+    source = minimal()
+    source.metric_results = [
+        {
+            "metric_id": "recovery_multisignal_summary",
+            "subject_type": "night",
+            "subject_key": f"night:{AS_OF}",
+            "value": value,
+        }
+    ]
+    topic = "topics/recovery_and_daily_adaptation.md"
+    assert (topic in select_conditional_topics(source, DAILY)) is expected
+    source.metric_results[0]["subject_key"] = f"night:{AS_OF - timedelta(days=3)}"
+    assert topic not in select_conditional_topics(source, DAILY)
+
+
+def test_active_metric_config_changes_fingerprint(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.metrics import engine
+    from app.services.decision_inputs import VerifiedKnowledge, fingerprint, metric_identities
+
+    module = SimpleNamespace(METRIC_ID="sample", METHOD_VERSION="v1", CONFIG={"threshold": 1})
+    monkeypatch.setattr(engine, "metric_modules", lambda: (module,))
+    kb = VerifiedKnowledge("digest", (), (), frozenset(), frozenset(), frozenset())
+    initial = metric_identities()
+    first = fingerprint({"metric_identities": initial}, kb)
+    module.CONFIG["threshold"] = 2
+    assert fingerprint({"metric_identities": metric_identities()}, kb) != first
+    module.CONFIG["threshold"] = 1
+    module.METHOD_VERSION = "v2"
+    assert fingerprint({"metric_identities": metric_identities()}, kb) != first
+    assert metric_identities()[0]["metric_id"] == "sample"
+
+
+def test_recovery_topic_routes_actual_night_outcome():
+    from app.metrics.recovery import Observation, night_outcome
+
+    history = [
+        Observation(AS_OF - timedelta(days=day), "sleep", 28000 + (day % 5) * 300, "known", True, {})
+        for day in range(1, 31)
+    ]
+    history.append(Observation(AS_OF, "sleep", 20000, "known", True, {}))
+    night = night_outcome(AS_OF, history, [])
+    assert night["value"]["sleep"]["adverse"] is True
+    source = minimal()
+    source.metric_results = [
+        {
+            "metric_id": "recovery_multisignal_summary",
+            "subject_type": "night",
+            "subject_key": f"night:{AS_OF}",
+            "value": night["value"],
+        }
+    ]
+    assert "topics/recovery_and_daily_adaptation.md" in select_conditional_topics(source, DAILY)
+
+
+@pytest.mark.parametrize(
+    ("status", "answer", "expected"),
+    [
+        ("answered", False, False),
+        ("dismissed", False, False),
+        ("answered", True, True),
+        ("answered", None, True),
+    ],
+)
+def test_ptt_routing_distinguishes_negative_delayed_answers(status, answer, expected):
+    source = minimal()
+    source.prompts = [
+        {
+            "prompt_id": "p",
+            "activity_id": "a",
+            "kind": "delayed_symptom",
+            "status": status,
+            "opens_at": NOW - timedelta(hours=8),
+        }
+    ]
+    source.checkins = (
+        []
+        if answer is None
+        else [
+            {
+                "kind": "delayed_followup",
+                "prompt_id": "p",
+                "activity_id": "a",
+                "local_date": AS_OF,
+                "pain_reported": answer,
+                "symptoms": [],
+            }
+        ]
+    )
+    assert ("topics/ptt_and_load_tolerance.md" in select_conditional_topics(source, DAILY)) is expected
+
+
+def test_ptt_routing_keeps_symptom_history_and_answered_legacy_followup():
+    source = minimal()
+    source.checkins = [{"local_date": AS_OF, "symptoms": [{"site": "ankle"}]}]
+    assert "topics/ptt_and_load_tolerance.md" in select_conditional_topics(source, DAILY)
+    source.checkins = [{"kind": "delayed_followup", "local_date": AS_OF, "activity_id": "a", "symptoms": []}]
+    source.prompts = [
+        {"activity_id": "a", "kind": "delayed_symptom", "status": "answered", "opens_at": NOW - timedelta(hours=8)}
+    ]
+    assert "topics/ptt_and_load_tolerance.md" in select_conditional_topics(source, DAILY)

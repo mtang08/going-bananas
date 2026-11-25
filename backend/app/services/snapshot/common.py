@@ -132,6 +132,7 @@ class SnapshotInputs:
     cycle_anchor: date | None
     anchor_confirmed: bool
     clinical_restriction: str | None
+    running_restriction: dict | None = None
     sessions: list[dict] = field(default_factory=list)
     completions: list[dict] = field(default_factory=list)
     strength_slots: list[dict] = field(default_factory=list)

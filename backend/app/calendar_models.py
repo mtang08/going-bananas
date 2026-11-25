@@ -75,7 +75,7 @@ class CalendarSessionRevision(Base):
     __table_args__ = (
         UniqueConstraint("session_uid", "revision"),
         CheckConstraint(
-            "kind IN ('run','strength','cross','rest','mobility')", name="ck_calendar_session_revisions_kind"
+            "kind IN ('run','strength','cross','rest','mobility','rehab')", name="ck_calendar_session_revisions_kind"
         ),
         CheckConstraint("certainty IN ('committed','provisional')", name="ck_calendar_session_revisions_certainty"),
         CheckConstraint("slot >= 0", name="ck_calendar_session_revisions_slot"),

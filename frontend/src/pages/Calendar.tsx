@@ -250,7 +250,8 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
           const canEdit = writable && day >= today && !s.locked && !protectedCompletion
           const canMarkComplete =
             writable && day <= today && s.kind !== 'rest' && !protectedCompletion
-          const canRecord = writable && day < today && !protectedCompletion
+          const canRecord =
+            writable && !protectedCompletion && (day < today || (day === today && s.kind === 'run'))
           return (
             <div
               className={`session-row certainty-${s.certainty}`}
@@ -261,9 +262,6 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
               <SessionSummary session={s} completion={completion} today={today} unit={unit}>
                 {completion?.modification_reason && (
                   <small>Reason: {REASON_LABELS[completion.modification_reason]}</small>
-                )}
-                {completion?.activity_id && (
-                  <a href={pageHref.activity(completion.activity_id)}>Open run</a>
                 )}
                 {canEdit && (
                   <div className="coach-actions">
@@ -342,18 +340,24 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
                     Undo manual completion
                   </Button>
                 )}
-                {canRecord && (
-                  <Button
-                    variant="link"
-                    onClick={() => {
-                      setOutcomeFor(s)
-                      setMessage(null)
-                    }}
-                  >
-                    Record outcome
-                  </Button>
+                {s.running_restriction_conflict && !protectedCompletion && (
+                  <p className="error-text">{s.running_restriction_conflict}</p>
                 )}
               </SessionSummary>
+              {completion?.activity_id && (
+                <a href={pageHref.activity(completion.activity_id)}>Open run</a>
+              )}
+              {canRecord && (
+                <Button
+                  variant="link"
+                  onClick={() => {
+                    setOutcomeFor(s)
+                    setMessage(null)
+                  }}
+                >
+                  Record outcome
+                </Button>
+              )}
             </div>
           )
         })}
@@ -639,7 +643,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
           }}
         >
           <h2>Record outcome</h2>
-          <p>Missed sessions stay in the record. Nothing is rescheduled automatically.</p>
+          <p>Link a recording from the planned day or an adjacent day, or record the outcome.</p>
           {showError}
           <div className="coach-actions">
             <Button
@@ -762,7 +766,10 @@ function SessionEditor({
       setLocalError('Purpose is required.')
       return
     }
-    if (duration && (!Number.isFinite(Number(duration)) || Number(duration) < 1)) {
+    if (
+      (kind === 'rehab' && !duration) ||
+      (duration && (!Number.isFinite(Number(duration)) || Number(duration) < 1))
+    ) {
       setLocalError('Enter a valid duration.')
       return
     }
@@ -870,6 +877,7 @@ function SessionEditor({
             <option value="cross">Cross-training</option>
             <option value="rest">Rest</option>
             <option value="mobility">Mobility</option>
+            <option value="rehab">Rehab</option>
           </NativeSelect>
           {kind === 'run' && (
             <>
@@ -905,6 +913,7 @@ function SessionEditor({
             id="session-duration"
             type="number"
             min="1"
+            required={kind === 'rehab'}
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
           />

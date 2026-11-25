@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from app.domain.athlete_facts import RunningRestriction
 from app.domain.calendar_structure import expand_structure
 from app.services.block_benchmark import BenchmarkOutcome, BenchmarkSpec, benchmark_spec
 from app.services.decision_inputs import VerifiedKnowledge, canonical_json, fingerprint
@@ -1660,3 +1661,129 @@ def test_v25_brief_not_required_for_bookkeeping_edits_or_later_runs() -> None:
     later = {"local_date": "2026-11-30", "kind": "run", "intent": "Easy", "recipe_id": "REC001"}
     doc["changes"] = [*week_adds(), change("c3", "add", None, later)]
     assert outcome(doc, far) == ("pending", [])
+
+
+def test_rehab_can_share_any_day_and_has_daily_duration_limit() -> None:
+    doc = valid_doc()
+    doc["changes"] = [
+        change(
+            "c1",
+            "add",
+            None,
+            {
+                "local_date": "2026-11-17",
+                "slot": 2,
+                "kind": "rehab",
+                "intent": "Calf raises",
+                "planned_duration_s": 300,
+            },
+        ),
+        change(
+            "c2",
+            "add",
+            None,
+            {
+                "local_date": "2026-11-17",
+                "slot": 3,
+                "kind": "rehab",
+                "intent": "Foot control",
+                "planned_duration_s": 600,
+            },
+        ),
+    ]
+    assert outcome(doc)[0] == "pending"
+    doc["changes"][1]["after"]["planned_duration_s"] = 601
+    assert "V7.rehab_daily_limit" in [code for code, _ in outcome(doc)[1]]
+    del doc["changes"][1]["after"]["planned_duration_s"]
+    assert "V7.rehab_duration_required" in [code for code, _ in outcome(doc)[1]]
+
+
+def test_dated_running_limit_validates_submission_and_selected_subset() -> None:
+    limit = RunningRestriction(
+        starts_on=date(2026, 11, 20), review_on=date(2026, 11, 21), max_distance_m=5000, source="Athlete"
+    )
+    ctx = replace(context(), running_restriction=limit)
+    doc = valid_doc()
+    doc["changes"] = [
+        change("c1", "modify", 3, {"planned_distance_m": 4500, "brief": BRIEF}),
+        change(
+            "c2",
+            "modify",
+            6,
+            {
+                "planned_distance_m": 4800,
+                "structure": [
+                    {
+                        "type": "repeat",
+                        "count": 3,
+                        "steps": [{"type": "work", "duration_type": "distance", "duration_value": 1800}],
+                    }
+                ],
+                "brief": BRIEF,
+            },
+        ),
+    ]
+    assert outcome(doc, ctx) == ("invalid", [("V12.running_restriction", "changes.1")])
+    parsed, issues = parse_document(doc)
+    assert parsed is not None and not issues
+    assert not validate_subset(parsed, {"c1"}, False, set(), ctx)
+    assert [issue.code for issue in validate_subset(parsed, {"c2"}, False, set(), ctx)] == ["V12.running_restriction"]
+    ended = replace(ctx, running_restriction=limit.model_copy(update={"ends_on": date(2026, 11, 21)}))
+    assert outcome(doc, ended) == ("pending", [])
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"planned_distance_m": 4200},
+        {"structure": [{"type": "work", "duration_type": "time", "duration_value": 1800}]},
+    ],
+)
+def test_temporary_guard_blocks_added_distance_and_structure(fields: dict) -> None:
+    doc = valid_doc()
+    doc["changes"] = [change("c1", "modify", 1, {**fields, "brief": BRIEF})]
+    ctx = context(guard={"gait_change_yes": True})
+    assert outcome(doc, ctx) == ("invalid", [("V12.safety_guard", "changes.0")])
+    previous = replace(ctx.head_sessions[U(1)], planned_distance_m=5000, structure=fields.get("structure"))
+    ctx = replace(ctx, head_sessions={**ctx.head_sessions, U(1): previous})
+    doc["changes"] = [change("c1", "modify", 1, {"planned_distance_m": 4000, "structure": None, "brief": BRIEF})]
+    assert outcome(doc, ctx) == ("pending", [])
+
+
+def test_no_quality_checks_the_explicit_effort_even_for_an_easy_recipe() -> None:
+    limit = RunningRestriction(starts_on=TODAY, no_quality=True, source="Athlete")
+    ctx = replace(context(), running_restriction=limit)
+    doc = valid_doc()
+    hard = {**BRIEF, "effort": {"rpe_low": 6, "rpe_high": 8, "feel": "controlled"}}
+    doc["changes"] = [change("c1", "modify", 3, {"planned_duration_s": 1500, "brief": hard})]
+    assert outcome(doc, ctx) == ("invalid", [("V12.running_restriction", "changes.0")])
+    doc["changes"][0]["after"]["brief"] = BRIEF
+    assert outcome(doc, ctx) == ("pending", [])
+
+
+def test_temporary_guard_blocks_harder_effort_even_when_time_is_shorter() -> None:
+    ctx = context(guard={"gait_change_yes": True})
+    doc = valid_doc()
+    hard = {**BRIEF, "effort": {"rpe_low": 6, "rpe_high": 8, "feel": "controlled"}}
+    doc["changes"] = [change("c1", "modify", 1, {"planned_duration_s": 1500, "brief": hard})]
+    assert outcome(doc, ctx) == ("invalid", [("V12.safety_guard", "changes.0")])
+    doc["changes"][0]["after"]["brief"] = BRIEF
+    assert outcome(doc, ctx) == ("pending", [])
+
+
+def test_temporary_guard_compares_speed_targets_when_replacing_a_duration_step() -> None:
+    ctx = context(guard={"gait_change_yes": True})
+    original = ctx.head_sessions[U(1)]
+    work = {
+        "type": "work",
+        "duration_type": "time",
+        "duration_value": 1800,
+        "target": {"modality": "speed", "low": 2.0, "high": 3.0, "effort_cue": None},
+    }
+    ctx = replace(ctx, head_sessions={**ctx.head_sessions, U(1): replace(original, structure=[work], brief=BRIEF)})
+    doc = valid_doc()
+    faster = {**work, "duration_value": 1500, "target": {**work["target"], "high": 3.1}}
+    doc["changes"] = [change("c1", "modify", 1, {"structure": [faster], "brief": BRIEF})]
+    assert outcome(doc, ctx) == ("invalid", [("V12.safety_guard", "changes.0")])
+    doc["changes"][0]["after"]["structure"][0]["target"] = work["target"]
+    assert outcome(doc, ctx) == ("pending", [])

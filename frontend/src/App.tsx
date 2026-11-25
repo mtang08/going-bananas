@@ -269,7 +269,9 @@ export function App() {
             {page === 'trends' && <Trends unit={unit} />}
             {page === 'block' && <Block unit={unit} />}
             {page === 'guide' && <Guide />}
-            {page === 'proposal' && route.id && <ProposalReview proposalId={route.id} />}
+            {page === 'proposal' && route.id && (
+              <ProposalReview proposalId={route.id} unit={unit} />
+            )}
             {page === 'activity' && route.id && (
               <Activity activityId={route.id} unit={unit} onCheckin={openCheckin} />
             )}

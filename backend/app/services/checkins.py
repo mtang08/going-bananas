@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, cast
 
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.metric_models import Prompt
 from app.models import Activity, ManualSession
+from app.read.workout_feedback import DELAYED_RESPONSE_HOURS
 from app.services.calendar import lock_calendar
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
@@ -65,6 +66,7 @@ class CheckinCreate(BaseModel):
     observed_at: datetime
     fatigue: float | None = None
     illness: Literal["none", "possible", "present"] | None = None
+    pain_reported: StrictBool | None = None
     gait_change: Literal["yes", "no", "unsure"] | None = None
     context_tags: list[str] = Field(default_factory=list)
     activity_id: uuid.UUID | None = None
@@ -99,6 +101,7 @@ class CheckinPatch(BaseModel):
     observed_at: datetime | None = None
     fatigue: float | None = None
     illness: Literal["none", "possible", "present"] | None = None
+    pain_reported: StrictBool | None = None
     gait_change: Literal["yes", "no", "unsure"] | None = None
     context_tags: list[str] | None = None
     activity_id: uuid.UUID | None = None
@@ -162,6 +165,7 @@ def checkin_data(session: Session, row: Checkin) -> dict:
         "fatigue": row.fatigue,
         "illness": row.illness,
         "gait_change": row.gait_change,
+        "pain_reported": row.pain_reported,
         "context_tags": row.context_tags,
         "activity_id": row.activity_id,
         "prompt_id": row.prompt_id,
@@ -186,6 +190,7 @@ def _creation_request(value: dict) -> dict:
             "fatigue",
             "illness",
             "gait_change",
+            "pain_reported",
             "context_tags",
             "activity_id",
             "prompt_id",
@@ -244,6 +249,39 @@ def _check_related(session: Session, body: dict, *, owner_prompt_id: uuid.UUID |
     return prompt
 
 
+def _validate_pain(data: dict) -> None:
+    if data.get("pain_reported") is False and data.get("symptoms"):
+        fail("invalid_checkin", "No pain cannot be combined with symptom reports")
+
+
+def _check_delayed_owner(session: Session, data: dict) -> None:
+    if data["kind"] != "delayed_followup":
+        return
+    exists = session.scalar(
+        select(Checkin.id)
+        .where(Checkin.kind == "delayed_followup", Checkin.activity_id == data["activity_id"])
+        .limit(1)
+    )
+    if exists is not None:
+        fail("activity_response_exists", "A delayed response has already been recorded for this run", 409)
+
+
+def _check_delayed_timing(session: Session, data: dict, prompt: Prompt | None) -> None:
+    if data["kind"] != "delayed_followup":
+        return
+    activity = session.get(Activity, data["activity_id"])
+    assert activity is not None  # _check_related verified the recorded run.
+    opens_at = prompt.opens_at if prompt is not None else None
+    if activity.end_at is not None:
+        run_window = activity.end_at + timedelta(hours=DELAYED_RESPONSE_HOURS)
+        opens_at = max(opens_at, run_window) if opens_at is not None else run_window
+    if opens_at is None or min(data["observed_at"], datetime.now(UTC)) < opens_at:
+        fail(
+            "delayed_response_not_due",
+            f"Delayed feedback opens {DELAYED_RESPONSE_HOURS} hours after the recorded run ends",
+        )
+
+
 def create_checkin(session: Session, body: dict) -> tuple[dict, bool]:
     data = CheckinCreate.model_validate(body).model_dump()
     lock_calendar(session)
@@ -258,8 +296,11 @@ def create_checkin(session: Session, body: dict) -> tuple[dict, bool]:
         original_data = dict(original.payload) if original else checkin_data(session, existing)
         if _hash(data) != _hash(original_data):
             fail("idempotency_conflict", "Check-in key was used for a different body", 409)
-        return original_data, False
+        return {"pain_reported": None, **original_data}, False
+    _validate_pain(data)
     prompt = _check_related(session, data)
+    _check_delayed_owner(session, data)
+    _check_delayed_timing(session, data, prompt)
     symptoms = data.pop("symptoms")
     row = Checkin(**data, version=1, schema_version=2)
     session.add(row)
@@ -281,7 +322,7 @@ def patch_checkin(session: Session, id: uuid.UUID, body: dict) -> dict:
         fail("version_conflict", "Check-in changed; reload before editing", 409)
     prior = checkin_data(session, row)
     changes = patch.model_dump(exclude={"expected_version"}, exclude_unset=True)
-    candidate = {**_creation_request(prior), **changes}
+    candidate = {**_creation_request(prior), "observed_at": row.observed_at, **changes}
     if (
         candidate.get("observed_at") is None
         or candidate.get("kind") is None
@@ -289,7 +330,12 @@ def patch_checkin(session: Session, id: uuid.UUID, body: dict) -> dict:
         or candidate.get("symptoms") is None
     ):
         fail("invalid_checkin", "Required check-in fields cannot be null")
+    _validate_pain(candidate)
     prompt = _check_related(session, candidate, owner_prompt_id=row.prompt_id)
+    if (row.kind, row.activity_id) != (candidate["kind"], candidate.get("activity_id")):
+        _check_delayed_owner(session, candidate)
+    if any(candidate[key] != prior[key] for key in ("kind", "activity_id", "prompt_id", "observed_at")):
+        _check_delayed_timing(session, candidate, prompt)
     session.add(CheckinRevision(checkin_id=row.id, version=row.version, payload=jsonable_encoder(prior)))
     symptoms = changes.pop("symptoms", None)
     for key, value in changes.items():
@@ -355,7 +401,7 @@ def save_manual_rpe(
     if row is None:
         row = SessionRpe(**subjects, source="manual", rpe=value, collected_at=now, collection_delay_s=delay)
         session.add(row)
-    else:
+    elif row.rpe != value:
         row.rpe, row.collected_at, row.collection_delay_s = value, now, delay
     session.flush()
     return {

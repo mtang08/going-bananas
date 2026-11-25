@@ -8,11 +8,15 @@ If the app is already running, just open http://127.0.0.1:8000; do not start a s
 
 ## Daily check-in
 
-Open [Home](#home) to see what needs attention, weekly mileage, **Planned vs done**, today's accepted session, and this week's sessions with their recorded distance, time, pace, heart rate, RPE, and comparison with the plan. Open a session for its full prescription, including warm-up, intervals, recovery, targets, the coach’s brief, and notes. In a rolling proposal, days 1–7 are committed planning and day 8 onward is provisional. Calendar shows one Monday–Sunday week at a time. Use each session’s saved badge to see whether it is provisional. The **Planned vs done** card covers this week or last week (Monday–Sunday): sessions done against planned (so far, while the week is still running), time, running distance, how each key session went (quality, long, and benchmark runs, with steps completed and time in target), what was missed or not recorded, unplanned sessions, and sessions an accepted change removed. A value the app cannot know shows as unknown, never as zero. The coach reads the same numbers in your Sunday review.
+Open [Home](#home) for **Today’s plan**. An upcoming run links to its calendar workout. A linked recording opens the run and its feedback. Below the plan you can see what needs attention, weekly mileage, **Planned vs done**, and this week's sessions with their recorded distance, time, pace, heart rate, RPE, and comparison with the plan. Open a session for its full prescription, including warm-up, intervals, recovery, targets, the coach’s brief, and notes. In a rolling proposal, days 1–7 are committed planning and day 8 onward is provisional. Calendar shows one Monday–Sunday week at a time. Use each session’s saved badge to see whether it is provisional. The **Planned vs done** card covers this week or last week (Monday–Sunday): sessions done against planned (so far, while the week is still running), time, running distance, how each key session went (quality, long, and benchmark runs, with steps completed and time in target), what was missed or not recorded, unplanned sessions, and sessions an accepted change removed. A value the app cannot know shows as unknown, never as zero. The coach reads the same numbers in your Sunday review.
 
-Record actual effort and post-run response when prompted. Report fatigue, illness, symptoms, or gait changes when relevant. Missing observations stay unknown, so a blank check-in does not mean everything was normal.
+Record actual effort and post-run response when prompted. On a recorded run, the delayed check preserves an explicit **No** as an answer. An unanswered question stays unknown. From 16 hours after the run ends, you can add a delayed response yourself, including when the reminder was dismissed, expired or never issued. Report fatigue, illness, symptoms, or gait changes when relevant. Missing observations stay unknown, so a blank check-in does not mean everything was normal.
 
 Each check-in, post-run RPE, and recorded outcome runs the exception check. An isolated HRV, resting-HR, sleep, or pace reading on its own is logged for your Sunday review. Repeated or converging signals may raise a finding on Home; a new symptom, illness, or gait change can raise one immediately. See **Exception review**.
+
+In **Settings → Running limits**, enter the original instruction, its source and first day. You can pause running, exclude quality sessions, or set maximum distance or duration per run. Use a confirmed last day only when you know it. A review date alone keeps the limit in force. Calendar flags existing conflicts for review.
+
+Calendar can put **Rehab** alongside a run or lift. Give each rehab slot a duration, check it off separately, and keep all rehab slots within 15 minutes total that day. The weekly digest counts rehab separately.
 
 ## Sunday review
 
@@ -21,6 +25,10 @@ Start one manual coaching review on Sunday evening. You do not need to decide wh
 > Use $going-bananas-coach for my Sunday review in real mode. Review my current block and talk through the plan with me. My schedule changes and feedback are: …
 
 The coach checks the active block and its review date. With no block, it helps establish one. When the block is due or an early-review trigger applies, it reviews the objective and response. Otherwise, it reviews the rest of the current block, from today through the block's review date and always at least 14 days ahead, keeping day 8 onward provisional.
+
+In **Planned vs done**, the follow-up on an accepted run shows the original dose, the reason for the change, the recorded outcome and effort, any delayed response, and the plan's next check. It flags later calendar edits. Use the links to reopen the decision or the recording.
+
+While reviewing a pending proposal, **Two-week schedule impact** recalculates when you change the checked rows. It shows changes in planned running time and distance and the dates of affected sessions. For a moved run, look for nearby demanding work before deciding whether to accept. **Block → Goal progress** brings the latest reported benchmark, the block indicators, and the next scheduled check together.
 
 This cadence is manual. No coaching review or proposal runs automatically on Sunday. Extra reviews are useful after a material change, symptoms, or a new goal.
 

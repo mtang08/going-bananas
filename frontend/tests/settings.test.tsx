@@ -652,3 +652,52 @@ it('shows a stale order error and reloads the events', async () => {
     requests.filter(({ method, url }) => method === 'GET' && url.endsWith('/events')).length,
   ).toBeGreaterThanOrEqual(2)
 })
+
+it('saves confirmed running limits in meters and seconds without treating review as the end', async () => {
+  profile.facts = { clinician_restriction: 'Keep runs easy.', other_fact: true }
+  mount()
+  await screen.findByLabelText('Maximum distance per run')
+  input('run-limit-unit', 'mi')
+  input('run-limit-distance', '3')
+  input('run-limit-minutes', '22.5')
+  input('run-limit-review', '2026-11-14')
+  input('run-limit-source', 'Physiotherapist')
+  input('run-limit-wording', 'Three miles or 22.5 minutes.')
+  fireEvent.click(screen.getByRole('button', { name: 'Save running limits' }))
+  await waitFor(() => expect(writes()).toHaveLength(1))
+  expect(writes()[0].body?.facts).toMatchObject({
+    clinician_restriction: 'Keep runs easy.',
+    other_fact: true,
+    running_restriction: {
+      starts_on: '2026-11-11',
+      review_on: '2026-11-14',
+      ends_on: null,
+      max_distance_m: 4828,
+      max_duration_s: 1350,
+      source: 'Physiotherapist',
+      wording: 'Three miles or 22.5 minutes.',
+    },
+  })
+})
+
+it('shows a due review without clearing the restriction or the previous instruction', async () => {
+  profile.facts = {
+    clinician_restriction: 'Keep runs easy.',
+    running_restriction: {
+      starts_on: '2026-11-01',
+      review_on: '2026-11-10',
+      ends_on: null,
+      no_quality: true,
+      source: 'Athlete',
+    },
+  }
+  mount()
+  await screen.findByText(
+    'Review is due. Confirm updated limits or clear them once the restriction ends.',
+  )
+  expect(screen.getByLabelText('No quality sessions')).toBeChecked()
+  fireEvent.click(screen.getByRole('button', { name: 'Clear dated running limits' }))
+  await waitFor(() =>
+    expect(writes()[0].body?.facts).toEqual({ clinician_restriction: 'Keep runs easy.' }),
+  )
+})

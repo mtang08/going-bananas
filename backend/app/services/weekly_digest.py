@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter, defaultdict
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Literal, get_args
 
@@ -26,6 +26,7 @@ from app.metrics.contract import RunFact
 from app.metrics.engine import activities_coverage_complete, current_results, load_runs
 from app.models import Activity, ManualSession
 from app.read.calendar import head_version, latest_revisions
+from app.read.review_followup import weekly_follow_up
 from app.services import calendar
 from app.services.run_rpe import effective_run_rpe
 from app.services.timezone import athlete_tz
@@ -38,7 +39,7 @@ OUTCOMES: tuple[Outcome, ...] = get_args(Outcome)
 DONE_OUTCOMES = frozenset({"completed", "modified", "partial", "moved", "recorded"})
 NOT_DONE_OUTCOMES = frozenset({"missed", "not_recorded"})
 HEADLINE_KINDS = ("run", "strength", "cross")
-REPORTED_KINDS = ("run", "strength", "cross", "mobility")
+REPORTED_KINDS = ("run", "strength", "cross", "mobility", "rehab")
 KEY_CLASSES = HARD_CLASSES
 PACE_WINDOW_DAYS = 28
 _DAY = timedelta(days=1)
@@ -227,7 +228,9 @@ def assemble_week(
     in_week = [
         (ref, sub)
         for ref, sub in subjects.items()
-        if week_start <= sub["local_date"] <= week_end and sub["kind"] != "mobility" and not sub["linked"]
+        if week_start <= sub["local_date"] <= week_end
+        and sub["kind"] not in {"mobility", "rehab"}
+        and not sub["linked"]
     ]
     unplanned = sorted(
         (
@@ -283,7 +286,7 @@ def assemble_week(
             "sessions": {
                 **counts(headline),
                 "by_outcome": by_outcome(headline),
-                "removed": len(removed_rows),
+                "removed": sum(row["kind"] in HEADLINE_KINDS for row in removed_rows),
                 "unplanned": len(unplanned),
             },
             "by_kind": {k: counts([r for r in rows if r["kind"] == k]) for k in REPORTED_KINDS},
@@ -333,7 +336,7 @@ def _rows(result: dict[str, MetricResult]) -> dict[str, dict]:
     }
 
 
-def load_week(session: Session, week_start: date, *, today: date) -> dict:
+def load_week(session: Session, week_start: date, *, today: date, now: datetime | None = None) -> dict:
     week_end = week_start + timedelta(days=6)
     as_of = min(week_end, today)
     timezone = athlete_tz(session)
@@ -465,7 +468,7 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
     linked_activity_ids = sorted(str(a) for a in linked_ids)
     pace_runs = load_runs(session, as_of - timedelta(days=PACE_WINDOW_DAYS - 1), as_of + _DAY)
     pace, _ = recent_pace_mps(pace_runs, as_of, PACE_WINDOW_DAYS)
-    return assemble_week(
+    week = assemble_week(
         week_start=week_start,
         today=today,
         timezone=timezone.key,
@@ -486,6 +489,14 @@ def load_week(session: Session, week_start: date, *, today: date) -> dict:
         pace_mps=pace,
         activity_coverage_complete=activities_coverage_complete(session, week_start, as_of + _DAY),
     )
+    week["decision_follow_up"] = weekly_follow_up(
+        session,
+        week["sessions"],
+        {str(row["session_uid"]): row["revision"] for row in sessions},
+        today,
+        now or datetime.now(UTC),
+    )
+    return week
 
 
 def weekly_digest(session: Session, week_start: date | None) -> dict:

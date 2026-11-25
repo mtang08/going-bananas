@@ -285,3 +285,56 @@ describe('weekly digest', () => {
     expect(screen.getByTestId('digest-key-session')).toHaveTextContent(/Steady.*Missed/)
   })
 })
+
+it('connects the accepted prescription, observed effort and delayed response to the plan review', () => {
+  const decision: NonNullable<WeeklyDigestData['decision_follow_up']> = {
+    proposal_id: 'p1',
+    session_uid: 's1',
+    op: 'modify',
+    reason: 'See how the shorter session feels.',
+    accepted: {
+      local_date: '2026-11-10',
+      intent: 'Easy run',
+      duration_s: 1800,
+      distance_m: null,
+      effort: null,
+    },
+    edited_since: true,
+    modification_reason: 'schedule',
+    outcome: 'modified',
+    actual: a1.actual,
+    response: null,
+    next_check: { on: '2026-11-15', check: 'Review effort and next-morning response.' },
+  }
+  const view = mount(digest({ decision_follow_up: decision }))
+  const panel = within(screen.getByRole('region', { name: 'Follow-up on an accepted run' }))
+  expect(panel.getByText(decision.reason)).toBeInTheDocument()
+  expect(panel.getByText(/RPE 6\/10/)).toBeInTheDocument()
+  expect(panel.getByText(/No delayed response recorded/)).toBeInTheDocument()
+  expect(panel.getByText(/calendar was edited/)).toBeInTheDocument()
+  expect(panel.getByRole('link', { name: 'View accepted decision' })).toHaveAttribute(
+    'href',
+    '#proposal/p1',
+  )
+  expect(panel.getByRole('link', { name: 'View workout feedback' })).toHaveAttribute(
+    'href',
+    '#activity/a1',
+  )
+  const response = {
+    observed_at: '2026-11-11T11:00:00Z',
+    hours_after_end: 24,
+    pain_reported: false,
+    gait_change: null,
+    symptoms: [],
+  }
+  view.rerender(
+    <WeeklyDigest
+      digest={digest({ decision_follow_up: { ...decision, response } })}
+      unit="mi"
+      week="this"
+      onWeekChange={vi.fn()}
+    />,
+  )
+  expect(panel.getByText('No pain reported · 24 h after the run')).toBeInTheDocument()
+  expect(panel.getByText(/Review effort and next-morning response/)).toBeInTheDocument()
+})

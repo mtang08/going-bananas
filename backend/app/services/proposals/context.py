@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import global_write_lock
+from app.domain.athlete_facts import running_restriction
 from app.domain.local_time import date_in_zone
 from app.read.calendar import head_version
 from app.services.block_benchmark import active_block_version, last_credible_result_date
@@ -147,6 +148,7 @@ def load_context(
         last_benchmark_date=last_credible_result_date(session),
         confirmed_strength_dates=frozenset(strength_schedule),
         confirmed_strength_slot_ids={day: uuid.UUID(slot) for day, slot in strength_schedule.items() if slot},
+        running_restriction=running_restriction(profile.facts) if profile else None,
         accepted_strength_omission_dates=frozenset(accepted_omissions),
         accepted_strength_omission_slot_ids={day: uuid.UUID(slot) for day, slot in accepted_omissions.items() if slot},
     )

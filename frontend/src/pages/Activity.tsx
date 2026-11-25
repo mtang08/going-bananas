@@ -130,7 +130,18 @@ export function Activity({
     intensity,
     rpe,
     symptoms,
+    delayed_response,
   } = data ?? ({} as ActivityExecution)
+  const prompt = delayed_response?.prompt
+  const checkPrompt =
+    !delayed_response?.checkin_id && (prompt?.status === 'open' || prompt?.status === 'expired')
+      ? { ...prompt, status: prompt.status }
+      : null
+  const directFeedbackAvailable =
+    !delayed_response?.checkin_id &&
+    (!prompt || prompt.status === 'dismissed') &&
+    !!activity?.end_at &&
+    Date.now() - Date.parse(activity.end_at) >= 16 * 60 * 60 * 1000
   const flags = data
     ? Array.from(
         new Set([
@@ -177,6 +188,58 @@ export function Activity({
               </div>
               <a href={pageHref.home}>Back to Home</a>
             </div>
+            <Card>
+              <h2>Symptoms after this run</h2>
+              {delayed_response?.checkin_id ? (
+                <p>
+                  {delayed_response.pain_reported === false
+                    ? 'Reported no pain in the delayed check'
+                    : delayed_response.pain_reported === true
+                      ? 'Pain reported in the delayed check'
+                      : 'Pain question unanswered in the delayed check'}
+                  {delayed_response.hours_after_end !== null &&
+                    ` · ${Math.round(delayed_response.hours_after_end)} h after the run`}
+                </p>
+              ) : (
+                <p>
+                  {delayed_response?.prompt?.status === 'scheduled'
+                    ? 'The delayed check opens 16 hours after the run.'
+                    : delayed_response?.prompt?.status === 'dismissed'
+                      ? 'Reminder dismissed.'
+                      : delayed_response?.prompt
+                        ? 'Delayed check unanswered.'
+                        : 'No delayed response recorded.'}
+                </p>
+              )}
+              {(checkPrompt || directFeedbackAvailable) && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    onCheckin({ kind: 'delayed_followup', prompt: checkPrompt, activityId })
+                  }
+                >
+                  {checkPrompt?.status === 'expired'
+                    ? 'Add late response'
+                    : checkPrompt
+                      ? 'Answer delayed check'
+                      : 'Add delayed feedback'}
+                </Button>
+              )}
+              {symptoms.length > 0 && (
+                <ul>
+                  {symptoms.map((symptom, index) => (
+                    <li
+                      key={`${symptom.checkin_id}:${symptom.site}:${symptom.side}:${symptom.timing}:${index}`}
+                    >
+                      {symptom.site} · {SIDE_LABELS[symptom.side]} · severity {symptom.severity}/10
+                      · {TIMING_LABELS[symptom.timing]}
+                      {symptom.hours_after_end !== null &&
+                        ` · ${Math.round(symptom.hours_after_end)} h after the run`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
             {activity.fit_status !== 'decoded' && (
               <div className="notice muted">
                 No decoded FIT file for this run ({FIT[activity.fit_status]}). Laps, reps, and
@@ -543,25 +606,6 @@ export function Activity({
               >
                 {rpe.effective === null ? 'Enter RPE' : 'Change RPE'}
               </Button>
-            </Card>
-            <Card>
-              <h2>Symptoms after this run</h2>
-              {symptoms.length === 0 ? (
-                <p>No symptom reports are linked to this run.</p>
-              ) : (
-                <ul>
-                  {symptoms.map((symptom, index) => (
-                    <li
-                      key={`${symptom.checkin_id}:${symptom.site}:${symptom.side}:${symptom.timing}:${index}`}
-                    >
-                      {symptom.site} · {SIDE_LABELS[symptom.side]} · severity {symptom.severity}/10
-                      · {TIMING_LABELS[symptom.timing]}
-                      {symptom.hours_after_end !== null &&
-                        ` · ${Math.round(symptom.hours_after_end)} h after the run`}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </Card>
             <Disclosure
               variant="card"

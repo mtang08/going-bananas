@@ -5,7 +5,7 @@ import { Badge, Button, Input, NativeSelect, Textarea } from '../components/ui'
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Modal } from '../components/Modal'
-import { api, post, put } from '../api/client'
+import { ApiError, api, post, put } from '../api/client'
 import { qk, invalidateKeys } from '../api/queryKeys'
 import {
   SIDE_LABELS,
@@ -63,7 +63,7 @@ function SymptomFields({
           className={`choice ${pain === v ? 'active' : ''}`}
           aria-pressed={pain === v}
           onClick={() => {
-            setPain(v)
+            setPain(pain === v ? null : v)
             if (v === 'yes' && rows.length === 0) onChange([newRow(defaultTiming)])
           }}
         >
@@ -193,8 +193,8 @@ export function CheckinModalV2({
   const mutation = useMutation({
     mutationFn: async () => {
       if (kind === 'post_run' && !activityId) throw new Error('No run selected.')
-      if (kind === 'delayed_followup' && pain === null) throw new Error('Answer the pain question.')
-      if (kind === 'delayed_followup' && !gait) throw new Error('Answer the gait question.')
+      if (kind === 'delayed_followup' && pain === null && !gait && !note.trim())
+        throw new Error('Answer a question or add a note.')
       if (
         kind === 'exception' &&
         !fatigue &&
@@ -223,6 +223,7 @@ export function CheckinModalV2({
         fatigue: fatigue === '' ? null : Number(fatigue),
         illness: illness || null,
         gait_change: gait || null,
+        pain_reported: pain === null ? null : pain === 'yes',
         context_tags: tags,
         symptoms:
           pain === 'yes'
@@ -259,21 +260,38 @@ export function CheckinModalV2({
         const c = submission.completion
         if (submission.stage < 2) {
           if (c && submission.reason) {
-            const updated = await put<Completion | null>(
-              `/calendar/completions/${encodeURIComponent(c.session_uid)}`,
-              {
-                expected_version: c.version,
-                activity_id: activityId,
-                modification_reason: submission.reason,
-                reason_note: submission.reasonNote || null,
-              },
-            )
-            qc.setQueryData(
-              qk.activityExecution(activityId!),
-              execution.data
-                ? { ...execution.data, data: { ...execution.data.data, completion: updated.data } }
-                : undefined,
-            )
+            const reasonNote = submission.reasonNote || null
+            try {
+              const updated = await put<Completion | null>(
+                `/calendar/completions/${encodeURIComponent(c.session_uid)}`,
+                {
+                  expected_version: c.version,
+                  activity_id: activityId,
+                  modification_reason: submission.reason,
+                  reason_note: reasonNote,
+                },
+              )
+              qc.setQueryData(
+                qk.activityExecution(activityId!),
+                execution.data
+                  ? {
+                      ...execution.data,
+                      data: { ...execution.data.data, completion: updated.data },
+                    }
+                  : undefined,
+              )
+            } catch (error) {
+              // A lost response can leave the desired reason saved at a newer version.
+              if (!(error instanceof ApiError) || error.code !== 'version_conflict') throw error
+              const latest = (await execution.refetch()).data?.data.completion
+              if (
+                latest?.session_uid !== c.session_uid ||
+                latest.activity_id !== activityId ||
+                latest.modification_reason !== submission.reason ||
+                latest.reason_note !== reasonNote
+              )
+                throw error
+            }
           }
           submission.stage = 2
         }
@@ -288,7 +306,7 @@ export function CheckinModalV2({
       if (kind === 'exception') {
         setResult(data?.exceptions ?? { new_finding_ids: [], review_recommended: [] })
       } else {
-        if (kind === 'post_run' && activityId)
+        if (activityId)
           invalidateKeys(qc, [qk.activity(activityId), qk.activityExecution(activityId)])
         close()
       }
@@ -302,7 +320,7 @@ export function CheckinModalV2({
         value={gait}
         onChange={(e) => setGait(e.target.value as GaitChange | '')}
       >
-        <option value="">{kind === 'delayed_followup' ? 'Choose' : 'Not reported'}</option>
+        <option value="">Not reported</option>
         <option value="no">No</option>
         <option value="yes">Yes</option>
         <option value="unsure">Not sure</option>
@@ -388,7 +406,8 @@ export function CheckinModalV2({
                     <span className="eyebrow">DELAYED-RESPONSE CHECK</span>
                     <h2>Any pain since this run?</h2>
                     <p>
-                      Symptoms can show up 16–48 hours after a longer run. Report what you notice.
+                      Report what you noticed after this run. You can leave either question
+                      unanswered.
                     </p>
                   </>
                 )}
@@ -397,7 +416,7 @@ export function CheckinModalV2({
                   setPain={setPain}
                   rows={rows}
                   onChange={setRows}
-                  defaultTiming={kind === 'delayed_followup' ? 'hours_24_48' : 'unknown'}
+                  defaultTiming="unknown"
                 />
                 {gaitField}
               </>

@@ -44,6 +44,7 @@ def seeded(proposal_session):
         idempotency_key="snapshot-fixture",
         kind="exception",
         observed_at=NOW - timedelta(days=1),
+        recorded_at=NOW - timedelta(hours=23),
         context_tags=[],
         version=1,
         schema_version=2,
@@ -372,3 +373,34 @@ def test_load_inputs_proposals_carry_headline_and_next_check(seeded):
     assert proposal["headline"] == "Hold volume" and proposal["next_check"] == next_check
     assert "summary" not in proposal and "follow_up" not in proposal
     assert build_payload(inputs, ROLLING)["prior_decisions"][0]["headline"] == "Hold volume"
+
+
+def test_metric_configuration_is_a_fingerprint_input(seeded, monkeypatch):
+    from app.metrics import recovery
+
+    kb = VerifiedKnowledge("0" * 64, (), (), frozenset(), frozenset(), frozenset())
+    before = collect_decision_inputs(seeded, ROLLING, TODAY, now=NOW, kb=kb)
+    monkeypatch.setitem(recovery.CONFIG, "adverse_z", recovery.CONFIG["adverse_z"] + 0.1)
+    after = collect_decision_inputs(seeded, ROLLING, TODAY, now=NOW, kb=kb)
+    assert before["source_fingerprint"] != after["source_fingerprint"]
+    before_ids = {row["metric_id"]: row for row in before["source_versions"]["metric_identities"]}
+    after_ids = {row["metric_id"]: row for row in after["source_versions"]["metric_identities"]}
+    assert before_ids[recovery.METRIC_ID]["config_hash"] != after_ids[recovery.METRIC_ID]["config_hash"]
+    assert before_ids.keys() == after_ids.keys()
+
+
+def test_checkin_observed_before_but_recorded_after_snapshot_is_not_visible(seeded):
+    seeded.add(
+        Checkin(
+            idempotency_key="future-entry",
+            kind="exception",
+            observed_at=NOW - timedelta(hours=2),
+            recorded_at=NOW + timedelta(hours=1),
+            context_tags=[],
+        )
+    )
+    seeded.flush()
+    before = load_inputs(seeded, TODAY, now=NOW)
+    after = load_inputs(seeded, TODAY, now=NOW + timedelta(hours=1))
+    assert len(before.checkins) == 1
+    assert len(after.checkins) == 2

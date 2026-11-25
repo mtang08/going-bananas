@@ -74,6 +74,14 @@ describe('session status badges', () => {
     expect(screen.queryByTestId('patch-badge')).toBeNull()
   })
 
+  it('names the rehab routine before opening its details', () => {
+    renderSession({ kind: 'rehab', recipe_id: null, intent: 'Calf routine' })
+    expect(screen.getByTestId('session-tag').querySelector('strong')).toHaveTextContent(
+      'Calf routine',
+    )
+    expect(screen.getByText('Rehab')).toBeVisible()
+  })
+
   it('labels benchmark sessions', () => {
     renderSession({ recipe_id: 'REC009' })
     expect(screen.getByText('Benchmark').closest('.plan-session-status')).not.toBeNull()

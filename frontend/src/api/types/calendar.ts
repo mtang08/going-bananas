@@ -1,7 +1,8 @@
+import type { WorkoutFeedback } from './checkins'
 import type { SessionPatchRef } from './exceptions'
 import type { Rule } from './coachText'
 import type { PlannedActualValue } from './metrics'
-export type SessionKind = 'run' | 'strength' | 'cross' | 'rest' | 'mobility'
+export type SessionKind = 'run' | 'strength' | 'cross' | 'rest' | 'mobility' | 'rehab'
 export type Certainty = 'committed' | 'provisional'
 export type StepType = 'warmup' | 'work' | 'recovery' | 'cooldown'
 export interface StepTarget {
@@ -67,6 +68,7 @@ export interface SessionState extends SessionFields {
   is_original: boolean
   changed_by_version: number
   exception_patch: SessionPatchRef | null
+  running_restriction_conflict?: string
 }
 export type CompletionStatus =
   | 'completed_as_planned'
@@ -274,7 +276,33 @@ export interface DigestUnplanned {
   duration_s: number | null
   distance_m: number | null
 }
+export interface ReviewFollowUp {
+  proposal_id: string
+  session_uid: string
+  op: 'add' | 'move' | 'modify'
+  reason: string
+  accepted: {
+    local_date: string
+    intent: string
+    duration_s: number | null
+    distance_m: number | null
+    effort: Effort | null
+  }
+  edited_since: boolean
+  modification_reason: ModificationReason | null
+  outcome: DigestOutcome
+  actual: Pick<
+    NonNullable<DigestRow['actual']>,
+    'id' | 'subject' | 'local_date' | 'duration_s' | 'distance_m' | 'rpe'
+  > | null
+  response: Pick<
+    WorkoutFeedback,
+    'observed_at' | 'hours_after_end' | 'pain_reported' | 'gait_change' | 'symptoms'
+  > | null
+  next_check: { on: string; check: string } | null
+}
 export interface WeeklyDigest {
+  decision_follow_up: ReviewFollowUp | null
   schema: 'weekly_digest.v1'
   week_start: string
   week_end: string
@@ -290,7 +318,7 @@ export interface WeeklyDigest {
       removed: number
       unplanned: number
     }
-    by_kind: Record<'run' | 'strength' | 'cross' | 'mobility', DigestCounts>
+    by_kind: Record<'run' | 'strength' | 'cross' | 'mobility' | 'rehab', DigestCounts>
     time: {
       planned_s: number
       planned_to_date_s: number

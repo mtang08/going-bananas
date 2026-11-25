@@ -1,5 +1,7 @@
 # Follow-up work
 
+The [running product maturity assessment](discovery/running-maturity/README.md) compares these requests with gaps found in the shipped coaching loop. Use its [prioritized roadmap](discovery/running-maturity/roadmap.md) to scope the next running iteration and its [open decisions](discovery/running-maturity/decisions.md) to recover the owner's outstanding choices. The [implementation plan](discovery/running-maturity/implementation.md) records the first delivery and the next candidate, a return week after an interruption.
+
 ## Active priority — complete the running-coach workflow
 
 November 11, 2026: the user explicitly rejected the current workflow as not yet
@@ -248,6 +250,8 @@ Should the coach schedule an existing routine or help choose and progress it?
 The hip mobility routine and desired benchmarks remain open.
 The [existing PTT topic](../running_coach_kb/topics/ptt_and_load_tolerance.md)
 is the starting point for evidence.
+
+The first delivery adds dated rehab slots, separate manual completion and the combined daily budget. Exercise selection, functional benchmarks and the preferred routine remain open. [Delivery notes](discovery/running-maturity/implementation.md)
 
 ### IDEA-011 — Reduce Garmin sync time spent refreshing local metrics
 

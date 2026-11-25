@@ -289,20 +289,36 @@ def _completed_exposures(inputs: SnapshotInputs, operation: str) -> dict:
 def _symptoms(inputs: SnapshotInputs, operation: str) -> dict:
     start, end = section_window(operation, "symptoms", inputs)
     reports = []
+    responses = {}
     for checkin in inputs.checkins:
         if not day_between(checkin.get("local_date"), start, end):
             continue
+        if checkin.get("activity_id") is not None and checkin.get("kind") == "delayed_followup":
+            responses[str(checkin["activity_id"])] = row_view(
+                checkin, ("checkin_id", "observed_at", "recorded_at", "hours_after_end", "pain_reported", "gait_change")
+            )
         for symptom in checkin.get("symptoms", []):
             view = row_view(checkin, ("checkin_id", "observed_at", "local_date", "kind", "activity_id"))
             view.update(row_view(symptom, ("site", "side", "severity", "timing")))
             reports.append(view)
     reports.sort(key=lambda row: (str(row["observed_at"]), str(row["checkin_id"]), row["site"], row["timing"]))
-    prompts = [
-        row_view(p, ("prompt_id", "kind", "activity_id", "status", "opens_at", "closes_at"))
-        for p in inputs.prompts
-        if p.get("kind") == "delayed_symptom" and day_between(parse_instant(p["opens_at"]).date(), start, end)
-    ]
-    return {"window_days": (end - start).days + 1, "reports": reports, "delayed_responses": prompts}
+    delayed_responses = []
+    zone = ZoneInfo(inputs.timezone)
+    for prompt in inputs.prompts:
+        if prompt.get("kind") != "delayed_symptom":
+            continue
+        activity_id = str(prompt["activity_id"])
+        if activity_id in responses or day_between(date_in_zone(parse_instant(prompt["opens_at"]), zone), start, end):
+            delayed_responses.append(
+                {
+                    **row_view(prompt, ("prompt_id", "kind", "activity_id", "status", "opens_at", "closes_at")),
+                    "response": responses.pop(activity_id, None),
+                }
+            )
+    delayed_responses.extend(
+        {"activity_id": activity_id, "response": response} for activity_id, response in responses.items()
+    )
+    return {"window_days": (end - start).days + 1, "reports": reports, "delayed_responses": delayed_responses}
 
 
 def _data_quality(inputs: SnapshotInputs) -> dict:
@@ -574,7 +590,7 @@ def _event_payload(inputs: SnapshotInputs, event: dict | None, day: date, activi
     last = day + timedelta(days=3)
     checkins = [
         {
-            **row_view(c, ("observed_at", "kind", "fatigue", "illness", "gait_change")),
+            **row_view(c, ("observed_at", "kind", "fatigue", "illness", "gait_change", "pain_reported")),
             "symptoms": [
                 {"site_key": _site_key(s), "severity": s.get("severity"), "timing": s.get("timing")}
                 for s in c.get("symptoms", [])
@@ -773,6 +789,19 @@ def _digest_week_view(week: dict) -> dict:
         "days_elapsed": week["days_elapsed"],
         "activity_coverage_complete": week["activity_coverage_complete"],
         "totals": week["totals"],
+        "decision_follow_up": week.get("decision_follow_up"),
+        "rehab_sessions": [
+            {
+                "session_uid": r["session_uid"],
+                "local_date": r["local_date"],
+                "slot": r["slot"],
+                "intent": r["intent"],
+                "planned_duration_s": r["planned_duration_s"],
+                "outcome": r["outcome"],
+            }
+            for r in rows
+            if r["kind"] == "rehab"
+        ],
         "key_sessions": key,
         "key_sessions_omitted": key_omitted,
         "not_done": not_done,
@@ -919,6 +948,8 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         "data_quality": _data_quality(inputs),
         "drill_down_queries": list(DRILL_DOWN_QUERIES),
     }
+    if inputs.running_restriction is not None:
+        payload["snapshot_meta"]["running_restriction"] = inputs.running_restriction
     if operation in HORIZON_OPS:
         payload["snapshot_meta"]["horizon"] = {
             "min_end": inputs.as_of + timedelta(days=HORIZON_MIN_DAYS),

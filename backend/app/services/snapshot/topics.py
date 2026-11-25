@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from datetime import timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from app.domain.local_time import date_in_zone
 from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
 from app.domain.travel import OPEN_TRIP_MAX
 from app.services.knowledge import CONDITIONAL_TOPICS
@@ -61,6 +63,21 @@ def _travel_in_scope(inputs: SnapshotInputs, operation: str) -> bool:
     return False
 
 
+def _recovery_relevant(value: dict) -> bool:
+    # Legacy summaries exposed flags directly; current night results expose each signal.
+    if value.get("flags") or value.get("discordance") is True or value.get("subjective_poor") is True:
+        return True
+    for name in ("sleep", "hrv", "resting_hr"):
+        signal = value.get(name)
+        if not isinstance(signal, dict):
+            continue
+        if signal.get("adverse") is True:
+            return True
+        if signal.get("value") is not None and (signal.get("reason_codes") or signal.get("quality_flags")):
+            return True
+    return False
+
+
 def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[str]:
     sessions = _scope_sessions(inputs, operation)
     runs = [s for s in sessions if s.get("kind") == "run"]
@@ -69,12 +86,34 @@ def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[st
         operation if operation not in {CALIB, RACE, POST_EVENT} else DAILY, "symptoms", inputs
     )
     recent_checkins = [c for c in inputs.checkins if day_between(c.get("local_date"), symptom_start, symptom_end)]
-    ptt = any(c.get("symptoms") for c in recent_checkins) or any(
-        p.get("kind") == "delayed_symptom"
-        and p.get("status") == "answered"
-        and day_between(parse_instant(p["opens_at"]).date(), symptom_start, symptom_end)
-        for p in inputs.prompts
-    )
+    ptt = any(c.get("symptoms") or c.get("pain_reported") is True for c in recent_checkins)
+    if not ptt:
+        for prompt in inputs.prompts:
+            if (
+                prompt.get("kind") != "delayed_symptom"
+                or prompt.get("status") != "answered"
+                or not day_between(
+                    date_in_zone(parse_instant(prompt["opens_at"]), ZoneInfo(inputs.timezone)),
+                    symptom_start,
+                    symptom_end,
+                )
+            ):
+                continue
+            responses = [
+                c
+                for c in inputs.checkins
+                if c.get("kind") == "delayed_followup"
+                and (
+                    prompt.get("prompt_id") is not None
+                    and str(c.get("prompt_id")) == str(prompt["prompt_id"])
+                    or prompt.get("activity_id") is not None
+                    and str(c.get("activity_id")) == str(prompt["activity_id"])
+                )
+            ]
+            # Older answered prompts may have no linked response in the snapshot; preserve their context.
+            if not responses or any(c.get("pain_reported") is not False or c.get("symptoms") for c in responses):
+                ptt = True
+                break
     rec_start = inputs.as_of - timedelta(
         days=(
             3
@@ -91,7 +130,7 @@ def select_conditional_topics(inputs: SnapshotInputs, operation: str) -> list[st
         and str(m.get("subject_key", "")).startswith("night:")
         and day_between(str(m["subject_key"]).split(":", 1)[1], rec_start, inputs.as_of)
         and isinstance(m.get("value"), dict)
-        and (m["value"].get("flags") or m["value"].get("discordance") is True)
+        and _recovery_relevant(m["value"])
         for m in inputs.metric_results
     ) or any(c.get("illness") in {"possible", "present"} for c in recent_checkins)
     hybrid = any(

@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 # Run a command against a separate known local database without editing .env.
 set -euo pipefail
-source "$(dirname "$0")/env.sh"
 mode="${1:?Usage: scripts/with-mode demo|real|test COMMAND ...}"
 shift
 case "$mode" in demo|real|test) ;; *) echo 'Invalid application mode' >&2; exit 2;; esac
+keep_target=false
+if [[ "${APP_MODE:-}" == "$mode" && -n "${DATABASE_URL:-}" && -n "${PRIVATE_DIR:-}" ]]; then
+  keep_target=true
+fi
+source "$(dirname "$0")/env.sh"
 export GB_MODE_ROOT="$ROOT_DIR"
+if [[ "$keep_target" != true ]]; then
+  export DATABASE_URL="${DATABASE_URL%/*}/garmin_$mode"
+  export PRIVATE_DIR="$ROOT_DIR/private/$mode"
+fi
 export APP_MODE="$mode"
-export DATABASE_URL="${DATABASE_URL%/*}/garmin_$mode"
-export PRIVATE_DIR="$ROOT_DIR/private/$mode"
 mkdir -p "$PRIVATE_DIR"
 chmod 700 "$PRIVATE_DIR"
 exec "$@"

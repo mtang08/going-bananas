@@ -119,7 +119,9 @@ export function Home({
   const view = calendar.data?.data
   const today = view?.today
   const sessionsOn = (day: string) =>
-    (view?.sessions ?? []).filter((s) => s.local_date === day).sort((a, b) => a.slot - b.slot)
+    (view?.sessions ?? [])
+      .filter((s) => !s.deleted && s.local_date === day)
+      .sort((a, b) => a.slot - b.slot)
   const last =
     view?.last_planned_date ??
     view?.sessions
@@ -165,43 +167,61 @@ export function Home({
           <p>Planned training and open prompts.</p>
         </div>
       </div>
-      <div className="home-status" data-testid="home-status">
-        <SyncCard compact unit={unit} />
-      </div>
-      <div className="home-gauges">
-        <QueryState
-          loading={projection.isPending}
-          error={projection.error}
-          stale={!!projection.data}
-          retry={() => {
-            void projection.refetch()
-          }}
-        >
-          {projection.data?.data && <WeeklyMileage projection={projection.data.data} unit={unit} />}
-        </QueryState>
-        <QueryState
-          loading={digest.isPending}
-          error={digest.error}
-          stale={!!digest.data}
-          retry={() => {
-            void digest.refetch()
-          }}
-        >
-          {digest.data?.data && (
-            <WeeklyDigest
-              digest={digest.data.data}
-              unit={unit}
-              week={digestWeek}
-              onWeekChange={setDigestWeek}
-            />
-          )}
-        </QueryState>
-        {digestWeek === 'last' && !digestLast.data && (
-          <Button variant="outline" size="sm" onClick={() => setDigestWeek('this')}>
-            Back to this week
-          </Button>
+      <QueryState
+        loading={calendar.isPending}
+        error={calendar.error}
+        stale={!!calendar.data}
+        retry={() => {
+          void calendar.refetch()
+        }}
+      >
+        {view?.head === 0 && (
+          <div className="notice warning">
+            <strong>No calendar yet.</strong> Finish setup to fill the next 14 days.{' '}
+            <a href={pageHref.settings}>Open setup</a>
+          </div>
         )}
-      </div>
+        {view && view.head !== 0 && today && (
+          <>
+            <Card className="today-card" data-testid="today-card">
+              <h2>Today's plan</h2>
+              {sessionsOn(today).length === 0 && <p>No session</p>}
+              {sessionsOn(today).map((s) => {
+                const completion = view.completions.find((c) => c.session_uid === s.session_uid)
+                return (
+                  <SessionSummary
+                    key={s.session_uid}
+                    session={s}
+                    completion={completion}
+                    today={today}
+                    unit={unit}
+                    showWorkout
+                  >
+                    {completion?.activity_id ? (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={pageHref.activity(completion.activity_id)}>
+                          Open run and feedback
+                        </a>
+                      </Button>
+                    ) : s.kind === 'run' && !s.placeholder ? (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={pageHref.calendarWeek(s.local_date)}>Open workout on Calendar</a>
+                      </Button>
+                    ) : null}
+                  </SessionSummary>
+                )
+              })}
+            </Card>
+            {(!last || last <= addDays(today, 6)) && (
+              <div className="notice warning" role="status" data-testid="plan-end-banner">
+                {last
+                  ? `Plan ends on ${dateLabel(last)} — run the weekly review`
+                  : 'No planned sessions — run the weekly review'}
+              </div>
+            )}
+          </>
+        )}
+      </QueryState>
       {showAttention && (
         <Card className="needs-attention" data-testid="needs-attention">
           <h2>Needs attention</h2>
@@ -330,8 +350,12 @@ export function Home({
                 {prompt.kind === 'unmatched_session' && (
                   <>
                     <strong>A run needs matching to a planned session</strong>
-                    <p>Pick the session on the Calendar page.</p>
-                    <a href={pageHref.calendar}>Open calendar</a>
+                    <p>Link the recording to its planned session.</p>
+                    <a
+                      href={session ? pageHref.calendarWeek(session.local_date) : pageHref.calendar}
+                    >
+                      Find the session on Calendar
+                    </a>
                   </>
                 )}
                 {prompt.kind === 'missing_activity' && (
@@ -342,8 +366,12 @@ export function Home({
                         ? `${title(session)} on ${dateLabel(session.local_date)}`
                         : 'a planned session'}
                     </strong>
-                    <p>Mark it skipped, moved, or not recorded on the Calendar page.</p>
-                    <a href={pageHref.calendar}>Open calendar</a>
+                    <p>Link the recording if you ran on another day, or record the outcome.</p>
+                    <a
+                      href={session ? pageHref.calendarWeek(session.local_date) : pageHref.calendar}
+                    >
+                      Find the session on Calendar
+                    </a>
                   </>
                 )}
                 <Button
@@ -383,46 +411,43 @@ export function Home({
           )}
         </Card>
       )}
-      <QueryState
-        loading={calendar.isPending}
-        error={calendar.error}
-        stale={!!calendar.data}
-        retry={() => {
-          void calendar.refetch()
-        }}
-      >
-        {view?.head === 0 && (
-          <div className="notice warning">
-            <strong>No calendar yet.</strong> Finish setup to fill the next 14 days.{' '}
-            <a href={pageHref.settings}>Open setup</a>
-          </div>
+      <div className="home-status" data-testid="home-status">
+        <SyncCard compact unit={unit} />
+      </div>
+      <div className="home-gauges">
+        <QueryState
+          loading={projection.isPending}
+          error={projection.error}
+          stale={!!projection.data}
+          retry={() => {
+            void projection.refetch()
+          }}
+        >
+          {projection.data?.data && <WeeklyMileage projection={projection.data.data} unit={unit} />}
+        </QueryState>
+        <QueryState
+          loading={digest.isPending}
+          error={digest.error}
+          stale={!!digest.data}
+          retry={() => {
+            void digest.refetch()
+          }}
+        >
+          {digest.data?.data && (
+            <WeeklyDigest
+              digest={digest.data.data}
+              unit={unit}
+              week={digestWeek}
+              onWeekChange={setDigestWeek}
+            />
+          )}
+        </QueryState>
+        {digestWeek === 'last' && !digestLast.data && (
+          <Button variant="outline" size="sm" onClick={() => setDigestWeek('this')}>
+            Back to this week
+          </Button>
         )}
-        {view && view.head !== 0 && today && (
-          <>
-            {(!last || last <= addDays(today, 6)) && (
-              <div className="notice warning" role="status" data-testid="plan-end-banner">
-                {last
-                  ? `Plan ends on ${dateLabel(last)} — run the weekly review`
-                  : 'No planned sessions — run the weekly review'}
-              </div>
-            )}
-            <Card className="today-card" data-testid="today-card">
-              <h2>Today's plan</h2>
-              {sessionsOn(today).length === 0 && <p>No session</p>}
-              {sessionsOn(today).map((s) => (
-                <SessionSummary
-                  key={s.session_uid}
-                  session={s}
-                  completion={view.completions.find((c) => c.session_uid === s.session_uid)}
-                  today={today}
-                  unit={unit}
-                  showWorkout
-                />
-              ))}
-            </Card>
-          </>
-        )}
-      </QueryState>
+      </div>
       {digest.data?.data && (
         <WeekSessions digest={digest.data.data} unit={unit} week={digestWeek} />
       )}

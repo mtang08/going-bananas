@@ -342,6 +342,7 @@ export interface ActivityExecution {
     garmin_fit: number | null
     srpe_load_au: number | null
   }
+  delayed_response: import('./checkins').WorkoutFeedback | null
   symptoms: LinkedSymptom[]
 }
 

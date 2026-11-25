@@ -12,13 +12,18 @@ import {
   TableRow,
 } from '../components/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { RUN_SPORTS, type ActiveBlock, type BlockVersion } from '../api/types/blocks'
+import {
+  RUN_SPORTS,
+  type ActiveBlock,
+  type BenchmarkRecord,
+  type BlockVersion,
+} from '../api/types/blocks'
 import { addDays, dateLabel, fmtDistance, fmtDuration, fmtRpe, type Unit } from '../lib/format'
 import { api, put, query } from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
 import { RECIPE_LABELS, type CalendarView } from '../api/types/calendar'
 import type { Activity } from '../api/types/activity'
-import { benchmarkStatusLabel } from '../coachLabels'
+import { benchmarkStatusLabel, OUTCOME_LABELS } from '../coachLabels'
 import { QueryState } from '../components/QueryState'
 import { GoalRaceTimeline } from '../components/GoalRaceTimeline'
 import './TrainingDesign.css'
@@ -40,9 +45,19 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
         items: BlockVersion[]
       }>(`/blocks/${encodeURIComponent(block!.block_uid)}/history`),
   })
+  const benchmarks = useQuery({
+    queryKey: qk.blockBenchmarks,
+    enabled: !!block,
+    queryFn: () => api<{ items: BenchmarkRecord[] }>('/blocks/benchmarks'),
+  })
   const qc = useQueryClient()
   const bm = block?.benchmark ?? null
   const status = block?.benchmark_status ?? null
+  const latestLogged = (benchmarks.data?.data.items ?? []).find((item) => item.local_date)
+  const currentIsLatest =
+    status?.status === 'completed' &&
+    !!status.local_date &&
+    (!latestLogged?.local_date || status.local_date >= latestLogged.local_date)
   const runStart = bm ? addDays(bm.planned_date, -7) : ''
   const runEnd = block ? addDays(block.review_date, 7) : ''
   const runs = useQuery({
@@ -97,7 +112,6 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
               <h2>{block.objective}</h2>
               <div className="direction-chips">
                 <span>{block.status}</span>
-                <span>Objective: {block.objective_status.replaceAll('_', ' ')}</span>
                 <span>Progression: {block.progression_dimension.replaceAll('_', ' ')}</span>
               </div>
               {today ? (
@@ -138,32 +152,6 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
                   Start {dateLabel(block.start_date)} · Review {dateLabel(block.review_date)} ·
                   Today’s date unavailable
                 </p>
-              )}
-              {block.indicators.length > 0 && (
-                <section className="block-indicators">
-                  <h3>Review this block by</h3>
-                  <p className="fineprint">
-                    Review criteria; achievement has not been verified here.
-                  </p>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Indicator</TableHead>
-                        <TableHead>Progress when</TableHead>
-                        <TableHead>Source</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {block.indicators.map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{item.label}</TableCell>
-                          <TableCell>{item.progress_when}</TableCell>
-                          <TableCell>{INDICATOR_LABELS[item.source]}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </section>
               )}
               {block.early_review_triggers.length > 0 && (
                 <p className="block-review-early">
@@ -227,7 +215,73 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
               <LegacyText text={block.legacy_text} />
             </Card>
             <Card className="block-benchmark" data-testid="block-benchmark">
-              <h2>Block benchmark</h2>
+              <h2>Goal progress</h2>
+              {block.objective_status === 'unresolved' ? (
+                <p>Progress toward the goal is unknown; the block objective remains unresolved.</p>
+              ) : (
+                <p>
+                  <strong>Last recorded block assessment: </strong>
+                  {block.objective_status.replaceAll('_', ' ')} ·{' '}
+                  {dateLabel(block.created_at.slice(0, 10))}. This assessment applies to the block
+                  objective; it does not predict the goal race.
+                </p>
+              )}
+              <p>
+                <strong>Goal: </strong>
+                {block.target_event
+                  ? `${block.target_event.name} · ${dateLabel(block.target_event.event_date)}`
+                  : block.objective}
+              </p>
+              <QueryState
+                loading={benchmarks.isPending}
+                error={benchmarks.error}
+                stale={!!benchmarks.data}
+                retry={() => void benchmarks.refetch()}
+              >
+                {(() => {
+                  const latest = latestLogged
+                  return currentIsLatest ? null : latest ? (
+                    <p data-testid="latest-benchmark">
+                      <strong>Latest logged benchmark: </strong>
+                      {dateLabel(latest.local_date!)} · {latest.protocol} ·{' '}
+                      {fmtDistance(latest.distance_m, unit)} · {fmtDuration(latest.result_s)}
+                      {latest.outcome && <> · {OUTCOME_LABELS[latest.outcome]}</>}
+                      {latest.compared_with && <> · Compared with: {latest.compared_with}</>}
+                    </p>
+                  ) : (
+                    <p>No dated benchmark result logged yet.</p>
+                  )
+                })()}
+              </QueryState>
+              {block.indicators.length > 0 && (
+                <section className="block-indicators">
+                  <h3>Review this block by</h3>
+                  <p className="fineprint">
+                    Review criteria; current indicator values are not assessed here.
+                  </p>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Indicator</TableHead>
+                        <TableHead>Progress when</TableHead>
+                        <TableHead>Source</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {block.indicators.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{item.label}</TableCell>
+                          <TableCell>{item.progress_when}</TableCell>
+                          <TableCell>{INDICATOR_LABELS[item.source]}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </section>
+              )}
+              {block.indicators.length === 0 && <p>No review indicators set for this block.</p>}
+              <h3>Next check</h3>
+              <p>Block review: {dateLabel(block.review_date)}</p>
               {!bm ? (
                 <p>
                   No benchmark in this block. Its review judges the block's review criteria instead.
@@ -257,8 +311,9 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
                       </dd>
                     </div>
                   </dl>
-                  {status?.status === 'completed' && (
+                  {status?.status === 'completed' && currentIsLatest && (
                     <p data-testid="benchmark-match">
+                      <strong>Latest benchmark: </strong>
                       {status.local_date ? dateLabel(status.local_date) : 'Date missing'} ·{' '}
                       {fmtDistance(status.distance_m, unit)} · {fmtDuration(status.result_s)} · RPE{' '}
                       {fmtRpe(status.rpe)} ·{' '}

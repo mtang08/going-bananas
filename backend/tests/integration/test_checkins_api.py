@@ -273,3 +273,97 @@ def test_routes_removed_and_replay_retains_original_payload(api_fixture):
     assert replayed.pop("exceptions")["new_finding_ids"] == []
     original.pop("exceptions")
     assert replayed == original
+
+
+@pytest.mark.parametrize("answer", [False, None])
+def test_late_workout_response_preserves_explicit_pain_and_replays_once(api_fixture, answer):
+    from app.read.workout_feedback import load_workout_feedback
+
+    client, connection = api_fixture
+    activity_id = _activity(connection)
+    now = datetime.now(UTC)
+    end = now - timedelta(hours=60)
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        activity = session.get(Activity, activity_id)
+        activity.start_at = end - timedelta(minutes=30)
+        activity.end_at = end
+        prompt = Prompt(
+            kind="delayed_symptom",
+            activity_id=activity_id,
+            opens_at=end + timedelta(hours=16),
+            closes_at=end + timedelta(hours=48),
+            status="open",
+        )
+        session.add(prompt)
+        session.flush()
+        prompt_id = prompt.id
+        unread = load_workout_feedback(session, [activity_id], now)[activity_id]
+        assert (unread["prompt"]["status"], unread["checkin_id"], unread["pain_reported"]) == ("expired", None, None)
+        session.commit()
+    body = _body(
+        kind="delayed_followup",
+        activity_id=str(activity_id),
+        prompt_id=str(prompt_id),
+        observed_at=now.isoformat(),
+        fatigue=None,
+        pain_reported=answer,
+        gait_change="no",
+        symptoms=[],
+    )
+    created = client.post("/api/v1/v2/checkins", json=body)
+    assert created.status_code == 201, created.text
+    checkin_id = created.json()["data"]["id"]
+    assert created.json()["data"]["pain_reported"] is answer
+    replay = client.post("/api/v1/v2/checkins", json=body)
+    assert replay.status_code == 200 and replay.json()["data"]["id"] == checkin_id
+    duplicate = client.post(
+        "/api/v1/v2/checkins",
+        json={**body, "idempotency_key": str(uuid.uuid4()), "prompt_id": None},
+    )
+    assert duplicate.status_code == 409
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        response = load_workout_feedback(session, [activity_id], datetime.now(UTC))[activity_id]
+        assert response["checkin_id"] == uuid.UUID(checkin_id)
+        assert response["prompt"]["status"] == "answered"
+        assert response["pain_reported"] is answer
+        assert response["gait_change"] == "no"
+        assert response["hours_after_end"] == 60
+        assert session.scalar(select(func.count()).select_from(Checkin).where(Checkin.activity_id == activity_id)) == 1
+
+
+def test_delayed_feedback_can_be_recorded_without_a_reminder_after_the_window_opens(api_fixture):
+    from app.read.workout_feedback import load_workout_feedback
+
+    client, connection = api_fixture
+    activity_id = _activity(connection)
+    now = datetime.now(UTC)
+    end = now - timedelta(hours=20)
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        activity = session.get(Activity, activity_id)
+        activity.start_at = end - timedelta(minutes=30)
+        activity.end_at = end
+        session.commit()
+    body = _body(
+        kind="delayed_followup",
+        activity_id=str(activity_id),
+        observed_at=(end - timedelta(hours=1)).isoformat(),
+        pain_reported=False,
+        symptoms=[],
+    )
+    too_early = client.post("/api/v1/v2/checkins", json=body)
+    assert too_early.status_code == 422
+    assert too_early.json()["error"]["code"] == "delayed_response_not_due"
+    created = client.post("/api/v1/v2/checkins", json={**body, "observed_at": now.isoformat()})
+    assert created.status_code == 201, created.text
+    checkin_id = created.json()["data"]["id"]
+    patched = client.patch(
+        f"/api/v1/v2/checkins/{checkin_id}",
+        json={"expected_version": 1, "observed_at": body["observed_at"]},
+    )
+    assert patched.status_code == 422
+    assert patched.json()["error"]["code"] == "delayed_response_not_due"
+    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
+        response = load_workout_feedback(session, [activity_id], datetime.now(UTC))[activity_id]
+        assert response["prompt"] is None
+        assert response["pain_reported"] is False
+        assert response["hours_after_end"] == 20

@@ -16,13 +16,15 @@ import { ExceptionCard, EventReviewCard, PatchUpdates } from './proposal/Proposa
 import { ProposedChanges } from './proposal/ProposedChanges'
 import { ProposalIntro } from './proposal/ProposalIntro'
 import { AnchorChangeCard, BlockChangeCard } from './proposal/ChangeCards'
+import { ScheduleImpact } from './proposal/ScheduleImpact'
+import type { Unit } from '../lib/format'
 import { DecisionActions } from './proposal/DecisionActions'
 
-export function ProposalReview({ proposalId }: { proposalId: string }) {
-  return <ReviewForm key={proposalId} proposalId={proposalId} />
+export function ProposalReview({ proposalId, unit }: { proposalId: string; unit: Unit }) {
+  return <ReviewForm key={proposalId} proposalId={proposalId} unit={unit} />
 }
 
-function ReviewForm({ proposalId }: { proposalId: string }) {
+function ReviewForm({ proposalId, unit }: { proposalId: string; unit: Unit }) {
   const qc = useQueryClient()
   const detail = useQuery({
     queryKey: qk.proposal(proposalId),
@@ -263,6 +265,15 @@ function ReviewForm({ proposalId }: { proposalId: string }) {
                   frozen.current = null
                 }}
                 onToggle={(id) => toggle(id, selected, setSelected)}
+              />
+            )}
+            {changes.length > 0 && !terminal && !isStale && proposal.status === 'pending' && (
+              <ScheduleImpact
+                head={head.data?.data}
+                expectedHead={proposal.head}
+                changes={changes}
+                selected={selected.filter((id) => !invalidChanges.has(id))}
+                unit={unit}
               />
             )}
             {proposal.block_change && (

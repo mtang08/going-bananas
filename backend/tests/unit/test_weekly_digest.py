@@ -293,3 +293,16 @@ def test_self_reported_strength_counts_as_done_with_unknown_time():
     assert week["totals"]["by_kind"]["strength"]["done"] == 1
     assert week["totals"]["time"]["actual_unknown"] == 1
     assert week["sessions"][0]["actual"] is None
+
+
+def test_rehab_completion_is_counted_separately_from_headline():
+    sessions = [
+        _session(8, "rehab", uid="rehab-a", duration=300),
+        _session(8, "rehab", uid="rehab-b", duration=600, slot=1),
+        _session(8, "run", uid="run", duration=1800),
+    ]
+    week = _assemble(sessions=sessions, completions={"rehab-a": _c("completed_as_planned", match_method="user_marked")})
+    assert week["totals"]["by_kind"]["rehab"] == {"planned": 2, "planned_to_date": 2, "done": 1}
+    assert week["totals"]["sessions"]["planned"] == 1
+    assert week["totals"]["time"]["planned_s"] == 1800
+    assert [r["outcome"] for r in week["sessions"] if r["kind"] == "rehab"] == ["completed", "not_recorded"]

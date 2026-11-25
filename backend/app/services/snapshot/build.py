@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -28,6 +29,25 @@ from app.services.snapshot.common import (
 from app.services.snapshot.inputs import load_inputs
 from app.services.snapshot.payload import build_payload
 from app.services.snapshot.topics import select_conditional_topics, select_recipe_ids
+
+
+def _knowledge_metadata(kb: VerifiedKnowledge, excerpts: tuple) -> dict:
+    # An excerpt containing the exact JSON record is already sent alongside this metadata.
+    # Keep all other content, including additional research notes, intact.
+    repeated = set()
+    for excerpt in excerpts:
+        if excerpt.record_id is None:
+            continue
+        try:
+            parsed = json.loads(excerpt.text)
+        except (ValueError, TypeError):
+            continue
+        repeated.add((excerpt.path, excerpt.record_id, canonical_json(parsed)))
+    records = []
+    for record in kb.selected_records:
+        key = (record["path"], record["record_id"], canonical_json(record["content"]))
+        records.append({"path": record["path"], "record_id": record["record_id"]} if key in repeated else record)
+    return {"digest": kb.digest, "selected_records": records}
 
 
 def build_snapshot(
@@ -64,7 +84,7 @@ def build_snapshot(
         meta["source_fingerprint"] = decision["source_fingerprint"]
         meta["source_provenance"] = source_provenance(decision["source_versions"])
         meta["safety_guard"] = decision["safety_guard"]
-        meta["knowledge"] = {"digest": kb.digest, "selected_records": list(kb.selected_records)}
+        meta["knowledge"] = _knowledge_metadata(kb, bundle.excerpts)
         payload_json = canonical_json(payload)
         approx_tokens = math.ceil((len(payload_json) + bundle.chars) / 4)
         row = CoachSnapshot(

@@ -23,6 +23,7 @@ from app.metrics import engine, refresh
 from app.models import Activity
 from app.read.calendar import head_version
 from app.read.treadmill_intervals import activity_laps, confirmed_lap_paces
+from app.read.workout_feedback import load_workout_feedback
 from app.services import calendar, workout_progression
 from app.services.timezone import athlete_tz
 
@@ -169,6 +170,7 @@ def activity_execution(session: Session, activity_id: UUID) -> dict:
             "garmin_fit": rpes.get("garmin_fit"),
             "srpe_load_au": value("session_rpe_load").get("load_au"),
         },
+        "delayed_response": load_workout_feedback(session, [activity_id], refresh.clock(session)).get(activity_id),
         "symptoms": value("symptom_response_timeline").get("reports", []),
     }
 

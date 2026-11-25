@@ -27,6 +27,8 @@ Before applying `0022_race_goals` to the real database, check its current revisi
 
 Before applying `0025_coach_output_v2` to the real database, run `make backup` and check the current revision. This migration moves every old coach rationale, follow-up, and block rationale into an **Earlier format** block on its proposal or block version, with ID tags removed from the coach text the app shows. The submitted documents keep their original wording, except that ID tags are also removed from their exception, race-review, and patch text, which the app shows. It discards every open proposal (pending, stale, or invalid), so accept anything you want to keep in the app first; the coach starts fresh at the next review. Copy any hand-entered session notes you want to keep before migrating. The migration clears every existing session note. New session notes belong to the athlete, and the coach writes its guidance in a separate brief. The coach protocol is now `coach_proposal.v2`: use the helper from the updated checkout, refresh any separately installed skill copy, and start a new coaching session. An old copy stops with `incompatible_coach_protocol`. The migration cannot be downgraded once new-format proposals, block reasons, or session briefs exist (`restore_required_coach_output_v2`); restore the backup instead.
 
+Migrations `0026_workout_response` and `0027_rehab_sessions` preserve existing check-ins as unknown and allow a dated rehab slot. A downgrade refuses to drop an explicitly recorded pain answer or a calendar revision containing rehab.
+
 Explicit real-mode backup and restore (replace the archive path and new target):
 
 ```sh
@@ -149,6 +151,8 @@ results. The weekly digest and workout progression also show stored assessments.
 change, run `metrics-recompute` for affected older dates that the startup pass does not cover.
 
 Each server start (`make start`, `make dev`) runs `metrics-refresh-today` before serving. It refreshes the last 84 days of run metrics, session assessments within 13 days of today (including derived completion status), the last seven nights, and today's windows, then updates prompts. Take a backup before the first real-mode server start after a metric method change. `app.log` records a `refresh ...` line per write-time refresh and a `startup refresh ...` line per startup pass.
+
+For an explicit connection outside the configured workspace, pass `APP_MODE`, `DATABASE_URL`, and `PRIVATE_DIR` together. The local runner preserves this complete destination and rejects a conflicting partial destination before running the command. The normal named-mode entry point is `scripts/with-mode`.
 
 Synthetic acceptance uses the isolated PostgreSQL cluster on port 55439 and API port 18000.
 It must never reset, seed, or migrate the real database on port 55432. Keep device

@@ -9,7 +9,9 @@ test.describe.configure({ mode: 'serial' })
 const repoRoot = resolve(__dirname, '..')
 const backend = join(repoRoot, 'backend')
 const coachScript = join(repoRoot, 'scripts', 'with-mode')
-const proposalDir = join(repoRoot, 'private', 'demo', 'coach', 'proposals')
+const demoFiles = process.env.APP_MODE === 'demo' && process.env.PRIVATE_DIR
+  ? process.env.PRIVATE_DIR : join(repoRoot, 'private', 'demo')
+const proposalDir = join(demoFiles, 'coach', 'proposals')
 const local = { 'X-Local-Request': '1' }
 const day = (today:string, offset:number) => {
   const value = new Date(`${today}T12:00:00Z`)

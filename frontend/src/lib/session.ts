@@ -15,6 +15,7 @@ export function sessionTitle(s: {
   if (s.kind === 'strength') return 'Strength'
   if (s.kind === 'cross') return 'Cross-training'
   if (s.kind === 'mobility') return 'Mobility'
+  if (s.kind === 'rehab') return 'Rehab'
   return 'Rest'
 }
 export function sessionMarker(

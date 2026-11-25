@@ -258,6 +258,7 @@ const base: ActivityExecution = {
   }),
   intensity: metric<IntensityValue>('time_in_intensity', { hr: zone, speed: zone }),
   rpe: { effective: 7, source: 'garmin_fit', manual: null, garmin_fit: 7, srpe_load_au: 293.6 },
+  delayed_response: null,
   symptoms: [],
 }
 const historyPoint = (id: string, day: string) => ({
@@ -398,7 +399,7 @@ describe('Activity execution', () => {
         'Heart rate: not assessable — add aerobic-upper and threshold-lower anchors in Settings.',
       ),
     ).toBeInTheDocument()
-    expect(screen.getByText('No symptom reports are linked to this run.')).toBeInTheDocument()
+    expect(screen.getByText('No delayed response recorded.')).toBeInTheDocument()
     expect(requests).toContainEqual({ url: '/api/v1/activities/a1/execution', method: 'GET' })
   })
   it('shows the recorded laps for each rep', async () => {
@@ -541,6 +542,82 @@ describe('Activity execution', () => {
     expect(screen.getByText('Session load missing')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Enter RPE' }))
     expect(onCheckin).toHaveBeenCalledWith({ kind: 'post_run', prompt: null, activityId: 'a1' })
+  })
+  it('offers a late response on the recorded run and passes the original prompt', async () => {
+    const prompt = {
+      id: 'delayed-1',
+      kind: 'delayed_symptom',
+      activity_id: 'a1',
+      session_uid: null,
+      opens_at: '2026-11-09T01:00:00Z',
+      closes_at: '2026-11-10T09:00:00Z',
+      status: 'expired',
+    } as const
+    fixture = {
+      ...base,
+      delayed_response: {
+        prompt,
+        checkin_id: null,
+        observed_at: null,
+        recorded_at: null,
+        hours_after_end: null,
+        pain_reported: null,
+        gait_change: null,
+        symptoms: [],
+      },
+    }
+    mount()
+    expect(await screen.findByText('Delayed check unanswered.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add late response' }))
+    expect(onCheckin).toHaveBeenCalledWith({ kind: 'delayed_followup', activityId: 'a1', prompt })
+  })
+  it.each([false, true])(
+    'offers athlete-initiated feedback after 16 hours with a dismissed reminder: %s',
+    async (dismissed) => {
+      fixture = {
+        ...base,
+        activity: { ...base.activity, end_at: new Date(Date.now() - 17 * 3600_000).toISOString() },
+        delayed_response: dismissed
+          ? {
+              prompt: {
+                id: 'dismissed-check',
+                kind: 'delayed_symptom',
+                activity_id: 'a1',
+                session_uid: null,
+                opens_at: new Date(Date.now() - 3600_000).toISOString(),
+                closes_at: null,
+                status: 'dismissed',
+              },
+              checkin_id: null,
+              observed_at: null,
+              recorded_at: null,
+              hours_after_end: null,
+              pain_reported: null,
+              gait_change: null,
+              symptoms: [],
+            }
+          : null,
+      }
+      mount()
+      fireEvent.click(await screen.findByRole('button', { name: 'Add delayed feedback' }))
+      expect(onCheckin).toHaveBeenCalledWith({
+        kind: 'delayed_followup',
+        activityId: 'a1',
+        prompt: null,
+      })
+      expect(
+        screen.getByText(dismissed ? 'Reminder dismissed.' : 'No delayed response recorded.'),
+      ).toBeVisible()
+    },
+  )
+  it('withholds athlete-initiated delayed feedback until 16 hours after the run', async () => {
+    fixture = {
+      ...base,
+      activity: { ...base.activity, end_at: new Date(Date.now() - 2 * 3600_000).toISOString() },
+    }
+    mount()
+    await screen.findByText('No delayed response recorded.')
+    expect(screen.queryByRole('button', { name: 'Add delayed feedback' })).toBeNull()
   })
   it('renders symptom timing and provenance text', async () => {
     fixture = {

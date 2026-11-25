@@ -10,7 +10,9 @@ from typing import Any, Literal
 
 from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.cycle import opportunity
-from app.domain.session_class import LONG_RECIPE, QUALITY_RECIPES
+from app.domain.running_limits import increases_run_dose, restriction_conflict
+from app.domain.session_class import LONG_RECIPE
+from app.domain.session_limits import REHAB_DAILY_LIMIT_S
 from app.services.block_benchmark import ACTIVE_STATUSES, BENCHMARK_MAX_AGE_DAYS, CREDIBLE_OUTCOMES
 from app.services.exceptions.vocab import NON_TERMINAL_FINDING
 from app.services.proposals.schema import (
@@ -444,36 +446,21 @@ def _safety_violation(
     ctx: ValidationContext,
     change: Change,
     head: HeadSession | None,
-    fields: set[str],
     result: dict[str, Any],
     result_date: date | None,
 ) -> bool:
+    end = ctx.today + timedelta(days=3)
     if (
-        safety_active(ctx.current_safety_guard)
-        and result_date
-        and ctx.today <= result_date <= ctx.today + timedelta(days=3)
+        change.op == "delete"
+        or result.get("kind") != "run"
+        or result_date is None
+        or not ctx.today <= result_date <= end
+        or not safety_active(ctx.current_safety_guard)
     ):
-        unsafe = (
-            (change.op == "add" and result.get("kind") == "run")
-            or (
-                change.op == "move"
-                and head is not None
-                and head.kind == "run"
-                and not ctx.today <= head.local_date <= ctx.today + timedelta(days=3)
-            )
-            or (change.op == "modify" and head is not None and head.kind != "run" and result.get("kind") == "run")
-            or (
-                change.op == "modify"
-                and "planned_duration_s" in fields
-                and head is not None
-                and (
-                    head.planned_duration_s is None or (result.get("planned_duration_s") or 0) > head.planned_duration_s
-                )
-            )
-            or (change.op in {"add", "modify"} and "recipe_id" in fields and result.get("recipe_id") in QUALITY_RECIPES)
-        )
-        return bool(unsafe)
-    return False
+        return False
+    if head is None or head.kind != "run" or not ctx.today <= head.local_date <= end:
+        return True
+    return increases_run_dose(result, vars(head))
 
 
 def _change_rules(
@@ -571,7 +558,11 @@ def _change_issues(
         issues.append(_issue("V9.daily_strength_change", path))
     if _quality_pileup(change, head, result_date, state=state, before=before):
         issues.append(_issue("V10.quality_pileup", path))
-    if _safety_violation(ctx, change, head, fields, result, result_date):
+    if change.op != "delete":
+        conflict = restriction_conflict(ctx.running_restriction, result, vars(head) if head else None)
+        if conflict is not None:
+            issues.append(_issue("V12.running_restriction", path, conflict))
+    if _safety_violation(ctx, change, head, result, result_date):
         issues.append(_issue("V12.safety_guard", path))
     if doc.operation == "select_quality_session" and (
         change.op != "modify" or not head or not is_quality_slot(head.kind, head.recipe_id, head.placeholder)
@@ -709,6 +700,11 @@ def _calendar_shape_rules(
     issues: list[ValidationIssue] = []
     for day_offset in range((end - start).days + 1):
         day = start + timedelta(days=day_offset)
+        rehab = [row for row in state.values() if row["kind"] == "rehab" and row["local_date"] == day]
+        if any(row.get("planned_duration_s") is None for row in rehab):
+            issues.append(_issue("V7.rehab_duration_required", "changes", day.isoformat()))
+        if sum(row.get("planned_duration_s") or 0 for row in rehab) > REHAB_DAILY_LIMIT_S:
+            issues.append(_issue("V7.rehab_daily_limit", "changes", day.isoformat()))
         if sum(row["kind"] == "run" and row["local_date"] == day for row in state.values()) > 1:
             issues.append(_issue("V7.multiple_runs_per_day", "changes", day.isoformat()))
     week = start - timedelta(days=start.weekday())

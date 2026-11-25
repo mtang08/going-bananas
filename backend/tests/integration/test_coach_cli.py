@@ -328,6 +328,7 @@ def test_snapshot_excludes_checkin_notes(cli_db):
         idempotency_key=str(uuid.uuid4()),
         kind="exception",
         observed_at=NOW - timedelta(hours=30),
+        recorded_at=NOW - timedelta(hours=29),
         context_tags=[],
         note="cli-private-canary",
         gait_change="no",

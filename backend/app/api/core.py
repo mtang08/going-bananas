@@ -12,11 +12,12 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db import bump_data_revision, get_revision, get_session
+from app.db import bump_data_revision, get_revision, get_session, global_write_lock
 from app.domain.analytics import (
     pace_s_per_km,
     utc_date_bounds,
 )
+from app.domain.athlete_facts import RUNNING_RESTRICTION_KEY, running_restriction
 from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.errors import fail
@@ -180,6 +181,14 @@ class ProfileInput(BaseModel):
                 )
         return self
 
+    @field_validator("facts")
+    @classmethod
+    def valid_running_restriction(cls, value: dict[str, Any]) -> dict[str, Any]:
+        restriction = running_restriction(value)
+        if restriction is not None:
+            return {**value, RUNNING_RESTRICTION_KEY: restriction.model_dump(mode="json")}
+        return value
+
     @field_validator("timezone")
     @classmethod
     def valid_zone(cls, value: str) -> str:
@@ -211,6 +220,7 @@ def get_profile(session: Session = Depends(get_session)) -> dict:
 
 @router.put("/profile")
 def put_profile(body: ProfileInput, session: Session = Depends(get_session)) -> dict:
+    global_write_lock(session)
     current = current_profile(session)
     version = current.version if current else 0
     if body.expected_version != version:

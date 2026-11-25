@@ -144,6 +144,7 @@ const digestFor = (weekStart: string, done = 2): WeeklyDigest => {
   }
   return {
     schema: 'weekly_digest.v1',
+    decision_follow_up: null,
     week_start: weekStart,
     week_end: addDays(weekStart, 6),
     today: '2026-11-11',
@@ -158,6 +159,7 @@ const digestFor = (weekStart: string, done = 2): WeeklyDigest => {
         run: { planned: 3, planned_to_date: 2, done },
         strength: { planned: 2, planned_to_date: 1, done: 0 },
         cross: { planned: 0, planned_to_date: 0, done: 0 },
+        rehab: { planned: 0, planned_to_date: 0, done: 0 },
         mobility: { planned: 0, planned_to_date: 0, done: 0 },
       },
       time: {
@@ -302,6 +304,49 @@ describe('training home', () => {
     const card = screen.getByTestId('today-card')
     expect(within(card).getByText('Easy run')).toBeInTheDocument()
     expect(within(card).getByText('30m')).toBeInTheDocument()
+  })
+  it('links the upcoming workout to Calendar', async () => {
+    mount()
+    const card = within(await screen.findByTestId('today-card'))
+    expect(card.getByRole('link', { name: 'Open workout on Calendar' })).toHaveAttribute(
+      'href',
+      '#calendar/2026-11-11',
+    )
+  })
+  it('links a finished workout to its recorded run and omits removed rows', async () => {
+    calendar.sessions.push(session('deleted-run', '2026-11-11', { deleted: true }))
+    calendar.completions = [
+      {
+        id: 'c1',
+        input_version: 1,
+        session_uid: 's1',
+        activity_id: 'a1',
+        strong_workout_id: null,
+        manual_session_id: null,
+        status: 'completed_as_planned',
+        match_method: 'auto_same_day',
+        modification_reason: null,
+        reason_note: null,
+        version: 1,
+        updated_at: '2026-11-11T11:00:00Z',
+        local_date: '2026-11-11',
+      },
+    ]
+    mount()
+    const card = within(await screen.findByTestId('today-card'))
+    expect(card.getByRole('link', { name: 'Open run and feedback' })).toHaveAttribute(
+      'href',
+      '#activity/a1',
+    )
+    expect(card.getAllByTestId('session-tag')).toHaveLength(1)
+  })
+  it("flags a running restriction on Today's accepted prescription", async () => {
+    calendar.sessions[0].running_restriction_conflict =
+      'Running restriction on 2026-11-11 caps each run at 900 s.'
+    mount()
+    const card = within(await screen.findByTestId('today-card'))
+    expect(card.getByRole('status')).toHaveTextContent('caps each run at 900 s')
+    expect(card.getByRole('link', { name: 'Open workout on Calendar' })).toBeVisible()
   })
   it('shows the coach brief on the Today card', async () => {
     calendar.sessions[0].intent = 'Threshold control'
@@ -564,11 +609,11 @@ describe('training home', () => {
     )
     expect(
       row.compareDocumentPosition(screen.getByRole('heading', { name: "Today's plan" })) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+        Node.DOCUMENT_POSITION_PRECEDING,
     ).toBeTruthy()
     expect(requests.every((r) => r.method === 'GET')).toBe(true)
   })
-  it("puts the gauges first and lists the week's sessions below Today's plan", async () => {
+  it('puts today and open actions before weekly summaries', async () => {
     digestSessions = [
       {
         session_uid: 's1',
@@ -611,7 +656,7 @@ describe('training home', () => {
         ),
         (section) => section.getAttribute('data-testid') ?? section.className,
       ),
-    ).toEqual(['home-status', 'home-gauges', 'needs-attention', 'today-card', 'week-sessions'])
+    ).toEqual(['today-card', 'needs-attention', 'home-status', 'home-gauges', 'week-sessions'])
     expect(screen.queryByText('Next week')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Last week' }))
     expect(await screen.findByRole('heading', { name: "Last week's sessions" })).toBeInTheDocument()

@@ -4,6 +4,7 @@ import { dateLabel, fmtDistance, fmtDuration, fmtPercent, type Unit } from '../l
 import { pageHref } from '../lib/routes'
 import { sessionTitle } from '../lib/session'
 import { COMPONENT_LABELS, COMPONENT_STATUS_LABELS, reasonText } from '../lib/reasonLabels'
+import { ReviewFollowUpPanel } from './ReviewFollowUpPanel'
 import './plan-overview.css'
 
 export type DigestWeek = 'this' | 'last'
@@ -13,6 +14,7 @@ const KIND_LABELS = [
   ['strength', 'Strength'],
   ['cross', 'Cross-training'],
   ['mobility', 'Mobility'],
+  ['rehab', 'Rehab'],
 ] as const
 
 function plural(n: number, one: string, many: string): string {
@@ -36,7 +38,7 @@ export function WeeklyDigest({
   const finished = d.days_elapsed >= 7
   const keyRows = d.sessions.filter((s) => s.key)
   const notDone = d.sessions.filter(
-    (s) => !s.key && s.kind !== 'mobility' && NOT_DONE.has(s.outcome),
+    (s) => !s.key && s.kind !== 'mobility' && s.kind !== 'rehab' && NOT_DONE.has(s.outcome),
   )
   const outcomeDetail = (
     [
@@ -127,6 +129,9 @@ export function WeeklyDigest({
             {actualDistanceUnknown ? 'unknown' : fmtDistance(t.run_distance.actual_m, unit)} of{' '}
             {plannedDistance} planned
           </p>
+          {d.decision_follow_up && (
+            <ReviewFollowUpPanel review={d.decision_follow_up} unit={unit} />
+          )}
           {keyRows.length > 0 && (
             <>
               <h3>Key sessions</h3>

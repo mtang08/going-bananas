@@ -20,6 +20,7 @@ from app.metrics.engine import current_results
 from app.models import ManualSession
 from app.read.activities import eligible_runs
 from app.read.calendar import latest_revisions
+from app.read.workout_feedback import DELAYED_RESPONSE_HOURS
 from app.services.timezone import athlete_tz
 from app.strong_models import StrongWorkoutRow
 
@@ -110,7 +111,7 @@ def _desired(facts: dict[str, Any], now: datetime) -> dict[str, dict[str, Any]]:
                 "kind": "delayed_symptom",
                 "activity_id": subject,
                 "session_uid": None,
-                "opens_at": end + timedelta(hours=16),
+                "opens_at": end + timedelta(hours=DELAYED_RESPONSE_HOURS),
                 "closes_at": close,
             }
     first = today - timedelta(days=7)

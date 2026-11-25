@@ -16,7 +16,8 @@ from app.calendar_models import SessionCompletion
 from app.checkin_models import SessionRpe
 from app.domain.athlete_facts import clinical_restriction
 from app.fit_models import FitFile
-from app.metrics.contract import completion_association_hash
+from app.metric_models import Prompt
+from app.metrics.contract import completion_association_hash, config_hash
 from app.models import (
     Activity,
     ActivityAnnotation,
@@ -30,6 +31,7 @@ from app.models import (
 from app.planning_models import Event, Goal, IntensityAnchor, StrengthRoutineSlot
 from app.read.calendar import head_version
 from app.read.strength_omissions import accepted_strength_omissions
+from app.read.workout_feedback import reminder_status
 from app.services.block_benchmark import active_block_version
 from app.services.profile import current_profile
 from app.services.strength_routine import routine_occurrences
@@ -97,6 +99,19 @@ def _sorted(session: Session, model: Any, key: Any) -> list[Any]:
     return list(session.scalars(select(model).order_by(key)))
 
 
+def metric_identities() -> list[dict[str, str]]:
+    """Capture the current code-selected metric methods and configuration."""
+    from app.metrics.engine import metric_modules
+
+    return sorted(
+        (
+            {"metric_id": m.METRIC_ID, "method_version": m.METHOD_VERSION, "config_hash": config_hash(m.CONFIG)}
+            for m in metric_modules()
+        ),
+        key=lambda row: row["metric_id"],
+    )
+
+
 def collect_decision_inputs(
     session: Session, operation: str, as_of: date, *, now: datetime, kb: VerifiedKnowledge
 ) -> dict:
@@ -126,6 +141,7 @@ def collect_decision_inputs(
     source_versions: dict[str, Any] = {
         "operation": operation,
         "as_of": as_of.isoformat(),
+        "metric_identities": metric_identities(),
         "profile": {
             "version": profile.version,
             "timezone": profile.timezone,
@@ -157,6 +173,28 @@ def collect_decision_inputs(
                 "workout_rpe",
             ),
         ),
+        "delayed_response_prompts": [
+            {
+                **_wire(
+                    {
+                        "id": prompt.id,
+                        "activity_id": prompt.activity_id,
+                        "opens_at": prompt.opens_at,
+                        "closes_at": prompt.closes_at,
+                    }
+                ),
+                "status": reminder_status(prompt.status, prompt.opens_at, prompt.closes_at, now),
+            }
+            for prompt in session.scalars(
+                select(Prompt)
+                .where(
+                    Prompt.kind == "delayed_symptom",
+                    Prompt.opens_at >= now - timedelta(days=120),
+                    Prompt.opens_at <= now,
+                )
+                .order_by(Prompt.id)
+            )
+        ],
         "checkins": _project(
             checkins,
             (
@@ -165,6 +203,8 @@ def collect_decision_inputs(
                 "observed_at",
                 "activity_id",
                 "gait_change",
+                "pain_reported",
+                "prompt_id",
                 "illness",
                 "fatigue",
                 "kind",

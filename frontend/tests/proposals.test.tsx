@@ -59,6 +59,7 @@ let failReload = false
 let events: RaceEvent[] = []
 let calendarToday = '2026-11-16'
 let failCalendar = false
+let calendarSessions: SessionState[]
 let writes: ProposalDecision[] = []
 let deletes: number[] = []
 const clients: QueryClient[] = []
@@ -69,6 +70,7 @@ beforeEach(() => {
   events = []
   calendarToday = '2026-11-16'
   failCalendar = false
+  calendarSessions = [unchangedSession]
   writes = []
   deletes = []
   proposal = {
@@ -213,15 +215,21 @@ beforeEach(() => {
           }),
         }
       }
-      if (url.endsWith('/calendar') && failCalendar) throw new Error('offline')
-      if (url.endsWith('/calendar'))
+      if (url.includes('/calendar') && failCalendar) throw new Error('offline')
+      if (url.includes('/calendar'))
         return {
           ok: true,
           json: async () => ({
             schema_version: 'v1',
             mode: 'demo',
             data_revision: 1,
-            data: { today: calendarToday, sessions: [unchangedSession] },
+            data: {
+              today: calendarToday,
+              start: '2026-11-09',
+              end: '2026-12-02',
+              head: 7,
+              sessions: calendarSessions,
+            },
           }),
         }
       return {
@@ -249,7 +257,7 @@ function mount() {
   clients.push(client)
   return render(
     <QueryClientProvider client={client}>
-      <ProposalReview proposalId="p1" />
+      <ProposalReview proposalId="p1" unit="mi" />
     </QueryClientProvider>,
   )
 }
@@ -1326,4 +1334,72 @@ it('renders no empty block disclosures for a migrated change', async () => {
     expect(card.queryByText(label)).not.toBeInTheDocument()
   }
   expect(card.getByRole('checkbox', { name: 'Accept block change' })).toBeVisible()
+})
+
+it('previews selected moves across weeks and nearby intervals without counting an explicit dose twice', async () => {
+  const long = {
+    ...unchangedSession,
+    session_uid: 'long',
+    local_date: '2026-11-22',
+    recipe_id: 'REC002',
+    planned_duration_s: 5400,
+    planned_distance_m: 12000,
+    structure: [{ type: 'work', duration_type: 'distance', duration_value: 12000, target: null }],
+  } satisfies SessionState
+  const intervals = {
+    ...unchangedSession,
+    session_uid: 'hard',
+    local_date: '2026-11-24',
+    recipe_id: 'REC003',
+    planned_duration_s: 3600,
+    planned_distance_m: null,
+  }
+  calendarSessions = [long, intervals]
+  proposal.changes = [
+    {
+      ...proposal.changes[0],
+      session_uid: long.session_uid,
+      op: 'move',
+      before: long,
+      after: { local_date: '2026-11-23' },
+    },
+    {
+      ...proposal.changes[1],
+      session_uid: intervals.session_uid,
+      op: 'delete',
+      before: intervals,
+      after: null,
+    },
+    {
+      ...proposal.changes[2],
+      session_uid: null,
+      op: 'add',
+      before: null,
+      after: { ...unchangedSession, local_date: '2026-12-01' },
+    },
+  ]
+  mount()
+  const impact = within(await screen.findByLabelText('Two-week schedule impact'))
+  expect(impact.getByText('Move Long run').closest('li')).toHaveTextContent(
+    'Sun, Nov 22 → Mon, Nov 23',
+  )
+  expect(impact.getByText('−7.5 mi')).toBeInTheDocument()
+  expect(impact.getByText('+7.5 mi known · some dose unknown')).toBeInTheDocument()
+  expect(impact.getByText('−1h 30m')).toBeInTheDocument()
+  expect(impact.getByText('+30m')).toBeInTheDocument()
+  expect(impact.getByText('Selected changes outside this preview or without a date')).toBeVisible()
+  expect(impact.queryByText(/Nearest demanding workout/)).not.toBeInTheDocument()
+
+  const checks = screen.getAllByRole('checkbox')
+  fireEvent.click(checks[1])
+  expect(
+    await impact.findByText(/Threshold intervals on Tue, Nov 24 \(the next day\)/),
+  ).toBeVisible()
+  expect(impact.getByText('+7.5 mi')).toBeInTheDocument()
+  expect(impact.getByText('+1h 30m')).toBeInTheDocument()
+
+  fireEvent.click(checks[0])
+  expect(impact.queryByText('Move Long run')).not.toBeInTheDocument()
+  expect(impact.getAllByText('0.0 mi')).toHaveLength(2)
+  expect(writes).toHaveLength(0)
 })

@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Literal
 
 SESSION_CLASS_VERSION = "session_class.v1"
-SessionClass = Literal["easy", "long", "quality", "benchmark", "cross", "strength", "mobility", "rest", "unknown"]
+SessionClass = Literal[
+    "easy", "long", "quality", "benchmark", "cross", "strength", "mobility", "rehab", "rest", "unknown"
+]
 Mismatch = Literal["above", "below"]
 QUALITY_CLASSES: frozenset[str] = frozenset({"quality", "benchmark"})
 HARD_CLASSES: frozenset[str] = frozenset({"quality", "long", "benchmark"})
@@ -39,6 +41,7 @@ _KIND_CLASS: dict[str, SessionClass] = {
     "cross": "cross",
     "strength": "strength",
     "mobility": "mobility",
+    "rehab": "rehab",
     "rest": "rest",
 }
 _INTENT_RULES: tuple[tuple[tuple[str, ...], SessionClass], ...] = (

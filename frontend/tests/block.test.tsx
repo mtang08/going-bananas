@@ -30,11 +30,13 @@ let calls: { url: string; method: string; body: unknown; headers: Headers }[] = 
 let runsError = false
 let block: ActiveBlock | null
 let history: ActiveBlock[] | null
+let benchmarks: import('../src/api/types/blocks').BenchmarkRecord[]
 const clients: QueryClient[] = []
 beforeEach(() => {
   calls = []
   runsError = false
   history = null
+  benchmarks = []
   block = {
     id: 'v1',
     block_uid: 'b1',
@@ -108,11 +110,13 @@ beforeEach(() => {
           }
         : method === 'PUT'
           ? { benchmark: null, benchmark_status: null }
-          : url.endsWith('/calendar')
-            ? { today: '2026-11-12' }
-            : url.endsWith('/history')
-              ? { items: history ?? (block ? [block] : []) }
-              : block
+          : url.endsWith('/blocks/benchmarks')
+            ? { items: benchmarks }
+            : url.endsWith('/calendar')
+              ? { today: '2026-11-12' }
+              : url.endsWith('/history')
+                ? { items: history ?? (block ? [block] : []) }
+                : block
       return {
         ok: true,
         json: async () => ({ schema_version: 'v1', mode: 'demo', data_revision: 1, data }),
@@ -158,7 +162,7 @@ it('shows an overdue review without claiming objective completion', async () => 
   mount()
   await screen.findByText('Review overdue · 2 days')
   expect(
-    screen.getByText('Review criteria; achievement has not been verified here.'),
+    screen.getByText('Review criteria; current indicator values are not assessed here.'),
   ).toBeInTheDocument()
   expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
 })
@@ -381,4 +385,73 @@ it('lists block history one line per version with why on expand', async () => {
   fireEvent.click(earlier)
   expect(screen.getByText('Inference')).toBeVisible()
   expect(screen.getByText('Base first')).toBeVisible()
+})
+
+it('shows unknown goal progress and the review date when no results or indicators exist', async () => {
+  block!.indicators = []
+  mount()
+  expect(await screen.findByText('No dated benchmark result logged yet.')).toBeVisible()
+  expect(screen.getByText(/Progress toward the goal is unknown/)).toBeVisible()
+  expect(screen.getByText('No review indicators set for this block.')).toBeVisible()
+  expect(screen.getByText('Block review: Dec 13')).toBeVisible()
+})
+
+it('brings a logged result, target and future benchmark together with review criteria', async () => {
+  block!.benchmark = BM
+  block!.benchmark_status = status()
+  block!.target_event = {
+    id: 'race',
+    name: 'Spring 10K',
+    event_date: '2027-03-01',
+    distance_m: 10000,
+    purpose: 'pr',
+    goal_time_s: null,
+    rank: 1,
+  }
+  benchmarks = [
+    {
+      id: 'old',
+      block_uid: 'prior',
+      block_version: 1,
+      objective: 'Endurance',
+      protocol: '5 km time trial',
+      distance_m: 5000,
+      local_date: '2026-10-12',
+      result_s: 1400,
+      outcome: 'consolidate',
+      compared_with: 'Prior time trial',
+      match_method: 'manual',
+      activity_id: 'a',
+      event_id: null,
+    },
+  ]
+  mount()
+  const progress = await screen.findByTestId('block-benchmark')
+  expect(within(progress).getByText(/Spring 10K/)).toBeVisible()
+  expect(await within(progress).findByTestId('latest-benchmark')).toHaveTextContent('Oct 12')
+  expect(within(progress).getByTestId('latest-benchmark')).toHaveTextContent(fmtDuration(1400))
+  expect(within(progress).getByText('Faster than 21:40')).toBeVisible()
+  expect(within(progress).getByText('7 of 8 sessions or more')).toBeVisible()
+  expect(within(progress).getByText(/Progress toward the goal is unknown/)).toBeVisible()
+})
+
+it('shows the recorded block assessment without claiming goal progress is unknown', async () => {
+  block!.objective_status = 'partially_achieved'
+  block!.indicators = []
+  mount()
+  const progress = await screen.findByTestId('block-benchmark')
+  expect(
+    within(progress)
+      .getByText(/Last recorded block assessment/)
+      .closest('p'),
+  ).toHaveTextContent('partially achieved')
+  expect(
+    within(progress)
+      .getByText(/Last recorded block assessment/)
+      .closest('p'),
+  ).toHaveTextContent('Nov 1')
+  expect(
+    within(progress).queryByText(/Progress toward the goal is unknown/),
+  ).not.toBeInTheDocument()
+  expect(within(progress).getByText('No review indicators set for this block.')).toBeVisible()
 })

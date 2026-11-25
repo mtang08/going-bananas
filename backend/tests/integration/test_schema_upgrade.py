@@ -1439,3 +1439,78 @@ def test_coach_output_v2_moves_prose_to_legacy_text_and_guards_downgrade(isolate
     _migration(connection, HEAD)
     connection.commit()
     assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == HEAD
+
+
+def test_workout_response_upgrade_and_downgrade_preserves_answers(isolated_schema):
+    connection = isolated_schema
+    previous = "0025_coach_output_v2"
+    _migration(connection, previous)
+    connection.commit()
+
+    # An empty downgrade and re-upgrade should be safe.
+    _migration(connection, "0026_workout_response")
+    connection.commit()
+    _migration(connection, previous, down=True)
+    connection.commit()
+
+    checkin_id = _insert(
+        connection, "checkins_v2", idempotency_key="legacy-unknown", kind="post_run", observed_at=STAMP
+    )
+    connection.commit()
+    _migration(connection, "0026_workout_response")
+    connection.commit()
+    query = text("SELECT pain_reported FROM checkins_v2 WHERE id=:id")
+    assert connection.execute(query, {"id": checkin_id}).scalar_one() is None
+    connection.commit()
+
+    # Both positive and explicit negative answers must survive a refused downgrade.
+    for answer in (False, True):
+        connection.execute(
+            text("UPDATE checkins_v2 SET pain_reported=:answer WHERE id=:id"), {"answer": answer, "id": checkin_id}
+        )
+        connection.commit()
+        with pytest.raises(RuntimeError, match="restore_required_workout_response"):
+            _migration(connection, previous, down=True)
+        connection.rollback()
+        assert connection.execute(query, {"id": checkin_id}).scalar_one() is answer
+        assert (
+            connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0026_workout_response"
+        )
+        connection.commit()
+
+    connection.execute(text("UPDATE checkins_v2 SET pain_reported=NULL WHERE id=:id"), {"id": checkin_id})
+    connection.commit()
+    _migration(connection, previous, down=True)
+    connection.commit()
+    assert (
+        connection.execute(text("SELECT id FROM checkins_v2 WHERE id=:id"), {"id": checkin_id}).scalar_one()
+        == checkin_id
+    )
+    assert "pain_reported" not in {c["name"] for c in inspect(connection).get_columns("checkins_v2")}
+
+
+def test_rehab_downgrade_refuses_to_discard_existing_history(isolated_schema):
+    connection = isolated_schema
+    _migration(connection, "0027_rehab_sessions")
+    _insert(connection, "calendar_versions", number=1, kind="manual_edit", actor="user")
+    uid = _insert(
+        connection,
+        "calendar_session_revisions",
+        session_uid=uuid.uuid4(),
+        revision=1,
+        calendar_version_number=1,
+        local_date=STAMP.date(),
+        kind="rehab",
+        intent="Calf routine",
+        certainty="committed",
+        planned_duration_s=300,
+    )
+    connection.commit()
+    with pytest.raises(IntegrityError):
+        _migration(connection, "0026_workout_response", down=True)
+    connection.rollback()
+    assert (
+        connection.execute(text("SELECT kind FROM calendar_session_revisions WHERE id=:id"), {"id": uid}).scalar_one()
+        == "rehab"
+    )
+    assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0027_rehab_sessions"

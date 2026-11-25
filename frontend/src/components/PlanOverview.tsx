@@ -24,6 +24,7 @@ const kindLabels = {
   cross: 'Cross-training',
   rest: 'Rest',
   mobility: 'Mobility',
+  rehab: 'Rehab',
 }
 function PurposeEffort({
   intent,
@@ -64,7 +65,7 @@ export function SessionSummary({
   const title =
     s.legacy_unstructured && s.kind === 'run'
       ? 'Imported run'
-      : s.custom && !s.recipe_id
+      : (s.custom && !s.recipe_id) || (s.kind === 'rehab' && s.intent)
         ? s.intent
         : sessionTitle(s)
   return (
@@ -95,12 +96,19 @@ export function SessionSummary({
       </div>
       {showWorkout ? (
         <>
+          {s.running_restriction_conflict &&
+            (marker === 'planned' || marker === 'not_recorded') && (
+              <p className="error-text" role="status">
+                {s.running_restriction_conflict}
+              </p>
+            )}
           <PurposeEffort
             intent={s.intent && s.intent !== title ? s.intent : null}
             brief={s.brief}
           />
           {s.structure && <WorkoutStructure structure={s.structure} unit={unit} />}
           <SessionBrief brief={s.brief} notes={s.notes} layout="today" />
+          {children}
           {s.legacy_unstructured && <small>Structured comparison unavailable</small>}
         </>
       ) : (

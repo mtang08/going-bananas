@@ -11,8 +11,10 @@ from zoneinfo import ZoneInfo
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from app.domain.athlete_facts import RunningRestriction
 from app.domain.local_time import date_in_zone
 from app.domain.session_class import QUALITY_RECIPES
+from app.domain.session_limits import REHAB_DAILY_LIMIT_S
 from app.services.block_benchmark import BenchmarkOutcome
 from app.services.decision_inputs import (
     VerifiedKnowledge,
@@ -147,7 +149,7 @@ class RepeatBlock(Strict):
 class SessionFields(Strict):
     local_date: date | None = None
     slot: int | None = Field(None, ge=0)
-    kind: Literal["run", "strength", "cross", "rest", "mobility"] | None = None
+    kind: Literal["run", "strength", "cross", "rest", "mobility", "rehab"] | None = None
     recipe_id: str | None = None
     custom: bool | None = None
     placeholder: bool | None = None
@@ -158,7 +160,14 @@ class SessionFields(Strict):
         max_length=60,
         description="Session purpose, a short label, e.g. 'Threshold control'; not the prescription",
     )
-    planned_duration_s: int | None = Field(None, gt=0)
+    planned_duration_s: int | None = Field(
+        None,
+        gt=0,
+        description=(
+            f"Rehab requires a duration; daily rehab sessions must total at most "
+            f"{REHAB_DAILY_LIMIT_S // 60} minutes ({REHAB_DAILY_LIMIT_S} seconds)."
+        ),
+    )
     planned_distance_m: int | None = Field(None, gt=0)
     structure: list[StructureStep | RepeatBlock] | None = None
     strength_slot_id: uuid.UUID | None = None
@@ -424,6 +433,7 @@ class ValidationContext:
     last_benchmark_date: date | None = None
     confirmed_strength_dates: frozenset[date] = frozenset()
     confirmed_strength_slot_ids: dict[date, uuid.UUID] = dataclass_field(default_factory=dict)
+    running_restriction: RunningRestriction | None = None
     accepted_strength_omission_dates: frozenset[date] = frozenset()
     accepted_strength_omission_slot_ids: dict[date, uuid.UUID] = dataclass_field(default_factory=dict)
 

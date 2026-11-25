@@ -24,7 +24,9 @@ def test_single_chained_schema_head() -> None:
     script = ScriptDirectory.from_config(config)
     assert script.get_heads() == [EXPECTED_HEAD]
     revisions = [revision.revision for revision in script.walk_revisions()]
-    assert revisions[:16] == [
+    assert revisions[:18] == [
+        "0027_rehab_sessions",
+        "0026_workout_response",
         "0025_coach_output_v2",
         "0024_google_calendar",
         "0023_treadmill_interval_paces",
@@ -59,6 +61,7 @@ def test_required_tables_are_in_metadata() -> None:
     assert "planning_authority" not in Base.metadata.tables["app_state"].c
     assert Base.metadata.tables["app_state"].c.calendar_head_version.server_default.arg == "0"
     assert Base.metadata.tables["session_completions"].c.input_version.server_default.arg == "1"
+    assert Base.metadata.tables["checkins_v2"].c.pain_reported.nullable
     assert isinstance(Base.metadata.tables["session_rpe"].c.rpe.type, Numeric)
     assert Base.metadata.tables["block_versions"].c.benchmark.nullable is True
 

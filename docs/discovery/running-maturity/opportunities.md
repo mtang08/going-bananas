@@ -1,0 +1,75 @@
+# Prioritized running feature opportunities
+
+Ranking as of 2026-11-24. These are discovery candidates. Existing IDEA numbers refer to the [backlog](../../backlog.md). Cost, priority and acceptance criteria are specific to this assessment. A “review” is an athlete-initiated conversation followed by explicit in-app acceptance when a plan changes.
+
+The first priority is a decision the athlete could get wrong today. Next come repeatable decisions about progression and preserving constraints, followed by effort saved, reliability and upkeep. Frequency and complexity are estimates for this one athlete. Small means a focused change to an existing flow, medium crosses a few local layers, and large introduces a new persistent contract or demands longitudinal validation. Cost means **incremental** inference beyond the existing coach. Rank is distinct from build order where an earlier small dependency or the athlete’s explicit priorities matter. [Observed usage](data.md#what-the-saved-reviews-demonstrate) · [Roadmap](roadmap.md)
+
+### 1. Preserve a trustworthy account of workout response
+
+- **Problem and value.** Recorded effort already reaches the coach. In the saved sample, subjective check-ins did not. The optional pain question also maps a negative answer and an unanswered question to the same empty list. A reviewer cannot reliably infer tolerance from a run completed at the target pace. This affects every meaningful progression decision. [Feedback form](../../../frontend/src/pages/CheckinModalV2.tsx) · [Write contract](../../../backend/app/services/checkins.py)
+- **Use and delivery.** On relevant runs, make the existing delayed or post-run follow-up reachable from the same session on Home and Calendar. Retain reported absence, reported symptoms, unknown and unanswered as distinct evidence. Reuse watch RPE and existing prompt timing. Give the athlete one clearly labeled way to finish an uncertain link or mark the run unrecorded. No additional survey after every deviation.
+- **Inputs and dependencies.** Run identity or manual completion, timing, prompt, existing RPE, optional site/side/gait, source freshness. Local UI, check-in schema, digest and coach projection. **Medium build, low ongoing upkeep, zero inference.**
+- **Usable when** a recorded run, an unrecorded run, an explicit negative and an unanswered follow-up give four intelligible outcomes after reopening and in the next review. Interrupted saves can resume safely. Legacy ambiguous rows stay unknown. Monitor completion burden before considering phone access. Going Bananas owns this workflow.
+
+### 2. Honor explicit running restrictions throughout a plan
+
+- **Problem and value.** A saved restriction can reach the coach as text while validation applies only selected change types over a short window. A valid proposal can contradict a longer or differently measured restriction. High impact per occurrence, relevant on every plan edit during a restricted period. [Verified boundary](coaching.md#limits-of-restriction-enforcement)
+- **Inputs and dependencies.** Confirmed restriction, provenance, effective interval/review date, applicable running exposure and the accepted plus proposed dose. Reuse profile/plan versions, scoped validation and partial acceptance. Start with the restrictions the athlete actually needs to express. Preserve wording and uncertainty.
+- **Cost and risk.** Medium to large build, low to medium upkeep, zero additional inference. Interpreting prose automatically or treating expiry as clearance would create false confidence. The qualified professional owns clinical advice. Going Bananas carries explicit constraints into planning.
+- **Usable when** a compatible plan can proceed, a conflicting change is identified at drafting and acceptance across its effective dates, and an ambiguous instruction is visible for clarification. Test duration, distance and an effort/structure change, selected subsets, and re-review if the restriction changes. Keep athlete-authored direct edits explicit about any conflict.
+
+### 3. Revisit the purpose of an accepted change at the next review
+
+- **Problem and value.** The next snapshot has some accepted changes and subsequent execution, but ordinary change reasons and the response that would justify progressing again are fragmented. This is the highest-value new **weekly coaching** capability. It helps answer “did shortening last week's long run solve the problem we wanted to test?” [Saved rationale and current projection](intelligence.md#personalization-and-continuity)
+- **Inputs and dependencies.** Accepted revision/change, rationale, next check, intended response, planned vs recorded dose, measured effort, response coverage, confounding exposures. Reuse the existing next-check and patch fields first. If the comparison turns on a midweek edit, include the plan before that edit alongside the plan actually prescribed. Keep the baseline comparison on demand.
+- **Cost and risk.** Medium build, low upkeep, one short section in an existing review, zero extra model invocations. Temporal proximity cannot attribute a symptom to the change.
+- **Usable when** the review finds one due decision, shows what was actually accepted (including partial acceptance), states observed/mixed/unknown with dates, and offers repeat, progress, reconsider or ask one question. An ordinary unchanged week needs no extra entry. Going Bananas owns the history and evidence.
+
+### 4. Schedule rehab alongside a run or lift
+
+- **Problem and value.** The owner explicitly prioritizes independent PTT rehab before strength or HYROX. Mobility slots and symptom prompts exist, while the calendar has no distinct rehab kind. Overwriting a run or lift to make room would corrupt the training record. Expected use on prescribed days, potentially daily, reviewed weekly. [IDEA-010](../../backlog.md#idea-010--integrate-ptt-and-hip-mobility-work-with-benchmarks) · [Calendar kinds](../../../backend/app/calendar_models.py)
+- **Inputs and dependencies.** Athlete/clinician-provided routine, 15-minute total daily rehab budget, dated proposed frequency, actual completion, optional functional observation, surrounding runs/lifts, explicit restrictions. Extends the existing multi-slot calendar, proposal validation and completion path. No new integration.
+- **Cost and risk.** Medium build, low upkeep, bounded discussion in the weekly review. A completion tap measures adherence only. Clinician owns exercise selection or progression when directed, pending athlete preference.
+- **Usable when** the coach can propose varying frequency including daily, the athlete can accept selected sessions and complete rehab separately, and Sunday sees adherence plus missing or reported response. Keep run mileage and run adherence independent. Go deeper on hip benchmarks only when the athlete identifies one that changes a decision.
+
+### 5. Keep reviews affordable and reproducible
+
+- **Problem and value.** Stored rolling and block snapshots already reach tens of thousands of estimated input tokens. The skill specifies a particular model for final decisions. That is an access and sustainability dependency even though ordinary app screens are model-free. Relevant at every review. [Observed context sizes](data.md#what-the-saved-reviews-demonstrate) · [Model policy](../../../.codex/skills/going-bananas-coach/references/model-and-research.md)
+- **Inputs and dependencies.** Section sizes, operation, elapsed time, calls, retries, actual metered usage when available, identical synthetic review inputs. Use the existing helper, bounded drill-downs and decision schema. Correct the recovery-topic input mismatch and metric-configuration freshness before relying on truncated or cached information. [Routing finding](coaching.md#what-the-coach-actually-sees-during-adaptation)
+- **Cost and risk.** Medium build, low upkeep. Deterministic routing saves routine inference. A candidate lower-cost model incurs occasional evaluation calls. Introduce a cheaper path only after equivalent judgment on the relevant decisions and owner agreement to change current policy.
+- **Usable when** an ordinary day costs zero model calls, Sunday normally uses one bounded evidence package and an existing discussion, and the athlete can follow the accepted plan and inspect due decisions if the coach is unavailable. Compare actual whole-review usage before and after. Going Bananas owns the packet and checks. Model providers remain replaceable at the helper boundary.
+
+### 6. Resume training after an interruption without accumulating workout debt
+
+- **Problem and value.** Travel constraints, exceptions and manual edits exist. Illness, a lost week or a temporary time budget can still require retelling context and deciding which session to sacrifice. Occasional use, high impact during return. [Current workflows](experience.md#interrupted-schedule-goals-and-calendar-changes) · [Product precedents](products.md)
+- **Inputs and dependencies.** Confirmed dates or a review date, availability, running and gym access, last comparable tolerated exposure, meaningful symptom/function report, race deadline and confirmed lifting slots. Reuse travel/day availability and exception proposals where applicable. Label the reason and supported alternatives locally.
+- **Cost and risk.** Medium build, low upkeep, one existing exception/block review as warranted. Unknown availability, causality or clearance requires a question. Avoid prescribing catch-up runs or assuming that “shorter” means “easier.”
+- **Usable when** a missing recording under incomplete coverage remains unresolved and a confirmed interruption can produce a dated plan that protects commitments, identifies the next feasible run and resumes the normal rhythm without editing past sessions. Temporary constraints expire into a review when the return is uncertain. Going Bananas owns training feasibility. External calendars may supply availability.
+
+### 7. Retrieve comparable training responses before progressing a workout
+
+- **Problem and value.** The app already calculates interval signatures, aerobic efficiency and long-run history. A review can miss prior comparable doses or confuse a good pace on one day with a durable gain. Use at key workouts and block reviews. [Trend implementation](../../../backend/app/services/workout_progression.py) · [Existing caps](../../../backend/app/services/snapshot/common.py)
+- **Inputs and dependencies.** Recipe and work/recovery dimensions, target/anchor version, surface/subtype, timer/HR quality, effort and delayed response coverage. Link existing historical metrics and accepted changes. Query a few compatible exposures on demand after the current snapshot proves insufficient.
+- **Cost and risk.** Medium build, low to medium upkeep, bounded extra input on applicable reviews. Small samples and selection bias are common. Treat a missing rep as missing, explain exclusions, and allow a comparison to be unavailable.
+- **Usable when** the coach can justify repeat/progress/consolidate with counts and comparable examples for a steady run and a quality session, and withhold a claim after an incompatible treadmill, course or sensor change. No routine model reading of traces. Going Bananas owns this comparison.
+
+### 8. Coordinate lower-body load with the next important run
+
+- **Problem and value.** Confirmed lifting slots include lower-body cost. Actual lifting history arrives by CSV. A stale plan or export can give the wrong context for a hard run. Use at weekly placement and after a disrupted lift. [Current inputs and their limits](data.md#what-reaches-the-plan) · [IDEA-006](../../backlog.md#idea-006--strength-goals-and-integrated-hybrid-coaching)
+- **Inputs and dependencies.** Confirmed lower-body cost, date of latest usable Strong export, actual or confirmed lifting exposure, proximity to a key run, fatigue or soreness where reported. Use current matching and overlap handling first.
+- **Cost and risk.** Small to medium build, low upkeep, no extra model call. Proximity indicates possible interference. Tonnage with unknown units or effort is unsuitable.
+- **Usable when** a nearby confirmed lift appears beside the key workout, a stale export says “unknown,” and the review explains a spacing tradeoff while preserving confirmed lifting unless the athlete accepts a change. Strong owns exercise execution. Skip building this if the current weekly context already meets the need.
+
+### 9. Connect block objectives to observable progress
+
+- **Problem and value.** A ranked race, target pace and benchmark history exist. Free-text secondary goals and a target race time alone cannot establish progress or anchor validity. Use at block transitions and near a race. [Planning data](data.md#structured-races-broader-goals-and-anchors) · [IDEA-016](../../backlog.md#idea-016--race-and-threshold-estimates)
+- **Inputs and dependencies.** One objective, a chosen indicator/protocol or benchmark, prior comparable result, course/surface and conditions when material, actual effort, accepted target and review date. Reuse block indicators and anchors. Use adherence/consistency for a base block that has no performance test.
+- **Cost and risk.** Small to medium for linked indicators, high for a calibrated race estimator. Low upkeep for the former, ongoing validation for the latter. No extra inference for display. Sparse or incomparable tests can make a precise prediction misleading.
+- **Usable when** a block review distinguishes progress, indeterminate evidence and a changed priority, with a choice to consolidate or revise the target. An aspiration never overwrites an anchor. Build a numerical race range only if out-of-sample error and coverage justify its use. Going Bananas owns the athlete's goals.
+
+### 10. Evaluate regressions and recovery from operational failures
+
+- **Problem and value.** Source integrity and contract tests protect many transitions. They cannot judge a recommendation or guarantee that years of local history survive a provider or machine failure. Use basic cases at high-risk changes, full behavioral checks on demand, restore checks periodically. [Existing cases](../../../running_coach_kb/evaluation/) · [Restore verification](../../../scripts/verify-restore.py)
+- **Inputs and dependencies.** Existing synthetic scenarios and fixtures, versioned rules/KB/model, candidate decision output, verified backup and disposable restore target. Add a few hard cases early. Expand only after observing new failure modes. [Evaluation protocol](evaluation.md)
+- **Cost and risk.** Small for the first fixtures, medium for blinded longitudinal comparisons. Low maintenance if run on meaningful changes. Zero inference for data tests, occasional capped inference for synthetic coaching comparisons. Rubrics can reward stylistic similarity over good decisions.
+- **Usable when** the owner can see which judgment regressed, reproduce the input, distinguish an interface failure from a coaching failure, and restore an accepted plan with its actuals. No permanent service or hosted evaluation platform is necessary.

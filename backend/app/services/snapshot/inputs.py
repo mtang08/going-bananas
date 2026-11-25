@@ -15,7 +15,7 @@ from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin as CheckinV2
 from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange
-from app.domain.athlete_facts import clinical_restriction
+from app.domain.athlete_facts import clinical_restriction, running_restriction
 from app.domain.local_time import date_in_zone
 from app.domain.travel import OPEN_TRIP_MAX
 from app.metric_models import MetricResult, Prompt
@@ -30,6 +30,7 @@ from app.planning_models import (
     StrengthRoutineSlot,
 )
 from app.read.calendar import head_version
+from app.read.workout_feedback import reminder_status
 from app.services.block_benchmark import active_block_version
 from app.services.calendar import state_at
 from app.services.coverage import coverage
@@ -182,15 +183,24 @@ def _load_runs(session: Session, first: date, as_of: date, rpe_rows: Sequence[Se
 
 
 def _load_checkins(session: Session, now: datetime, zone: ZoneInfo) -> list[dict]:
-    checkin_rows = session.scalars(
-        select(CheckinV2)
-        .where(CheckinV2.observed_at >= now - timedelta(days=120), CheckinV2.observed_at <= now)
-        .order_by(CheckinV2.observed_at, CheckinV2.id)
-    ).all()
+    checkin_rows = (
+        session.execute(
+            select(CheckinV2, Activity.end_at)
+            .outerjoin(Activity, Activity.id == CheckinV2.activity_id)
+            .where(
+                CheckinV2.observed_at >= now - timedelta(days=120),
+                CheckinV2.observed_at <= now,
+                CheckinV2.recorded_at <= now,
+            )
+            .order_by(CheckinV2.observed_at, CheckinV2.id)
+        )
+        .tuples()
+        .all()
+    )
     symptom_rows = (
         session.scalars(
             select(SymptomReport)
-            .where(SymptomReport.checkin_id.in_([row.id for row in checkin_rows]))
+            .where(SymptomReport.checkin_id.in_([row.id for row, _ in checkin_rows]))
             .order_by(SymptomReport.checkin_id, SymptomReport.id)
         ).all()
         if checkin_rows
@@ -201,12 +211,30 @@ def _load_checkins(session: Session, now: datetime, zone: ZoneInfo) -> list[dict
         symptoms.setdefault(row.checkin_id, []).append(row_view(row, ("site", "side", "severity", "timing")))
     checkins = [
         dict(
-            row_view(row, ("kind", "observed_at", "fatigue", "illness", "gait_change", "activity_id")),
+            row_view(
+                row,
+                (
+                    "kind",
+                    "observed_at",
+                    "recorded_at",
+                    "fatigue",
+                    "illness",
+                    "gait_change",
+                    "activity_id",
+                    "prompt_id",
+                    "pain_reported",
+                ),
+            ),
             checkin_id=row.id,
             local_date=date_in_zone(row.observed_at, zone),
+            hours_after_end=(
+                round((row.observed_at - end_at).total_seconds() / 3600, 1)
+                if end_at is not None and row.observed_at >= end_at
+                else None
+            ),
             symptoms=symptoms.get(row.id, []),
         )
-        for row in checkin_rows
+        for row, end_at in checkin_rows
     ]
     return checkins
 
@@ -218,7 +246,10 @@ def _load_prompts(session: Session, now: datetime) -> list[dict]:
         .order_by(Prompt.opens_at, Prompt.id)
     ).all()
     prompts = [
-        row_view(row, ("id", "kind", "activity_id", "status", "opens_at", "closes_at"), names={"id": "prompt_id"})
+        dict(
+            row_view(row, ("id", "kind", "activity_id", "opens_at", "closes_at"), names={"id": "prompt_id"}),
+            status=reminder_status(row.status, row.opens_at, row.closes_at, now),
+        )
         for row in prompt_rows
     ]
     return prompts
@@ -588,9 +619,10 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
     benchmark_history = _load_benchmark_history(session, block_rows)
     this_monday = week_bounds(as_of)[0]
     weekly = [
-        load_week(session, this_monday - timedelta(days=7), today=as_of),
-        load_week(session, this_monday, today=as_of),
+        load_week(session, this_monday - timedelta(days=7), today=as_of, now=now),
+        load_week(session, this_monday, today=as_of, now=now),
     ]
+    restriction = running_restriction(profile.facts) if profile else None
     return SnapshotInputs(
         as_of=as_of,
         now=now,
@@ -600,6 +632,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         cycle_anchor=profile.cycle_anchor if profile else None,
         anchor_confirmed=bool(profile.anchor_confirmed) if profile else False,
         clinical_restriction=clinical_restriction(profile.facts) if profile else None,
+        running_restriction=restriction.snapshot_data(as_of) if restriction else None,
         sessions=sessions,
         completions=completions,
         strength_slots=slots,

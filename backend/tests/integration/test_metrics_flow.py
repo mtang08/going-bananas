@@ -187,6 +187,7 @@ def test_four_runs_idempotent_reads_and_explanation(db, tmp_path):
         detail = activity_execution(session, ids[-1])
         assert detail["rpe"]["effective"] == 5
         assert detail["rpe"]["srpe_load_au"] == 300
+        assert detail["delayed_response"] is None
         assert set(detail) == {
             "activity",
             "planned",
@@ -199,6 +200,7 @@ def test_four_runs_idempotent_reads_and_explanation(db, tmp_path):
             "aerobic",
             "rpe",
             "symptoms",
+            "delayed_response",
         }
         nights = recovery_nights(session, TODAY - timedelta(days=2), TODAY)
         assert len(nights["nights"]) == 3

@@ -25,6 +25,7 @@ export function sessionName(value: ProposalSession | null): string {
     cross: 'Cross-training',
     rest: 'Rest',
     mobility: 'Mobility',
+    rehab: 'Rehab',
   }[value.kind ?? 'run']
 }
 export function sessionDate(value: ProposalSession | null): string {

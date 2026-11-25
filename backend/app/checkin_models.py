@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -33,6 +34,7 @@ class Checkin(Base):
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     fatigue: Mapped[float | None] = mapped_column(Numeric(3, 1, asdecimal=False))
     illness: Mapped[str | None] = mapped_column(String(10))
+    pain_reported: Mapped[bool | None] = mapped_column(Boolean)
     gait_change: Mapped[str | None] = mapped_column(String(10))
     context_tags: Mapped[list[Any]] = mapped_column(
         ARRAY(String(30)), nullable=False, default=list, server_default="{}"

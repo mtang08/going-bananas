@@ -12,6 +12,7 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.api.calendar import get_completion_assessor, router
+from app.api.core import router as core_router
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.coach_v2_models import CoachProposal, CoachSnapshot
 from app.exception_models import ExceptionPatch
@@ -817,3 +818,92 @@ def test_self_report_undo_and_later_import(calendar_fixture, monkeypatch):
         assert uid in rematch_dates(session, {day})
         matched = session.scalar(select(SessionCompletion).where(SessionCompletion.session_uid == uid))
         assert matched.activity_id == activity_id and matched.match_method == "auto_same_day"
+
+
+def test_rehab_daily_limit_and_independent_manual_completion(calendar_fixture):
+    client, _, _ = calendar_fixture
+    _bootstrap(client)
+
+    def add(slot, duration):
+        return {
+            "op": "add",
+            "fields": {
+                "local_date": "2026-11-16",
+                "slot": slot,
+                "kind": "rehab",
+                "intent": "Calf routine",
+                "planned_duration_s": duration,
+            },
+        }
+
+    invalid = client.post(
+        "/api/v1/calendar/edits", json={"expected_head": 1, "edits": [add(4, None)]}, headers=_headers()
+    )
+    assert invalid.status_code == 422
+    over = client.post(
+        "/api/v1/calendar/edits", json={"expected_head": 1, "edits": [add(4, 600), add(5, 301)]}, headers=_headers()
+    )
+    assert over.status_code == 422 and over.json()["error"]["code"] == "rehab_daily_limit"
+    added = client.post(
+        "/api/v1/calendar/edits", json={"expected_head": 1, "edits": [add(4, 600), add(5, 300)]}, headers=_headers()
+    )
+    assert added.status_code == 201, added.text
+    week = client.get("/api/v1/calendar/week").json()["data"]
+    rehab = [s for s in week["sessions"] if s["kind"] == "rehab"]
+    assert len(rehab) == 2
+    completed = client.put(
+        f"/api/v1/calendar/completions/{rehab[0]['session_uid']}",
+        json={"status": "completed_as_planned"},
+        headers=_headers(),
+    )
+    assert completed.status_code == 200, completed.text
+    week = client.get("/api/v1/calendar/week").json()["data"]
+    assert [c["session_uid"] for c in week["completions"] if c["status"] == "completed_as_planned"] == [
+        rehab[0]["session_uid"]
+    ]
+
+
+def test_recorded_dated_limit_flags_existing_runs_and_blocks_conflicting_edits(calendar_fixture, api_client):
+    client, _, _ = calendar_fixture
+    _bootstrap(client)
+    profile_client = api_client(core_router)
+    initial = profile_client.get("/api/v1/profile").json()["data"]
+    version = initial.pop("version")
+    response = profile_client.put(
+        "/api/v1/profile",
+        json={
+            **initial,
+            "expected_version": version,
+            "facts": {
+                **initial["facts"],
+                "clinical_restriction": "Follow the existing symptom limits.",
+                "running_restriction": {
+                    "starts_on": "2026-11-16",
+                    "ends_on": "2026-11-18",
+                    "review_on": "2026-11-17",
+                    "max_duration_s": 900,
+                    "source": "Athlete",
+                },
+            },
+        },
+        headers=_headers(),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["facts"]["clinical_restriction"] == "Follow the existing symptom limits."
+    sessions = client.get("/api/v1/calendar/week").json()["data"]["sessions"]
+    row = next(item for item in sessions if item["kind"] == "run" and item["local_date"] == "2026-11-18")
+    assert "900 s" in row["running_restriction_conflict"]
+
+    def edit(op: str, fields: dict, head: int = 1):
+        return client.post(
+            "/api/v1/calendar/edits",
+            json={"expected_head": head, "edits": [{"op": op, "session_uid": row["session_uid"], "fields": fields}]},
+            headers=_headers(),
+        )
+
+    blocked = edit("modify", {"planned_duration_s": 1000 if row["planned_duration_s"] is None else 5000})
+    assert blocked.status_code == 422, blocked.text
+    assert blocked.json()["error"]["code"] == "running_restriction"
+    assert "900 s" in blocked.json()["error"]["message"]
+    assert edit("modify", {"planned_duration_s": 900}).status_code == 201
+    assert edit("move", {"local_date": "2026-11-19", "planned_duration_s": 1600}, head=2).status_code == 201

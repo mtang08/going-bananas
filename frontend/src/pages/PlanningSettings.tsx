@@ -17,6 +17,7 @@ import { Anchors } from './settings/Anchors'
 import { StrengthSchedule } from './settings/StrengthSchedule'
 import { Routine } from './settings/strengthRoutine'
 import { CalendarSetup } from './settings/CalendarSetup'
+import { RunningLimits } from './settings/RunningLimits'
 import { ReviewDay, Preferences } from './settings/ProfilePreferences'
 
 export function PlanningSettings({ unit, setUnit }: { unit: Unit; setUnit: (unit: Unit) => void }) {
@@ -87,6 +88,7 @@ export function PlanningSettings({ unit, setUnit }: { unit: Unit; setUnit: (unit
               </Disclosure>
               <Preferences key={p.version} profile={p} unit={unit} setUnit={setUnit} />
               <ReviewDay profile={p} />
+              <RunningLimits key={`running-limits:${p.version}`} profile={p} today={view.today} />
               <Goals />
               <Events unit={unit} />
             </div>

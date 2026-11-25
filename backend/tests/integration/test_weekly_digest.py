@@ -302,6 +302,7 @@ def test_load_week_reads_stored_rows_without_writes(calendar_fixture, monkeypatc
         "strength": {"planned": 1, "planned_to_date": 1, "done": 1},
         "cross": {"planned": 0, "planned_to_date": 0, "done": 0},
         "mobility": {"planned": 1, "planned_to_date": 1, "done": 0},
+        "rehab": {"planned": 0, "planned_to_date": 0, "done": 0},
     }
     assert totals["time"] == {
         "planned_s": 15300.0,

@@ -15,9 +15,12 @@ from sqlalchemy.orm import Session
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.config import settings
 from app.db import bump_data_revision, global_write_lock
+from app.domain.athlete_facts import running_restriction
 from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.cycle import opportunities
 from app.domain.local_time import date_in_zone
+from app.domain.running_limits import reduces_existing_dose, restriction_conflict
+from app.domain.session_limits import REHAB_DAILY_LIMIT_S
 from app.errors import fail
 from app.metrics.engine import load_runs
 from app.models import Activity, AppState, ManualSession
@@ -244,7 +247,12 @@ def calendar_view(session: Session, start: date, end: date, version: int | None 
         if numbers
         else {}
     )
+    today = calendar_today(session)
+    profile = current_profile(session)
+    limit = running_restriction(profile.facts) if profile and requested == head else None
     for item in in_range:
+        if item["local_date"] >= today and (conflict := restriction_conflict(limit, item)):
+            item["running_restriction_conflict"] = conflict
         patch = patches.get(item["calendar_version_number"])
         item["exception_patch"] = (
             {
@@ -299,7 +307,7 @@ def calendar_view(session: Session, start: date, end: date, version: int | None 
         select(CalendarVersion).where(CalendarVersion.number <= head).order_by(desc(CalendarVersion.number)).limit(50)
     ).all()
     return {
-        "today": calendar_today(session),
+        "today": today,
         "timezone": athlete_tz(session).key,
         "start": start,
         "end": end,
@@ -348,7 +356,7 @@ def _validate_fields(fields: dict, *, existing: dict | None = None, legacy_unstr
         result["local_date"] = local_date
     if type(local_date) is not date or type(result.get("slot")) is not int or result["slot"] < 0:
         fail("invalid_session_fields", "Invalid date or slot")
-    if result.get("kind") not in {"run", "strength", "cross", "rest", "mobility"}:
+    if result.get("kind") not in {"run", "strength", "cross", "rest", "mobility", "rehab"}:
         fail("invalid_session_fields", "Invalid session kind")
     if not isinstance(result.get("intent"), str) or not result["intent"].strip() or len(result["intent"]) > 200:
         fail("invalid_session_fields", "Intent must be 1–200 characters")
@@ -359,6 +367,8 @@ def _validate_fields(fields: dict, *, existing: dict | None = None, legacy_unstr
         value = result.get(field)
         if value is not None and (type(value) is not int or value <= 0):
             fail("invalid_session_fields", "Duration and distance must be positive integers")
+    if result["kind"] == "rehab" and result["planned_duration_s"] is None:
+        fail("invalid_session_fields", "Rehab requires a planned duration")
     recipe = result.get("recipe_id")
     if recipe is not None and (
         not isinstance(recipe, str) or recipe not in {f"REC{index:03d}" for index in range(1, 11)}
@@ -444,6 +454,15 @@ def _stale_proposals(session: Session) -> list[uuid.UUID]:
     return mark_pending_stale(session, except_id=None)
 
 
+def _validate_rehab_limit(rows) -> None:
+    durations: dict[date, int] = defaultdict(int)
+    for fields in rows:
+        if fields["kind"] == "rehab":
+            durations[fields["local_date"]] += fields["planned_duration_s"]
+    if any(total > REHAB_DAILY_LIMIT_S for total in durations.values()):
+        fail("rehab_daily_limit", "Rehab sessions cannot exceed 15 minutes per day")
+
+
 def apply_edits(
     session: Session,
     expected_head: int,
@@ -459,6 +478,8 @@ def apply_edits(
     if not isinstance(edits, list) or not edits:
         fail("edit_no_change", "No calendar changes supplied")
     current = latest_revisions(session, expected_head)
+    profile = current_profile(session)
+    limit = running_restriction(profile.facts) if profile else None
     today = calendar_today(session)
     prepared = []
     seen = set()
@@ -505,14 +526,22 @@ def apply_edits(
             fields = _validate_fields(
                 supplied, existing=base, legacy_unstructured=bool(previous and previous.legacy_unstructured)
             )
-            if previous and fields == base:
-                fail("edit_no_change", "Session is unchanged")
             if (
                 base
                 and (actor != "coach" or "brief" not in supplied)
                 and any(fields[key] != base[key] for key in ("kind", "recipe_id", "structure", "intent"))
             ):
                 fields["brief"] = None
+            if conflict := restriction_conflict(limit, fields, base):
+                if (
+                    actor != "user"
+                    or base is None
+                    or not reduces_existing_dose(fields, base)
+                    or not restriction_conflict(limit, base)
+                ):
+                    fail("running_restriction", conflict)
+            if previous and fields == base:
+                fail("edit_no_change", "Session is unchanged")
             deleted = False
             if fields["local_date"] < today:
                 fail("protected_session", "Historical session cannot change")
@@ -525,6 +554,13 @@ def apply_edits(
             fields["legacy_unstructured"] = False
             fields["legacy_payload"] = None
         prepared.append((uid, previous.revision + 1 if previous else 1, fields, deleted))
+    resulting = {uid: _fields(row) for uid, row in current.items() if not row.deleted}
+    for uid, _, fields, deleted in prepared:
+        if deleted:
+            resulting.pop(uid, None)
+        else:
+            resulting[uid] = fields
+    _validate_rehab_limit(resulting.values())
     version = _version_row(
         session,
         state,
@@ -553,6 +589,17 @@ def rollback_calendar(session: Session, expected_head: int, to_version: int, rea
     if protected and not reason:
         fail("rollback_reason_required", "Reason required when preserving protected sessions")
     current, target = latest_revisions(session, expected_head), latest_revisions(session, to_version)
+    profile = current_profile(session)
+    limit = running_restriction(profile.facts) if profile else None
+    resulting = {uid: _fields(row) for uid, row in current.items() if not row.deleted}
+    for item in changes:
+        uid = item["session_uid"]
+        source = target.get(uid)
+        if source is None or source.deleted:
+            resulting.pop(uid, None)
+        else:
+            resulting[uid] = _fields(source)
+    _validate_rehab_limit(resulting.values())
     version = _version_row(
         session, state, kind="rollback", actor="user", reason=reason, restored_from_number=to_version
     )
@@ -563,6 +610,10 @@ def rollback_calendar(session: Session, expected_head: int, to_version: int, rea
         existing = current.get(uid)
         if source is not None:
             fields = _fields(source)
+            if not source.deleted:
+                base = _fields(existing) if existing and not existing.deleted else None
+                if conflict := restriction_conflict(limit, fields, base):
+                    fail("running_restriction", conflict)
         elif existing is not None:
             fields = _fields(existing)
         else:
