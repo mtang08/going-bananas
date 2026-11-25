@@ -31,6 +31,7 @@ import { mondayOfWeek, SessionSummary } from '../components/PlanOverview'
 import { WeekSessions } from '../components/WeekSessions'
 import { WeeklyMileage } from '../components/WeeklyMileage'
 import { WeeklyDigest, type DigestWeek } from '../components/WeeklyDigest'
+import { RunningInterruption, useRunningInterruption } from './RunningInterruption'
 import type { WeeklyProjection } from '../api/types/calendar'
 
 export function Home({
@@ -116,8 +117,16 @@ export function Home({
     mutationFn: (id: string) => post<unknown>(`/prompts/${encodeURIComponent(id)}/dismiss`, {}),
     onSuccess: () => invalidateKeys(qc, [qk.prompts]),
   })
+  const interruption = useRunningInterruption()
   const view = calendar.data?.data
   const today = view?.today
+  const episode = interruption.data?.data?.interruption
+  const runningUnavailable = Boolean(
+    today &&
+    episode &&
+    episode.starts_on <= today &&
+    (!episode.return_on || today < episode.return_on),
+  )
   const sessionsOn = (day: string) =>
     (view?.sessions ?? [])
       .filter((s) => !s.deleted && s.local_date === day)
@@ -148,6 +157,9 @@ export function Home({
         ? `, ${Math.max(targetDays, 0)} d`
         : `, ${Math.floor(targetDays / 7)} wk`
   const openProposals = pending.data?.data.items ?? []
+  const activeDraft = openProposals.find(
+    (proposal) => proposal.status === 'pending' || proposal.status === 'stale',
+  )
   const attentionCount =
     openProposals.length + recommended.length + flagged.length + due.length + open.length
   const showAttention =
@@ -176,18 +188,27 @@ export function Home({
         }}
       >
         {view?.head === 0 && (
-          <div className="notice warning">
-            <strong>No calendar yet.</strong> Finish setup to fill the next 14 days.{' '}
-            <a href={pageHref.settings}>Open setup</a>
-          </div>
+          <>
+            <div className="notice warning">
+              <strong>No calendar yet.</strong> Finish setup to fill the next 14 days.{' '}
+              <a href={pageHref.settings}>Open setup</a>
+            </div>
+            <RunningInterruption unit={unit} draft={activeDraft} state={interruption} />
+          </>
         )}
         {view && view.head !== 0 && today && (
           <>
             <Card className="today-card" data-testid="today-card">
               <h2>Today's plan</h2>
+              <RunningInterruption unit={unit} draft={activeDraft} state={interruption} />
               {sessionsOn(today).length === 0 && <p>No session</p>}
               {sessionsOn(today).map((s) => {
                 const completion = view.completions.find((c) => c.session_uid === s.session_uid)
+                const unavailable =
+                  runningUnavailable &&
+                  s.kind === 'run' &&
+                  !completion?.activity_id &&
+                  completion?.status !== 'completed_as_planned'
                 return (
                   <SessionSummary
                     key={s.session_uid}
@@ -196,6 +217,7 @@ export function Home({
                     today={today}
                     unit={unit}
                     showWorkout
+                    unavailable={unavailable}
                   >
                     {completion?.activity_id ? (
                       <Button asChild variant="outline" size="sm">
@@ -205,7 +227,9 @@ export function Home({
                       </Button>
                     ) : s.kind === 'run' && !s.placeholder ? (
                       <Button asChild variant="outline" size="sm">
-                        <a href={pageHref.calendarWeek(s.local_date)}>Open workout on Calendar</a>
+                        <a href={pageHref.calendarWeek(s.local_date)}>
+                          {unavailable ? 'Review workout on Calendar' : 'Open workout on Calendar'}
+                        </a>
                       </Button>
                     ) : null}
                   </SessionSummary>

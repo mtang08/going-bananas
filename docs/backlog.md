@@ -1,6 +1,6 @@
 # Follow-up work
 
-The [running product maturity assessment](discovery/running-maturity/README.md) compares these requests with gaps found in the shipped coaching loop. Use its [prioritized roadmap](discovery/running-maturity/roadmap.md) to scope the next running iteration and its [open decisions](discovery/running-maturity/decisions.md) to recover the owner's outstanding choices. The [implementation plan](discovery/running-maturity/implementation.md) records the first delivery and the next candidate, a return week after an interruption.
+The [running product maturity assessment](discovery/running-maturity/README.md) compares these requests with gaps found in the shipped coaching loop. Use its [prioritized roadmap](discovery/running-maturity/roadmap.md) to scope the next running iteration and its [open decisions](discovery/running-maturity/decisions.md) to recover the owner's outstanding choices. The [implementation plan](discovery/running-maturity/implementation.md) records the deliveries and the owner trial, including returning after an interruption.
 
 ## Active priority — complete the running-coach workflow
 
@@ -84,7 +84,7 @@ rule or saved athlete-profile setting.
 
 ### IDEA-005 — Vacation, travel, and temporary schedule exceptions
 
-Recorded 2026-11-11. Status: partly delivered by GCAL v1: detected and manual trips with dates, destination timezone, travel days, running and gym access, and per-day availability, shown as calendar badges and in coach context. Remaining: daily training-time windows and non-travel disruption kinds. AC-1 still logs a `travel` context tag as a finding.
+Recorded 2026-11-11. Updated 2026-11-25. Google Calendar v1 delivers detected and manual trips, access and per-day availability. Home now records a running break for schedule, travel, illness or other reasons and supports open return timing, a reassessment date, preview of an easy return option, selected proposal impact and a link to feedback from the first recorded run back. Saving or ending the break preserves the accepted calendar and recorded outcomes. General daily training-time windows remain open. The owner trial will assess how useful the return flow is in practice. [User guide](user-guide.md#return-after-a-running-interruption)
 
 Allow the athlete to enter vacation/travel date ranges and other temporary
 schedule disruptions. Capture relevant constraints when known: available

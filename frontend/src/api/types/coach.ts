@@ -5,6 +5,14 @@ import type {
   ProposalException,
   ProposalPatchResolution,
 } from './exceptions'
+import type { RunningInterruption, InterruptionRun } from './runningInterruption'
+
+export interface ProposalInterruption {
+  today: string
+  interruption: RunningInterruption
+  affected_runs: Pick<InterruptionRun, 'session_uid' | 'local_date' | 'recipe_id'>[]
+  affected_runs_omitted: number
+}
 export type ProposalStatus =
   'pending' | 'accepted' | 'partially_accepted' | 'rejected' | 'stale' | 'invalid' | 'discarded'
 export interface ProposalSummary {
@@ -56,6 +64,7 @@ export interface ProposalDetail extends Omit<ProposalSummary, 'change_count'> {
   revisions: ProposalRevision[]
   decision_result: ProposalDecisionResult | null
   snapshot_id: string
+  running_interruption: ProposalInterruption | null
   why: Why[]
   uncertainty: string[]
   change_triggers: Rule[]

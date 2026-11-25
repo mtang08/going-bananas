@@ -150,6 +150,14 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
             for row in changes
         ],
     )
+    # Review the availability and calendar evidence used for this revision, including
+    # after the athlete has changed or closed the interruption on Home.
+    saved_break = (snapshot.payload or {}).get("running_interruption") if snapshot else None
+    data["running_interruption"] = (
+        {key: saved_break[key] for key in ("today", "interruption", "affected_runs", "affected_runs_omitted")}
+        if saved_break and saved_break.get("interruption")
+        else None
+    )
     data["exception"] = proposal.payload.get("exception")
     data["event_review"] = proposal.payload.get("event_review")
     data["patch_resolutions"] = proposal.payload.get("patch_resolutions", [])

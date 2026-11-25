@@ -907,3 +907,43 @@ def test_recorded_dated_limit_flags_existing_runs_and_blocks_conflicting_edits(c
     assert "900 s" in blocked.json()["error"]["message"]
     assert edit("modify", {"planned_duration_s": 900}).status_code == 201
     assert edit("move", {"local_date": "2026-11-19", "planned_duration_s": 1600}, head=2).status_code == 201
+
+
+def test_interruption_blocks_new_moved_in_and_increased_runs_but_allows_reduction(calendar_fixture, monkeypatch):
+    from app.domain.running_interruption import RunningInterruption
+
+    client, _, _ = calendar_fixture
+    _bootstrap(client)
+    episode = RunningInterruption(reason="travel", starts_on=date(2026, 11, 17), return_on=date(2026, 11, 22))
+    monkeypatch.setattr(calendar, "running_interruption", lambda facts: episode)
+    week = client.get("/api/v1/calendar/week").json()["data"]
+    target = next(s for s in week["sessions"] if s["kind"] == "run" and s["local_date"] == "2026-11-18")
+    uid = target["session_uid"]
+
+    def edit(item, head=1):
+        return client.post("/api/v1/calendar/edits", json={"expected_head": head, "edits": [item]}, headers=_headers())
+
+    added = edit(
+        {
+            "op": "add",
+            "fields": {
+                "local_date": "2026-11-17",
+                "kind": "run",
+                "intent": "Easy",
+                "recipe_id": "REC001",
+                "planned_duration_s": 900,
+            },
+        }
+    )
+    assert added.status_code == 422 and added.json()["error"]["code"] == "running_interruption"
+    increased = edit({"op": "modify", "session_uid": uid, "fields": {"planned_duration_s": 2400}})
+    assert increased.status_code == 422 and increased.json()["error"]["code"] == "running_interruption"
+    reduced = edit({"op": "modify", "session_uid": uid, "fields": {"planned_duration_s": 1200}})
+    assert reduced.status_code == 201, reduced.text
+    moved_out = edit({"op": "move", "session_uid": uid, "fields": {"local_date": "2026-11-22"}}, head=2)
+    assert moved_out.status_code == 201, moved_out.text
+    moved_in = edit({"op": "move", "session_uid": uid, "fields": {"local_date": "2026-11-21"}}, head=3)
+    assert moved_in.status_code == 422 and moved_in.json()["error"]["code"] == "running_interruption"
+    # Restoring the earlier unavailable run would move it back into the pause.
+    rollback = client.post("/api/v1/calendar/rollback", json={"expected_head": 3, "to_version": 2}, headers=_headers())
+    assert rollback.status_code == 422 and rollback.json()["error"]["code"] == "running_interruption"

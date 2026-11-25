@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from typing import Any
+
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from app.db import bump_data_revision, global_write_lock
+from app.errors import fail
 from app.models import ProfileVersion
 from app.services.timezone import DEFAULT_TIMEZONE
 
@@ -56,3 +61,22 @@ def profile_data(profile: ProfileVersion | None) -> dict:
             )
         }
     }
+
+
+def profile_for_write(session: Session, expected_version: int) -> ProfileVersion | None:
+    global_write_lock(session)
+    current = current_profile(session)
+    if expected_version != (current.version if current else 0):
+        fail("version_conflict", "Profile changed; reload /api/v1/profile", 409)
+    return current
+
+
+def append_profile_version(session: Session, current: ProfileVersion | None, fields: dict[str, Any]) -> ProfileVersion:
+    profile = ProfileVersion(
+        version=(current.version if current else 0) + 1,
+        effective_at=datetime.now(UTC),
+        **fields,
+    )
+    session.add(profile)
+    bump_data_revision(session)
+    return profile

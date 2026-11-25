@@ -13,6 +13,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationErro
 
 from app.domain.athlete_facts import RunningRestriction
 from app.domain.local_time import date_in_zone
+from app.domain.running_interruption import RunningInterruption
 from app.domain.session_class import QUALITY_RECIPES
 from app.domain.session_limits import REHAB_DAILY_LIMIT_S
 from app.services.block_benchmark import BenchmarkOutcome
@@ -434,6 +435,7 @@ class ValidationContext:
     confirmed_strength_dates: frozenset[date] = frozenset()
     confirmed_strength_slot_ids: dict[date, uuid.UUID] = dataclass_field(default_factory=dict)
     running_restriction: RunningRestriction | None = None
+    running_interruption: RunningInterruption | None = None
     accepted_strength_omission_dates: frozenset[date] = frozenset()
     accepted_strength_omission_slot_ids: dict[date, uuid.UUID] = dataclass_field(default_factory=dict)
 

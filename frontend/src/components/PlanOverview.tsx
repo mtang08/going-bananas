@@ -53,6 +53,7 @@ export function SessionSummary({
   unit,
   children,
   showWorkout = false,
+  unavailable = false,
 }: {
   session: SessionState
   completion?: Completion
@@ -60,6 +61,7 @@ export function SessionSummary({
   unit: Unit
   children?: ReactNode
   showWorkout?: boolean
+  unavailable?: boolean
 }) {
   const marker = sessionMarker(s, completion, today)
   const title =
@@ -102,12 +104,18 @@ export function SessionSummary({
                 {s.running_restriction_conflict}
               </p>
             )}
-          <PurposeEffort
-            intent={s.intent && s.intent !== title ? s.intent : null}
-            brief={s.brief}
-          />
-          {s.structure && <WorkoutStructure structure={s.structure} unit={unit} />}
-          <SessionBrief brief={s.brief} notes={s.notes} layout="today" />
+          {unavailable ? (
+            <p role="status">Unavailable during your interruption. Review this accepted run.</p>
+          ) : (
+            <>
+              <PurposeEffort
+                intent={s.intent && s.intent !== title ? s.intent : null}
+                brief={s.brief}
+              />
+              {s.structure && <WorkoutStructure structure={s.structure} unit={unit} />}
+              <SessionBrief brief={s.brief} notes={s.notes} layout="today" />
+            </>
+          )}
           {children}
           {s.legacy_unstructured && <small>Structured comparison unavailable</small>}
         </>

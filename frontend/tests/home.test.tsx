@@ -1,5 +1,9 @@
 import type { ExceptionsView, Finding, Patch, Severity } from '../src/api/types/exceptions'
-import { EXCEPTION_PROMPT } from '../src/coachPrompts'
+import type {
+  RunningInterruption,
+  RunningInterruptionView,
+} from '../src/api/types/runningInterruption'
+import { EXCEPTION_PROMPT, INTERRUPTION_PROMPT } from '../src/coachPrompts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -8,6 +12,26 @@ import type { ProposalSummary } from '../src/api/types/coach'
 import { addDays } from '../src/lib/format'
 import type { BlockVersion, TargetEvent } from '../src/api/types/blocks'
 import type { CalendarView, DigestRow, SessionState, WeeklyDigest } from '../src/api/types/calendar'
+
+const emptyInterruption = (): RunningInterruptionView => ({
+  today: '2026-11-11',
+  profile_version: 3,
+  interruption: null,
+  phase: null,
+  affected_runs: [],
+  affected_runs_omitted: 0,
+  first_run: null,
+  recorded_return: null,
+  review_reason: null,
+})
+let interruption: RunningInterruptionView
+let interruptionWriteError: 'network' | 'conflict' | null
+const currentEpisode: RunningInterruption = {
+  reason: 'travel',
+  starts_on: '2026-11-11',
+  return_on: '2026-11-16',
+  review_on: null,
+}
 
 const finding = (id: string, severity: Severity, summary: string, version = 1): Finding => ({
   id,
@@ -217,6 +241,8 @@ beforeEach(() => {
   onCheckin.mockReset()
   digestFail = false
   digestSessions = []
+  interruption = emptyInterruption()
+  interruptionWriteError = null
   calendar = {
     today: '2026-11-11',
     timezone: 'America/New_York',
@@ -241,6 +267,24 @@ beforeEach(() => {
         body: init?.body ? JSON.parse(String(init.body)) : null,
         headers: new Headers(init?.headers),
       })
+      if (url.endsWith('/running-interruption') && method === 'PUT') {
+        if (interruptionWriteError === 'network') throw new Error('offline')
+        if (interruptionWriteError === 'conflict')
+          return {
+            ok: false,
+            status: 409,
+            json: async () => ({ error: { code: 'version_conflict', message: 'Profile changed' } }),
+          }
+        const body = JSON.parse(String(init?.body))
+        interruption = body.interruption
+          ? {
+              ...interruption,
+              interruption: body.interruption,
+              profile_version: body.expected_version + 1,
+              phase: body.interruption.return_on ? 'paused' : 'review_due',
+            }
+          : { ...emptyInterruption(), profile_version: body.expected_version + 1 }
+      }
       if (url.endsWith('/calendar') && error)
         return {
           ok: false,
@@ -253,26 +297,28 @@ beforeEach(() => {
           status: 500,
           json: async () => ({ error: { code: 'request_failed', message: 'digest boom' } }),
         }
-      const data = url.endsWith('/sync/status')
-        ? { datasets: [], active_jobs: [] }
-        : url.includes('/calendar/weekly-digest')
-          ? digestFor(
-              new URL(url, 'http://x').searchParams.get('week_start') ?? '2026-11-09',
-              url.includes('week_start') ? 1 : 2,
-            )
-          : url.includes('/coach/proposals')
-            ? { items: proposalItems }
-            : url.endsWith('/calendar')
-              ? calendar
-              : url.endsWith('/prompts')
-                ? { items: promptItems }
-                : url.endsWith('/activities/a1')
-                  ? { id: 'a1', local_date: '2026-11-10', distance_m: 6437.376, sport: 'running' }
-                  : url.includes('/exceptions') || url.includes('/exception-patches')
-                    ? exceptionsData
-                    : url.includes('/blocks/active')
-                      ? blockData
-                      : null
+      const data = url.endsWith('/running-interruption')
+        ? interruption
+        : url.endsWith('/sync/status')
+          ? { datasets: [], active_jobs: [] }
+          : url.includes('/calendar/weekly-digest')
+            ? digestFor(
+                new URL(url, 'http://x').searchParams.get('week_start') ?? '2026-11-09',
+                url.includes('week_start') ? 1 : 2,
+              )
+            : url.includes('/coach/proposals')
+              ? { items: proposalItems }
+              : url.endsWith('/calendar')
+                ? calendar
+                : url.endsWith('/prompts')
+                  ? { items: promptItems }
+                  : url.endsWith('/activities/a1')
+                    ? { id: 'a1', local_date: '2026-11-10', distance_m: 6437.376, sport: 'running' }
+                    : url.includes('/exceptions') || url.includes('/exception-patches')
+                      ? exceptionsData
+                      : url.includes('/blocks/active')
+                        ? blockData
+                        : null
       return {
         ok: true,
         status: 200,
@@ -784,4 +830,201 @@ describe('training home', () => {
       expect(posts[i].body).toEqual({ expected_version: 1, status, note: null })
     }
   })
+})
+
+const interruptionWrites = () => requests.filter(({ method }) => method === 'PUT')
+
+it('records a dated interruption from Today and shows affected and return runs with the stable draft link', async () => {
+  const forecastRun = {
+    session_uid: 'return-run',
+    local_date: '2026-11-16',
+    intent: 'Easy',
+    recipe_id: 'REC001',
+    planned_duration_s: 1800,
+    planned_distance_m: null,
+  }
+  interruption.affected_runs = [
+    { ...forecastRun, session_uid: 'affected-run', local_date: '2026-11-11' },
+  ]
+  interruption.first_run = forecastRun
+  interruption.review_reason = 'Review the quality run before the first available easy day.'
+  proposalItems = [
+    {
+      id: 'stable-draft',
+      status: 'stale',
+      operation: 'review_rolling_plan',
+      change_count: 1,
+    } as ProposalSummary,
+  ]
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  const originalClipboard = navigator.clipboard
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+  try {
+    mount()
+    const today = within(await screen.findByTestId('today-card'))
+    fireEvent.click(await today.findByRole('button', { name: 'Record a running interruption' }))
+    const form = within(screen.getByRole('dialog', { name: 'Record a running interruption' }))
+    fireEvent.change(form.getByLabelText('Reason'), { target: { value: 'travel' } })
+    fireEvent.change(form.getByLabelText('First day available'), {
+      target: { value: '2026-11-16' },
+    })
+    expect(interruptionWrites()).toHaveLength(0)
+    fireEvent.click(form.getByRole('button', { name: 'Save interruption' }))
+    const episode = within(await today.findByRole('region', { name: 'Running interruption' }))
+    expect(episode.getByText('Paused')).toBeVisible()
+    expect(episode.getByText('Accepted runs to leave behind or review')).toBeVisible()
+    expect(episode.getByText(/Review the quality run/)).toBeVisible()
+    expect(episode.getByText('Wed, Nov 11 · Easy run · 30m')).toBeVisible()
+    expect(episode.getByRole('link', { name: 'Mon, Nov 16 · Easy run · 30m' })).toHaveAttribute(
+      'href',
+      '#calendar/2026-11-16',
+    )
+    expect(episode.getByRole('link', { name: 'Open current coach draft' })).toHaveAttribute(
+      'href',
+      '#proposal/stable-draft',
+    )
+    fireEvent.click(episode.getByText('Discuss with the coach'))
+    fireEvent.click(episode.getByRole('button', { name: 'Copy prompt' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(INTERRUPTION_PROMPT))
+    expect(interruptionWrites().map(({ body, url }) => ({ body, url }))).toEqual([
+      {
+        body: { expected_version: 3, interruption: currentEpisode },
+        url: '/api/v1/running-interruption',
+      },
+    ])
+    expect(today.getByTestId('session-tag')).toHaveTextContent('Planned')
+  } finally {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: originalClipboard })
+  }
+})
+
+it('shows the reassessment on an open-ended interruption and ends it only after confirmation', async () => {
+  interruption = {
+    ...emptyInterruption(),
+    interruption: {
+      ...currentEpisode,
+      reason: 'illness',
+      return_on: null,
+      review_on: '2026-11-11',
+    },
+    phase: 'review_due',
+    review_reason: 'First feasible run is uncertain while return availability is unconfirmed.',
+  }
+  mount()
+  const episode = within(await screen.findByRole('region', { name: 'Running interruption' }))
+  expect(episode.getByText('Review due')).toBeVisible()
+  expect(episode.getByText(/Return date open/)).toBeVisible()
+  expect(episode.getByText(/Reassess Wed, Nov 11/)).toBeVisible()
+  expect(episode.getByText(/First feasible run is uncertain/)).toBeVisible()
+  expect(episode.queryByText('First run to review')).toBeNull()
+  fireEvent.click(episode.getByRole('button', { name: 'End interruption' }))
+  const endDialog = () => within(screen.getByRole('dialog', { name: 'End running interruption' }))
+  fireEvent.click(endDialog().getByRole('button', { name: 'Cancel' }))
+  expect(interruptionWrites()).toHaveLength(0)
+  fireEvent.click(episode.getByRole('button', { name: 'End interruption' }))
+  fireEvent.click(endDialog().getByRole('button', { name: 'Confirm end' }))
+  expect(await screen.findByRole('button', { name: 'Record a running interruption' })).toBeVisible()
+  expect(interruptionWrites().map(({ body }) => body)).toEqual([
+    { expected_version: 3, interruption: null },
+  ])
+  expect(screen.getByTestId('today-card')).toHaveTextContent('Easy run')
+})
+
+it('preserves the form through network failure and refreshes a version conflict before retrying', async () => {
+  interruption = { ...emptyInterruption(), interruption: currentEpisode, phase: 'paused' }
+  mount()
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit interruption' }))
+  const form = within(screen.getByRole('dialog', { name: 'Edit running interruption' }))
+  fireEvent.change(form.getByLabelText('Return timing'), { target: { value: 'open' } })
+  fireEvent.change(form.getByLabelText('Reassess on'), {
+    target: { value: '2026-11-18' },
+  })
+  interruptionWriteError = 'network'
+  const save = form.getByRole('button', { name: 'Save interruption' })
+  fireEvent.click(save)
+  expect(await form.findByText(/Cannot reach the local server/)).toBeVisible()
+  expect(form.getByLabelText('Reassess on')).toHaveValue('2026-11-18')
+  interruptionWriteError = 'conflict'
+  interruption = {
+    ...interruption,
+    profile_version: 4,
+    interruption: { ...currentEpisode, reason: 'schedule' },
+  }
+  fireEvent.click(save)
+  expect(await form.findByText(/profile changed/)).toBeVisible()
+  expect(save).toBeDisabled()
+  fireEvent.click(form.getByRole('button', { name: 'Review latest before saving' }))
+  expect(await form.findByText(/Currently saved: Schedule/)).toBeVisible()
+  expect(form.getByLabelText('Return timing')).toHaveValue('open')
+  expect(form.getByLabelText('Reassess on')).toHaveValue('2026-11-18')
+  interruptionWriteError = null
+  fireEvent.click(save)
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(interruptionWrites().map(({ body }) => body)).toEqual([
+    {
+      expected_version: 3,
+      interruption: { ...currentEpisode, return_on: null, review_on: '2026-11-18' },
+    },
+    {
+      expected_version: 3,
+      interruption: { ...currentEpisode, return_on: null, review_on: '2026-11-18' },
+    },
+    {
+      expected_version: 4,
+      interruption: { ...currentEpisode, return_on: null, review_on: '2026-11-18' },
+    },
+  ])
+})
+
+it('holds an omitted locked run during the interruption while preserving other prescriptions', async () => {
+  calendar.sessions[0] = {
+    ...calendar.sessions[0],
+    locked: true,
+    structure: [{ type: 'work', duration_type: 'time', duration_value: 1200, target: null }],
+  }
+  calendar.sessions.push(
+    session('rehab', '2026-11-11', {
+      kind: 'rehab',
+      slot: 2,
+      intent: 'Calf raises',
+      recipe_id: null,
+    }),
+  )
+  interruption = {
+    ...emptyInterruption(),
+    interruption: currentEpisode,
+    phase: 'paused',
+    affected_runs_omitted: 3,
+  }
+  mount()
+  const today = within(await screen.findByTestId('today-card'))
+  const acceptedRun = within(today.getByText('Easy run').closest('article')!)
+  expect(
+    await acceptedRun.findByText('Unavailable during your interruption. Review this accepted run.'),
+  ).toBeVisible()
+  expect(acceptedRun.getByText('Planned')).toBeVisible()
+  expect(acceptedRun.queryByText(/Work 20:00/)).toBeNull()
+  expect(today.getByRole('link', { name: 'Review workout on Calendar' })).toBeVisible()
+  expect(today.getByText('Calf raises')).toBeVisible()
+})
+
+it('links the observed first run back to feedback and keeps the interruption open', async () => {
+  interruption = {
+    ...emptyInterruption(),
+    interruption: { ...currentEpisode, starts_on: '2026-11-06', return_on: '2026-11-10' },
+    phase: 'returning',
+    recorded_return: { activity_id: 'first-return', local_date: '2026-11-10' },
+    review_reason: 'Review how the recorded run felt before ending the interruption.',
+  }
+  mount()
+  const episode = within(await screen.findByRole('region', { name: 'Running interruption' }))
+  expect(episode.getByText('First recorded run back')).toBeVisible()
+  expect(episode.getByRole('link', { name: 'Review feedback for Tue, Nov 10' })).toHaveAttribute(
+    'href',
+    '#activity/first-return',
+  )
+  expect(episode.getByText(/Review how the recorded run felt/)).toBeVisible()
+  expect(episode.queryByText('First run to review')).toBeNull()
+  expect(episode.getByRole('button', { name: 'End interruption' })).toBeVisible()
+  expect(interruptionWrites()).toHaveLength(0)
 })

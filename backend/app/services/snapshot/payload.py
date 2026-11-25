@@ -186,6 +186,8 @@ def _session_view(row: dict, completion: dict | None) -> dict:
             "brief",
         ),
     )
+    if row.get("locked"):
+        result["locked"] = True
     result["is_original"] = row["revision"] == 1
     result["completion_status"] = completion["status"] if completion else None
     if (
@@ -948,6 +950,13 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
         "data_quality": _data_quality(inputs),
         "drill_down_queries": list(DRILL_DOWN_QUERIES),
     }
+    if inputs.running_interruption is not None:
+        interruption = dict(inputs.running_interruption)
+        for key in ("affected_runs",):
+            interruption[key] = [{k: v for k, v in row.items() if k != "intent"} for row in interruption.get(key, [])]
+        if interruption.get("first_run"):
+            interruption["first_run"] = {k: v for k, v in interruption["first_run"].items() if k != "intent"}
+        payload["running_interruption"] = interruption
     if inputs.running_restriction is not None:
         payload["snapshot_meta"]["running_restriction"] = inputs.running_restriction
     if operation in HORIZON_OPS:

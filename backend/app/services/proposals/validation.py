@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.cycle import opportunity
-from app.domain.running_limits import increases_run_dose, restriction_conflict
+from app.domain.running_limits import increases_run_dose, interruption_conflict, restriction_conflict
 from app.domain.session_class import LONG_RECIPE
 from app.domain.session_limits import REHAB_DAILY_LIMIT_S
 from app.services.block_benchmark import ACTIVE_STATUSES, BENCHMARK_MAX_AGE_DAYS, CREDIBLE_OUTCOMES
@@ -559,6 +559,9 @@ def _change_issues(
     if _quality_pileup(change, head, result_date, state=state, before=before):
         issues.append(_issue("V10.quality_pileup", path))
     if change.op != "delete":
+        interruption = interruption_conflict(ctx.running_interruption, result, vars(head) if head else None, ctx.today)
+        if interruption is not None:
+            issues.append(_issue("V12.running_interruption", path, interruption))
         conflict = restriction_conflict(ctx.running_restriction, result, vars(head) if head else None)
         if conflict is not None:
             issues.append(_issue("V12.running_restriction", path, conflict))

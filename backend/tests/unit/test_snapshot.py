@@ -2004,3 +2004,32 @@ def test_ptt_routing_keeps_symptom_history_and_answered_legacy_followup():
         {"activity_id": "a", "kind": "delayed_symptom", "status": "answered", "opens_at": NOW - timedelta(hours=8)}
     ]
     assert "topics/ptt_and_load_tolerance.md" in select_conditional_topics(source, DAILY)
+
+
+def test_interruption_in_every_coach_snapshot_strips_free_text():
+    source = minimal()
+    source.running_interruption = {
+        "today": AS_OF,
+        "phase": "paused",
+        "interruption": {"reason": "travel"},
+        "affected_runs": [{"session_uid": "x", "local_date": AS_OF, "intent": "private athlete note"}],
+        "affected_runs_omitted": 0,
+        "first_run": {"local_date": AS_OF + timedelta(days=5), "intent": "private session detail"},
+        "review_reason": "Review the return",
+        "activity_history_coverage": "unknown",
+    }
+    for operation in (DAILY, ROLLING, BLOCK, EXCEPTION, QUALITY_OP, CALIB, RACE, POST_EVENT):
+        payload = build_payload(source, operation)
+        interruption = payload["running_interruption"]
+        assert interruption["phase"] == "paused"
+        assert interruption["affected_runs"][0]["session_uid"] == "x"
+        assert interruption["activity_history_coverage"] == "unknown"
+        assert "private athlete note" not in canonical_json(interruption)
+        assert "private session detail" not in canonical_json(interruption)
+
+
+def test_snapshot_identifies_locked_calendar_commitments():
+    source = minimal()
+    source.sessions[0]["locked"] = True
+    rows = build_payload(source, ROLLING)["calendar"]["sessions"]
+    assert next(row for row in rows if row["session_uid"] == source.sessions[0]["session_uid"])["locked"] is True

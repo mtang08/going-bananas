@@ -29,7 +29,8 @@ export function Travel({ homeTimezone }: { homeTimezone: string }) {
   })
   const sync = useMutation({
     mutationFn: () => post<GcalSyncResult>('/google-calendar/sync', {}),
-    onSettled: () => invalidateKeys(qc, [qk.gcal, qk.tripsAll, qk.proposals]),
+    onSettled: () =>
+      invalidateKeys(qc, [qk.gcal, qk.tripsAll, qk.proposals, qk.runningInterruption]),
   })
   const real = status.data?.mode === 'real'
   const s = status.data?.data

@@ -1787,3 +1787,61 @@ def test_temporary_guard_compares_speed_targets_when_replacing_a_duration_step()
     assert outcome(doc, ctx) == ("invalid", [("V12.safety_guard", "changes.0")])
     doc["changes"][0]["after"]["structure"][0]["target"] = work["target"]
     assert outcome(doc, ctx) == ("pending", [])
+
+
+def test_running_interruption_blocks_changed_runs_but_not_untouched_or_reduced():
+    from app.domain.running_interruption import RunningInterruption
+
+    episode = RunningInterruption(reason="travel", starts_on=date(2026, 11, 19), return_on=date(2026, 11, 24))
+    ctx = replace(context(), running_interruption=episode)
+    doc = valid_doc()
+    # Existing run on Nov 20: increasing it is forbidden.
+    assert "V12.running_interruption" in [code for code, _ in outcome(doc, ctx)[1]]
+    doc["changes"][0]["after"]["planned_duration_s"] = 1200
+    assert "V12.running_interruption" not in [code for code, _ in outcome(doc, ctx)[1]]
+    # A deletion and an empty proposal leave unrelated accepted commitments alone.
+    doc["changes"] = [change("c1", "delete", 3)]
+    assert "V12.running_interruption" not in [code for code, _ in outcome(doc, ctx)[1]]
+    doc["changes"] = []
+    assert "V12.running_interruption" not in [code for code, _ in outcome(doc, ctx)[1]]
+    # Review-only interruptions do not silently end on the review date.
+    review = replace(
+        ctx,
+        running_interruption=RunningInterruption(
+            reason="illness", starts_on=date(2026, 11, 19), review_on=date(2026, 11, 20)
+        ),
+    )
+    doc["changes"] = [change("c1", "modify", 3, {"planned_duration_s": 2400, "brief": BRIEF})]
+    assert "V12.running_interruption" in [code for code, _ in outcome(doc, review)[1]]
+    parsed, issues = parse_document(doc)
+    assert not issues and parsed is not None
+    assert any(i.code == "V12.running_interruption" for i in validate_subset(parsed, {"c1"}, False, set(), review))
+    assert not any(i.code == "V12.running_interruption" for i in validate_subset(parsed, set(), False, set(), review))
+
+
+def test_running_interruption_dates_and_move_semantics():
+    from app.domain.running_interruption import RunningInterruption
+    from app.domain.running_limits import interruption_conflict
+
+    episode = RunningInterruption(reason="schedule", starts_on=date(2026, 11, 19), return_on=date(2026, 11, 24))
+    before = {"kind": "run", "local_date": date(2026, 11, 20), "planned_duration_s": 1800}
+    assert interruption_conflict(episode, before, None, TODAY)
+    assert interruption_conflict(episode, before, {**before, "local_date": date(2026, 11, 18)}, TODAY)
+    assert interruption_conflict(episode, {**before, "planned_duration_s": 1801}, before, TODAY)
+    assert not interruption_conflict(episode, before, before, TODAY)
+    assert not interruption_conflict(episode, {**before, "planned_duration_s": 1200}, before, TODAY)
+    assert not interruption_conflict(episode, {**before, "local_date": date(2026, 11, 24)}, before, TODAY)
+    assert not interruption_conflict(episode, before, None, date(2026, 11, 21))
+
+
+@pytest.mark.parametrize("harder_recipe", ["REC002", "REC007"])
+def test_running_interruption_blocks_turning_an_easy_run_into_a_harder_family(harder_recipe):
+    from app.domain.running_interruption import RunningInterruption
+    from app.domain.running_limits import interruption_conflict
+
+    day = date(2026, 11, 20)
+    episode = RunningInterruption(reason="schedule", starts_on=day, return_on=date(2026, 11, 24))
+    before = {"kind": "run", "local_date": day, "recipe_id": "REC001", "planned_duration_s": 1800}
+    after = {**before, "recipe_id": harder_recipe}
+    assert interruption_conflict(episode, after, before, TODAY)
+    assert not interruption_conflict(episode, before, after, TODAY)

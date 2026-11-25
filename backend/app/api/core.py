@@ -2,35 +2,36 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping, Sequence
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db import bump_data_revision, get_revision, get_session, global_write_lock
+from app.db import bump_data_revision, get_revision, get_session
 from app.domain.analytics import (
     pace_s_per_km,
     utc_date_bounds,
 )
 from app.domain.athlete_facts import RUNNING_RESTRICTION_KEY, running_restriction
 from app.domain.local_time import date_in_zone
+from app.domain.running_interruption import RUNNING_INTERRUPTION_KEY, RunningInterruption, running_interruption
 from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.models import (
     Activity,
     ActivityAnnotation,
     ActivitySource,
-    ProfileVersion,
 )
 from app.read.activities import latest_annotation, latest_annotations
 from app.services.coverage import coverage
-from app.services.profile import current_profile, profile_data
+from app.services.profile import append_profile_version, current_profile, profile_data, profile_for_write
 from app.services.run_classification import RunObservation, classify_history
+from app.services.running_interruption import return_view
 from app.services.timezone import DEFAULT_TIMEZONE, athlete_today, athlete_tz
 
 router = APIRouter()
@@ -183,11 +184,13 @@ class ProfileInput(BaseModel):
 
     @field_validator("facts")
     @classmethod
-    def valid_running_restriction(cls, value: dict[str, Any]) -> dict[str, Any]:
-        restriction = running_restriction(value)
-        if restriction is not None:
-            return {**value, RUNNING_RESTRICTION_KEY: restriction.model_dump(mode="json")}
-        return value
+    def validate_running_facts(cls, value: dict[str, Any]) -> dict[str, Any]:
+        facts = dict(value)
+        if (restriction := running_restriction(facts)) is not None:
+            facts[RUNNING_RESTRICTION_KEY] = restriction.model_dump(mode="json")
+        if (interruption := running_interruption(facts)) is not None:
+            facts[RUNNING_INTERRUPTION_KEY] = interruption.model_dump(mode="json")
+        return facts
 
     @field_validator("timezone")
     @classmethod
@@ -220,18 +223,40 @@ def get_profile(session: Session = Depends(get_session)) -> dict:
 
 @router.put("/profile")
 def put_profile(body: ProfileInput, session: Session = Depends(get_session)) -> dict:
-    global_write_lock(session)
-    current = current_profile(session)
-    version = current.version if current else 0
-    if body.expected_version != version:
-        fail("version_conflict", "Profile changed; reload /api/v1/profile", 409)
-    profile = ProfileVersion(
-        version=version + 1, effective_at=datetime.now(UTC), **body.model_dump(exclude={"expected_version"})
-    )
-    session.add(profile)
-    bump_data_revision(session)
+    current = profile_for_write(session, body.expected_version)
+    profile = append_profile_version(session, current, body.model_dump(exclude={"expected_version"}))
     session.commit()
     return envelope(session, profile_data(profile))
+
+
+class RunningInterruptionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_version: int = Field(ge=0)
+    interruption: RunningInterruption | None
+
+
+@router.get("/running-interruption")
+def get_running_interruption(session: Session = Depends(get_session)) -> dict:
+    return envelope(session, return_view(session, athlete_today(session)))
+
+
+@router.put("/running-interruption")
+def put_running_interruption(body: RunningInterruptionInput, session: Session = Depends(get_session)) -> dict:
+    current = profile_for_write(session, body.expected_version)
+    fields = profile_data(current)
+    del fields["version"]
+    facts = dict(fields["facts"] or {})
+    if body.interruption is None:
+        facts.pop(RUNNING_INTERRUPTION_KEY, None)
+    else:
+        facts[RUNNING_INTERRUPTION_KEY] = body.interruption.model_dump(mode="json")
+    if facts != fields["facts"]:
+        append_profile_version(session, current, {**fields, "facts": facts})
+        session.flush()
+    result = envelope(session, return_view(session, athlete_today(session)))
+    session.commit()
+    return result
 
 
 @router.get("/activities")

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from app.domain.athlete_facts import RunningRestriction
 from app.domain.calendar_structure import StructureError, expand_structure
+from app.domain.running_interruption import RunningInterruption
 from app.domain.session_class import QUALITY_RECIPES, RECIPE_CLASS, expected_rpe
 
 _DOSE_FIELDS = ("planned_duration_s", "planned_distance_m")
@@ -160,8 +162,17 @@ def increases_run_dose(after: dict[str, Any], before: dict[str, Any]) -> bool:
         return True
     if any((after.get(field) or 0) > (before.get(field) or 0) for field in _DOSE_FIELDS):
         return True
-    if after.get("recipe_id") != before.get("recipe_id") and after.get("recipe_id") in QUALITY_RECIPES:
-        return True
+    recipe, previous_recipe = after.get("recipe_id"), before.get("recipe_id")
+    if recipe != previous_recipe:
+        if recipe in QUALITY_RECIPES or (previous_recipe == "REC001" and recipe == "REC007"):
+            return True
+        guide, previous_guide = _recipe_effort(recipe), _recipe_effort(previous_recipe)
+        if (
+            guide is not None
+            and previous_guide is not None
+            and (guide[0] > previous_guide[0] or guide[1] > previous_guide[1])
+        ):
+            return True
     if after.get("structure") == before.get("structure"):
         return False
     previous = iter(_steps(before))
@@ -179,3 +190,26 @@ def reduces_existing_dose(after: dict[str, Any], before: dict[str, Any]) -> bool
     if increases_run_dose(after, before):
         return False
     return any(after.get(field) != before.get(field) for field in (*_DOSE_FIELDS, "structure"))
+
+
+def interruption_conflict(
+    interruption: RunningInterruption | None, after: dict[str, Any], before: dict[str, Any] | None, today: date
+) -> str | None:
+    """Do not add, move, or increase a future run during a confirmed interruption."""
+    day = after.get("local_date")
+    if (
+        interruption is None
+        or after.get("kind") != "run"
+        or day is None
+        or day < today
+        or not interruption.unavailable_on(day)
+    ):
+        return None
+    if (
+        before is None
+        or before.get("kind") != "run"
+        or before.get("local_date") != day
+        or increases_run_dose(after, before)
+    ):
+        return f"Running is unavailable on {day}. Remove the run or move it outside the confirmed interruption."
+    return None

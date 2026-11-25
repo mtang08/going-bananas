@@ -63,7 +63,7 @@ export function Trips({ homeTimezone }: { homeTimezone: string }) {
         expected_version: trip.version,
         ...change,
       }),
-    onSettled: () => invalidateKeys(qc, [qk.tripsAll, qk.proposals]),
+    onSettled: () => invalidateKeys(qc, [qk.tripsAll, qk.proposals, qk.runningInterruption]),
   })
 
   const today = new Intl.DateTimeFormat('en-CA', {

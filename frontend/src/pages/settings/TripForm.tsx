@@ -85,7 +85,7 @@ export function TripForm({
         : post<Trip>('/trips', { ...fields, end_date: end })
     },
     onSuccess: onSaved,
-    onSettled: () => invalidateKeys(qc, [qk.tripsAll, qk.proposals]),
+    onSettled: () => invalidateKeys(qc, [qk.tripsAll, qk.proposals, qk.runningInterruption]),
   })
   const submit = (event: FormEvent) => {
     event.preventDefault()

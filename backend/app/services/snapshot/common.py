@@ -133,6 +133,7 @@ class SnapshotInputs:
     anchor_confirmed: bool
     clinical_restriction: str | None
     running_restriction: dict | None = None
+    running_interruption: dict | None = None
     sessions: list[dict] = field(default_factory=list)
     completions: list[dict] = field(default_factory=list)
     strength_slots: list[dict] = field(default_factory=list)

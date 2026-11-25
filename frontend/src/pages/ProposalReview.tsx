@@ -16,6 +16,7 @@ import { ExceptionCard, EventReviewCard, PatchUpdates } from './proposal/Proposa
 import { ProposedChanges } from './proposal/ProposedChanges'
 import { ProposalIntro } from './proposal/ProposalIntro'
 import { AnchorChangeCard, BlockChangeCard } from './proposal/ChangeCards'
+import { ReturnPlanImpact } from './proposal/ReturnPlanImpact'
 import { ScheduleImpact } from './proposal/ScheduleImpact'
 import type { Unit } from '../lib/format'
 import { DecisionActions } from './proposal/DecisionActions'
@@ -267,6 +268,16 @@ function ReviewForm({ proposalId, unit }: { proposalId: string; unit: Unit }) {
                 onToggle={(id) => toggle(id, selected, setSelected)}
               />
             )}
+            {!terminal &&
+              !isStale &&
+              proposal.status === 'pending' &&
+              proposal.running_interruption && (
+                <ReturnPlanImpact
+                  evidence={proposal.running_interruption}
+                  changes={changes}
+                  selected={selected}
+                />
+              )}
             {changes.length > 0 && !terminal && !isStale && proposal.status === 'pending' && (
               <ScheduleImpact
                 head={head.data?.data}

@@ -9,3 +9,5 @@ export const BENCHMARK_PROMPT =
 export const REASSESS_PROMPT = 'Use $going-bananas-coach to reassess the open exception patch.'
 export const racePrompt = (eventName: string, eventDate: string): string =>
   `Use $going-bananas-coach for a post-race review of ${eventName} on ${eventDate}.`
+export const INTERRUPTION_PROMPT =
+  'Use $going-bananas-coach to review my saved running interruption and return. Read the accepted calendar and recent sessions, talk through what to leave behind and the first feasible run. When we agree on changes, revise the current draft if there is one.'

@@ -31,7 +31,8 @@ export function CalendarEvents({ homeTimezone }: { homeTimezone: string }) {
         expected_version: event.version,
         category,
       }),
-    onSettled: () => invalidateKeys(qc, [qk.gcal, qk.tripsAll, qk.proposals]),
+    onSettled: () =>
+      invalidateKeys(qc, [qk.gcal, qk.tripsAll, qk.proposals, qk.runningInterruption]),
   })
 
   const grouped = new Map<string, CalendarEvent[]>()

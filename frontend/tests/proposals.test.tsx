@@ -90,6 +90,7 @@ beforeEach(() => {
     base_calendar_version: 7,
     base_block_version_id: null,
     snapshot_id: 'snapshot',
+    running_interruption: null,
     head: 7,
     is_current: true,
     revision: 1,
@@ -1401,5 +1402,31 @@ it('previews selected moves across weeks and nearby intervals without counting a
   fireEvent.click(checks[0])
   expect(impact.queryByText('Move Long run')).not.toBeInTheDocument()
   expect(impact.getAllByText('0.0 mi')).toHaveLength(2)
+  expect(writes).toHaveLength(0)
+})
+
+it('shows which affected future runs would remain when the athlete deselects a return-plan change', async () => {
+  proposal.running_interruption = {
+    today: '2026-11-16',
+    interruption: {
+      reason: 'illness',
+      starts_on: '2026-11-15',
+      return_on: null,
+      review_on: '2026-11-20',
+    },
+    affected_runs: [
+      { session_uid: 'past', local_date: '2026-11-15', recipe_id: 'REC002' },
+      { session_uid: 's0', local_date: '2026-11-18', recipe_id: 'REC001' },
+    ],
+    affected_runs_omitted: 0,
+  }
+  proposal.changes = [{ ...proposal.changes[0], op: 'delete', after: null }]
+  mount()
+  const review = within(await screen.findByLabelText('Running break in this proposal'))
+  expect(review.getByText(/Reassess on Nov 20/)).toBeVisible()
+  expect(await review.findByText(/Removed from the plan/)).toBeVisible()
+  expect(review.queryByText(/Long run/i)).toBeNull()
+  fireEvent.click(await screen.findByLabelText('Accept change c1'))
+  expect(review.getByText(/Stays on the calendar/)).toBeVisible()
   expect(writes).toHaveLength(0)
 })

@@ -18,6 +18,16 @@ In **Settings → Running limits**, enter the original instruction, its source a
 
 Calendar can put **Rehab** alongside a run or lift. Give each rehab slot a duration, check it off separately, and keep all rehab slots within 15 minutes total that day. The weekly digest counts rehab separately.
 
+## Return after a running interruption
+
+On [Home](#home), under **Today's plan**, choose **Record a running interruption**. Pick a reason and the first day you are unavailable. For a known break, enter your **First day available**. If your return is uncertain, choose **My return date is open** and set **Reassess on**. Reassessment keeps the break in place until you confirm availability or end the interruption.
+
+Saving or editing the interruption leaves your accepted workouts and recorded outcomes intact. Home lists affected runs to leave behind or discuss, so you can resume without trying to make up every missed workout. Once you confirm a return date, **First run to review** can point to an existing, easy aerobic session that fits known limits and travel availability. If there is no suitable session, Home explains what to review. Use your recorded running limits separately from the first day you have time to run.
+
+Open **Discuss with the coach** on Home to ask for a return plan. When you review a draft, **Running break in this proposal** shows what the checked changes would do to upcoming affected workouts. Selecting or clearing a change updates that preview. Only an accepted decision applies the selected changes to Calendar.
+
+After your first run back is recorded, Home links to its feedback. Review how the run went and record effort or delayed response where appropriate. Use **End interruption** to clear the break when you are ready. Your feedback and accepted calendar are preserved.
+
 ## Sunday review
 
 Start one manual coaching review on Sunday evening. You do not need to decide whether it should be a weekly or block review:

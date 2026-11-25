@@ -1663,3 +1663,71 @@ def test_sunday_follows_only_applied_run_and_keeps_accepted_dose(proposal_sessio
     assert follow["next_check"] == raw["next_check"]
     packet = build_snapshot(session, "review_rolling_plan", sunday.date(), now=sunday)
     assert packet["payload"]["weekly_digest"]["weeks"][-1]["decision_follow_up"] == follow
+
+
+def test_return_review_preserves_history_until_accepted_and_keeps_its_saved_evidence(proposal_session, monkeypatch):
+    from app.api import core
+    from app.api.coach import proposal_detail
+    from app.services.profile import current_profile
+
+    session = proposal_session
+    monkeypatch.setattr(core, "athlete_today", lambda _: TODAY)
+    original = calendar.state_at(session, 1)
+    blocked = next(row for row in original if row["kind"] == "run")
+    calendar.apply_edits(
+        session,
+        1,
+        [
+            {
+                "op": "add",
+                "fields": {
+                    "local_date": date(2026, 11, 22),
+                    "kind": "run",
+                    "recipe_id": "REC001",
+                    "intent": "Easy Sunday run",
+                    "planned_duration_s": 1500,
+                },
+            }
+        ],
+        "Accepted rhythm after travel",
+    )
+    version = current_profile(session).version
+    record = core.RunningInterruptionInput.model_validate(
+        {
+            "expected_version": version,
+            "interruption": {"starts_on": str(TODAY), "return_on": "2026-11-21", "reason": "travel"},
+        }
+    )
+    view = core.put_running_interruption(record, session)["data"]
+    assert view["first_run"]["local_date"] == date(2026, 11, 22)
+    packet = build_snapshot(session, "review_rolling_plan", TODAY, now=NOW)
+    context = packet["payload"]["running_interruption"]
+    assert context["affected_runs"][0]["session_uid"] == str(blocked["session_uid"])
+    snapshot = session.get(CoachSnapshot, uuid.UUID(packet["snapshot_id"]))
+    document = _doc(snapshot, blocked["session_uid"])
+    document["headline"] = "Leave the travel-week run behind"
+    document["changes"] = [
+        {
+            "change_id": "c1",
+            "op": "delete",
+            "session_uid": str(blocked["session_uid"]),
+            "reason": "This date is unavailable. Keep Sunday's easy run.",
+        }
+    ]
+    draft = submit_proposal(session, document, now=NOW, resolve_kb=resolve_kb)
+    assert draft.status == "pending", [issue.to_json() for issue in draft.issues]
+    assert len(calendar.state_at(session, 2)) == len(original) + 1
+    assert session.scalar(select(func.count(SessionCompletion.id))) == 0
+    decision = decide_proposal(
+        session, draft.proposal_id, _req(2, "accept-return-review", ["c1"]), now=NOW, resolve_kb=resolve_kb
+    )
+    assert decision.status == "accepted"
+    updated = core.get_running_interruption(session)["data"]
+    assert updated["affected_runs"] == [] and updated["first_run"] == view["first_run"]
+    core.put_running_interruption(
+        core.RunningInterruptionInput(expected_version=updated["profile_version"], interruption=None), session
+    )
+    stored = proposal_detail(session, session.get(CoachProposal, draft.proposal_id))
+    assert stored["running_interruption"]["interruption"]["return_on"] == "2026-11-21"
+    assert stored["running_interruption"]["affected_runs"][0]["session_uid"] == str(blocked["session_uid"])
+    assert core.get_running_interruption(session)["data"]["interruption"] is None

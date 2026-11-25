@@ -6,6 +6,7 @@ export function invalidateKeys(qc: QueryClient, keys: readonly (readonly unknown
 
 export const qk = {
   calendar: ['v2', 'calendar'] as const,
+  runningInterruption: ['v2', 'calendar', 'running-interruption'] as const,
   calendarRange: (start: string, end: string) => ['v2', 'calendar', 'range', start, end] as const,
   calendarView: (version: number | 'head') => ['v2', 'calendar', 'view', version] as const,
   calendarWeek: (start: string | 'current', version: number | 'head') =>

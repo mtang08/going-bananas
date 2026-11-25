@@ -19,7 +19,8 @@ from app.domain.athlete_facts import running_restriction
 from app.domain.calendar_structure import StructureError, expand_structure
 from app.domain.cycle import opportunities
 from app.domain.local_time import date_in_zone
-from app.domain.running_limits import reduces_existing_dose, restriction_conflict
+from app.domain.running_interruption import running_interruption
+from app.domain.running_limits import interruption_conflict, reduces_existing_dose, restriction_conflict
 from app.domain.session_limits import REHAB_DAILY_LIMIT_S
 from app.errors import fail
 from app.metrics.engine import load_runs
@@ -480,6 +481,7 @@ def apply_edits(
     current = latest_revisions(session, expected_head)
     profile = current_profile(session)
     limit = running_restriction(profile.facts) if profile else None
+    interruption = running_interruption(profile.facts) if profile else None
     today = calendar_today(session)
     prepared = []
     seen = set()
@@ -532,6 +534,8 @@ def apply_edits(
                 and any(fields[key] != base[key] for key in ("kind", "recipe_id", "structure", "intent"))
             ):
                 fields["brief"] = None
+            if conflict := interruption_conflict(interruption, fields, base, today):
+                fail("running_interruption", conflict)
             if conflict := restriction_conflict(limit, fields, base):
                 if (
                     actor != "user"
@@ -591,6 +595,8 @@ def rollback_calendar(session: Session, expected_head: int, to_version: int, rea
     current, target = latest_revisions(session, expected_head), latest_revisions(session, to_version)
     profile = current_profile(session)
     limit = running_restriction(profile.facts) if profile else None
+    interruption = running_interruption(profile.facts) if profile else None
+    today = calendar_today(session)
     resulting = {uid: _fields(row) for uid, row in current.items() if not row.deleted}
     for item in changes:
         uid = item["session_uid"]
@@ -612,6 +618,8 @@ def rollback_calendar(session: Session, expected_head: int, to_version: int, rea
             fields = _fields(source)
             if not source.deleted:
                 base = _fields(existing) if existing and not existing.deleted else None
+                if conflict := interruption_conflict(interruption, fields, base, today):
+                    fail("running_interruption", conflict)
                 if conflict := restriction_conflict(limit, fields, base):
                     fail("running_restriction", conflict)
         elif existing is not None:

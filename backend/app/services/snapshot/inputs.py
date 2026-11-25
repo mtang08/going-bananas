@@ -17,6 +17,7 @@ from app.checkin_models import SessionRpe, SymptomReport
 from app.coach_v2_models import CoachProposal, CoachProposalChange
 from app.domain.athlete_facts import clinical_restriction, running_restriction
 from app.domain.local_time import date_in_zone
+from app.domain.running_interruption import running_interruption
 from app.domain.travel import OPEN_TRIP_MAX
 from app.metric_models import MetricResult, Prompt
 from app.models import Activity, AppState, ImportBatch
@@ -75,6 +76,7 @@ def _load_sessions(session: Session, head: int, first: date, as_of: date) -> lis
                     "recipe_id",
                     "custom",
                     "placeholder",
+                    "locked",
                     "intent",
                     "certainty",
                     "planned_duration_s",
@@ -623,6 +625,30 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         load_week(session, this_monday, today=as_of, now=now),
     ]
     restriction = running_restriction(profile.facts) if profile else None
+    episode = running_interruption(profile.facts) if profile else None
+    interruption_view = None
+    if episode:
+        from app.metrics.engine import activities_coverage_complete
+        from app.services.running_interruption import return_view
+
+        interruption_view = return_view(session, as_of)
+        candidates = [run for run in runs if run["local_date"] < episode.starts_on]
+        latest = max(candidates, key=lambda run: (run["local_date"], run["start_at"])) if candidates else None
+        interruption_view["latest_recorded_run"] = (
+            row_view(latest, ("activity_id", "local_date", "sport", "timer_s", "distance_m", "rpe", "rpe_source"))
+            if latest
+            else None
+        )
+        interruption_view["activity_history_coverage"] = (
+            "complete" if activities_coverage_complete(session, first, as_of + timedelta(days=1)) else "unknown"
+        )
+        interruption_view["guidance"] = (
+            "The latest recorded run is context, not proof of a comparable easy dose or complete training history. "
+            "Affected past runs are review only; propose edits only from today onward and preserve protected records. "
+            "Omit unreachable runs, preserve confirmed commitments and use the usual running rhythm. "
+            "The first run is only an eligible candidate for review, not clearance; "
+            "review before progressing when readiness or coverage is uncertain."
+        )
     return SnapshotInputs(
         as_of=as_of,
         now=now,
@@ -633,6 +659,7 @@ def load_inputs(session: Session, as_of: date, *, now: datetime) -> SnapshotInpu
         anchor_confirmed=bool(profile.anchor_confirmed) if profile else False,
         clinical_restriction=clinical_restriction(profile.facts) if profile else None,
         running_restriction=restriction.snapshot_data(as_of) if restriction else None,
+        running_interruption=interruption_view,
         sessions=sessions,
         completions=completions,
         strength_slots=slots,

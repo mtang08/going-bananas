@@ -404,3 +404,27 @@ def test_checkin_observed_before_but_recorded_after_snapshot_is_not_visible(seed
     after = load_inputs(seeded, TODAY, now=NOW + timedelta(hours=1))
     assert len(before.checkins) == 1
     assert len(after.checkins) == 2
+
+
+def test_interruption_profile_change_stales_fingerprint_and_reaches_snapshot(seeded):
+    from app.services.profile import current_profile
+
+    kb = VerifiedKnowledge("0" * 64, (), (), frozenset(), frozenset(), frozenset())
+    before = collect_decision_inputs(seeded, ROLLING, TODAY, now=NOW, kb=kb)
+    profile = current_profile(seeded)
+    profile.facts = {
+        **(profile.facts or {}),
+        "running_interruption": {
+            "reason": "travel",
+            "starts_on": "2026-11-18",
+            "return_on": "2026-11-25",
+            "review_on": None,
+        },
+    }
+    seeded.flush()
+    after = collect_decision_inputs(seeded, ROLLING, TODAY, now=NOW, kb=kb)
+    assert before["source_fingerprint"] != after["source_fingerprint"]
+    payload = build_payload(load_inputs(seeded, TODAY, now=NOW), ROLLING)
+    assert payload["running_interruption"]["phase"] == "planned"
+    assert payload["running_interruption"]["interruption"]["starts_on"] == "2026-11-18"
+    assert payload["running_interruption"]["activity_history_coverage"] in {"complete", "unknown"}
