@@ -376,9 +376,9 @@ If this resumes, keep the departure day in the origin zone and use the last conf
 
 ### IDEA-015 — Private phone access for check-ins
 
-Paused. The proposed iPhone Today page would show the planned session and support check-ins, post-run effort, symptoms, and manual sync through a private tailnet. The Mac would host the app and coaching reviews. Before resuming, refresh the plan against current main and settle five choices: Mac sleep behavior, an offline page, the tailnet machine name and login, device key expiry, and whether Today belongs in desktop navigation.
+First release covers private, offline morning ankle check-ins. The phone records first-step pain and how it changes with walking, then syncs when reopened with the Mac reachable. [Feature specification](iphone-checkins.md) · [Installation](iphone-setup.md)
 
-Later options include push reminders, offline capture and queued writes, phone-sized proposal review, a request-path allowlist, and an access rule limiting HTTPS to the athlete’s phone.
+Future work includes an always-on host for live phone access to the calendar and history. Broader Today views, post-run effort, manual provider sync, phone-sized proposal review, and reminders remain open.
 
 ### IDEA-016 — Race and threshold estimates
 

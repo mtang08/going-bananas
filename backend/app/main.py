@@ -169,6 +169,8 @@ def serve_frontend(path: str):
     dist = settings.frontend_dist
     if not dist.exists():
         fail("frontend_not_built", "Frontend not built", 404)
+    if path == "phone/":
+        path = "phone/index.html"
     target = (dist / path).resolve()
     if target.is_file() and target.is_relative_to(dist):
         return FileResponse(target)

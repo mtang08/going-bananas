@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.checkin_models import Checkin, SymptomReport
 from app.domain.analytics import utc_date_bounds
 from app.domain.associations import preceding_sessions
+from app.domain.first_steps import FIRST_STEPS_KEY
 from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.metrics.contract import MetricResultData, result_from_outcome, sha256_json
@@ -65,6 +66,8 @@ def run_end(start_at: datetime, end_at: datetime | None, timer_s: float | None) 
 
 
 def linked_activity_for_checkin(session: Session, checkin: Checkin) -> UUID | None:
+    if checkin.idempotency_key.startswith(FIRST_STEPS_KEY):
+        return None
     if checkin.activity_id is not None:
         return checkin.activity_id
     tz = athlete_tz(session)

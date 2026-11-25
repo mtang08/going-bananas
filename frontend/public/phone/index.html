@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d1811" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Going Bananas" />
+    <link rel="manifest" href="/phone/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/phone/icon-192.png" />
+    <link rel="icon" href="/phone/icon-192.png" />
+    <link rel="stylesheet" href="/phone/phone.css" />
+    <script type="module" src="/phone/phone.js"></script>
+    <title>Morning ankle check-in · Going Bananas</title>
+  </head>
+  <body>
+    <header>
+      <span class="brand">Going Bananas</span
+      ><span id="offline" role="status">Preparing offline access…</span>
+    </header>
+    <main>
+      <p id="date"></p>
+      <h1>Morning ankle check-in</h1>
+      <noscript>Enable JavaScript to record your check-in.</noscript>
+      <div id="form" hidden>
+        <section aria-labelledby="pain-title">
+          <h2 id="pain-title">How painful were your first steps?</h2>
+          <div id="scale"></div>
+        </section>
+        <section id="walking" aria-labelledby="walking-title" hidden>
+          <h2 id="walking-title" tabindex="-1">
+            After walking for a few minutes, how did it feel?
+          </h2>
+          <div id="responses"></div>
+        </section>
+      </div>
+      <section id="receipt" aria-labelledby="saved" hidden>
+        <h2 id="saved" aria-live="polite" tabindex="-1"></h2>
+        <p id="summary"></p>
+      </section>
+      <p id="error" role="alert" hidden></p>
+      <div id="outbox" hidden>
+        <p id="pending" role="status"></p>
+        <button type="button" id="retry">Retry sync</button>
+      </div>
+    </main>
+  </body>
+</html>

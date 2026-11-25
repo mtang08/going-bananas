@@ -5,16 +5,18 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, date, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import desc, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.core import envelope
 from app.checkin_models import Checkin
+from app.config import settings
 from app.db import get_session
+from app.domain.first_steps import FIRST_STEPS_KEY, WALKING_NOTES, WalkingResponse
 from app.domain.local_time import date_in_zone
 from app.errors import fail
 from app.metric_models import Prompt
@@ -45,8 +47,52 @@ class RpeInput(BaseModel):
         return measurement(value)
 
 
+class MorningCheckin(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    observed_at: AwareDatetime
+    pain: int = Field(strict=True, ge=0, le=10)
+    walking_response: WalkingResponse | None
+
+    @model_validator(mode="after")
+    def validate_response(self) -> MorningCheckin:
+        if (self.pain == 0) != (self.walking_response is None):
+            raise ValueError("A walking response is required exactly when pain is above zero")
+        return self
+
+
+@router.put("/phone/checkins/{entry_id}")
+def put_morning_checkin(
+    entry_id: uuid.UUID,
+    body: MorningCheckin,
+    session: Session = Depends(get_session),
+    x_phone_mode: str | None = Header(default=None),
+) -> dict:
+    if x_phone_mode is not None and x_phone_mode != settings.app_mode:
+        fail("phone_mode_mismatch", "The Mac is serving a different workspace", 409)
+    _, created = create_checkin(
+        session,
+        {
+            "idempotency_key": f"{FIRST_STEPS_KEY}{entry_id}",
+            "kind": "exception",
+            "observed_at": body.observed_at,
+            "pain_reported": body.pain > 0,
+            "note": WALKING_NOTES[body.walking_response],
+            "symptoms": (
+                [{"site": "ankle", "side": "na", "severity": body.pain, "timing": "unknown"}] if body.pain else []
+            ),
+        },
+    )
+    if created:
+        run_detection(session, datetime.now(UTC))
+    session.commit()
+    return envelope(session, {"id": entry_id})
+
+
 @router.post("/v2/checkins")
 def post_checkin(body: CheckinCreate, session: Session = Depends(get_session)) -> JSONResponse:
+    if body.idempotency_key.startswith(FIRST_STEPS_KEY):
+        fail("reserved_checkin_key", "Use the morning check-in form for this key", 422)
     result, created = create_checkin(session, body.model_dump())
     session.commit()
     detection = run_detection(session, datetime.now(UTC))

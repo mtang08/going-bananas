@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
+import app.domain.first_steps as first_steps
 from app.calendar_models import SessionCompletion
 from app.checkin_models import Checkin as CheckinV2
 from app.checkin_models import SessionRpe, SymptomReport
@@ -235,6 +236,7 @@ def _load_checkins(session: Session, now: datetime, zone: ZoneInfo) -> list[dict
                 else None
             ),
             symptoms=symptoms.get(row.id, []),
+            **first_steps.morning_observation(row.idempotency_key, row.note, symptoms.get(row.id, [])),
         )
         for row, end_at in checkin_rows
     ]

@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.checkin_models import Checkin, CheckinRevision, SessionRpe, SymptomReport
+from app.domain.first_steps import FIRST_STEPS_KEY
 from app.domain.sports import RUN_SPORTS
 from app.errors import fail
 from app.metric_models import Prompt
@@ -318,6 +319,8 @@ def patch_checkin(session: Session, id: uuid.UUID, body: dict) -> dict:
     row = session.get(Checkin, id)
     if row is None:
         fail("checkin_not_found", "Check-in not found", 404)
+    if row.idempotency_key.startswith(FIRST_STEPS_KEY):
+        fail("immutable_morning_checkin", "The submitted morning observation is read-only", 409)
     if row.version != patch.expected_version:
         fail("version_conflict", "Check-in changed; reload before editing", 409)
     prior = checkin_data(session, row)

@@ -1073,7 +1073,16 @@ def build_payload(inputs: SnapshotInputs, operation: str) -> dict:
     if operation in {ROLLING, BLOCK}:
         payload["aerobic_efficiency"] = _aerobic_efficiency(inputs)
     if operation not in {CALIB}:
-        payload["symptoms"] = _symptoms(inputs, operation)
+        symptoms = _symptoms(inputs, operation)
+        start, end = section_window(operation, "symptoms", inputs)
+        mornings = [
+            {**row_view(row, ("checkin_id", "observed_at", "local_date")), **row["morning_ankle"]}
+            for row in inputs.checkins
+            if row.get("morning_ankle") and day_between(row.get("local_date"), start, end)
+        ]
+        if mornings:
+            symptoms["morning_first_step_ankle"] = mornings
+        payload["symptoms"] = symptoms
     if operation in {DAILY, ROLLING, QUALITY_OP, BLOCK, EXCEPTION, POST_EVENT}:
         rec_start, rec_end = section_window(operation, "recovery", inputs)
         payload["recovery"] = [
