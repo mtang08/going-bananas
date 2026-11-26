@@ -49,3 +49,21 @@ Deliver a runnable synthetic workflow that builds or loads a snapshot, saves a p
 ## Continuation prompt
 
 > Own the complete pending-draft lifecycle above with your Astra team. Continue from the published fingerprint package on the active continuation branch. Work through evidence, validation, persistence and rollback, publishing each verified increment. Finish by reporting the runnable command, commits and Python-created draft comparison.
+
+## Native dashboard handoff
+
+The package-local HTTP handler serves the dashboard review, message, new-review, cancellation and auth endpoints. Core mounts it under `/api/v1/coach/chat` and calls its shutdown method when the server exits. Construct it once per application mode with `coachdashboardhttp.NewLocal`, the migrated PostgreSQL pool, repository root, private directory, local ports and transactional domain handlers. Construction imports the mode's previous Python conversation files. Opening a review reads its state. Sending a user message loads the repo-local coaching instructions and starts a model turn. [Local composition](../backend-go/internal/coachdashboardhttp/local.go) · [Runtime](../backend-go/internal/coachdashboard/appserver.go)
+
+Core owns migration `0028_coach_chat_reviews` and the schema catalog. The file importer uses its reviews, receipts and import-marker tables. Stop the Python writer for the mode at cutover. Import retains archives, thread IDs, observed evidence and message receipts in one transaction. Repeating startup preserves subsequent Go turns. [Importer](../backend-go/internal/coachdashboard/import.go)
+
+The six dashboard tools operate on the active turn. Supply request-scoped domain callbacks through `ToolHandlers` and use the supplied transaction for domain reads and pending-draft writes. The save callback receives a verified snapshot identity and the observed draft revision. The athlete’s pending-save authorization applies to the current message. Proposal decisions belong to the proposal service and its review page. [Tool contract](../backend-go/internal/coachdashboard/tools.go)
+
+Snapshot assembly calls `snapshotreads.LoadInputs` in the caller's consistent transaction after metric and exception refresh. It reads planning, workout, feedback, block, travel, exception and profile projections. Pass core's previous/current weekly digest and running-interruption detail readers, plus the lifecycle reader for confirmed strength sessions and accepted omissions. [Snapshot inputs](../backend-go/internal/coaching/snapshotreads/inputs.go)
+
+Run the dashboard checks from a configured checkout with the pinned Go tools on PATH. The dashboard runner uses a disposable schema and a scripted local app-server. Its file-import case generates the archive with the Python dashboard writer.
+
+```sh
+python3 scripts/test-db.py test tests/integration/test_coach_chat.py
+python3 scripts/test-db.py dashboard
+make check-go
+```
