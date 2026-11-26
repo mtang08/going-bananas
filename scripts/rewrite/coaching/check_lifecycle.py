@@ -82,14 +82,14 @@ def main():
             targets.append((dest, conn))
         (ref, refdb), (go, godb) = targets
 
-        def python(env, op, **kw):
+        def python(env, op, *, at=NOW, **kw):
             return execute(
                 [
                     sys.executable,
                     ROOT / "scripts/rewrite/coaching/lifecycle_reference.py",
                 ],
                 env,
-                dict(op=op, now=NOW, **kw),
+                dict(op=op, now=at, **kw),
             )
 
         def native(op, id=None, body=None, failure=False, revision=None):
@@ -100,11 +100,11 @@ def main():
                 args += ["-revision", str(revision)]
             return execute(args, go, body, failure)
 
-        def document(env):
-            seed = python(env, "seed")
+        def document(env, operation="proceed_or_modify_today", at=NOW):
+            seed = python(env, "seed", operation=operation, at=at)
             return {
                 "schema_version": "coach_proposal.v2",
-                "operation": "proceed_or_modify_today",
+                "operation": operation,
                 "snapshot_id": seed["snapshot_id"],
                 "base_calendar_version": 0,
                 "base_block_version_id": None,
@@ -392,6 +392,125 @@ def main():
                 state(refdb, pid),
                 state(godb, gid),
             )
+        from runpy import run_path
+
+        block_fields = run_path(
+            str(ROOT / "backend/tests/integration/test_proposals.py")
+        )["_block_fields"]("2026-12-28", "2026-12-20")
+        for conn in (refdb, godb):
+            for day in ("2026-11-17", "2026-11-20"):
+                conn.execute(
+                    "INSERT INTO calendar_session_revisions(id,session_uid,revision,calendar_version_number,local_date,kind,intent,certainty) VALUES (%s,%s,1,2,%s,'strength','Synthetic lift','committed')",
+                    (uuid4(), uuid4(), day),
+                )
+        for kind in ["anchor", "block", "continue"]:
+            case_req = dict(
+                expected_head=2,
+                expected_revision=1,
+                idempotency_key=f"planning-{kind}",
+                accept_change_ids=[],
+                reject_change_ids=[],
+            )
+
+            def planning_proposal(env, conn):
+                doc = document(
+                    env,
+                    "recalibrate_intensity"
+                    if kind == "anchor"
+                    else "review_training_block",
+                )
+                doc.update(base_calendar_version=2, changes=[])
+                if kind == "anchor":
+                    doc["anchor_changes"] = [
+                        dict(
+                            kind="hr_threshold_lower",
+                            value_low=165,
+                            unit="bpm",
+                            protocol="manual",
+                            confidence="moderate",
+                            calibrated_at=NOW,
+                        )
+                    ]
+                    case_req["accept_anchor_changes"] = [
+                        "hr_threshold_lower-2026-11-16"
+                    ]
+                else:
+                    active = conn.execute(
+                        "SELECT block_uid,id FROM block_versions ORDER BY version DESC LIMIT 1"
+                    ).fetchone()
+                    if active:
+                        doc["base_block_version_id"] = str(active[1])
+                    doc["block_change"] = dict(
+                        decision="continue" if active else "start",
+                        block_uid=str(active[0]) if active else None,
+                        version_fields=block_fields,
+                    )
+                    case_req["accept_block_change"] = True
+                prop = python(env, "submit", document=doc)
+                assert prop["status"] == "pending", prop
+                return prop["proposal_id"]
+
+            pid, gid = planning_proposal(ref, refdb), planning_proposal(go, godb)
+            expected = python(ref, "decide", id=pid, request=case_req)
+            assert expected.get("status") == "accepted", expected
+            subprocess.run(
+                [
+                    "go",
+                    "test",
+                    "-count=1",
+                    "-run",
+                    "^TestAcceptDecisionLedger$",
+                    "./internal/coaching/drafts",
+                ],
+                cwd=ROOT / "backend-go",
+                check=True,
+                env={
+                    **go,
+                    "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
+                        "postgresql+psycopg://", "postgresql://"
+                    ),
+                    "COACHING_DECISION_TEST_ID": gid,
+                    "COACHING_DECISION_TEST_NOW": NOW,
+                    "COACHING_DECISION_TEST_REQUEST": json.dumps(case_req),
+                },
+            )
+            for query in [
+                "SELECT data_revision,calendar_head_version FROM app_state",
+                "SELECT anchor_key,value_low,calibrated_at,review_after,status FROM intensity_anchors ORDER BY anchor_key",
+                "SELECT version,why,benchmark,objective,build_outline FROM block_versions ORDER BY version",
+                "SELECT decision,from_version,to_version,rationale FROM block_decisions ORDER BY to_version",
+            ]:
+                assert (
+                    refdb.execute(query).fetchall() == godb.execute(query).fetchall()
+                ), query
+        views = Path(scratch) / "http-views.json"
+        with views.open("w") as f:
+            subprocess.run(
+                [sys.executable, ROOT / "scripts/rewrite/coaching/http_reference.py"],
+                env=go,
+                cwd=ROOT,
+                stdout=f,
+                check=True,
+            )
+        subprocess.run(
+            [
+                "go",
+                "test",
+                "-count=1",
+                "-run",
+                "^TestReferenceViews$",
+                "./internal/proposalhttp",
+            ],
+            cwd=ROOT / "backend-go",
+            env={
+                **go,
+                "COACHING_HTTP_REFERENCE": str(views),
+                "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
+                    "postgresql+psycopg://", "postgresql://"
+                ),
+            },
+            check=True,
+        )
     print(
         "Passed Python-created draft revision, no-duplicate retry, drift, rollback, concurrent edits, discard and native submit."
     )

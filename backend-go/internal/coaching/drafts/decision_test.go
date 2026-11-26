@@ -90,7 +90,7 @@ func TestAcceptDecisionLedger(t *testing.T) {
 	injected := errors.New("injected refresh failure")
 	store := Store{pool}
 	_, err = store.Decide(ctx, id, req, now, "../../../../running_coach_kb", func(context.Context, pgx.Tx, calendar.PlanScope, []uuid.UUID) error { return injected })
-	if !errors.Is(err, injected) {
+	if !req.Block && !errors.Is(err, injected) {
 		t.Fatalf("expected injected refresh rollback: %v", err)
 	}
 	for i := range 2 {
@@ -102,7 +102,7 @@ func TestAcceptDecisionLedger(t *testing.T) {
 			}
 			return nil
 		})
-		if err != nil || called != (i == 0) {
+		if err != nil || called != (i == 0 && !req.Block) {
 			t.Fatalf("decision %d refresh=%t err=%v", i, called, err)
 		}
 	}
