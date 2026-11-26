@@ -93,7 +93,7 @@ def main():
             )
 
         def native(op, id=None, body=None, failure=False, revision=None):
-            args = [binary, op, "-repo", ROOT, "-python", sys.executable, "-now", NOW]
+            args = [binary, op, "-repo", ROOT, "-now", NOW]
             if id:
                 args += ["-id", id]
             if revision:
@@ -228,7 +228,8 @@ def main():
         # A distinct submission now exercises native insertion rather than original-hash replay.
         new = native("submit", body={**gdoc, "headline": "Second draft"})
         assert new["status"] == "pending" and new["proposal_id"] != gid, new
-        assert native("submit", body={**gdoc, "headline": "Second draft"}) == new
+        again=native("submit", body={**gdoc,"headline":"Second draft"})
+        assert again==new,(again,new)
         for conn in (refdb, godb):
             assert conn.execute(
                 "SELECT calendar_head_version FROM app_state WHERE id=1"
