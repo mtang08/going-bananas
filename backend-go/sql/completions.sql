@@ -18,16 +18,27 @@ FROM activities a WHERE a.id = sqlc.narg(activity_id)::uuid
 UNION ALL SELECT s.local_date FROM strong_workouts s WHERE s.id = sqlc.narg(strong_workout_id)::uuid
 UNION ALL SELECT m.date FROM manual_sessions m WHERE m.id = sqlc.narg(manual_session_id)::uuid;
 
--- name: SaveSelfReport :one
-INSERT INTO session_completions (id,session_uid,status,match_method,modification_reason,reason_note,
+-- name: SaveCompletion :one
+INSERT INTO session_completions (id,session_uid,activity_id,strong_workout_id,manual_session_id,status,match_method,modification_reason,reason_note,
     version,input_version,updated_at)
-VALUES (gen_random_uuid(),sqlc.arg(session_uid),sqlc.arg(status),'user_marked',sqlc.narg(modification_reason),
+VALUES (gen_random_uuid(),sqlc.arg(session_uid),sqlc.narg(activity_id),sqlc.narg(strong_workout_id),
+    sqlc.narg(manual_session_id),sqlc.arg(status),sqlc.arg(match_method),sqlc.narg(modification_reason),
     sqlc.narg(reason_note),sqlc.arg(version),sqlc.arg(input_version),sqlc.arg(updated_at))
 ON CONFLICT (session_uid) DO UPDATE SET
-    status=excluded.status, match_method=excluded.match_method, activity_id=NULL, strong_workout_id=NULL,
-    manual_session_id=NULL, modification_reason=excluded.modification_reason, reason_note=excluded.reason_note,
+    status=excluded.status, match_method=excluded.match_method, activity_id=excluded.activity_id, strong_workout_id=excluded.strong_workout_id,
+    manual_session_id=excluded.manual_session_id, modification_reason=excluded.modification_reason, reason_note=excluded.reason_note,
     version=excluded.version, input_version=excluded.input_version, updated_at=excluded.updated_at
 RETURNING *;
 
 -- name: DeleteCompletion :exec
 DELETE FROM session_completions WHERE session_uid = $1;
+
+-- name: RecordingHolder :one
+SELECT * FROM session_completions
+WHERE session_uid <> sqlc.arg(session_uid) AND
+    (activity_id = sqlc.narg(activity_id) OR strong_workout_id = sqlc.narg(strong_workout_id)
+     OR manual_session_id = sqlc.narg(manual_session_id))
+FOR UPDATE;
+
+-- name: RestoreMovedStatus :exec
+UPDATE session_completions SET status = 'moved' WHERE session_uid = $1 AND status <> 'moved';

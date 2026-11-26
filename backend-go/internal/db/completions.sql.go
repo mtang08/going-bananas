@@ -116,21 +116,75 @@ func (q *Queries) LockCalendarHead(ctx context.Context) (int32, error) {
 	return calendar_head_version, err
 }
 
-const saveSelfReport = `-- name: SaveSelfReport :one
-INSERT INTO session_completions (id,session_uid,status,match_method,modification_reason,reason_note,
+const recordingHolder = `-- name: RecordingHolder :one
+SELECT id, session_uid, activity_id, strong_workout_id, manual_session_id, status, match_method, modification_reason, reason_note, version, input_version, updated_at FROM session_completions
+WHERE session_uid <> $1 AND
+    (activity_id = $2 OR strong_workout_id = $3
+     OR manual_session_id = $4)
+FOR UPDATE
+`
+
+type RecordingHolderParams struct {
+	SessionUid      pgtype.UUID
+	ActivityID      pgtype.UUID
+	StrongWorkoutID pgtype.UUID
+	ManualSessionID pgtype.UUID
+}
+
+func (q *Queries) RecordingHolder(ctx context.Context, arg RecordingHolderParams) (SessionCompletion, error) {
+	row := q.db.QueryRow(ctx, recordingHolder,
+		arg.SessionUid,
+		arg.ActivityID,
+		arg.StrongWorkoutID,
+		arg.ManualSessionID,
+	)
+	var i SessionCompletion
+	err := row.Scan(
+		&i.ID,
+		&i.SessionUid,
+		&i.ActivityID,
+		&i.StrongWorkoutID,
+		&i.ManualSessionID,
+		&i.Status,
+		&i.MatchMethod,
+		&i.ModificationReason,
+		&i.ReasonNote,
+		&i.Version,
+		&i.InputVersion,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const restoreMovedStatus = `-- name: RestoreMovedStatus :exec
+UPDATE session_completions SET status = 'moved' WHERE session_uid = $1 AND status <> 'moved'
+`
+
+func (q *Queries) RestoreMovedStatus(ctx context.Context, sessionUid pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, restoreMovedStatus, sessionUid)
+	return err
+}
+
+const saveCompletion = `-- name: SaveCompletion :one
+INSERT INTO session_completions (id,session_uid,activity_id,strong_workout_id,manual_session_id,status,match_method,modification_reason,reason_note,
     version,input_version,updated_at)
-VALUES (gen_random_uuid(),$1,$2,'user_marked',$3,
-    $4,$5,$6,$7)
+VALUES (gen_random_uuid(),$1,$2,$3,
+    $4,$5,$6,$7,
+    $8,$9,$10,$11)
 ON CONFLICT (session_uid) DO UPDATE SET
-    status=excluded.status, match_method=excluded.match_method, activity_id=NULL, strong_workout_id=NULL,
-    manual_session_id=NULL, modification_reason=excluded.modification_reason, reason_note=excluded.reason_note,
+    status=excluded.status, match_method=excluded.match_method, activity_id=excluded.activity_id, strong_workout_id=excluded.strong_workout_id,
+    manual_session_id=excluded.manual_session_id, modification_reason=excluded.modification_reason, reason_note=excluded.reason_note,
     version=excluded.version, input_version=excluded.input_version, updated_at=excluded.updated_at
 RETURNING id, session_uid, activity_id, strong_workout_id, manual_session_id, status, match_method, modification_reason, reason_note, version, input_version, updated_at
 `
 
-type SaveSelfReportParams struct {
+type SaveCompletionParams struct {
 	SessionUid         pgtype.UUID
+	ActivityID         pgtype.UUID
+	StrongWorkoutID    pgtype.UUID
+	ManualSessionID    pgtype.UUID
 	Status             string
+	MatchMethod        string
 	ModificationReason pgtype.Text
 	ReasonNote         pgtype.Text
 	Version            int32
@@ -138,10 +192,14 @@ type SaveSelfReportParams struct {
 	UpdatedAt          pgtype.Timestamptz
 }
 
-func (q *Queries) SaveSelfReport(ctx context.Context, arg SaveSelfReportParams) (SessionCompletion, error) {
-	row := q.db.QueryRow(ctx, saveSelfReport,
+func (q *Queries) SaveCompletion(ctx context.Context, arg SaveCompletionParams) (SessionCompletion, error) {
+	row := q.db.QueryRow(ctx, saveCompletion,
 		arg.SessionUid,
+		arg.ActivityID,
+		arg.StrongWorkoutID,
+		arg.ManualSessionID,
 		arg.Status,
+		arg.MatchMethod,
 		arg.ModificationReason,
 		arg.ReasonNote,
 		arg.Version,

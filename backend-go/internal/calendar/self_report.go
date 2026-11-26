@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
 )
@@ -42,18 +41,30 @@ type CompletionChange struct {
 	Before, After        *db.SessionCompletion
 	PlanDay              pgtype.Date
 	PreviousRecordingDay pgtype.Date
+	RecordingDay         pgtype.Date
+	Displaced            *CompletionChange
 }
 
 type RefreshCompletion func(context.Context, pgx.Tx, CompletionChange) error
 
-// SaveSelfReport holds the same writer lock as Python until both the source write
-// and its derived refresh commit. The result describes the source mutation before rematching.
-func SaveSelfReport(ctx context.Context, pool *pgxpool.Pool, uid uuid.UUID, input SelfReport, now time.Time, refresh RefreshCompletion) (CompletionChange, error) {
+type TransactionStarter interface {
+	Begin(context.Context) (pgx.Tx, error)
+}
+
+func SaveSelfReport(ctx context.Context, conn TransactionStarter, uid uuid.UUID, input SelfReport, now time.Time, refresh RefreshCompletion) (CompletionChange, error) {
+	return writeCompletion(ctx, conn, refresh, func(tx pgx.Tx, q *db.Queries, head int32) (CompletionChange, bool, error) {
+		return applySelfReport(ctx, q, uid, input, now, head)
+	})
+}
+
+type mutation func(pgx.Tx, *db.Queries, int32) (CompletionChange, bool, error)
+
+func writeCompletion(ctx context.Context, conn TransactionStarter, refresh RefreshCompletion, apply mutation) (CompletionChange, error) {
 	if refresh == nil {
 		return CompletionChange{}, errors.New("completion refresh is required")
 	}
 	var change CompletionChange
-	err := pgx.BeginTxFunc(ctx, pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+	err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
 		q := db.New(tx)
 		if err := q.LockGlobalWriter(ctx); err != nil {
 			return err
@@ -63,7 +74,7 @@ func SaveSelfReport(ctx context.Context, pool *pgxpool.Pool, uid uuid.UUID, inpu
 			return err
 		}
 		var changed bool
-		change, changed, err = applySelfReport(ctx, q, uid, input, now, head)
+		change, changed, err = apply(tx, q, head)
 		if err != nil || !changed {
 			return err
 		}
@@ -84,8 +95,12 @@ func (s SelfReport) validate() error {
 	default:
 		return &Problem{"invalid_completion", "Invalid self-reported outcome"}
 	}
-	if s.ModificationReason != nil {
-		switch *s.ModificationReason {
+	return validateReason(s.ModificationReason)
+}
+
+func validateReason(reason *string) error {
+	if reason != nil {
+		switch *reason {
 		case "symptom_onset", "fatigue", "illness", "schedule", "weather", "equipment", "other":
 		default:
 			return &Problem{"invalid_completion", "Invalid modification reason"}
@@ -168,8 +183,9 @@ func applySelfReport(ctx context.Context, q *db.Queries, uid uuid.UUID, input Se
 		version++
 		inputVersion++
 	}
-	saved, err := q.SaveSelfReport(ctx, db.SaveSelfReportParams{
-		SessionUid: id, Status: string(input.Status), ModificationReason: reason, ReasonNote: note,
+	saved, err := q.SaveCompletion(ctx, db.SaveCompletionParams{
+		MatchMethod: "user_marked",
+		SessionUid:  id, Status: string(input.Status), ModificationReason: reason, ReasonNote: note,
 		Version: version, InputVersion: inputVersion, UpdatedAt: pgtype.Timestamptz{Time: now, Valid: true},
 	})
 	if err == nil {
