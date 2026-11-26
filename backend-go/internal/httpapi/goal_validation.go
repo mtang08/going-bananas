@@ -139,7 +139,7 @@ func goalField(p *api.GoalPatch, key string, value any) string {
 	return ""
 }
 
-func decodeGoalPatch(r io.Reader) (api.GoalPatch, []api.ValidationField) {
+func decodeGoalInput(r io.Reader, create bool) (api.GoalPatch, []api.ValidationField) {
 	var patch api.GoalPatch
 	var fields []api.ValidationField
 	add := func(field, message string) {
@@ -181,13 +181,22 @@ func decodeGoalPatch(r io.Reader) (api.GoalPatch, []api.ValidationField) {
 		_ = dec.Decode(&v)
 		values[key] = v
 	}
-	for _, key := range []string{"expected_version", "text", "horizon", "priority", "status"} {
+	keys := []string{"expected_version", "text", "horizon", "priority", "status"}
+	if create {
+		keys = []string{"text", "horizon", "priority"}
+	}
+	for _, key := range keys {
 		v, ok := values[key]
 		delete(values, key)
 		if !ok {
-			if key == "expected_version" {
+			if create || key == "expected_version" {
 				add("body."+key, "Field required")
 			}
+			continue
+		}
+		if create && v == nil {
+			messages := map[string]string{"priority": "Input should be a valid integer", "text": "Input should be a valid string", "horizon": "Input should be '3_6_months', 'season' or 'long_term'"}
+			add("body."+key, messages[key])
 			continue
 		}
 		if message := goalField(&patch, key, v); message != "" {

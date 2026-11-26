@@ -90,6 +90,20 @@ export function listProposals(params: NonNullable<ProposalListGet['parameters'][
   return requestEnvelope<ProposalListResponse>(proposalListPath + query(params))
 }
 
+const goalsPath = '/api/v1/goals'
+type GoalsGet = paths[typeof goalsPath]['get']
+type GoalsPost = paths[typeof goalsPath]['post']
+
+export function listGoals() {
+  return requestEnvelope<GoalsGet['responses'][200]['content']['application/json']>(goalsPath)
+}
+export function createGoal(body: GoalsPost['requestBody']['content']['application/json']) {
+  return requestEnvelope<GoalsPost['responses'][201]['content']['application/json']>(goalsPath, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 const goalPath = '/api/v1/goals/{goal_id}'
 type GoalPatch = paths[typeof goalPath]['patch']
 export function patchGoal(

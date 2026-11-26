@@ -313,6 +313,13 @@ type Goal struct {
 	Version  int                `json:"version"`
 }
 
+// GoalCreate defines model for GoalCreate.
+type GoalCreate struct {
+	Horizon  GoalHorizon `json:"horizon"`
+	Priority int         `json:"priority"`
+	Text     string      `json:"text"`
+}
+
 // GoalEnvelope defines model for GoalEnvelope.
 type GoalEnvelope struct {
 	Data          Goal          `json:"data"`
@@ -413,6 +420,9 @@ type GetProposalsApiV1CoachProposalsGetParams struct {
 // GetProposalsApiV1CoachProposalsGetParamsStatus defines parameters for GetProposalsApiV1CoachProposalsGet.
 type GetProposalsApiV1CoachProposalsGetParamsStatus string
 
+// CreateGoalJSONRequestBody defines body for CreateGoal for application/json ContentType.
+type CreateGoalJSONRequestBody = GoalCreate
+
 // PatchGoalJSONRequestBody defines body for PatchGoal for application/json ContentType.
 type PatchGoalJSONRequestBody = GoalPatch
 
@@ -427,6 +437,9 @@ type ServerInterface interface {
 
 	// (GET /api/v1/goals)
 	ListGoals(w http.ResponseWriter, r *http.Request)
+
+	// (POST /api/v1/goals)
+	CreateGoal(w http.ResponseWriter, r *http.Request)
 
 	// (PATCH /api/v1/goals/{goal_id})
 	PatchGoal(w http.ResponseWriter, r *http.Request, goalId openapi_types.UUID)
@@ -512,6 +525,20 @@ func (siw *ServerInterfaceWrapper) ListGoals(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListGoals(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateGoal operation middleware
+func (siw *ServerInterfaceWrapper) CreateGoal(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateGoal(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -671,6 +698,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/goals/{goal_id}", wrapper.PatchGoal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/calendar/versions", wrapper.ListCalendarVersions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/goals", wrapper.ListGoals)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/goals", wrapper.CreateGoal)
 
 	return m
 }
@@ -764,6 +792,84 @@ func (response ListGoals200JSONResponse) VisitListGoalsResponse(w http.ResponseW
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGoalRequestObject struct {
+	Body *CreateGoalJSONRequestBody
+}
+
+type CreateGoalResponseObject interface {
+	VisitCreateGoalResponse(w http.ResponseWriter) error
+}
+
+type CreateGoal201JSONResponse GoalEnvelope
+
+func (response CreateGoal201JSONResponse) VisitCreateGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGoal403JSONResponse ErrorEnvelope
+
+func (response CreateGoal403JSONResponse) VisitCreateGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGoal415JSONResponse ErrorEnvelope
+
+func (response CreateGoal415JSONResponse) VisitCreateGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGoal422JSONResponse ErrorEnvelope
+
+func (response CreateGoal422JSONResponse) VisitCreateGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGoal500JSONResponse ErrorEnvelope
+
+func (response CreateGoal500JSONResponse) VisitCreateGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -887,6 +993,9 @@ type StrictServerInterface interface {
 	// (GET /api/v1/goals)
 	ListGoals(ctx context.Context, request ListGoalsRequestObject) (ListGoalsResponseObject, error)
 
+	// (POST /api/v1/goals)
+	CreateGoal(ctx context.Context, request CreateGoalRequestObject) (CreateGoalResponseObject, error)
+
 	// (PATCH /api/v1/goals/{goal_id})
 	PatchGoal(ctx context.Context, request PatchGoalRequestObject) (PatchGoalResponseObject, error)
 }
@@ -1002,6 +1111,37 @@ func (sh *strictHandler) ListGoals(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListGoalsResponseObject); ok {
 		if err := validResponse.VisitListGoalsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateGoal operation middleware
+func (sh *strictHandler) CreateGoal(w http.ResponseWriter, r *http.Request) {
+	var request CreateGoalRequestObject
+
+	var body CreateGoalJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+		return sh.ssi.CreateGoal(ctx, request.(CreateGoalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateGoal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateGoalResponseObject); ok {
+		if err := validResponse.VisitCreateGoalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

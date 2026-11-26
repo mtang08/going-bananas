@@ -62,7 +62,7 @@ export interface paths {
         };
         get: operations["listGoals"];
         put?: never;
-        post?: never;
+        post: operations["createGoal"];
         delete?: never;
         options?: never;
         head?: never;
@@ -224,6 +224,11 @@ export interface components {
             data_revision: number;
             mode: components["schemas"]["AppMode"];
             data: components["schemas"]["GoalList"];
+        };
+        GoalCreate: {
+            text: string;
+            horizon: components["schemas"]["GoalHorizon"];
+            priority: number;
         };
     };
     responses: never;
@@ -392,6 +397,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GoalListEnvelope"];
+                };
+            };
+        };
+    };
+    createGoal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoalCreate"];
+            };
+        };
+        responses: {
+            /** @description Created goal */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalEnvelope"];
+                };
+            };
+            /** @description Local request required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description JSON required */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid goal or request fields */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
         };

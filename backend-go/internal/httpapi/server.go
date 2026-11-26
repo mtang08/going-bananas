@@ -121,6 +121,10 @@ func New(reader ProposalReader, writer GoalWriter, plans PlanningReader, mode ap
 		const path = "/api/v1/coach/proposals"
 		const versions = "/api/v1/calendar/versions"
 		const goals = "/api/v1/goals"
+		if r.Method == http.MethodPost && r.URL.Path == goals {
+			s.serveCreateGoal(w, r)
+			return
+		}
 		route := strings.TrimSuffix(r.URL.Path, "/")
 		if r.Method != http.MethodGet && (route == path || route == versions || route == goals) {
 			fail(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "Request failed")

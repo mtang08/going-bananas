@@ -168,12 +168,12 @@ async function checkGoalEdit() {
   for (const request of upstreams) {
     assert.equal(
       request.target,
-      request === writes[0] || reads.includes(request) || isTravel(request.path) ? candidate : python,
+      request === writes[0] || request.path === goalsPath || isTravel(request.path) ? candidate : python,
       'Wrong upstream for ' + request.path,
     )
   }
   console.log(
-    `PASS Settings (${engine}) created a goal in Python, edited it in Go, and reloaded it from Go.`,
+    `PASS Settings (${engine}) created, edited and reloaded a goal in Go.`,
   )
 }
 

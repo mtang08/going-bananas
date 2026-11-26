@@ -1,7 +1,7 @@
 import { Button, Card, Input } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, post, patchGoal } from '../../api/client'
+import { createGoal, listGoals, patchGoal } from '../../api/client'
 import { qk, invalidateKeys } from '../../api/queryKeys'
 import { HORIZON_LABELS, type Goal, type GoalHorizon } from '../../api/types/blocks'
 import { QueryState } from '../../components/QueryState'
@@ -9,7 +9,7 @@ import { ErrorText, Select } from './shared'
 
 export function Goals() {
   const qc = useQueryClient(),
-    query = useQuery({ queryKey: qk.goals, queryFn: () => api<{ items: Goal[] }>('/goals') })
+    query = useQuery({ queryKey: qk.goals, queryFn: listGoals })
   const [editing, setEditing] = useState<Goal | null>(null),
     [text, setText] = useState(''),
     [horizon, setHorizon] = useState<GoalHorizon>('3_6_months'),
@@ -32,7 +32,7 @@ export function Goals() {
             priority,
             status,
           })
-        : post('/goals', { text: text.trim(), horizon, priority }),
+        : createGoal({ text: text.trim(), horizon, priority }),
     onSuccess: () => {
       invalidateKeys(qc, [qk.goals, qk.proposals])
       reset()

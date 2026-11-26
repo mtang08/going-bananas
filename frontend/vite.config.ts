@@ -38,7 +38,9 @@ const goProxy: Plugin = {
                   '/api/v1/trips',
                 ].includes(path)) ||
               (req.method === 'POST' &&
-                ['/api/v1/google-calendar/sync', '/api/v1/trips'].includes(path)) ||
+                ['/api/v1/goals', '/api/v1/google-calendar/sync', '/api/v1/trips'].includes(
+                  path,
+                )) ||
               (req.method === 'PATCH' &&
                 /^\/api\/v1\/(?:goals|trips|google-calendar\/events)\/[^/]+$/.test(path))
             )
