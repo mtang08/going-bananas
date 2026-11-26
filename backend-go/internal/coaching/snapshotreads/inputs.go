@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/returnplan"
 )
 
 type StrengthInputs struct {
@@ -90,9 +91,9 @@ func LoadInputs(ctx context.Context, tx pgx.Tx, operation, asOf string, now time
 		}
 		out.WeeklyDigest = append(out.WeeklyDigest, data)
 	}
-	if profile.hasInterruption {
+	if profile.HasInterruption {
 		if deps.ReturnView == nil {
-			return Inputs{}, errors.New("return-view reader required for recorded running interruption")
+			deps.ReturnView = returnplan.Read
 		}
 		view, err := deps.ReturnView(ctx, tx, asOf)
 		if err != nil {
