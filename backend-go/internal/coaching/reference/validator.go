@@ -1,6 +1,5 @@
-// Package reference supplies the Python schema, live fact collector, and
-// coaching rules while their native replacements are being ported. It runs
-// only in synthetic mode and can only read the exported Go transaction snapshot.
+// Package reference supplies Python proposal schema normalization to synthetic commands.
+// All database reads, domain rules, and writes execute in Go.
 package reference
 
 import (
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/mtang08/going-bananas/backend-go/internal/coaching"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
 )
 
@@ -43,38 +41,5 @@ func (a Adapter) Validate(ctx context.Context, tx pgx.Tx, raw json.RawMessage, n
 	if err := a.run(ctx, "parse", raw, &v); err != nil || v.Document == nil {
 		return v, err
 	}
-	var d drafts.DocumentBase
-	if err := json.Unmarshal(v.Document, &d); err != nil {
-		return v, err
-	}
-	s, err := drafts.LoadSnapshot(ctx, tx, d.SnapshotID)
-	if err != nil {
-		return v, err
-	}
-	kb, idx, err := coaching.VerifySelection(filepath.Join(a.Root, "running_coach_kb"), s.Selection)
-	if err != nil {
-		return v, &drafts.Error{Code: "knowledge_unavailable", Message: "Verified knowledge is unavailable", Status: 503}
-	}
-	var exported string
-	if err := tx.QueryRow(ctx, "SELECT pg_export_snapshot()").Scan(&exported); err != nil {
-		return v, err
-	}
-	in := map[string]any{"snapshot": exported, "now": now, "document": v.Payload, "knowledge": kb, "index": idx}
-	var response struct {
-		Context drafts.RuleContext     `json:"rule_context"`
-		Current drafts.CurrentEvidence `json:"current"`
-		Changes []drafts.Change        `json:"changes"`
-	}
-	if err := a.run(ctx, "rules", in, &response); err != nil {
-		return v, err
-	}
-	v.Changes = response.Changes
-	v.Status, v.Issues, err = drafts.Freshness(s, d, response.Current, kb, now)
-	if err == nil && v.Status == "pending" {
-		v.Issues, err = drafts.ValidateRules(v.Document, v.Payload, response.Context, idx)
-		if len(v.Issues) > 0 {
-			v.Status = "invalid"
-		}
-	}
-	return v, err
+	return drafts.ValidateNormalized(ctx, tx, v, now, filepath.Join(a.Root, "running_coach_kb"))
 }
