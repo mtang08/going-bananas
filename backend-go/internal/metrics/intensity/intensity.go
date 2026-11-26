@@ -200,32 +200,32 @@ func outcome(kind string, s *recording.Stream, anchors map[string]anchor, day st
 	}
 	return m, nil
 }
-func Refresh(ctx context.Context, tx pgx.Tx, id uuid.UUID, now time.Time) (uuid.UUID, error) {
+func Calculate(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*metrics.Result, error) {
 	zone, err := db.New(tx).CalendarTimezone(ctx)
 	if err != nil {
-		return uuid.Nil, err
+		return nil, err
 	}
 	run, err := metrics.LoadRun(ctx, tx, id, zone)
 	if err != nil || run == nil {
-		return uuid.Nil, err
+		return nil, err
 	}
 	if !slices.Contains([]string{"running", "trail_running", "treadmill_running"}, run.Sport) {
-		return uuid.Nil, nil
+		return nil, nil
 	}
 	refs := obj{"activity": obj{"id": id, "source_revision": run.SourceRevision, "source_refs": run.Refs}, "fit": run.FIT, "plan": nil, "completion_association_hash": nil, "activity_ids": []string{id.String()}}
 	result := metrics.Result{MetricID: ID, MethodVersion: Version, SubjectType: "activity", SubjectKey: id.String(), Timezone: zone, Unit: "s", Config: Config, SourceRefs: refs}
 	if !run.Eligible {
 		result.Status = "not_applicable"
 		result.ReasonCodes = []string{"ACTIVITY_EXCLUDED"}
-		return metrics.StoreResult(ctx, tx, result, now)
+		return &result, nil
 	}
 	stream, err := recording.LoadStream(ctx, tx, id)
 	if err != nil {
-		return uuid.Nil, err
+		return nil, err
 	}
 	anchors, err := loadAnchors(ctx, tx, run.Day)
 	if err != nil {
-		return uuid.Nil, err
+		return nil, err
 	}
 	value := obj{"session_timer_s": run.Timer}
 	result.Value = value
@@ -236,7 +236,7 @@ func Refresh(ctx context.Context, tx pgx.Tx, id uuid.UUID, now time.Time) (uuid.
 	for _, k := range []string{"hr", "speed"} {
 		m, err := outcome(k, stream, anchors, run.Day, run.Timer)
 		if err != nil {
-			return uuid.Nil, err
+			return nil, err
 		}
 		value[k] = m.v
 		statuses = append(statuses, m.v["status"].(string))
@@ -267,7 +267,7 @@ func Refresh(ctx context.Context, tx pgx.Tx, id uuid.UUID, now time.Time) (uuid.
 	if len(used) > 0 {
 		hash, err := metrics.Digest(used)
 		if err != nil {
-			return uuid.Nil, err
+			return nil, err
 		}
 		result.AnchorSetHash = &hash
 	}
@@ -275,5 +275,13 @@ func Refresh(ctx context.Context, tx pgx.Tx, id uuid.UUID, now time.Time) (uuid.
 	result.ReasonCodes = slices.Compact(result.ReasonCodes)
 	slices.Sort(result.QualityFlags)
 	result.QualityFlags = slices.Compact(result.QualityFlags)
-	return metrics.StoreResult(ctx, tx, result, now)
+	return &result, nil
+}
+
+func Refresh(ctx context.Context, tx pgx.Tx, id uuid.UUID, now time.Time) (uuid.UUID, error) {
+	r, err := Calculate(ctx, tx, id)
+	if err != nil || r == nil {
+		return uuid.Nil, err
+	}
+	return metrics.StoreResult(ctx, tx, *r, now)
 }

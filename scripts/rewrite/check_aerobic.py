@@ -86,10 +86,68 @@ def seed(env):
                 ),
             )
 
+        db.execute(
+            "INSERT INTO calendar_versions(id,number,kind,actor) VALUES(%s,1,'manual_edit','user')",
+            (uid(9500),),
+        )
+        db.execute("UPDATE app_state SET calendar_head_version=1")
+        for n in (0, 1, 2):
+            structure = [
+                {
+                    "type": "work",
+                    "duration_type": "time",
+                    "duration_value": 200,
+                    "target": {"modality": "speed", "low": 3.0, "high": 3.5},
+                },
+                {"type": "recovery", "duration_type": "time", "duration_value": 60},
+                {"type": "work", "duration_type": "time", "duration_value": 200},
+            ]
+            db.execute(
+                """INSERT INTO calendar_session_revisions(id,session_uid,revision,calendar_version_number,local_date,kind,intent,certainty,structure)
+                    VALUES(%s,%s,1,1,'2026-03-04','run','quality','committed',%s)""",
+                (uid(9510 + n), uid(9520 + n), Jsonb(structure)),
+            )
+            db.execute(
+                """INSERT INTO session_completions(id,session_uid,activity_id,status,match_method,version,input_version,updated_at)
+                    VALUES(%s,%s,%s,'unknown','explicit',1,1,now())""",
+                (uid(9530 + n), uid(9520 + n), uid(2000 + n)),
+            )
+            if n == 2:
+                continue
+            for j, (intensity, offset, duration) in enumerate(
+                [("active", 0, 200), ("recovery", 200, 60), ("active", 260, 200)]
+            ):
+                db.execute(
+                    """INSERT INTO activity_workout_steps(id,activity_id,message_index,intensity,duration_type,duration_value)
+                    VALUES(%s,%s,%s,%s,'time',%s)""",
+                    (uid(9540 + n * 10 + j), uid(2000 + n), j, intensity, duration),
+                )
+                db.execute(
+                    """INSERT INTO activity_laps(id,activity_id,lap_index,start_at,end_at,timer_s,elapsed_s,distance_m,wkt_step_index,intensity)
+                    SELECT %s,id,%s,start_at+%s*interval '1s',start_at+%s*interval '1s',%s,%s,%s,%s,%s FROM activities WHERE id=%s""",
+                    (
+                        uid(9570 + n * 10 + j),
+                        j,
+                        offset,
+                        offset + duration,
+                        duration,
+                        duration,
+                        duration * 3,
+                        j,
+                        intensity,
+                        uid(2000 + n),
+                    ),
+                )
+        db.execute(
+            """UPDATE activities SET treadmill_interval_paces=jsonb_build_object('0',jsonb_build_object(
+            'pace_s_per_mile',450.0,'lap_identity','2026-03-05T12:00:00+00:00|2026-03-05T12:03:20+00:00|200.0|200.0|0')) WHERE id=%s""",
+            (uid(2001),),
+        )
+
 
 def reference():
     from app.db import SessionLocal
-    from app.metrics import aerobic, engine, intensity
+    from app.metrics import aerobic, engine, intensity, intervals
     from sqlalchemy import text
 
     result = []
@@ -143,6 +201,29 @@ def reference():
                     "keys": keys,
                     "query": intensity_query,
                     "state": s.execute(text(intensity_query)).scalar_one(),
+                }
+            )
+    interval_query = activity_query.replace(
+        "aerobic_efficiency", "work_interval_execution"
+    )
+    for change in [
+        "",
+        f"UPDATE activity_laps SET timer_s=98 WHERE activity_id='{uid(2000)}' AND lap_index=2",
+        f"UPDATE activities SET fit_status='decoded' WHERE id='{uid(2000)}'",
+    ]:
+        with SessionLocal.begin() as s:
+            if change:
+                s.execute(text(change))
+            for key in keys:
+                engine.upsert_results(s, intervals.compute(s, key))
+            s.flush()
+            result.append(
+                {
+                    "metric": "intervals",
+                    "sql": change,
+                    "keys": keys,
+                    "query": interval_query,
+                    "state": s.execute(text(interval_query)).scalar_one(),
                 }
             )
     return {"cases": result, "query": STATE}

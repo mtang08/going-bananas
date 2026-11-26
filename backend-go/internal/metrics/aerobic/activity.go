@@ -102,38 +102,38 @@ func classify(ctx context.Context, tx pgx.Tx, id uuid.UUID, plan *recording.Plan
 	}
 	return "unplanned", "", nil
 }
-func Refresh(ctx context.Context, tx pgx.Tx, id uuid.UUID, now time.Time) (uuid.UUID, error) {
+func Calculate(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*metrics.Result, error) {
 	zone, err := db.New(tx).CalendarTimezone(ctx)
 	if err != nil {
-		return uuid.Nil, err
+		return nil, err
 	}
 	r, err := metrics.LoadRun(ctx, tx, id, zone)
 	if err != nil || r == nil {
-		return uuid.Nil, err
+		return nil, err
 	}
 	if !slices.Contains([]string{"running", "trail_running", "treadmill_running"}, r.Sport) {
-		return uuid.Nil, nil
+		return nil, nil
 	}
 	refs, plan, err := recording.Sources(ctx, tx, r)
 	if err != nil {
-		return uuid.Nil, err
+		return nil, err
 	}
 	out := early("not_applicable", "ACTIVITY_EXCLUDED")
 	if r.Eligible {
 		cls, reason, err := classify(ctx, tx, id, plan)
 		if err != nil {
-			return uuid.Nil, err
+			return nil, err
 		}
 		if reason != "" {
 			out = early("not_applicable", reason)
 		} else {
 			s, err := recording.LoadStream(ctx, tx, id)
 			if err != nil {
-				return uuid.Nil, err
+				return nil, err
 			}
 			out, err = calculate(s, r.Sport == "treadmill_running")
 			if err != nil {
-				return uuid.Nil, err
+				return nil, err
 			}
 			if out.value != nil {
 				out.value["session_class"] = cls
@@ -143,5 +143,13 @@ func Refresh(ctx context.Context, tx pgx.Tx, id uuid.UUID, now time.Time) (uuid.
 			}
 		}
 	}
-	return metrics.StoreResult(ctx, tx, metrics.Result{MetricID: ID, MethodVersion: Version, SubjectType: "activity", SubjectKey: id.String(), WindowStart: &r.Start, WindowEnd: r.End, WindowLabel: r.Day, Status: out.status, QualityStatus: out.quality, Value: out.value, ReasonCodes: out.reasons, QualityFlags: out.flags, Unit: "m_per_beat", Timezone: zone, SourceRefs: refs, Config: Config}, now)
+	return &metrics.Result{MetricID: ID, MethodVersion: Version, SubjectType: "activity", SubjectKey: id.String(), WindowStart: &r.Start, WindowEnd: r.End, WindowLabel: r.Day, Status: out.status, QualityStatus: out.quality, Value: out.value, ReasonCodes: out.reasons, QualityFlags: out.flags, Unit: "m_per_beat", Timezone: zone, SourceRefs: refs, Config: Config}, nil
+}
+
+func Refresh(ctx context.Context, tx pgx.Tx, id uuid.UUID, now time.Time) (uuid.UUID, error) {
+	r, err := Calculate(ctx, tx, id)
+	if err != nil || r == nil {
+		return uuid.Nil, err
+	}
+	return metrics.StoreResult(ctx, tx, *r, now)
 }

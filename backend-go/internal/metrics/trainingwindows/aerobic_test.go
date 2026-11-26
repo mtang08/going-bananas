@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics/aerobic"
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics/intensity"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/intervals"
 	"os"
 	"reflect"
 	"regexp"
@@ -61,6 +62,9 @@ func TestAerobicWindowsPostgres(t *testing.T) {
 			if len(c.Keys) > 0 {
 				for _, key := range c.Keys {
 					calc := aerobic.Refresh
+					if c.Metric == "intervals" {
+						calc = intervals.Refresh
+					}
 					if c.Metric == "intensity" {
 						calc = intensity.Refresh
 					}
