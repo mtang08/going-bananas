@@ -27,15 +27,6 @@ type reviewFacts struct {
 	LastBenchmark string            `json:"last_benchmark_date"`
 }
 
-type sessionFields struct {
-	LocalDate string `json:"local_date"`
-	Kind      string `json:"kind"`
-}
-type changeRequest struct {
-	SessionUID string         `json:"session_uid"`
-	After      *sessionFields `json:"after"`
-}
-
 type exceptionDoc struct {
 	Severity string `json:"severity"`
 	Window   struct {

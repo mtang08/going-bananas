@@ -16,6 +16,11 @@ import (
 
 // RuleContext carries the facts needed for draft validation after freshness.
 type RuleContext struct {
+	ReviewDate     string            `json:"review_date"`
+	ConfirmedDates map[string]bool   `json:"confirmed_dates"`
+	OmittedDates   map[string]bool   `json:"omitted_dates"`
+	ConfirmedSlots map[string]string `json:"confirmed_slots"`
+	OmittedSlots   map[string]string `json:"omitted_slots"`
 	reviewFacts
 	Today        string                   `json:"today"`
 	Timezone     string                   `json:"timezone"`
@@ -230,9 +235,20 @@ func textRules(d ruleDocument, raw json.RawMessage, today string) ([]Issue, erro
 	return issues, nil
 }
 
-func ValidateRules(raw json.RawMessage, ctx RuleContext, idx coaching.KnowledgeIndex, ref ReferenceGroups) ([]Issue, error) {
+func ValidateRules(raw, payload json.RawMessage, ctx RuleContext, idx coaching.KnowledgeIndex, ref ReferenceGroups) ([]Issue, error) {
 	var d ruleDocument
 	if err := json.Unmarshal(raw, &d); err != nil {
+		return nil, err
+	}
+	var authored struct {
+		Changes []changeRequest `json:"changes"`
+	}
+	if err := json.Unmarshal(payload, &authored); err != nil {
+		return nil, err
+	}
+	d.Changes = authored.Changes
+	state, err := resulting(d, ctx)
+	if err != nil {
 		return nil, err
 	}
 	issues := append([]Issue{}, ref.Changes...)
@@ -241,7 +257,7 @@ func ValidateRules(raw json.RawMessage, ctx RuleContext, idx coaching.KnowledgeI
 			issues = append(issues, staleIssue("V4.unknown_preserved", fmt.Sprintf("preserved.%d", i)))
 		}
 	}
-	issues = append(issues, ref.Calendar...)
+	issues = append(issues, calendarRules(d, ctx, state)...)
 	for _, group := range []struct {
 		name  string
 		ids   []string

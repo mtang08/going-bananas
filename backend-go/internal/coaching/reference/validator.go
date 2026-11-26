@@ -72,7 +72,7 @@ func (a Adapter) Validate(ctx context.Context, tx pgx.Tx, raw json.RawMessage, n
 	v.Changes = response.Changes
 	v.Status, v.Issues, err = drafts.Freshness(s, d, response.Current, kb, now)
 	if err == nil && v.Status == "pending" {
-		v.Issues, err = drafts.ValidateRules(v.Document, response.Context, idx, response.Groups)
+		v.Issues, err = drafts.ValidateRules(v.Document, v.Payload, response.Context, idx, response.Groups)
 		if len(v.Issues) > 0 {
 			v.Status = "invalid"
 		}

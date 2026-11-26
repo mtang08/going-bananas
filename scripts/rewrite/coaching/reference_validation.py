@@ -17,19 +17,22 @@ def rule_inputs(doc, ctx):
     start, end = v.scope(doc.operation, ctx.today, v._horizon_review_date(doc, ctx))
     state = v._resulting(doc, ctx)
     change_issues = v._change_rules(doc, ctx, start=start, end=end, state=state)
-    omissions, deletions, calendar_issues = v._strength_omission_rules(doc, ctx, state)
-    calendar_issues += v._calendar_shape_rules(
-        state,
-        start=start,
-        end=end,
-        head_sessions=ctx.head_sessions,
-        omissions=omissions,
-        marked_deletions=deletions,
-    )
     return {
         "rule_context": {
             "today": ctx.today,
             "timezone": str(ctx.tz),
+            "review_date": ctx.active_block.review_date if ctx.active_block else None,
+            "confirmed_dates": {str(x): True for x in ctx.confirmed_strength_dates},
+            "omitted_dates": {
+                str(x): True for x in ctx.accepted_strength_omission_dates
+            },
+            "confirmed_slots": {
+                str(k): str(v) for k, v in ctx.confirmed_strength_slot_ids.items()
+            },
+            "omitted_slots": {
+                str(k): str(v)
+                for k, v in ctx.accepted_strength_omission_slot_ids.items()
+            },
             "block_uid": str(ctx.active_block.block_uid) if ctx.active_block else "",
             "head_sessions": {
                 str(uid): vars(row) for uid, row in ctx.head_sessions.items()
@@ -55,7 +58,6 @@ def rule_inputs(doc, ctx):
         },
         "groups": {
             "changes": [x.to_json() for x in change_issues],
-            "calendar": [x.to_json() for x in calendar_issues],
         },
     }
 
