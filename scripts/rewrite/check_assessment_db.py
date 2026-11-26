@@ -106,7 +106,7 @@ def compare(py, go):
             raise AssertionError(f"{key} differs: {left[key]} vs {right[key]}")
 
 
-WINDOW_METRICS={"volume":"run_volume_frequency","symptoms":"symptom_response_timeline","long":"long_run_exposure","intensity":"intensity_time_distribution"}
+WINDOW_METRICS={"volume":"run_volume_frequency","symptoms":"symptom_response_timeline","long":"long_run_exposure","intensity":"intensity_time_distribution","rpe":"session_rpe_load"}
 
 def python_spacing(mode, uid):
     from datetime import date
@@ -129,6 +129,8 @@ def spacing_check(binary, py, go):
             for n,stamp,gait in [(192,"2026-11-15 03:20:00.000400Z","yes"),(193,"2026-11-15 12:00Z","no")]:
                 db.execute("INSERT INTO checkins_v2(id,idempotency_key,kind,observed_at,gait_change) VALUES(%s,%s,'exception',%s,%s)",(id(n),str(n),stamp,gait))
                 db.execute("INSERT INTO symptom_reports(id,checkin_id,site,side,severity,timing) VALUES(%s,%s,%s,'left',%s,'later')",(id(n+10),id(n)," Knee " if n==192 else "knee",2.5 if n==192 else 1.0))
+            for n,field,subject,source,rpe in [(195,"activity_id",21,"manual",7.5),(196,"activity_id",21,"garmin_fit",6.0),(197,"manual_session_id",31,"manual",4.0)]:
+                db.execute(f"INSERT INTO session_rpe(id,{field},rpe,source,collected_at,collection_delay_s) VALUES(%s,%s,%s,%s,'2026-11-10 11:23:34.051Z',600)", (id(n),id(subject),rpe,source))
             result={"status":"partial","easy_s":80.0,"moderate_s":10.0,"high_s":0.0,"valid_s":90.0,"unknown_s":10.0,"eligible_timer_s":100.0,"unclassified_s":0.0}
             db.execute("""INSERT INTO metric_results(id,metric_id,method_version,subject_type,subject_key,status,value,source_refs,config_hash,calculated_at,dependency_hash,timezone,anchor_set_hash,anchor_keys)
                 VALUES(%s,'intensity_time_distribution','v1','activity',%s,'partial',%s,'{}',%s,now(),%s,'America/New_York',%s,'{hr_threshold_lower}')""",
@@ -146,7 +148,7 @@ def spacing_check(binary, py, go):
             with conn(env) as db:
                 values.append(db.execute("SELECT to_jsonb(m)-'id' FROM metric_results m WHERE metric_id=%s AND subject_type='window' ORDER BY subject_key,dependency_hash",(metric,)).fetchall())
         return values
-    for mode, n in [("volume",1),("long",1),("intensity",1),("symptoms",1),("date",1),("manual",5),("manual",1),("association",5)]:
+    for mode, n in [("volume",1),("long",1),("intensity",1),("rpe",1),("symptoms",1),("date",1),("manual",5),("manual",1),("association",5)]:
         if mode=="association":
             for env in [py,go]:
                 with conn(env) as db:
