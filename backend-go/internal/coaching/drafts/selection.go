@@ -23,6 +23,10 @@ type DecisionRequest struct {
 	Anchors  []string `json:"accept_anchor_changes"`
 }
 type PreparedDecision struct {
+	parsed       Validation
+	rules        RuleContext
+	current      CurrentEvidence
+	snapshot     Snapshot
 	ProposalID   uuid.UUID                  `json:"proposal_id"`
 	Selection    DecisionRequest            `json:"selection"`
 	DecisionHash string                     `json:"decision_hash"`
@@ -247,5 +251,6 @@ func PrepareDecision(ctx context.Context, tx pgx.Tx, id uuid.UUID, r DecisionReq
 	if len(issues) > 0 {
 		return out, &CommandError{Error{"proposal_invalid_subset", "Accepted subset is invalid", 422}, issues}
 	}
+	out.parsed, out.rules, out.current, out.snapshot = parsed, rules, current, snap
 	return out, nil
 }
