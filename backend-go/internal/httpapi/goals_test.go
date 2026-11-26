@@ -22,6 +22,10 @@ func (f patchFunc) Patch(ctx context.Context, id uuid.UUID, p goals.Patch) (goal
 	return f(ctx, id, p)
 }
 
+func (patchFunc) Create(context.Context, string, string, int) (goals.Result, error) {
+	panic("unexpected create")
+}
+
 func TestGoalPatchHTTP(t *testing.T) {
 	const id = "9248048b-7c1e-4948-b0a1-f0623c9d7e13"
 	writer := patchFunc(func(_ context.Context, key uuid.UUID, p goals.Patch) (goals.Result, error) {
@@ -54,7 +58,7 @@ func TestGoalPatchHTTP(t *testing.T) {
 	})
 	ts := httptest.NewUnstartedServer(nil)
 	_, port, _ := strings.Cut(ts.Listener.Addr().String(), ":")
-	ts.Config.Handler = New(nil, writer, api.Test, port, "5173")
+	ts.Config.Handler = New(nil, writer, nil, api.Test, port, "5173")
 	ts.Start()
 	defer ts.Close()
 	request := func(id, body, local, contentType, origin string) (int, []byte, http.Header) {

@@ -23,7 +23,8 @@ def test_single_chained_schema_head() -> None:
     script = ScriptDirectory.from_config(config)
     assert script.get_heads() == [EXPECTED_HEAD]
     revisions = [revision.revision for revision in script.walk_revisions()]
-    assert revisions[:18] == [
+    assert revisions[:19] == [
+        "0028_coach_chat_reviews",
         "0027_rehab_sessions",
         "0026_workout_response",
         "0025_coach_output_v2",
@@ -54,6 +55,7 @@ def test_required_tables_are_in_metadata() -> None:
         coach_plan_revisions coach_recommendations coach_outcomes coach_outcome_events
         legacy_import_runs legacy_import_map
         blocks block_versions block_decisions goals events strength_routine_slots
+        coach_chat_reviews coach_chat_receipts coach_chat_file_imports
         intensity_anchors metric_configs metric_results prompts coach_snapshots
         coach_proposals coach_proposal_revisions coach_proposal_changes coach_decision_keys
         exception_patches exception_findings block_benchmarks gcal_events trips trip_legs""".split()

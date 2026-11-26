@@ -13,6 +13,7 @@ import (
 )
 
 type GoalWriter interface {
+	Create(context.Context, string, string, int) (goals.Result, error)
 	Patch(context.Context, uuid.UUID, goals.Patch) (goals.Result, error)
 }
 
@@ -47,8 +48,12 @@ func (s server) PatchGoal(ctx context.Context, req api.PatchGoalRequestObject) (
 	case err != nil:
 		return nil, err
 	}
+	return api.PatchGoal200JSONResponse(s.goalEnvelope(result)), nil
+}
+
+func (s server) goalEnvelope(result goals.Result) api.GoalEnvelope {
 	row := result.Goal
-	return api.PatchGoal200JSONResponse{
+	return api.GoalEnvelope{
 		SchemaVersion: api.V1,
 		Mode:          s.mode,
 		DataRevision:  result.DataRevision,
@@ -60,12 +65,39 @@ func (s server) PatchGoal(ctx context.Context, req api.PatchGoalRequestObject) (
 			Status:   api.GoalStatus(row.Status),
 			Version:  row.Version,
 		},
-	}, nil
+	}
+}
+
+func (s server) CreateGoal(ctx context.Context, req api.CreateGoalRequestObject) (api.CreateGoalResponseObject, error) {
+	b := req.Body
+	result, err := s.writer.Create(ctx, b.Text, string(b.Horizon), b.Priority)
+	if err != nil {
+		return nil, err
+	}
+	return api.CreateGoal201JSONResponse(s.goalEnvelope(result)), nil
+}
+
+func (s server) serveCreateGoal(w http.ResponseWriter, r *http.Request) {
+	fieldsBody, fields := decodeGoalInput(r.Body, true)
+	if len(fields) > 0 {
+		resp := api.CreateGoal422JSONResponse{Error: api.ErrorDetail{Code: "validation_error", Message: "Invalid request fields", RequestId: requestID(r.Context()), Fields: fields}}
+		_ = resp.VisitCreateGoalResponse(w)
+		return
+	}
+	body := api.GoalCreate{Text: *suppliedValue(fieldsBody.Text), Horizon: *suppliedValue(fieldsBody.Horizon), Priority: *suppliedValue(fieldsBody.Priority)}
+	resp, err := s.CreateGoal(r.Context(), api.CreateGoalRequestObject{Body: &body})
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	if err := resp.VisitCreateGoalResponse(w); err != nil {
+		internalError(w, r, err)
+	}
 }
 
 func (s server) serveGoal(w http.ResponseWriter, r *http.Request, rawID string) {
 	id, idErr := uuid.Parse(rawID)
-	input, fields := decodeGoalPatch(r.Body)
+	input, fields := decodeGoalInput(r.Body, false)
 	invalidWrapper := len(rawID) == 38 && (!strings.HasPrefix(rawID, "{") || !strings.HasSuffix(rawID, "}")) || len(rawID) == 45 && !strings.HasPrefix(rawID, "urn:uuid:")
 	if (idErr != nil || invalidWrapper) && (len(fields) == 0 || fields[0].Message != "JSON decode error") {
 		fields = append([]api.ValidationField{{Field: "path.goal_id", Message: uuidMessage(rawID)}}, fields...)

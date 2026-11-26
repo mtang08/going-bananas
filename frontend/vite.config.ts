@@ -28,8 +28,21 @@ const goProxy: Plugin = {
           server.middlewares.use((req, res, next) => {
             const path = req.url?.split('?', 1)[0] ?? ''
             if (
-              (req.method === 'GET' && path === '/api/v1/coach/proposals') ||
-              (req.method === 'PATCH' && /^\/api\/v1\/goals\/[^/]+$/.test(path))
+              (req.method === 'GET' &&
+                [
+                  '/api/v1/coach/proposals',
+                  '/api/v1/calendar/versions',
+                  '/api/v1/goals',
+                  '/api/v1/google-calendar/status',
+                  '/api/v1/google-calendar/events',
+                  '/api/v1/trips',
+                ].includes(path)) ||
+              (req.method === 'POST' &&
+                ['/api/v1/goals', '/api/v1/google-calendar/sync', '/api/v1/trips'].includes(
+                  path,
+                )) ||
+              (req.method === 'PATCH' &&
+                /^\/api\/v1\/(?:goals|trips|google-calendar\/events)\/[^/]+$/.test(path))
             )
               return proxy.web(req, res, { target })
             next()

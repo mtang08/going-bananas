@@ -116,6 +116,11 @@ async function renderState(state) {
   }
 }
 
+function isTravel(requestPath) {
+  const path = requestPath.split('?')[0]
+  return path === '/api/v1/trips' || path.startsWith('/api/v1/google-calendar/')
+}
+
 async function checkState(state) {
   upstreams.length = 0
   disconnectList = state === 'failed'
@@ -129,7 +134,7 @@ async function checkState(state) {
     'Home did not request calendar',
   )
   for (const { path, target } of upstreams) {
-    assert.equal(target, path === list ? candidate : python, 'Wrong upstream for ' + path)
+    assert.equal(target, [list, '/api/v1/goals'].includes(path) || isTravel(path) ? candidate : python, 'Wrong upstream for ' + path)
   }
 }
 
@@ -163,12 +168,12 @@ async function checkGoalEdit() {
   for (const request of upstreams) {
     assert.equal(
       request.target,
-      request === writes[0] ? candidate : python,
+      request === writes[0] || request.path === goalsPath || isTravel(request.path) ? candidate : python,
       'Wrong upstream for ' + request.path,
     )
   }
   console.log(
-    `PASS Settings (${engine}) created a goal in Python, edited it in Go, and reloaded it from Python.`,
+    `PASS Settings (${engine}) created, edited and reloaded a goal in Go.`,
   )
 }
 
@@ -176,6 +181,18 @@ try {
   await vite.listen()
   origin = 'http://127.0.0.1:' + vite.httpServer.address().port
   httpRequests.subscribe(observeUpstream)
+  const tripsPath = '/api/v1/trips'
+  const body = { start_date: '2026-06-08', end_date: '2026-06-10', destination_label: 'Synthetic trip', destination_tz: 'Europe/Paris' }
+  const create = await fetch(origin + tripsPath, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Local-Request': '1' }, body: JSON.stringify(body),
+  })
+  assert.equal(create.status, 201, 'Go trip write through Vite')
+  const created = (await create.json()).data
+  assert.equal(created.destination_label, body.destination_label)
+  assert(upstreams.some(r => r.method === 'POST' && r.path === tripsPath && r.target === candidate))
+  const forbidden = await fetch(origin + tripsPath, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  assert.equal(forbidden.status, 403)
+  console.log('PASS trip creation used Go and enforced the shared local write guard')
   await checkState('open')
   setFixtureStatus('pending', 'accepted')
   try {

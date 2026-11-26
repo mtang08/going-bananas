@@ -45,13 +45,47 @@ def main():
                 pass
         return issues
 
-    with patch.object(validation, "_rules", capture):
+    subsets = []
+    reference_subset = validation.validate_subset
+
+    def capture_subset(
+        doc, accepted_ids, accept_block_change, accepted_anchor_keys, ctx
+    ):
+        issues = reference_subset(
+            doc, accepted_ids, accept_block_change, accepted_anchor_keys, ctx
+        )
+        case = rule_inputs(doc, ctx)
+        case.update(
+            document=doc.model_dump(mode="json"),
+            payload=doc.model_dump(mode="json", exclude_unset=True),
+            expected=[i.to_json() for i in issues],
+            selection=dict(
+                accept_change_ids=sorted(accepted_ids),
+                accept_block_change=accept_block_change,
+                accept_anchor_changes=sorted(accepted_anchor_keys),
+            ),
+            index=dict(
+                PolicyIDs=dict.fromkeys(ctx.kb.policy_ids, True),
+                RecipeIDs=dict.fromkeys(ctx.kb.recipe_ids, True),
+                EvidenceIDs=dict.fromkeys(ctx.kb.evidence_ids, True),
+            ),
+        )
+        try:
+            subsets.append(json.dumps(case, default=str, allow_nan=False))
+        except ValueError:
+            pass  # The submission canonicalizer rejects nonfinite numbers.
+        return issues
+
+    with (
+        patch.object(validation, "_rules", capture),
+        patch.object(validation, "validate_subset", capture_subset),
+    ):
         result = pytest.main(["-q", str(ROOT / "backend/tests/unit/test_proposals.py")])
-    if result or not cases:
+    if result or not cases or not subsets:
         raise SystemExit(result or "empty corpus")
     with tempfile.TemporaryDirectory(dir=ROOT / "private") as scratch:
         path = Path(scratch) / "rules.json"
-        path.write_text("[" + ",\n".join(cases) + "]")
+        path.write_text("[" + ",\n".join(cases + subsets) + "]")
         subprocess.run(
             [
                 "go",
@@ -66,7 +100,7 @@ def main():
             check=True,
         )
     print(
-        f"Matched ordered validation issues on {len(cases)} Python proposal rule calls."
+        f"Matched ordered validation issues on {len(cases)} full proposals and {len(subsets)} partial selections."
     )
 
 

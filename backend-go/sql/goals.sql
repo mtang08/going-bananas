@@ -20,3 +20,11 @@ UPDATE app_state
 SET data_revision = data_revision + 1
 WHERE id = 1
 RETURNING data_revision;
+
+-- name: ListGoals :many
+SELECT * FROM goals ORDER BY priority, id;
+
+-- name: CreateGoal :one
+INSERT INTO goals (id, text, horizon, priority, status, version)
+VALUES (sqlc.arg(id), sqlc.arg(goal_text), sqlc.arg(horizon), sqlc.arg(priority)::bigint, 'active', 1)
+RETURNING *;

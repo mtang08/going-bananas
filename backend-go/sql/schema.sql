@@ -295,6 +295,23 @@ CREATE TABLE public.checkins_v2 (
     CONSTRAINT ck_checkins_v2_kind CHECK (((kind)::text = ANY ((ARRAY['exception'::character varying, 'post_run'::character varying, 'delayed_followup'::character varying])::text[])))
 );
 
+CREATE TABLE public.coach_chat_file_imports (
+    mode text NOT NULL
+);
+
+CREATE TABLE public.coach_chat_receipts (
+    mode text NOT NULL,
+    client_message_id uuid NOT NULL,
+    digest text NOT NULL
+);
+
+CREATE TABLE public.coach_chat_reviews (
+    mode text NOT NULL,
+    id uuid NOT NULL,
+    state jsonb NOT NULL,
+    current boolean NOT NULL
+);
+
 CREATE TABLE public.coach_decision_keys (
     idempotency_key character varying(100) NOT NULL,
     proposal_id uuid NOT NULL,
@@ -1058,6 +1075,15 @@ ALTER TABLE ONLY public.checkins_v2
 ALTER TABLE ONLY public.checkins_v2
     ADD CONSTRAINT checkins_v2_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.coach_chat_file_imports
+    ADD CONSTRAINT coach_chat_file_imports_pkey PRIMARY KEY (mode);
+
+ALTER TABLE ONLY public.coach_chat_receipts
+    ADD CONSTRAINT coach_chat_receipts_pkey PRIMARY KEY (mode, client_message_id);
+
+ALTER TABLE ONLY public.coach_chat_reviews
+    ADD CONSTRAINT coach_chat_reviews_pkey PRIMARY KEY (mode, id);
+
 ALTER TABLE ONLY public.coach_decision_keys
     ADD CONSTRAINT coach_decision_keys_pkey PRIMARY KEY (idempotency_key);
 
@@ -1300,6 +1326,8 @@ ALTER TABLE ONLY public.trip_legs
 
 ALTER TABLE ONLY public.weekly_snapshots
     ADD CONSTRAINT weekly_snapshots_pkey PRIMARY KEY (id);
+
+CREATE UNIQUE INDEX coach_chat_current ON public.coach_chat_reviews USING btree (mode) WHERE current;
 
 CREATE INDEX ix_activities_local_date ON public.activities USING btree (local_date);
 

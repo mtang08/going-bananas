@@ -137,6 +137,7 @@ def main():
         'proposal': 'test_proposal_slice.py',
         'provider': 'check_provider_replay.py',
         'strong': 'check_strong_import.py',
+        'assessment': 'check_assessment_db.py',
         'gcal': 'check_gcal_replay.py',
         'travel-http': 'check_travel_http.py',
         'provider-jobs': 'check_provider_jobs.py',
@@ -144,6 +145,8 @@ def main():
         'backup': 'check_workspace_backup.py',
         'phone-checkins': 'check_phone_checkins.py',
         'calendar': 'check_self_reports.py',
+        'rematch': 'check_rematch.py',
+        'dashboard': 'check_dashboard.py',
     }
     actions = ['start', 'stop', 'test', 'test-external', *checks, *(name + '-external' for name in checks)]
     parser.add_argument('action', choices=actions)

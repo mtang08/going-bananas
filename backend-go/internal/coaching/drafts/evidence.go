@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching"
+	"github.com/mtang08/going-bananas/backend-go/internal/coaching/evidence"
 )
 
 type Snapshot struct {
@@ -91,4 +92,43 @@ func Freshness(s Snapshot, d DocumentBase, current CurrentEvidence, kb coaching.
 		return "stale", []Issue{staleIssue("V3.stale_sources", "snapshot_id")}, nil
 	}
 	return "pending", issues, nil
+}
+
+// SnapshotEvidence compares the persisted evidence and the current source facts
+// against the fingerprint that the proposal author saw.
+type SnapshotEvidence struct {
+	Snapshot             Snapshot `json:"snapshot"`
+	PersistedFingerprint string   `json:"persisted_fingerprint"`
+	CurrentFingerprint   string   `json:"current_fingerprint"`
+	Current              bool     `json:"current"`
+}
+
+func (s Store) ReadSnapshot(ctx context.Context, id uuid.UUID, now time.Time, kbRoot string) (SnapshotEvidence, error) {
+	var result SnapshotEvidence
+	err := pgx.BeginTxFunc(ctx, s.Pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		snap, err := LoadSnapshot(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		result.Snapshot = snap
+		kb, _, err := coaching.VerifySelection(kbRoot, snap.Selection)
+		if err != nil {
+			return &Error{"knowledge_unavailable", "Verified knowledge is unavailable", 503}
+		}
+		sources, err := evidence.Collect(ctx, tx, snap.Operation, snap.AsOf, now)
+		if err != nil {
+			return err
+		}
+		_, result.PersistedFingerprint, err = coaching.Fingerprint(snap.Sources, kb)
+		if err != nil {
+			return err
+		}
+		_, result.CurrentFingerprint, err = coaching.Fingerprint(sources, kb)
+		if err != nil {
+			return err
+		}
+		result.Current = result.CurrentFingerprint == snap.Fingerprint && result.PersistedFingerprint == snap.Fingerprint && snap.KBDigest == kb.Digest
+		return nil
+	})
+	return result, err
 }

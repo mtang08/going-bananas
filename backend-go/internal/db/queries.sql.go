@@ -22,6 +22,60 @@ func (q *Queries) DataRevision(ctx context.Context) (int32, error) {
 	return data_revision, err
 }
 
+const listCalendarVersions = `-- name: ListCalendarVersions :many
+SELECT id, number, parent_number, kind, actor, reason, proposal_id, restored_from_number,
+       block_version_id, created_at, extract(timezone FROM created_at)::integer AS created_offset
+FROM calendar_versions
+ORDER BY number DESC
+LIMIT $1
+`
+
+type ListCalendarVersionsRow struct {
+	ID                 pgtype.UUID
+	Number             int32
+	ParentNumber       pgtype.Int4
+	Kind               string
+	Actor              string
+	Reason             pgtype.Text
+	ProposalID         pgtype.UUID
+	RestoredFromNumber pgtype.Int4
+	BlockVersionID     pgtype.UUID
+	CreatedAt          pgtype.Timestamptz
+	CreatedOffset      int32
+}
+
+func (q *Queries) ListCalendarVersions(ctx context.Context, limit int32) ([]ListCalendarVersionsRow, error) {
+	rows, err := q.db.Query(ctx, listCalendarVersions, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListCalendarVersionsRow
+	for rows.Next() {
+		var i ListCalendarVersionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Number,
+			&i.ParentNumber,
+			&i.Kind,
+			&i.Actor,
+			&i.Reason,
+			&i.ProposalID,
+			&i.RestoredFromNumber,
+			&i.BlockVersionID,
+			&i.CreatedAt,
+			&i.CreatedOffset,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProposals = `-- name: ListProposals :many
 SELECT id, revision, operation, status, submitted_at, decided_at, discarded_at,
        extract(timezone FROM submitted_at)::integer AS submitted_offset,
