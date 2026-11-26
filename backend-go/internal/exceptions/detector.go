@@ -87,8 +87,8 @@ func maintain(ctx context.Context, tx pgx.Tx, now time.Time, today string, found
 		}
 		id := uuid.New()
 		tag, err = tx.Exec(ctx, `INSERT INTO exception_findings(id,rule_code,rule_version,category,severity,entity_key,status,summary,evidence,evidence_at,first_seen_at,last_seen_at)
-			SELECT $1,$2,'exceptions.v1',$3,$4,$5,'open',$6,$7::jsonb,$8,$9,$9
-			WHERE NOT coalesce((SELECT closed_at >= $8::timestamptz FROM exception_findings WHERE rule_code=$2 AND entity_key=$5
+			SELECT $1::uuid,$2::text,'exceptions.v1',$3::text,$4::text,$5::text,'open',$6::text,$7::jsonb,$8::timestamptz,$9::timestamptz,$9::timestamptz
+			WHERE NOT coalesce((SELECT closed_at >= $8::timestamptz FROM exception_findings WHERE rule_code=$2::text AND entity_key=$5::text
 				AND status NOT IN ('open','addressed') ORDER BY closed_at DESC NULLS LAST,id DESC LIMIT 1),false)`, id, c.Code, c.Category, c.Severity, c.Key, c.Summary, c.Evidence, c.At, now)
 		if err != nil {
 			return nil, err
