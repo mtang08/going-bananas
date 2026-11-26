@@ -2,8 +2,10 @@ package trainingwindows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +17,7 @@ var rpeConfig = object{"rpe_precedence": []string{"manual", "garmin_fit"}, "rpe_
 
 type rpeFact struct {
 	key, day, kind       string
+	excluded             bool
 	duration, rpe, other *float64
 	source               string
 	delay                *int
@@ -71,25 +74,29 @@ func rpeRuns(ctx context.Context, tx pgx.Tx, runs []*metrics.Run) ([]rpeFact, er
 	return facts, nil
 }
 
-func rpeStrength(ctx context.Context, tx pgx.Tx, start, end time.Time) ([]rpeFact, error) {
-	rows, err := tx.Query(ctx, `SELECT w.id,w.local_date::text,w.local_start,w.duration_s,w.payload_hash,w.source_record_id,s.payload_hash,s.parser_version,w.raw_object_id,r.sha256
- FROM strong_workouts w LEFT JOIN source_records s ON s.id=w.source_record_id LEFT JOIN raw_objects r ON r.id=w.raw_object_id WHERE w.resolution_state='resolved'
- AND w.local_date>=$1::text::date AND w.local_date<$2::text::date ORDER BY w.local_date,w.id`, start.Format(time.DateOnly), end.Format(time.DateOnly))
+func rpeStrength(ctx context.Context, tx pgx.Tx, start, end time.Time, includeUnresolved bool) ([]rpeFact, error) {
+	rows, err := tx.Query(ctx, `SELECT w.id,w.local_date::text,w.local_start,w.duration_s,w.payload_hash,w.source_record_id,s.payload_hash,s.parser_version,w.raw_object_id,r.sha256,w.resolution_state
+ FROM strong_workouts w LEFT JOIN source_records s ON s.id=w.source_record_id LEFT JOIN raw_objects r ON r.id=w.raw_object_id WHERE (w.resolution_state='resolved' OR $3)
+ AND w.local_date>=$1::text::date AND w.local_date<$2::text::date ORDER BY w.local_date,w.id`, start.Format(time.DateOnly), end.Format(time.DateOnly), includeUnresolved)
 	if err != nil {
 		return nil, err
 	}
 	facts, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (rpeFact, error) {
 		var f rpeFact
 		var id, source, raw uuid.UUID
-		var stamp, payload string
+		var stamp, payload, state string
 		var sHash, parser, rHash *string
-		err := row.Scan(&id, &f.day, &stamp, &f.duration, &payload, &source, &sHash, &parser, &raw, &rHash)
+		err := row.Scan(&id, &f.day, &stamp, &f.duration, &payload, &source, &sHash, &parser, &raw, &rHash, &state)
 		if err != nil {
 			return f, err
 		}
+		f.excluded = state != "resolved"
 		f.key = "strong:" + id.String()
 		f.kind = "strength"
 		f.refs = object{"strong_workout_id": id, "payload_hash": payload, "source_record_id": source, "source_payload_hash": sHash, "source_parser_version": parser, "raw_object_id": raw, "raw_sha256": rHash}
+		if f.excluded {
+			f.refs["excluded"] = true
+		}
 		for _, layout := range []string{"2006-01-02 15:04:05", "2006-01-02T15:04:05"} {
 			t, err := time.ParseInLocation(layout, stamp, start.Location())
 			if err == nil {
@@ -246,7 +253,7 @@ func RefreshRPE(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	strength, err := rpeStrength(ctx, tx, earliest, end)
+	strength, err := rpeStrength(ctx, tx, earliest, end, false)
 	if err != nil {
 		return err
 	}
@@ -289,4 +296,131 @@ func RefreshRPE(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error {
 		}
 	}
 	return nil
+}
+
+func rpeResult(f rpeFact, zone string) metrics.Result {
+	var duration, durationMin, load any
+	var source any
+	if f.source != "" {
+		source = f.source
+	}
+	validDuration := finite(f.duration) && *f.duration >= 0
+	if validDuration {
+		duration = round(*f.duration, 1)
+		durationMin = round(*f.duration/60, 1)
+	}
+	reasons, flags := []string{}, []string{}
+	status, q := "available", "good"
+	switch {
+	case f.rpe != nil && (!finite(f.rpe) || *f.rpe < 0 || *f.rpe > 10):
+		status = "invalid"
+		reasons = append(reasons, "RPE_OUT_OF_RANGE")
+	default:
+		if f.rpe == nil {
+			reasons = append(reasons, "RPE_MISSING")
+		}
+		if !validDuration {
+			reasons = append(reasons, "DURATION_MISSING")
+		}
+		if len(reasons) > 0 {
+			status = "missing"
+		} else {
+			load = round(*f.rpe**f.duration/60, 1)
+		}
+	}
+	if f.rpe != nil && f.other != nil && *f.rpe != *f.other {
+		flags = append(flags, "RPE_SOURCE_CONFLICT")
+		q = "limited"
+	}
+	if status != "available" {
+		q = ""
+	}
+	var value any = object{"kind": f.kind, "duration_s": duration, "duration_min": durationMin, "rpe": f.rpe, "rpe_source": source, "other_source_rpe": f.other, "collection_delay_s": f.delay, "load_au": load}
+	if f.excluded {
+		status = "not_applicable"
+		q = ""
+		reasons = []string{"ACTIVITY_EXCLUDED"}
+		flags = []string{}
+		value = nil
+	}
+	return metrics.Result{MetricID: "session_rpe_load", MethodVersion: "v1", SubjectType: "activity", SubjectKey: f.key, WindowLabel: f.day, WindowStart: f.start, WindowEnd: f.end, Config: rpeConfig, SourceRefs: f.refs, Timezone: zone, Status: status, QualityStatus: q, ReasonCodes: reasons, QualityFlags: flags, Value: value, Unit: "AU"}
+}
+func persistRPE(ctx context.Context, tx pgx.Tx, f rpeFact, zone string, now time.Time) error {
+	_, err := metrics.StoreResult(ctx, tx, rpeResult(f, zone), now)
+	return err
+}
+
+func RefreshStrength(ctx context.Context, tx pgx.Tx, first, endExclusive time.Time, now time.Time) error {
+	facts, err := rpeStrength(ctx, tx, first, endExclusive, true)
+	if err != nil {
+		return err
+	}
+	for _, f := range facts {
+		if err := persistRPE(ctx, tx, f, first.Location().String(), now); err != nil {
+			return err
+		}
+	}
+	_, err = tx.Exec(ctx, `UPDATE metric_results m SET is_current=false FROM manual_sessions s
+ WHERE m.metric_id='session_rpe_load' AND method_version='v1' AND is_current AND m.subject_key='manual:'||s.id::text
+ AND s.date>=$1::text::date AND s.date<$2::text::date AND(s.kind<>'strength' OR s.linked_activity_id IS NOT NULL)`, first.Format(time.DateOnly), endExclusive.Format(time.DateOnly))
+	return err
+}
+
+func RefreshRunRPE(ctx context.Context, tx pgx.Tx, id uuid.UUID, zone string, now time.Time) error {
+	run, err := metrics.LoadRun(ctx, tx, id, zone)
+	if err != nil {
+		return err
+	}
+	if run == nil || !isRunning(run.Sport) {
+		_, err := tx.Exec(ctx, `UPDATE metric_results SET is_current=false WHERE metric_id='session_rpe_load' AND method_version='v1' AND subject_key=$1 AND is_current`, id.String())
+		return err
+	}
+	facts, err := rpeRuns(ctx, tx, []*metrics.Run{run})
+	if err != nil {
+		return err
+	}
+	f := facts[0]
+	f.excluded = !run.Eligible
+	f.refs["activity_id"] = id
+	return persistRPE(ctx, tx, f, zone, now)
+}
+func isRunning(sport string) bool {
+	return sport == "running" || sport == "trail_running" || sport == "treadmill_running"
+}
+
+func RefreshStrengthKey(ctx context.Context, tx pgx.Tx, key string, zone *time.Location, now time.Time) error {
+	prefix, id, ok := strings.Cut(key, ":")
+	if !ok || prefix != "strong" && prefix != "manual" {
+		return fmt.Errorf("invalid strength subject")
+	}
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	sql := `SELECT local_date::text FROM strong_workouts WHERE id=$1`
+	if prefix == "manual" {
+		sql = `SELECT date::text FROM manual_sessions WHERE id=$1`
+	}
+	var day string
+	err = tx.QueryRow(ctx, sql, uid).Scan(&day)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if err == nil {
+		start, err := time.ParseInLocation(time.DateOnly, day, zone)
+		if err != nil {
+			return err
+		}
+		facts, err := rpeStrength(ctx, tx, start, start.AddDate(0, 0, 1), true)
+		if err != nil {
+			return err
+		}
+		for _, f := range facts {
+			if f.key == key {
+				return persistRPE(ctx, tx, f, zone.String(), now)
+			}
+		}
+	}
+	_, err = tx.Exec(ctx, `UPDATE metric_results SET is_current=false WHERE metric_id='session_rpe_load' AND method_version='v1' AND subject_key=$1 AND is_current`, key)
+	return err
 }
