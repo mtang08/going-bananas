@@ -72,27 +72,28 @@ func hasProvenance(refs map[string]any) bool {
 	return false
 }
 
-// StoreResult registers the config and selects or creates the immutable metric result on the caller's locked transaction.
-func StoreResult(ctx context.Context, tx pgx.Tx, r Result, now time.Time) (uuid.UUID, error) {
+type prepared struct {
+	Result
+	cfg, dep string
+	refs     []byte
+}
+
+func prepare(r Result) (prepared, error) {
 	cfg, err := Digest(r.Config)
 	if err != nil {
-		return uuid.Nil, err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO metric_configs(id,metric_id,method_version,config,config_hash) VALUES(gen_random_uuid(),$1,$2,$3,$4) ON CONFLICT(metric_id,method_version,config_hash) DO NOTHING`, r.MetricID, r.MethodVersion, r.Config, cfg)
-	if err != nil {
-		return uuid.Nil, err
+		return prepared{}, err
 	}
 	refs, err := canonicaljson.Metric(r.SourceRefs)
 	if err != nil {
-		return uuid.Nil, err
+		return prepared{}, err
 	}
 	normalized, err := JSONValue(refs)
 	if err != nil {
-		return uuid.Nil, err
+		return prepared{}, err
 	}
 	dep, err := Digest(object{"source_refs": normalized, "config_hash": cfg, "anchor_set_hash": r.AnchorSetHash, "timezone": r.Timezone, "calculator_dependency_hash": r.CalculatorDependencyHash})
 	if err != nil {
-		return uuid.Nil, err
+		return prepared{}, err
 	}
 	normalizedRefs, _ := normalized.(map[string]any)
 	if !hasProvenance(normalizedRefs) || r.Timezone == "" {
@@ -103,8 +104,43 @@ func StoreResult(ctx context.Context, tx pgx.Tx, r Result, now time.Time) (uuid.
 		}
 		dep, err = Digest(object{"missing_provenance": true, "computed": dep})
 		if err != nil {
-			return uuid.Nil, err
+			return prepared{}, err
 		}
+	}
+	r.SourceRefs = normalizedRefs
+	return prepared{r, cfg, dep, refs}, nil
+}
+
+// Preview returns the transient metric row shape without accessing storage.
+func Preview(r Result, now time.Time) (map[string]any, error) {
+	p, err := prepare(r)
+	if err != nil {
+		return nil, err
+	}
+	nullable := func(s string) any {
+		if s == "" {
+			return nil
+		}
+		return s
+	}
+	return map[string]any{"id": nil, "metric_id": p.MetricID, "method_version": p.MethodVersion, "subject_type": p.SubjectType, "subject_key": p.SubjectKey,
+		"window_start": p.WindowStart, "window_end": p.WindowEnd, "window_label": nullable(p.WindowLabel), "status": p.Status, "quality_status": nullable(p.QualityStatus),
+		"value": p.Value, "unit": nullable(p.Unit), "reason_codes": append([]string{}, p.ReasonCodes...), "quality_flags": append([]string{}, p.QualityFlags...),
+		"source_refs": p.SourceRefs, "anchor_keys": append([]string{}, p.AnchorKeys...), "config_hash": p.cfg, "anchor_set_hash": p.AnchorSetHash, "dependency_hash": p.dep,
+		"calculated_at": now, "timezone": p.Timezone, "is_current": false}, nil
+}
+
+// StoreResult registers the config and selects or creates the immutable metric result on the caller's locked transaction.
+func StoreResult(ctx context.Context, tx pgx.Tx, r Result, now time.Time) (uuid.UUID, error) {
+	p, err := prepare(r)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	r = p.Result
+	cfg, dep, refs := p.cfg, p.dep, p.refs
+	_, err = tx.Exec(ctx, `INSERT INTO metric_configs(id,metric_id,method_version,config,config_hash) VALUES(gen_random_uuid(),$1,$2,$3,$4) ON CONFLICT(metric_id,method_version,config_hash) DO NOTHING`, r.MetricID, r.MethodVersion, r.Config, cfg)
+	if err != nil {
+		return uuid.Nil, err
 	}
 	_, err = tx.Exec(ctx, `UPDATE metric_results SET is_current=false WHERE metric_id=$1 AND method_version=$2 AND subject_key=$3 AND is_current AND (config_hash<>$4 OR coalesce(anchor_set_hash,'')<>coalesce($5,'') OR dependency_hash<>$6)`, r.MetricID, r.MethodVersion, r.SubjectKey, cfg, r.AnchorSetHash, dep)
 	if err != nil {

@@ -32,3 +32,11 @@ python3 scripts/test-db.py assessment
 ```
 
 The comparison runs in independently migrated schemas and checks all stored metric columns except generated UUIDs. It separately verifies stable row IDs on replay and restore, non-UTC session offsets, provenance for FIT, Strong and manual records, and caller rollback on a failing completion update. [Assessment transaction](../backend-go/internal/metrics/assessment/refresh.go) · [PostgreSQL comparison](../scripts/rewrite/check_assessment_db.py)
+
+### Transaction-bound metric refresh
+
+Calendar decision handlers can pass `refresh.PlanMetrics(now, runs)` to `calendar.RefreshPlans` and `refresh.CompletionMetrics(now, runs)` to `calendar.DerivedRefresh`. The callbacks consume rematched IDs and persist affected activity, strength, plan, night and window results in the same transaction. A manual-only report recalculates its plan assessment and the applicable spacing windows. `assessment.RefreshBatch` increments the revision once when one or more derived statuses change.
+
+Provider and check-in handlers can pass the Python-format scope strings and rematched IDs to `refresh.ScopeMetrics`. For recovery-only changes, request the current training day when its full window set is missing. `refresh.EnsureWindows` and `refresh.EnsureNights` provide the explicit local-date entry points. The activity callback covers session RPE, symptoms, long-run exposure, FIT intensity, intervals and aerobic efficiency. [Scope expansion](../backend-go/internal/metrics/refresh/scope.go) · [Calendar and window refresh](../backend-go/internal/metrics/refresh/refresh.go)
+
+For a read-only dashboard transaction, `trainingwindows.CalculateActivity` computes session RPE, symptoms or long-run exposure. `metrics.Preview` formats an unstored result with its provenance and a null ID. The assessment PostgreSQL comparison exercises the read-only transaction and compares window, activity and scoped refresh output against Python. [Activity previews](../backend-go/internal/metrics/trainingwindows/preview.go) · [Result identity and storage](../backend-go/internal/metrics/result.go)
