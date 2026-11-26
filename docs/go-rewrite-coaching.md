@@ -14,10 +14,18 @@ Port the **coaching evidence fingerprint used to decide whether an existing draf
 
 Stream 1 owns metric identity, whose timestamp encoding differs. Keep the coaching entry point explicit. A shared encoder can be extracted later if both domains' byte fixtures still pass. [Python hash tests](../backend/tests/unit/test_canonical_hash_vectors.py) · [Changed-evidence case](../backend/tests/unit/test_proposals.py)
 
-Run the references from a configured checkout. Add the focused command for the new Go package to the branch handoff.
+### Fingerprint handoff
+
+Snapshot and proposal code can call `coaching.Fingerprint(sources, knowledge)` to obtain the canonical UTF-8 bytes and lowercase SHA-256. Supply these two inputs. [Go fingerprint API](../backend-go/internal/coaching/fingerprint.go)
+
+- `SourceVersions` contains the full source-versions object. Keep historical and unknown keys, explicit nulls and list order. Its JSON decoder preserves integer and float tokens. For programmatic inputs, use ISO strings for calendar dates and `time.Time` at microsecond precision or coarser for instants. [Coaching encoder](../backend-go/internal/coaching/canonical.go)
+- `VerifiedKnowledge` carries the verifier's digest, ordered `SelectionEntry` values (path and sections or record IDs), and ordered `SelectedRecord` values (path, record ID and complete `RecordContent`). Knowledge verification still runs in Python. [Verified knowledge selection](../backend/app/services/knowledge.py)
+
+The unchanged draft fixture produces 608 canonical bytes. Changing only the selected title from `Easy` to `Easy revised` produces 616. Both byte sequences hash to their respective stored Python digests. Run the following checks from a configured checkout. [Persisted fixture test](../backend-go/internal/coaching/fingerprint_test.go)
 
 ```sh
 ./scripts/with-mode test bash -c 'cd backend && uv run pytest -q tests/unit/test_canonical_hash_vectors.py tests/unit/test_proposals.py::test_fingerprint_fixture'
+(cd backend-go && go test -race -count=1 ./internal/coaching)
 make check-go
 ```
 
