@@ -133,28 +133,3 @@ class SessionCompletion(Base):
             name="ck_session_completions_modification_reason",
         ),
     )
-
-
-class LegacyImportRun(Base):
-    __tablename__ = "legacy_import_runs"
-    id: Mapped[uuid.UUID] = uuid_pk()
-    key: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
-    source_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
-    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    report: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    undo_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-
-
-class LegacyImportMap(Base):
-    __tablename__ = "legacy_import_map"
-    id: Mapped[uuid.UUID] = uuid_pk()
-    import_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("legacy_import_runs.id"), nullable=False
-    )
-    source_table: Mapped[str] = mapped_column(String(60), nullable=False)
-    source_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    target_kind: Mapped[str] = mapped_column(String(40), nullable=False)
-    target_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    __table_args__ = (UniqueConstraint("source_table", "source_id", "target_kind"),)

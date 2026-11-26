@@ -13,11 +13,9 @@ from sqlalchemy.orm import Session
 root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root / 'backend'))
 
-from app.coaching_models import CoachOutcome, CoachOutcomeEvent, CoachRecommendation  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
-from app.models import ProfileVersion, RawObject  # noqa: E402
-from app.strong_models import StrongWorkoutRow  # noqa: E402
+from app.models import RawObject  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--database', required=True)
@@ -40,16 +38,6 @@ with SessionLocal() as source, Session(engine) as restored:
             rows = sorted(json.dumps(dict(row), sort_keys=True, default=str, separators=(',', ':')) for row in session.execute(text(f'SELECT * FROM {name}')).mappings())
             return len(rows), hashlib.sha256('\n'.join(rows).encode()).digest()
         assert table_digest(source) == table_digest(restored), f'Table contents differ: {table}'
-    for model in (ProfileVersion, StrongWorkoutRow, CoachRecommendation, CoachOutcome, CoachOutcomeEvent):
-        columns = [column.key for column in model.__table__.columns]
-        def digest(session):
-            rows = []
-            for obj in session.scalars(select(model)).all():
-                rows.append({name: getattr(obj, name) for name in columns})
-            rows.sort(key=lambda row: str(row['id']))
-            data = json.dumps(rows, sort_keys=True, default=str, separators=(',', ':')).encode()
-            return hashlib.sha256(data).digest()
-        assert digest(source) == digest(restored), model.__tablename__
     raws = restored.scalars(select(RawObject)).all()
     for raw in raws:
         path = (private / raw.relative_path).resolve()
@@ -67,4 +55,4 @@ with SessionLocal() as source, Session(engine) as restored:
         assert hashlib.sha256(original.read_bytes()).digest() == hashlib.sha256(copy.read_bytes()).digest(), relative
 
 print(f'Restore verified: {len(source_tables)} tables match row-for-row, {len(raws)} raw references and checksums intact, '
-      f'{len(original_files)} research original files match; profile and new table contents match; source database unchanged.')
+      f'{len(original_files)} research original files match.')

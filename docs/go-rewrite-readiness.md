@@ -14,6 +14,8 @@
 
 ## Run the reference checks
 
+The production lint configuration was tested on the checked-in FIT module with Go 1.27.4 and golangci-lint v2.15.0. From `scripts/rewrite/fit/`, run `golangci-lint config verify --config ../../../.golangci.yml` and `golangci-lint run --config ../../../.golangci.yml ./...`. Both passed. Separate faulty examples failed on an unclosed HTTP response, a direct comparison against a wrapped error, and unformatted source. A separate `govulncheck ./...` run (v1.10.0, November 24, 2026 database) reported no known reachable vulnerabilities for this module. Repeat on the production module when it exists. [Go lint and build checks](go-backend-rewrite.md#go-lint-and-build-checks)
+
 From the repository root with project dependencies installed and Go on `PATH` (the rehearsal used Go 1.27.4 on macOS arm64):
 
 ```sh
@@ -44,6 +46,6 @@ python3 scripts/rewrite/compare_proposals.py 18001 18002
 
 1. Create `backend-go/` with the pinned contract and query generators, test-mode configuration, and a read-only proposal-list handler. Export the schema with the command above. Pin generated outputs and enforce drift in the existing Make workflow. Load the actual workspace mode. Read the list and its data revision from a consistent database snapshot.
 2. Run the fixture comparison and the compiler rename check. Exercise local host/origin guards, the normal error envelope and request IDs on the actual listener. Keep per-request values and database/session configuration out of the generated types.
-3. Open rendered Home in demo with its proposal-list request routed to Go and its other requests served by the existing backend. Check open, empty, and failed-list states. Ship the slice when the database tests, Go build/vet/tests, schema drift check, TypeScript build and UI check pass from a fresh checkout.
+3. Open rendered Home in demo with its proposal-list request routed to Go and its other requests served by the existing backend. Check open, empty, and failed-list states. Ship the slice when the database tests, `make check-go`, schema drift check, TypeScript build and UI check pass from a fresh checkout.
 
 The later release gates belong to the slices that implement them. The first write must pass competing-writer and injected-refresh-failure tests. Coaching must replay a saved decision receipt and accept or revise an unchanged pre-cutover draft. Ingestion must replay retained files and compare normalized metrics and source history. Normal server startup, phone delivery, worker ownership and recovery after new writes must be exercised before the real switch. These checks do not block starting the read-only slice.

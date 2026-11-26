@@ -235,32 +235,6 @@ class SyncState(Base):
     reason: Mapped[str | None] = mapped_column(String(100))
 
 
-class Checkin(Base):
-    __tablename__ = "checkins"
-    id: Mapped[uuid.UUID] = uuid_pk()
-    idempotency_key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    version: Mapped[int] = mapped_column(Integer, default=1)
-    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    symptoms: Mapped[str] = mapped_column(String(20), nullable=False)
-    change: Mapped[str | None] = mapped_column(String(20))
-    gait: Mapped[str] = mapped_column(String(20), nullable=False)
-    feeling: Mapped[str] = mapped_column(String(20), nullable=False)
-    effort: Mapped[int | None] = mapped_column(Integer)
-    activity_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("activities.id"))
-    note: Mapped[str | None] = mapped_column(Text)
-
-
-class CheckinRevision(Base):
-    __tablename__ = "checkin_revisions"
-    __table_args__ = (UniqueConstraint("checkin_id", "version"),)
-    id: Mapped[uuid.UUID] = uuid_pk()
-    checkin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("checkins.id"), nullable=False)
-    version: Mapped[int] = mapped_column(Integer, nullable=False)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-
-
 class ManualSession(Base):
     __tablename__ = "manual_sessions"
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -275,45 +249,6 @@ class ManualSession(Base):
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-class PlanVersion(Base):
-    __tablename__ = "plan_versions"
-    id: Mapped[uuid.UUID] = uuid_pk()
-    version: Mapped[int] = mapped_column(Integer, default=1)
-    parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("plan_versions.id"))
-    status: Mapped[str] = mapped_column(String(30), default="draft")
-    start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    profile_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    anchor_date: Mapped[date | None] = mapped_column(Date)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    reason: Mapped[str | None] = mapped_column(Text)
-
-
-class PlannedSession(Base):
-    __tablename__ = "planned_sessions"
-    id: Mapped[uuid.UUID] = uuid_pk()
-    plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("plan_versions.id"), nullable=False)
-    date: Mapped[date] = mapped_column(Date, nullable=False)
-    kind: Mapped[str] = mapped_column(String(40), nullable=False)
-    target: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-
-
-class CompletionLink(Base):
-    __tablename__ = "completion_links"
-    __table_args__ = (
-        UniqueConstraint("planned_session_id", "activity_id"),
-        UniqueConstraint("planned_session_id", "manual_session_id"),
-    )
-    id: Mapped[uuid.UUID] = uuid_pk()
-    planned_session_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("planned_sessions.id"), nullable=False, unique=True
-    )
-    activity_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("activities.id"), unique=True)
-    manual_session_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("manual_sessions.id"), unique=True)
-    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-
 class Conflict(Base):
     __tablename__ = "conflicts"
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -324,17 +259,3 @@ class Conflict(Base):
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     resolution: Mapped[str | None] = mapped_column(String(30))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class WeeklySnapshot(Base):
-    __tablename__ = "weekly_snapshots"
-    id: Mapped[uuid.UUID] = uuid_pk()
-    week_start: Mapped[date] = mapped_column(Date, nullable=False)
-    week_end: Mapped[date] = mapped_column(Date, nullable=False)
-    schema_version: Mapped[str] = mapped_column(String(30), default="v1")
-    metric_version: Mapped[str] = mapped_column(String(30), default="analytics.v1")
-    data_revision: Mapped[int] = mapped_column(Integer, nullable=False)
-    profile_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    plan_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    summary: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)

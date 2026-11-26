@@ -4,13 +4,12 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import CheckConstraint, Index, Numeric, UniqueConstraint
 
-import app.agent_models  # noqa: F401
 import app.calendar_models  # noqa: F401
 import app.checkin_models  # noqa: F401
 import app.coach_v2_models  # noqa: F401
-import app.coaching_models  # noqa: F401
 import app.exception_models  # noqa: F401
 import app.fit_models  # noqa: F401
+import app.history_models  # noqa: F401
 import app.metric_models  # noqa: F401
 import app.planning_models  # noqa: F401
 import app.strong_models  # noqa: F401
@@ -51,6 +50,8 @@ def test_required_tables_are_in_metadata() -> None:
         """fit_files activity_laps activity_workout_steps activity_streams
         checkins_v2 checkin_v2_revisions symptom_reports session_rpe
         calendar_versions calendar_session_revisions session_completions
+        checkins checkin_revisions plan_versions planned_sessions completion_links weekly_snapshots
+        coach_plan_revisions coach_recommendations coach_outcomes coach_outcome_events
         legacy_import_runs legacy_import_map
         blocks block_versions block_decisions goals events strength_routine_slots
         intensity_anchors metric_configs metric_results prompts coach_snapshots

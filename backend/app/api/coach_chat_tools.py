@@ -11,7 +11,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from sqlalchemy.orm import Session
 
-from app.api.coach import active_proposal, proposal_detail, resolve_kb
+from app.api.coach import active_proposal, proposal_document, resolve_kb
 from app.api.metrics import activity_execution, explain_metric, long_run_history, recovery_nights
 from app.api.responses import proposal_summary
 from app.db import global_write_lock
@@ -141,17 +141,10 @@ def _read_active(session: Session, review: ChatReview) -> dict:
     review.observed_proposal = draft.id if draft else None
     if draft is None:
         return {"proposal": None}
-    detail = proposal_detail(session, draft)
+    document = proposal_document(session, draft)
     review.snapshot_ids.add(draft.snapshot_id)
     review.proposal_id = draft.id
-    return {
-        "proposal": proposal_summary(draft),
-        "proposal_id": draft.id,
-        "revision": draft.revision,
-        "status": draft.status,
-        "is_current": detail["is_current"],
-        "document": draft.payload,
-    }
+    return {"proposal": proposal_summary(draft), **document}
 
 
 def _snapshot(session: Session, args: SnapshotInput, review: ChatReview, now: datetime) -> dict:

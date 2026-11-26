@@ -62,8 +62,8 @@ calendar expansion do not call a model. Strong remains the lifting workflow.
 The current coaching path is the **repo-local `.codex/skills/going-bananas-coach`**
 package and the calendar proposal API. Its manifest declares `coach_proposal.v2`,
 calendar authority, and manual activation. `README.md` describes this user flow.
-`backend/app/agent_models.py` and `backend/app/coaching_models.py` map frozen legacy history
-tables. Application requests no longer read those tables.
+`backend/app/history_models.py` holds the frozen check-in, planning, import
+and coaching tables for Alembic. Current application reads and writes use the live models.
 
 `docs/running-coach-workflow.md` and `docs/handoff.md` include an earlier automatic
 activation design; `docs/archive/` contains design history. These documents

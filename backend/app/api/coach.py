@@ -34,12 +34,11 @@ def resolve_kb(selection: tuple[dict, ...]) -> VerifiedKnowledge:
     return VerifiedKnowledge(**knowledge.verify_selection(selection))
 
 
-def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
+def _review_state(session: Session, proposal: CoachProposal) -> tuple[int, CoachSnapshot | None, bool]:
     # Serialize read freshness against source writers before reading head/fingerprint.
     global_write_lock(session)
     session.refresh(proposal)
     head = head_version(session, populate_existing=True)
-    head_sessions = {row["session_uid"]: row for row in calendar.state_at(session, head)}
     snapshot = session.get(CoachSnapshot, proposal.snapshot_id)
     is_current = False
     if snapshot and proposal.status == "pending":
@@ -55,6 +54,23 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
         except knowledge.KnowledgeIntegrityError:
             # Saved proposals stay readable when their research package changes.
             is_current = False
+    return head, snapshot, is_current
+
+
+def proposal_document(session: Session, proposal: CoachProposal) -> dict:
+    _, _, is_current = _review_state(session, proposal)
+    return {
+        "proposal_id": proposal.id,
+        "revision": proposal.revision,
+        "status": proposal.status,
+        "is_current": is_current,
+        "document": proposal.payload,
+    }
+
+
+def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
+    head, snapshot, is_current = _review_state(session, proposal)
+    head_sessions = {row["session_uid"]: row for row in calendar.state_at(session, head)}
     data = {
         key: getattr(proposal, key)
         for key in (
@@ -223,17 +239,7 @@ def get_proposal_document(proposal_id: uuid.UUID, session: Session = Depends(get
     proposal = session.get(CoachProposal, proposal_id)
     if proposal is None:
         fail("proposal_not_found", "Proposal not found", 404)
-    detail = proposal_detail(session, proposal)
-    return envelope(
-        session,
-        {
-            "proposal_id": proposal.id,
-            "revision": proposal.revision,
-            "status": proposal.status,
-            "is_current": detail["is_current"],
-            "document": proposal.payload,
-        },
-    )
+    return envelope(session, proposal_document(session, proposal))
 
 
 @router.get("/proposals/{proposal_id}/revisions/{revision}")
