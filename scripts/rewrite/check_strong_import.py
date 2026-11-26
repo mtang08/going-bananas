@@ -126,7 +126,13 @@ def scenario(binary, directory, py, go):
     assert sorted(results) == [0, 1]
     for _ in range(2):
         subprocess.check_output([sys.executable, __file__, "reference", csv_path, "1"], env=py)
-    assert snapshot(go) == snapshot(py)
+    actual, expected = snapshot(go), snapshot(py)
+    # PostgreSQL records transaction start before waiting on the writer lock.
+    # Either concurrent process may win, so compare the last two receipts as a pair.
+    for state in (actual, expected):
+        receipts = state["batches"]
+        receipts[-2:] = sorted(receipts[-2:], key=lambda receipt: json.dumps(receipt, sort_keys=True))
+    assert actual == expected, [key for key in expected if actual[key] != expected[key]]
     for digest, path, size, media in snapshot(go)["raw"]:
         raw = (Path(go["PRIVATE_DIR"]) / path).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == digest and len(raw) == size and media == "text/csv"

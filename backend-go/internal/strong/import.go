@@ -175,7 +175,7 @@ func Import(ctx context.Context, pool *pgxpool.Pool, root, path string, apply bo
 		s.NewConflicts = &conflicts
 		counters := map[string]any{"workouts": s.Workouts, "set_rows": s.SetRows, "new": added, "unchanged": s.Unchanged,
 			"changed_revisions": s.Changed, "revision_conflicts_new": conflicts, "csv_sha256": scan.Digest}
-		_, err = tx.Exec(ctx, "UPDATE import_batches SET status=$2,finished_at=now(),counters=$3 WHERE id=$1", batch, s.Status, counters)
+		_, err = tx.Exec(ctx, "UPDATE import_batches SET status=$2,finished_at=clock_timestamp(),counters=$3 WHERE id=$1", batch, s.Status, counters)
 		return err
 	})
 	if err != nil {
