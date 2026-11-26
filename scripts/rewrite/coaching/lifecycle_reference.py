@@ -46,6 +46,22 @@ def main():
             )
             return
         try:
+            if op == "decide":
+                from dataclasses import asdict
+                from app.services.proposals.decision import (
+                    DecisionRequest,
+                    decide_proposal,
+                )
+
+                decision = decide_proposal(
+                    s,
+                    UUID(req["id"]),
+                    DecisionRequest.model_validate(req["request"]),
+                    now=now,
+                    resolve_kb=resolve_kb,
+                )
+                print(json.dumps(asdict(decision), default=str))
+                return
             if op == "submit":
                 r = submit_proposal(s, req["document"], now=now, resolve_kb=resolve_kb)
             elif op == "revise":
