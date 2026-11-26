@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 from sqlalchemy.engine import make_url
+
+
+class AppMode(StrEnum):
+    DEMO = "demo"
+    REAL = "real"
+    TEST = "test"
 
 
 @dataclass(frozen=True)
@@ -27,7 +34,7 @@ class Settings:
     vite_port: int = field(default_factory=lambda: int(os.getenv("VITE_PORT", "5173")))
 
     def __post_init__(self) -> None:
-        if self.app_mode not in {"demo", "real", "test"}:
+        if self.app_mode not in AppMode:
             raise ValueError("APP_MODE must be demo, real, or test")
         if not self.database_url.startswith(("postgresql+psycopg://", "postgresql://")):
             raise ValueError("Only PostgreSQL is supported")

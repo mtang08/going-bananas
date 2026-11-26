@@ -246,7 +246,7 @@ _DECISION_STALE: dict[FreshnessReason, tuple[str, str]] = {
 def decide_proposal(
     session: Session, proposal_id: uuid.UUID, req: DecisionRequest, *, now: datetime, resolve_kb: KnowledgeResolver
 ) -> DecisionResult:
-    from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
+    from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot, ProposalStatus
     from app.metrics.anchors import create_anchor
     from app.services.calendar import apply_edits
 
@@ -410,7 +410,7 @@ def decide_proposal(
         row.decision = "accepted" if row.change_id in accepted else "rejected"
     accepted_count = len(accepted) + int(req.accept_block_change) + len(anchors)
     total_count = len(required) + int(doc.block_change is not None) + len(known_anchors)
-    status = (
+    status: ProposalStatus = (
         "accepted"
         if total_count == 0 or accepted_count == total_count
         else "rejected"

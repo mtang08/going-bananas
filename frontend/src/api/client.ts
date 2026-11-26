@@ -1,3 +1,5 @@
+import type { paths } from './generated/proposalList'
+
 export type Mode = 'demo' | 'real' | 'test'
 export interface Envelope<T> {
   schema_version: string
@@ -23,13 +25,16 @@ export class ApiError extends Error {
 }
 
 const BASE = '/api/v1'
-export async function api<T>(path: string, options: RequestInit = {}): Promise<Envelope<T>> {
+async function requestEnvelope<T extends { data: unknown }>(
+  url: string,
+  options: RequestInit = {},
+): Promise<T> {
   const headers = new Headers(options.headers)
   if (options.body) headers.set('Content-Type', 'application/json')
   if (options.method && options.method !== 'GET') headers.set('X-Local-Request', '1')
   let response: Response
   try {
-    response = await fetch(`${BASE}${path}`, { ...options, headers, credentials: 'same-origin' })
+    response = await fetch(url, { ...options, headers, credentials: 'same-origin' })
   } catch {
     throw new ApiError(
       0,
@@ -64,7 +69,11 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<E
   }
   if (!body || typeof body !== 'object' || !('data' in body))
     throw new ApiError(response.status, 'invalid_response', 'The server response is missing data.')
-  return body as Envelope<T>
+  return body as T
+}
+
+export function api<T>(path: string, options?: RequestInit) {
+  return requestEnvelope<Envelope<T>>(`${BASE}${path}`, options)
 }
 
 export const query = (params: Record<string, string | number | undefined | null>) => {
@@ -72,6 +81,13 @@ export const query = (params: Record<string, string | number | undefined | null>
   for (const [key, value] of Object.entries(params))
     if (value !== undefined && value !== null && value !== '') search.set(key, String(value))
   return search.toString() ? `?${search}` : ''
+}
+
+const proposalListPath = `${BASE}/coach/proposals`
+type ProposalListGet = paths[typeof proposalListPath]['get']
+export type ProposalListResponse = ProposalListGet['responses'][200]['content']['application/json']
+export function listProposals(params: NonNullable<ProposalListGet['parameters']['query']> = {}) {
+  return requestEnvelope<ProposalListResponse>(proposalListPath + query(params))
 }
 
 export const post = <T>(path: string, data: unknown) =>

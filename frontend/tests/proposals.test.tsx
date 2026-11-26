@@ -79,6 +79,7 @@ beforeEach(() => {
     status: 'pending',
     submitted_at: '2026-11-12T12:00:00Z',
     decided_at: null,
+    discarded_at: null,
     headline: 'Adjust the next week',
     why: [{ kind: 'observation', text: 'Keep the run manageable' }],
     uncertainty: [],

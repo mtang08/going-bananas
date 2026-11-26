@@ -11,8 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.db import bump_data_revision, get_revision, get_session
+from app.api.responses import response_envelope
+from app.db import bump_data_revision, get_session
 from app.domain.analytics import (
     pace_s_per_km,
     utc_date_bounds,
@@ -38,7 +38,7 @@ router = APIRouter()
 
 
 def envelope(session: Session, data: Any) -> dict:
-    return {"schema_version": "v1", "data_revision": get_revision(session), "mode": settings.app_mode, "data": data}
+    return dict(response_envelope(session, data))
 
 
 def date_window(session: Session, start_date: date | None, end_date: date | None) -> tuple[date, date]:

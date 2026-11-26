@@ -13,7 +13,7 @@ import {
 import { Badge, Button, Card, Disclosure } from '../components/ui'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, dateLabel, fmtDistance, type Unit } from '../lib/format'
-import { api, post } from '../api/client'
+import { api, listProposals, post } from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
 import { pageHref } from '../lib/routes'
 import { sessionTitle } from '../lib/session'
@@ -25,7 +25,6 @@ import type {
   WeeklyDigest as WeeklyDigestData,
 } from '../api/types/calendar'
 import type { CheckinRequest, PromptList } from '../api/types/checkins'
-import type { ProposalSummary } from '../api/types/coach'
 import { QueryState } from '../components/QueryState'
 import { mondayOfWeek, SessionSummary } from '../components/PlanOverview'
 import { WeekSessions } from '../components/WeekSessions'
@@ -44,7 +43,7 @@ export function Home({
   const qc = useQueryClient()
   const pending = useQuery({
     queryKey: qk.proposalsOpen,
-    queryFn: () => api<{ items: ProposalSummary[] }>('/coach/proposals?status=open'),
+    queryFn: () => listProposals({ status: 'open' }),
   })
   const calendar = useQuery({
     queryKey: qk.calendarView('head'),

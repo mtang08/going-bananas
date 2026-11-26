@@ -12,7 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.core import envelope
-from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachProposalRevision, CoachSnapshot
+from app.api.responses import Envelope, ProposalList, ValidationErrorResponse, proposal_summary, response_envelope
+from app.coach_v2_models import CoachProposal, CoachProposalChange, CoachProposalRevision, CoachSnapshot, ProposalStatus
 from app.db import get_session, global_write_lock
 from app.errors import AppError, fail
 from app.exception_models import ExceptionPatch
@@ -31,26 +32,6 @@ router = APIRouter(prefix="/coach", tags=["coach"])
 
 def resolve_kb(selection: tuple[dict, ...]) -> VerifiedKnowledge:
     return VerifiedKnowledge(**knowledge.verify_selection(selection))
-
-
-def proposal_summary(proposal: CoachProposal) -> dict:
-    return {
-        **{
-            key: getattr(proposal, key)
-            for key in (
-                "id",
-                "revision",
-                "operation",
-                "status",
-                "submitted_at",
-                "decided_at",
-                "discarded_at",
-                "headline",
-                "base_calendar_version",
-            )
-        },
-        "change_count": len(proposal.payload.get("changes", [])),
-    }
 
 
 def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
@@ -168,12 +149,11 @@ def proposal_detail(session: Session, proposal: CoachProposal) -> dict:
     return data
 
 
-@router.get("/proposals")
+@router.get("/proposals", responses={422: {"model": ValidationErrorResponse, "description": "Invalid request fields"}})
 def get_proposals(
-    status: Literal["open", "pending", "accepted", "partially_accepted", "rejected", "stale", "invalid", "discarded"]
-    | None = None,
+    status: Literal["open", ProposalStatus] | None = None,
     session: Session = Depends(get_session),
-) -> dict:
+) -> Envelope[ProposalList]:
     query = select(CoachProposal).order_by(CoachProposal.submitted_at.desc(), CoachProposal.id.desc()).limit(50)
     if status == "open":
         query = query.where(CoachProposal.status.in_(("pending", "stale", "invalid")))
@@ -181,12 +161,7 @@ def get_proposals(
         query = query.where(CoachProposal.status == status)
     else:
         query = query.where(CoachProposal.status != "discarded")
-    items = []
-    for proposal in session.scalars(query):
-        item = proposal_summary(proposal)
-        item["change_count"] = len(proposal.payload.get("changes", []))
-        items.append(item)
-    return envelope(session, {"items": items})
+    return response_envelope(session, ProposalList(items=[proposal_summary(row) for row in session.scalars(query)]))
 
 
 @router.get("/proposals/active")

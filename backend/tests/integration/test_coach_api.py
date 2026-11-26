@@ -7,10 +7,12 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from pydantic import TypeAdapter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.coach import resolve_kb
+from app.api.responses import ValidationErrorResponse
 from app.calendar_models import CalendarSessionRevision, CalendarVersion
 from app.coach_v2_models import CoachProposal, CoachSnapshot
 from app.exception_models import ExceptionFinding
@@ -157,6 +159,14 @@ def test_detail_includes_current_and_flags(api):
     items = client.get("/api/v1/coach/proposals?status=pending").json()["data"]["items"]
     assert items[0]["id"] == str(proposal_id) and items[0]["change_count"] == 1
     assert client.get(f"/api/v1/coach/proposals/{uuid.uuid4()}").status_code == 404
+
+
+def test_proposal_list_invalid_status_uses_documented_error(api):
+    client, _ = api
+    response = client.get("/api/v1/coach/proposals", params={"status": "unknown"})
+    assert response.status_code == 422
+    error = TypeAdapter(ValidationErrorResponse).validate_python(response.json())["error"]
+    assert [field["field"] for field in error["fields"]] == ["query.status"]
 
 
 def test_detail_rechecks_pending_freshness(api, monkeypatch):

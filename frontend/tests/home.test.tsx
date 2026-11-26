@@ -211,6 +211,20 @@ const digestFor = (weekStart: string, done = 2): WeeklyDigest => {
     removed: [],
   }
 }
+function staleProposal(): ProposalSummary {
+  return {
+    id: 'p1',
+    status: 'stale',
+    operation: 'review_rolling_plan',
+    submitted_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
+    decided_at: null,
+    discarded_at: null,
+    change_count: 3,
+    headline: 'Keep tomorrow easy',
+    revision: 1,
+    base_calendar_version: 2,
+  }
+}
 let proposalItems: ProposalSummary[]
 let promptItems: unknown[]
 let calendar: CalendarView
@@ -629,18 +643,10 @@ describe('training home', () => {
     expect(within(card).queryByText('Quality slot')).not.toBeInTheDocument()
   })
   it('lists open proposals in Needs attention without deciding', async () => {
-    proposalItems = [
-      {
-        id: 'p1',
-        status: 'stale',
-        operation: 'review_rolling_plan',
-        submitted_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
-        change_count: 3,
-        headline: 'Keep tomorrow easy',
-      } as ProposalSummary,
-    ]
+    proposalItems = [staleProposal()]
     mount()
     await screen.findByText('Weekly review')
+    expect(requests.some((r) => r.url === '/api/v1/coach/proposals?status=open')).toBe(true)
     const row = document.querySelector('[data-kind="proposal"]')!
     for (const text of [
       'Stale — ask the coach to refresh',
@@ -724,16 +730,7 @@ describe('training home', () => {
   })
 
   it('orders exception rows inside Needs attention', async () => {
-    proposalItems = [
-      {
-        id: 'p1',
-        status: 'stale',
-        operation: 'review_rolling_plan',
-        submitted_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
-        change_count: 3,
-        headline: 'Keep tomorrow easy',
-      } as ProposalSummary,
-    ]
+    proposalItems = [staleProposal()]
     exceptionsData = {
       ...exceptionsData,
       review_recommended: [rec],
@@ -848,14 +845,7 @@ it('records a dated interruption from Today and shows affected and return runs w
   ]
   interruption.first_run = forecastRun
   interruption.review_reason = 'Review the quality run before the first available easy day.'
-  proposalItems = [
-    {
-      id: 'stable-draft',
-      status: 'stale',
-      operation: 'review_rolling_plan',
-      change_count: 1,
-    } as ProposalSummary,
-  ]
+  proposalItems = [{ ...staleProposal(), id: 'stable-draft', change_count: 1 }]
   const writeText = vi.fn().mockResolvedValue(undefined)
   const originalClipboard = navigator.clipboard
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })

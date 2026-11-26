@@ -247,10 +247,15 @@ Inspect or update them in Settings.
 ```sh
 make check                 # docs links + backend lint/types/unit tests + frontend checks/build
 make check-backend         # one layer; also check-frontend, check-docs
+make generate-api-types    # refresh the React proposal-list types after changing its API contract
 make test-integration      # provision the isolated database and run PostgreSQL integration tests
 make test-integration TESTS=tests/integration/test_proposals.py
 python3 scripts/test_coach_skill_v2.py  # reviewed helper contract tests; no live writes
 ```
+
+The proposal list uses the FastAPI response schema for its TypeScript types.
+`make check-frontend` checks the generated file for drift before compiling the
+UI. Generation reads the registered route and works with the database stopped.
 
 The integration runner uses a checkout-local PostgreSQL cluster under
 `private/integration-postgres/55439/` on `127.0.0.1:55439`. It provisions

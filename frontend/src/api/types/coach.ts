@@ -1,3 +1,4 @@
+import type { ProposalListResponse } from '../client'
 import type { CitedSource, Rule, Why } from './coachText'
 import type {
   Patch,
@@ -13,20 +14,8 @@ export interface ProposalInterruption {
   affected_runs: Pick<InterruptionRun, 'session_uid' | 'local_date' | 'recipe_id'>[]
   affected_runs_omitted: number
 }
-export type ProposalStatus =
-  'pending' | 'accepted' | 'partially_accepted' | 'rejected' | 'stale' | 'invalid' | 'discarded'
-export interface ProposalSummary {
-  id: string
-  operation: string
-  status: ProposalStatus
-  submitted_at: string
-  decided_at: string | null
-  discarded_at?: string | null
-  headline: string
-  base_calendar_version: number
-  change_count: number
-  revision: number
-}
+export type ProposalSummary = ProposalListResponse['data']['items'][number]
+export type ProposalStatus = ProposalSummary['status']
 export interface ProposalRevision {
   revision: number
   saved_at: string
