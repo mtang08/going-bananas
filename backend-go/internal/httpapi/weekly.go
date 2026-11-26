@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -23,29 +21,22 @@ const (
 	WeeklyDigestPath     = "/api/v1/calendar/weekly-digest"
 )
 
-type weeklyHandler struct {
-	pool  *pgxpool.Pool
-	mode  api.AppMode
-	guard localGuard
-	now   func() time.Time
+type Weekly struct {
+	Pool *pgxpool.Pool
+	Mode api.AppMode
+	Now  func() time.Time
 }
 
-func NewWeekly(pool *pgxpool.Pool, mode api.AppMode, port, vitePort string) http.Handler {
-	return &weeklyHandler{pool, mode, newGuard(port, vitePort), time.Now}
-}
-
-func (h *weeklyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var entropy [8]byte
-	_, _ = rand.Read(entropy[:])
-	id := hex.EncodeToString(entropy[:])
-	ctx := context.WithValue(r.Context(), requestIDKey{}, id)
-	r = r.WithContext(ctx)
-	if !h.guard.allow(w, r) {
-		return
+func (h Weekly) Register(mux *http.ServeMux) {
+	for _, path := range []string{WeeklyProjectionPath, WeeklyDigestPath} {
+		mux.HandleFunc(path, h.serve)
+		mux.HandleFunc(path+"/{$}", h.serve)
 	}
+}
+func (h Weekly) serve(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := requestID(ctx)
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("X-Request-ID", id)
 	path := strings.TrimSuffix(r.URL.Path, "/")
 	if path != WeeklyProjectionPath && path != WeeklyDigestPath {
 		fail(w, r, 404, "not_found", "API route not found")
@@ -77,8 +68,11 @@ func (h *weeklyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	var data any
 	var revision int
-	err := pgx.BeginTxFunc(ctx, h.pool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		now := h.now()
+	err := pgx.BeginTxFunc(ctx, h.Pool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		now := time.Now()
+		if h.Now != nil {
+			now = h.Now()
+		}
 		var err error
 		if path == WeeklyProjectionPath {
 			data, err = weeklyprojection.Load(ctx, tx, now)
@@ -94,7 +88,7 @@ func (h *weeklyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		internalError(w, r, err)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]any{"schema_version": "v1", "mode": h.mode, "data_revision": revision, "data": data})
+	_ = json.NewEncoder(w).Encode(map[string]any{"schema_version": "v1", "mode": h.Mode, "data_revision": revision, "data": data})
 }
 
 func loadHTTPWeek(ctx context.Context, tx pgx.Tx, start string, now time.Time) (map[string]any, error) {

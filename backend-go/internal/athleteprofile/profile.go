@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/mtang08/going-bananas/backend-go/internal/athletefacts"
 	"math"
 	"strconv"
 	"strings"
 	"time"
-	"github.com/mtang08/going-bananas/backend-go/internal/athletefacts"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
