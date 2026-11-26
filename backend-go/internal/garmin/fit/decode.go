@@ -4,12 +4,12 @@ package fit
 import (
 	"archive/zip"
 	"bytes"
-	"compress/bzip2"
 	"encoding/binary"
 	"hash/crc32"
 	"io"
 	"strings"
 
+	"github.com/mtang08/going-bananas/backend-go/internal/garmin/zipinput"
 	"github.com/muktihari/fit/decoder"
 	"github.com/muktihari/fit/kit/hash/crc16"
 )
@@ -27,10 +27,15 @@ func decodeError(code string) error { return &DecodeError{Code: code} }
 
 // DecodeZIP extracts the single FIT member and decodes its activity.
 func DecodeZIP(archive []byte) (*DecodedFit, error) {
-	payload, err := extractFIT(archive)
+	payload, err := Extract(archive)
 	if err != nil {
 		return nil, err
 	}
+	return Decode(payload)
+}
+
+// Decode normalizes an extracted FIT payload.
+func Decode(payload []byte) (*DecodedFit, error) {
 	rows := messageRows{projectedMessages: newProjection()}
 	remaining := payload
 	for {
@@ -57,15 +62,19 @@ func DecodeZIP(archive []byte) (*DecodedFit, error) {
 	return rows.normalize(payload)
 }
 
-func extractFIT(data []byte) ([]byte, error) {
-	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+// Extract returns the uncompressed FIT member for provenance and decoding.
+func Extract(data []byte) ([]byte, error) {
+	r, err := zipinput.New(data)
 	if err != nil {
 		return nil, decodeError("bad_zip")
 	}
-	r.RegisterDecompressor(12, func(source io.Reader) io.ReadCloser { return io.NopCloser(bzip2.NewReader(source)) })
 	var member *zip.File
 	for _, f := range r.File {
-		if !strings.HasSuffix(strings.ToLower(f.Name), ".fit") {
+		name, err := zipinput.Name(f)
+		if err != nil {
+			return nil, decodeError("bad_zip")
+		}
+		if !strings.HasSuffix(strings.ToLower(name), ".fit") {
 			continue
 		}
 		if member != nil {
@@ -79,12 +88,7 @@ func extractFIT(data []byte) ([]byte, error) {
 	if member.UncompressedSize64 > maxFITBytes {
 		return nil, decodeError("zip_member_too_large")
 	}
-	// The download path supplies no ZIP password or decoder for patched data.
-	const encryptedOrPatched = 1 | (1 << 5) | (1 << 6)
-	if member.Flags&encryptedOrPatched != 0 {
-		return nil, decodeError("bad_zip")
-	}
-	rc, err := member.Open()
+	rc, err := r.OpenMember(member)
 	if err != nil {
 		return nil, decodeError("bad_zip")
 	}

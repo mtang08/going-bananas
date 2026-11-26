@@ -8,6 +8,8 @@ require (
 	github.com/muktihari/fit v0.28.7
 	github.com/oapi-codegen/nullable v1.2.0
 	github.com/oapi-codegen/runtime v1.9.1
+	github.com/ulikunitz/xz v0.5.17
+	golang.org/x/text v0.42.0
 )
 
 require (
@@ -16,5 +18,4 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.3 // indirect
 	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
 )

@@ -173,6 +173,20 @@ def cases():
         archive(("run.fit", minimal), compression=zipfile.ZIP_DEFLATED),
     )
     yield "bzip2", archive(("run.fit", minimal), compression=zipfile.ZIP_BZIP2)
+    yield "lzma", archive(("run.fit", minimal), compression=zipfile.ZIP_LZMA)
+    wrong_crc = bytearray(archive(("run.fit", minimal), compression=zipfile.ZIP_LZMA))
+    central = wrong_crc.index(b"PK\x01\x02")
+    wrong_crc[central + 16] ^= 1
+    yield "lzma_member_crc", bytes(wrong_crc)
+    named = archive(("nested/RUN.fit", minimal))
+    yield (
+        "local_filename_mismatch",
+        named.replace(b"nested/RUN.fit", b"nested/MAP.fit", 1),
+    )
+    yield (
+        "utf8_member_name",
+        archive(("entrainement/forêt.fit", minimal), compression=zipfile.ZIP_LZMA),
+    )
     small = archive(("small.fit", b"unique payload"))
     yield "bad_member_crc", small.replace(b"unique payload", b"broken payload")
     oversized = bytearray(small)
