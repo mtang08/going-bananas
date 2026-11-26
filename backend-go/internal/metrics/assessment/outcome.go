@@ -2,30 +2,22 @@
 package assessment
 
 import (
+	"encoding/json"
 	"errors"
+	"github.com/mtang08/going-bananas/backend-go/internal/calendarstructure"
 	"math"
 	"slices"
 	"strconv"
 )
 
-type Step struct {
-	Type          string  `json:"type"`
-	DurationType  string  `json:"duration_type"`
-	DurationValue float64 `json:"duration_value"`
-	Target        *struct {
-		Modality string `json:"modality"`
-	} `json:"target"`
-	Count int    `json:"count"`
-	Steps []Step `json:"steps"`
-}
 type Plan struct {
-	LocalDate string   `json:"local_date"`
-	Kind      string   `json:"kind"`
-	Certainty *string  `json:"certainty"`
-	Version   *int     `json:"calendar_version_number"`
-	Duration  *float64 `json:"planned_duration_s"`
-	Distance  *float64 `json:"planned_distance_m"`
-	Steps     []Step   `json:"structure"`
+	LocalDate string          `json:"local_date"`
+	Kind      string          `json:"kind"`
+	Certainty *string         `json:"certainty"`
+	Version   *int            `json:"calendar_version_number"`
+	Duration  *float64        `json:"planned_duration_s"`
+	Distance  *float64        `json:"planned_distance_m"`
+	Steps     json.RawMessage `json:"structure"`
 }
 type Completion struct {
 	Status   string `json:"status"`
@@ -114,40 +106,13 @@ func ratio(name string, actual, planned *float64) (Component, float64) {
 	return c, r
 }
 
-func expand(steps []Step) ([]Step, error) {
-	var result []Step
-	for _, s := range steps {
-		if s.Type == "repeat" {
-			if s.Count < 2 || len(s.Steps) == 0 || s.Count > (100-len(result))/len(s.Steps) {
-				return nil, errors.New("invalid_structure")
-			}
-			for _, child := range s.Steps {
-				if child.Type == "repeat" {
-					return nil, errors.New("invalid_structure")
-				}
-			}
-			for range s.Count {
-				result = append(result, s.Steps...)
-			}
-		} else {
-			result = append(result, s)
-		}
-	}
-	if len(result) > 100 {
-		return nil, errors.New("invalid_structure")
-	}
-	for _, s := range result {
-		if !slices.Contains([]string{"warmup", "work", "recovery", "cooldown"}, s.Type) || !slices.Contains([]string{"time", "distance"}, s.DurationType) || s.DurationValue <= 0 {
-			return nil, errors.New("invalid_structure")
-		}
-	}
-	return result, nil
-}
-
 func comparison(p Plan) (Plan, bool, bool, error) {
-	steps, err := expand(p.Steps)
-	if err != nil {
-		return p, false, false, err
+	if len(p.Steps) == 0 || string(p.Steps) == "null" || string(p.Steps) == "[]" {
+		return p, false, false, nil
+	}
+	steps, ok := calendarstructure.Expand(p.Steps)
+	if !ok {
+		return p, false, false, errors.New("invalid_structure")
 	}
 	if p.Kind == "run" && len(steps) == 1 && steps[0].Type == "work" {
 		s := steps[0]

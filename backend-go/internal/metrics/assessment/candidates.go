@@ -2,7 +2,7 @@ package assessment
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/mtang08/going-bananas/backend-go/internal/calendarstructure"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,12 +32,10 @@ func candidates(ctx context.Context, tx pgx.Tx, uid uuid.UUID, day, zone string,
 		if err != nil {
 			return p, err
 		}
-		var steps []Step
 		work := false
-		if json.Unmarshal(raw, &steps) == nil {
-			expanded, _ := expand(steps)
-			for _, s := range expanded {
-				if s.Type == "work" {
+		if steps, ok := calendarstructure.Expand(raw); ok {
+			for _, step := range steps {
+				if step.Type == "work" {
 					work = true
 					break
 				}
