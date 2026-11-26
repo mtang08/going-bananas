@@ -99,7 +99,7 @@ def reference():
     return result
 
 
-def main():
+def compare(script, populate, package, fixture_env):
     url = make_url(os.environ["TEST_DATABASE_URL"])
     if not (
         os.getenv("APP_MODE") == "test"
@@ -123,10 +123,10 @@ def main():
             migrated_schema(db, url, d / "go", "5173") as go,
         ):
             for env in [py, go]:
-                seed(env)
+                populate(env)
             data = d / "cases.json"
             subprocess.run(
-                [sys.executable, __file__, "reference", str(data)],
+                [sys.executable, script, "reference", str(data)],
                 cwd=BACKEND,
                 env={**py, "PYTHONPATH": str(BACKEND)},
                 check=True,
@@ -138,10 +138,10 @@ def main():
                     "-race",
                     "-count=1",
                     "-v",
-                    "./internal/metrics/recovery",
+                    package,
                 ],
                 cwd=MODULE,
-                env={**go, "RECOVERY_CASES": str(data)},
+                env={**go, fixture_env: str(data)},
                 check=True,
             )
 
@@ -150,4 +150,4 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["reference"]:
         Path(sys.argv[2]).write_text(json.dumps({"cases": reference(), "query": STATE}))
     else:
-        main()
+        compare(__file__, seed, "./internal/metrics/recovery", "RECOVERY_CASES")
