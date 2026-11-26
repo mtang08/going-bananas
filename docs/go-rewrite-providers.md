@@ -20,7 +20,7 @@ Pass the bytes from `garmin.Client.DownloadActivity` to `fit.DecodeZIP(archive [
 
 The normalized comparison rebuilds deterministic archives, calls Python’s `decode_fit_zip`, and compares every result field or error code with the Go decoder. The SDK version identifies each implementation. Pass `--update` to the comparison to refresh the checked-in reference after a deliberate contract change. The focused Go test can use the fixtures on its own. [Normalized comparison](../scripts/rewrite/fit/check_normalized.py) · [Go parity test](../backend-go/internal/garmin/fit/parity_test.go)
 
-Two ZIP differences remain. Go accepts stored, Deflate and BZIP2 members. Python also accepts LZMA, which Go reports as `bad_zip`. Go selects the central-directory filename and can accept a ZIP whose local header gives that member a different name. Python reports `bad_zip` for that mismatch.
+The native decoder accepts stored, Deflate, BZIP2 and LZMA members. A local-header filename that differs from the central directory produces `bad_zip`. The activity export reader uses the same member checks and retains the original archive and member hashes alongside each normalized row. [ZIP reader](../backend-go/internal/garmin/zipinput/reader.go) · [Activity reference comparison](../scripts/rewrite/check_garmin_activities.py)
 
 Run the checks from a configured checkout with Go on `PATH`.
 
@@ -28,6 +28,7 @@ Run the checks from a configured checkout with Go on `PATH`.
 ./scripts/with-mode test bash -c 'cd backend && uv run pytest -q tests/unit/test_fit_decode.py'
 uv run --project backend python scripts/rewrite/fit/check.py
 uv run --project backend python scripts/rewrite/fit/check_normalized.py
+uv run --project backend python scripts/rewrite/check_garmin_activities.py
 (cd backend-go && go test -race -count=1 ./internal/garmin/fit)
 make check-go
 ```

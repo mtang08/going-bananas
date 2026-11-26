@@ -1,0 +1,453 @@
+{
+  "activities": [
+    {
+      "fields": {
+        "avg_hr_bpm": 147.0,
+        "cadence_spm": 172.0,
+        "distance_m": 1609.344,
+        "elapsed_s": 637.5,
+        "field_paths": {
+          "average_cadence": "averageRunningCadenceInStepsPerMinute",
+          "average_hr": "averageHR",
+          "distance_m": "distance",
+          "elapsed_s": "elapsedDuration",
+          "moving_s": "movingDuration"
+        },
+        "local_date": "2025-12-31",
+        "moving_s": 0.0,
+        "original_start": "2026-01-01T01:00:00Z",
+        "source_timezone": "source_offset",
+        "source_workout_label": null,
+        "sport": "running",
+        "start_at": "2026-01-01T01:00:00+00:00",
+        "subtype": "running"
+      },
+      "name": "metrics",
+      "provider_id": "9007199254740993",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "averageHR": 147,
+        "averageRunningCadenceInStepsPerMinute": 172,
+        "distance": 1609.344,
+        "elapsedDuration": 637.5,
+        "movingDuration": 0,
+        "startTimeGMT": "2026-01-01T01:00:00Z"
+      }
+    },
+    {
+      "fields": {
+        "avg_hr_bpm": 0.0,
+        "cadence_spm": null,
+        "distance_m": 900.5,
+        "elapsed_s": null,
+        "field_paths": {
+          "average_hr": "summaryDTO.averageHR",
+          "distance_m": "summaryDTO.distance"
+        },
+        "local_date": "2025-12-31",
+        "moving_s": null,
+        "original_start": "2026-01-01T01:00:00Z",
+        "source_timezone": "source_offset",
+        "source_workout_label": null,
+        "sport": "running",
+        "start_at": "2026-01-01T01:00:00+00:00",
+        "subtype": "running"
+      },
+      "name": "summary_only",
+      "provider_id": "9007199254740993",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "movingDuration": 600,
+        "startTimeGMT": "2026-01-01T01:00:00Z",
+        "summaryDTO": {
+          "averageHR": 0,
+          "distance": 900.5
+        }
+      }
+    },
+    {
+      "fields": {
+        "avg_hr_bpm": null,
+        "cadence_spm": null,
+        "distance_m": null,
+        "elapsed_s": null,
+        "field_paths": {},
+        "local_date": "2026-11-01",
+        "moving_s": null,
+        "original_start": "2026-11-01 05:55:12.1234",
+        "source_timezone": "garmin_GMT_field",
+        "source_workout_label": null,
+        "sport": "running",
+        "start_at": "2026-11-01T05:55:12.123400+00:00",
+        "subtype": "running"
+      },
+      "name": "naive_gmt",
+      "provider_id": "9007199254740993",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "startTimeGMT": "2026-11-01 05:55:12.1234"
+      }
+    },
+    {
+      "fields": {
+        "avg_hr_bpm": null,
+        "cadence_spm": null,
+        "distance_m": null,
+        "elapsed_s": null,
+        "field_paths": {},
+        "local_date": "2026-11-01",
+        "moving_s": null,
+        "original_start": "2026-11-01T01:30:00-04:00",
+        "source_timezone": "source_offset",
+        "source_workout_label": null,
+        "sport": "running",
+        "start_at": "2026-11-01T05:30:00+00:00",
+        "subtype": "running"
+      },
+      "name": "source_offset",
+      "provider_id": "9007199254740993",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "startTimeGMT": null,
+        "start_at": "2026-11-01T01:30:00-04:00"
+      }
+    },
+    {
+      "fields": {
+        "avg_hr_bpm": null,
+        "cadence_spm": null,
+        "distance_m": null,
+        "elapsed_s": null,
+        "field_paths": {},
+        "local_date": "2025-12-31",
+        "moving_s": null,
+        "original_start": "2026-01-01T01:00:00Z",
+        "source_timezone": "source_offset",
+        "source_workout_label": null,
+        "sport": "treadmill_running",
+        "start_at": "2026-01-01T01:00:00+00:00",
+        "subtype": "indoor_running"
+      },
+      "name": "fall_back_key",
+      "provider_id": "runner-7",
+      "record": {
+        "activityId": 0,
+        "activityType": null,
+        "activityTypeDTO": {
+          "sportTypeKey": "indoor_running"
+        },
+        "id": "runner-7",
+        "startTimeGMT": "2026-01-01T01:00:00Z"
+      }
+    },
+    {
+      "fields": {
+        "avg_hr_bpm": null,
+        "cadence_spm": null,
+        "distance_m": null,
+        "elapsed_s": null,
+        "field_paths": {},
+        "local_date": "2025-12-31",
+        "moving_s": null,
+        "original_start": "2026-01-01T01:00:00Z",
+        "source_timezone": "source_offset",
+        "source_workout_label": null,
+        "sport": "running",
+        "start_at": "2026-01-01T01:00:00+00:00",
+        "subtype": "running"
+      },
+      "name": "null_id",
+      "provider_id": "",
+      "record": {
+        "activityId": null,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "startTimeGMT": "2026-01-01T01:00:00Z"
+      }
+    },
+    {
+      "fields": {
+        "avg_hr_bpm": null,
+        "cadence_spm": null,
+        "distance_m": null,
+        "elapsed_s": null,
+        "field_paths": {},
+        "local_date": "2025-12-31",
+        "moving_s": null,
+        "original_start": "2026-01-01T01:00:00Z",
+        "source_timezone": "source_offset",
+        "source_workout_label": null,
+        "sport": "other",
+        "start_at": "2026-01-01T01:00:00+00:00",
+        "subtype": "multi_sport"
+      },
+      "name": "multisport",
+      "provider_id": "9007199254740993",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": "multi_sport",
+        "startTimeGMT": "2026-01-01T01:00:00Z"
+      }
+    },
+    {
+      "fields": {
+        "avg_hr_bpm": null,
+        "cadence_spm": null,
+        "distance_m": null,
+        "elapsed_s": null,
+        "field_paths": {},
+        "local_date": "2025-12-31",
+        "moving_s": null,
+        "original_start": "2026-01-01T01:00:00Z",
+        "source_timezone": "source_offset",
+        "source_workout_label": null,
+        "sport": "other",
+        "start_at": "2026-01-01T01:00:00+00:00",
+        "subtype": "snowshoe"
+      },
+      "name": "unknown_sport",
+      "provider_id": "9007199254740993",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": "  Snowshoe  ",
+        "startTimeGMT": "2026-01-01T01:00:00Z"
+      }
+    },
+    {
+      "error": "missing_sport",
+      "name": "missing_sport",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {},
+        "startTimeGMT": "2026-01-01T01:00:00Z"
+      }
+    },
+    {
+      "error": "missing_start_time",
+      "name": "missing_time",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "startTimeGMT": null
+      }
+    },
+    {
+      "error": "ambiguous_start_time",
+      "name": "local_only",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "startTimeGMT": null,
+        "startTimeLocal": "2026-11-01T01:30:00"
+      }
+    },
+    {
+      "error": "ambiguous_start_time",
+      "name": "unqualified_time",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "startTimeGMT": null,
+        "start_at": "2026-11-01T01:30:00"
+      }
+    },
+    {
+      "error": "invalid_start_time",
+      "name": "invalid_time",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "startTimeGMT": "not-a-date"
+      }
+    },
+    {
+      "error": "invalid_distance",
+      "name": "negative_distance",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "distance": -1,
+        "startTimeGMT": "2026-01-01T01:00:00Z"
+      }
+    },
+    {
+      "error": "invalid_average_hr",
+      "name": "boolean_hr",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "averageHR": true,
+        "startTimeGMT": "2026-01-01T01:00:00Z"
+      }
+    },
+    {
+      "error": "invalid_elapsed_duration",
+      "name": "string_duration",
+      "record": {
+        "activityId": 9007199254740993,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "elapsedDuration": "600",
+        "startTimeGMT": "2026-01-01T01:00:00Z"
+      }
+    },
+    {
+      "error": "invalid_activity_id",
+      "name": "invalid_id",
+      "record": {
+        "activityId": 1.0,
+        "activityType": {
+          "typeKey": "running"
+        },
+        "startTimeGMT": "2026-01-01T01:00:00Z"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQCh6uPJywAAANsBAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbr2PQWsCMRSE/8qSs4dk3bib3qQV25sUbyIlbF7l0U12eUmWWvG/N3GpSM/iceYbZpjdiflorSb8AbNsA44YEPzqe+gpsKdid2J6co9vJmnFeS2UKmVVV1yp+ay48u1xgJRggXT79UHROXQHlgPj4ZUSEZWc1Ht0z9qAa3O+KZNp0Ac9aVlKznnyoNODB/MSSQfsXS5I6xOz/ZjKb1Hzh1IRhS1aWNt8QNRycUFclHk+eqAN9Z/YweWQqM+z4t/J5v6vXOy6R37an/e/UEsDBBQAAAAIAAAAIQBOQdTWCQAAAAcAAAAJAAAAbm90ZXMudHh0y0zPyy9KTQEAUEsBAhQDFAAAAAgAAAAhAKHq48nLAAAA2wEAACgAAAAAAAAAAAAAAIABAAAAAGV4cG9ydC9leGFtcGxlX3N1bW1hcml6ZWRBY3Rpdml0aWVzLmpzb25QSwECFAMUAAAACAAAACEATkHU1gkAAAAHAAAACQAAAAAAAAAAAAAAgAERAQAAbm90ZXMudHh0UEsFBgAAAAACAAIAjQAAAEEBAAAAAA==",
+      "archive_sha256": "6bebd3f178aa9271efee68e2792011aa595e2f4d9a5f6316a0ed2b92cd079dca",
+      "expanded_bytes": 482,
+      "member_count": 2,
+      "member_name": "export/example_summarizedActivities.json",
+      "name": "converted",
+      "owner": "17",
+      "records": [
+        {
+          "member_sha256": "8741161a7f76a532ec3e1b42d255706efcbdbfaedd24ec8519e9b5403793da47",
+          "original": {
+            "activityId": 9007199254740993,
+            "activityType": "track_running",
+            "avgHr": 145,
+            "avgRunCadence": 82,
+            "distance": 525000,
+            "elapsedDuration": 1900000,
+            "movingDuration": 1800000,
+            "startTimeGmt": 1756000000125,
+            "userProfileId": 17
+          },
+          "record": {
+            "activityId": 9007199254740993,
+            "activityType": {
+              "typeKey": "track_running"
+            },
+            "averageHR": 145.0,
+            "distance": 5250.0,
+            "elapsedDuration": 1900.0,
+            "movingDuration": 1800.0,
+            "ownerId": 17,
+            "startTimeGMT": "2025-08-24T01:46:40.125000+00:00"
+          },
+          "row_index": 0
+        },
+        {
+          "member_sha256": "8741161a7f76a532ec3e1b42d255706efcbdbfaedd24ec8519e9b5403793da47",
+          "original": {
+            "activityId": 8,
+            "activityType": "track_running",
+            "avgHr": 145,
+            "avgRunCadence": 82,
+            "distance": null,
+            "elapsedDuration": 1900000,
+            "movingDuration": 1800000,
+            "startTimeGmt": 1756000000125,
+            "userProfileId": 17
+          },
+          "record": {
+            "activityId": 8,
+            "activityType": {
+              "typeKey": "track_running"
+            },
+            "averageHR": 145.0,
+            "elapsedDuration": 1900.0,
+            "movingDuration": 1800.0,
+            "ownerId": 17,
+            "startTimeGMT": "2025-08-24T01:46:40.125000+00:00"
+          },
+          "row_index": 1
+        }
+      ]
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQBDv6ajBAAAAAIAAAAKAAAAb3RoZXIuanNvbquuBQBQSwECFAMUAAAACAAAACEAQ7+mowQAAAACAAAACgAAAAAAAAAAAAAAgAEAAAAAb3RoZXIuanNvblBLBQYAAAAAAQABADgAAAAsAAAAAAA=",
+      "error": "activity_member_count",
+      "name": "missing_member"
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQDD4pShDAAAAAoAAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbtPIyy9R8Ar299MEAFBLAQIUAxQAAAAIAAAAIQDD4pShDAAAAAoAAAAoAAAAAAAAAAAAAACAAQAAAABleHBvcnQvZXhhbXBsZV9zdW1tYXJpemVkQWN0aXZpdGllcy5qc29uUEsFBgAAAAABAAEAVgAAAFIAAAAAAA==",
+      "error": "invalid_activity_json",
+      "name": "invalid_json"
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQBDv6ajBAAAAAIAAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbquuBQBQSwECFAMUAAAACAAAACEAQ7+mowQAAAACAAAAKAAAAAAAAAAAAAAAgAEAAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvblBLBQYAAAAAAQABAFYAAABKAAAAAAA=",
+      "error": "invalid_activity_schema",
+      "name": "wrong_schema"
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQBn+OmmKAAAACYAAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbouuViouzc1NLMqsSk1xTC7JLMssyUwtdq0oyC8qUbJSiDY0j62NBQBQSwECFAMUAAAACAAAACEAZ/jppigAAAAmAAAAKAAAAAAAAAAAAAAAgAEAAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvblBLBQYAAAAAAQABAFYAAABuAAAAAAA=",
+      "error": "invalid_activity_record",
+      "name": "non_record"
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQA1f7KLwwAAAOwBAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbuWPwWrDMBBEf8Xo7IPkWHXUW0hDklspvgVThLUJSyPZrCTTNOTfK9m09B96nHnDDHO6Mx+t1YRfYDZ9wAkDgt99jgMF9lyc7kwv7u1oklacN0KpStZNzZValcUvb28jpAQLpPuPd4rOobuwHJguB0pE1HJRb9FttQHX5/y6SqZBH/SiZSU558mDqx49mJdIOuDgckFaX5gdplT+F61/UCqi0KKFvc0HRCOfZsRFleejB3ql4YxXmA+J5lEW/+Bk9+i+AVBLAQIUAxQAAAAIAAAAIQA1f7KLwwAAAOwBAAAoAAAAAAAAAAAAAACAAQAAAABleHBvcnQvZXhhbXBsZV9zdW1tYXJpemVkQWN0aXZpdGllcy5qc29uUEsFBgAAAAABAAEAVgAAAAkBAAAAAA==",
+      "error": "duplicate_activity_id",
+      "name": "duplicate_id"
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQB7C7M/xwAAAN0BAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbtWPQWsCMRSE/8qSs4dku+lueiu2aG+leBORsHnKQ5NdXpKlVva/m7go4j/oceYbZpj1mflorSb8A/PeBhwwIPjP376jwN6K9ZnpyT19maQV57VQqpRVXXGlXmbFna9OPaQEC6Tbw5aic+j2LAeG/ZISEZWc1E90c23AtTnflMk06IOetCwl5zx5cNS9B/MRSQfsXC5I6xOz3ZDKH1FzQ6mIwgotLGw+IGr5ekVclHk+eqBv6nZ4hOshUY+z4ulk8/9fqXEzbi5QSwECFAMUAAAACAAAACEAewuzP8cAAADdAQAAKAAAAAAAAAAAAAAAgAEAAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvblBLBQYAAAAAAQABAFYAAAANAQAAAAA=",
+      "error": "mixed_activity_owner",
+      "name": "mixed_owner"
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQBuIJ6EJgAAACQAAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbouuViouzc1NLMqsSk1xTC7JLMssyUwtdq0oyC8qUbJSiI6tjQUAUEsBAhQDFAAAAAgAAAAhAG4gnoQmAAAAJAAAACgAAAAAAAAAAAAAAIABAAAAAGV4cG9ydC9leGFtcGxlX3N1bW1hcml6ZWRBY3Rpdml0aWVzLmpzb25QSwUGAAAAAAEAAQBWAAAAbAAAAAAA",
+      "error": "mixed_activity_owner",
+      "name": "empty"
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQCMjXExrgAAAPoAAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbk2PwQrCMAyGX0V69tAN69SbqKg3kd3GkLLGEbTdSNvhFN/ddkPx+H9f+JMUL2a91pLwCWpdOezQIdjdo23IsdWkeDE50v6oQmYZm05+KO9biNCRrG4X8sagqYeBrj5QMMlMjOnszUYqMFWcX6QBKrROjlmkgnMeGNxla0FtPUmHjYkFS85Hp5sulP+rxVeFInI5atjreHOSifmgeJLG9d4Cnai54h2GH5LsXb7LD1BLAQIUAxQAAAAIAAAAIQCMjXExrgAAAPoAAAAoAAAAAAAAAAAAAACAAQAAAABleHBvcnQvZXhhbXBsZV9zdW1tYXJpemVkQWN0aXZpdGllcy5qc29uUEsFBgAAAAABAAEAVgAAAPQAAAAAAA==",
+      "error": "invalid_activity_identity",
+      "name": "string_id"
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQAG/zp7vAAAAAMBAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbk2PQWvDMAyF/0rxeYU4S5Z4t9KWtrcycithmFgtYrUTZDu0K/3vkxM2ptvT96QnnR7CR2s14TeYVRdwxIDgt7ehpyDeF6eH0HP3fjCsVZZVUqm8LKoiU+r1ZfHHm/sA7BCBdPf1SdE5dBeRDONlT0xkUc7qI7q1NuC65K9zbhr0Qc96KVnDVQ8ezCaSDti7NMzJXMxsP/Li/6j+RbyEQoMWdjYdL6vybUKZzFN09EBH6s94hekZWT3bZ/sDUEsBAhQDFAAAAAgAAAAhAAb/Onu8AAAAAwEAACgAAAAAAAAAAAAAAIABAAAAAGV4cG9ydC9leGFtcGxlX3N1bW1hcml6ZWRBY3Rpdml0aWVzLmpzb25QSwUGAAAAAAEAAQBWAAAAAgEAAAAA",
+      "error": "invalid_activity_distance",
+      "name": "negative_distance"
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQBoRLA1sgAAAPsAAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbk2PywrCMBBFf6Vk7SKtLTXuREXdibgrRUIzyqBJyyQpPui/m1gUl/ecyx2mejHrtZaET1CLxmGPDsGu711Ljs2T6sXkSB87FbLgvEyFyIq8zLkQ00ny88dHB6HBHMnmeiJvDJoLi4X+sqVg0rwY08GbpVRgmtifZQEqtE6OucgKznlgcJOdBbXyJB22Jg6E66PTbR/G/9Xsq8IQuSNq2Oj4QETeAu2pPeMNPk+k5VAP9RtQSwECFAMUAAAACAAAACEAaESwNbIAAAD7AAAAKAAAAAAAAAAAAAAAgAEAAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvblBLBQYAAAAAAQABAFYAAAD4AAAAAAA=",
+      "error": "invalid_activity_start",
+      "name": "invalid_start"
+    },
+    {
+      "archive": "UEsDBBQAAAAIAAAAIQDW1YaiugAAAAcBAAAoAAAAZXhwb3J0L2V4YW1wbGVfc3VtbWFyaXplZEFjdGl2aXRpZXMuanNvbk2PzarCMBSEX0Wyvoukt7HGnVxF3Ym4E5HQnCsHTVpOkuIPfXcTi+Jy5htmmP2D+WitJryDmdUBOwwIfnFtGwpsOto/mB7c29okrTivhFKFLKuSK/X7M/rw3a2FlGCBdH0+UnQO3YnlQHdaUSKilIPaRvenDbg65ydFMg36oActC8k5Tx5cdOvBzCPpgI3LBWl9YLbpUvk3mrxRKqKwQwtLmw+ISo5fiIsiz0cPtKHmHy/wOiSq/tAfnlBLAwQUAAAACAAAACEATkHU1gkAAAAHAAAADAAAAC4uL25vdGVzLnR4dMtMz8svSk0BAFBLAQIUAxQAAAAIAAAAIQDW1YaiugAAAAcBAAAoAAAAAAAAAAAAAACAAQAAAABleHBvcnQvZXhhbXBsZV9zdW1tYXJpemVkQWN0aXZpdGllcy5qc29uUEsBAhQDFAAAAAgAAAAhAE5B1NYJAAAABwAAAAwAAAAAAAAAAAAAAIABAAEAAC4uL25vdGVzLnR4dFBLBQYAAAAAAgACAJAAAAAzAQAAAAA=",
+      "error": "unsafe_archive_path",
+      "name": "unsafe_path"
+    }
+  ]
+}
