@@ -118,7 +118,7 @@ async function renderState(state) {
 
 function isGoRead(requestPath) {
   const path = requestPath.split('?')[0]
-  return ['/api/v1/trips', '/api/v1/calendar/weekly-digest', '/api/v1/calendar/weekly-projection', '/api/v1/running-interruption'].includes(path) || path.startsWith('/api/v1/google-calendar/')
+  return ['/api/v1/trips', '/api/v1/activities', '/api/v1/metrics/recovery', '/api/v1/calendar/weekly-digest', '/api/v1/calendar/weekly-projection', '/api/v1/running-interruption'].includes(path) || path.startsWith('/api/v1/google-calendar/')
 }
 
 async function checkState(state) {

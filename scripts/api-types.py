@@ -51,7 +51,8 @@ def main() -> None:
         check_generated_go()
     else:
         generate_go(MODULE)
-    for source, target in ((CONTRACT, 'backend.ts'), (Path('api/travel.openapi.json'), 'travel.ts')):
+    for source, target in ((CONTRACT, 'backend.ts'), (Path('api/travel.openapi.json'), 'travel.ts'),
+                           (Path('api/activity.openapi.json'), 'activity.ts')):
         command = ['node_modules/.bin/openapi-typescript', str(MODULE / source),
                    '-o', f'src/api/generated/{target}']
         if args.check:

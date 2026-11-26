@@ -7,8 +7,8 @@ import (
 	"errors"
 	"github.com/google/uuid"
 	"github.com/mtang08/going-bananas/backend-go/api"
-	"github.com/mtang08/going-bananas/backend-go/internal/calendar"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 	"github.com/mtang08/going-bananas/backend-go/internal/proposals"
 	"io"
 	"net/http"
@@ -20,7 +20,6 @@ import (
 type Handler struct {
 	Store        drafts.Store
 	KBRoot, Mode string
-	Metrics      calendar.PlanMetrics
 	Now          func() time.Time
 }
 
@@ -39,9 +38,7 @@ func (h Handler) Register(mux *http.ServeMux) {
 		"POST " + prefix + "/{id}/revise":              "revise",
 		"POST " + prefix:                               "submit",
 	}
-	if h.Metrics != nil {
-		routes["POST "+prefix+"/{id}/decision"] = "decide"
-	}
+	routes["POST "+prefix+"/{id}/decision"] = "decide"
 	for pattern, method := range routes {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) { h.serve(w, r, method) })
 	}
@@ -203,7 +200,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, method string) {
 			invalid(w, issues(fields))
 			return
 		}
-		data, err = h.Store.Decide(ctx, id, req, now, h.KBRoot, h.Metrics)
+		data, err = h.Store.Decide(ctx, id, req, now, h.KBRoot, refresh.PlanMetrics(now, refresh.Runs))
 	}
 	if err == nil && revision < 0 {
 		revision, err = h.Store.DataRevision(ctx)

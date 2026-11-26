@@ -140,6 +140,7 @@ def main():
         'exception-inputs': 'check_exception_inputs.py',
         'coaching-lifecycle': 'coaching/check_lifecycle.py',
         'recovery': 'check_recovery.py',
+        'activity-reads': 'check_activity_reads.py',
         'aerobic': 'check_aerobic.py',
         'assessment': 'check_assessment_db.py',
         'gcal': 'check_gcal_replay.py',

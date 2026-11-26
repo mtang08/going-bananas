@@ -32,6 +32,8 @@ const goProxy: Plugin = {
                 [
                   '/api/v1/coach/proposals',
                   '/api/v1/calendar/versions',
+                  '/api/v1/activities',
+                  '/api/v1/metrics/recovery',
                   '/api/v1/calendar/weekly-digest',
                   '/api/v1/calendar/weekly-projection',
                   '/api/v1/running-interruption',
@@ -48,9 +50,10 @@ const goProxy: Plugin = {
                 /^\/api\/v1\/coach\/proposals\/[^/]+(?:\/document|\/revisions\/[^/]+)?$/.test(
                   path,
                 )) ||
+              (req.method === 'GET' && /^\/api\/v1\/activities\/[^/]+$/.test(path)) ||
               (req.method === 'DELETE' && /^\/api\/v1\/coach\/proposals\/[^/]+$/.test(path)) ||
               (req.method === 'POST' &&
-                /^\/api\/v1\/coach\/proposals\/[^/]+\/revise$/.test(path)) ||
+                /^\/api\/v1\/coach\/proposals\/[^/]+\/(?:revise|decision)$/.test(path)) ||
               (req.method === 'PATCH' &&
                 /^\/api\/v1\/(?:goals|trips|google-calendar\/events)\/[^/]+$/.test(path))
             )

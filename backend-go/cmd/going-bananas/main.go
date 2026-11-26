@@ -16,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/api"
+	"github.com/mtang08/going-bananas/backend-go/internal/activityhttp"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
 	"github.com/mtang08/going-bananas/backend-go/internal/goals"
 	"github.com/mtang08/going-bananas/backend-go/internal/googlecalendar"
@@ -101,11 +102,12 @@ func serve(args []string) error {
 	privateDir := os.Getenv("PRIVATE_DIR")
 	travel := travelhttp.Handler{Pool: pool, Mode: string(mode), PrivateDir: privateDir, Provider: googlecalendar.New(privateDir)}
 	review := proposalhttp.Handler{Store: drafts.Store{Pool: pool}, KBRoot: filepath.Join(root, "running_coach_kb"), Mode: string(mode)}
+	activities := activityhttp.Handler{Pool: pool, Mode: string(mode)}
 	weekly := httpapi.Weekly{Pool: pool, Mode: mode}
 	registerReturnPlan := func(mux *http.ServeMux) {
 		mux.Handle("GET /api/v1/running-interruption", returnplan.Handler{Pool: pool, Mode: string(mode)})
 	}
-	h := httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort, travel.Register, review.Register, weekly.Register, registerReturnPlan)
+	h := httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort, travel.Register, review.Register, weekly.Register, registerReturnPlan, activities.Register)
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Println(l.Addr())
 	return srv.Serve(l)
