@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -28,7 +29,8 @@ def main():
                 env["DASHBOARD_TEST_DATABASE_URL"] = pg_url.update_query_dict(
                     {"search_path": schema}
                 ).render_as_string(hide_password=False)
-                subprocess.run(["go", "test", "-race", "-count=1", "-v", "./internal/coachdashboard"],
+                env["DASHBOARD_REFERENCE_PYTHON"] = sys.executable
+                subprocess.run(["go", "test", "-p", "1", "-race", "-count=1", "-v", "./internal/coachdashboard", "./internal/coachdashboardhttp", "./internal/coaching/snapshotreads"],
                                cwd=MODULE, env=env, check=True)
 
 
