@@ -1,0 +1,97 @@
+[
+  {
+    "name": "ambiguous_run_strength_link_and_extra",
+    "input": {
+      "days": [
+        "2026-11-24",
+        "2026-11-19",
+        "2026-11-20"
+      ],
+      "planned": [
+        {
+          "session_uid": "run-plan",
+          "kind": "run",
+          "local_date": "2026-11-19",
+          "planned_duration_s": 3000
+        },
+        {
+          "session_uid": "strength-plan",
+          "kind": "strength",
+          "local_date": "2026-11-20"
+        }
+      ],
+      "runs": [
+        {
+          "activity_id": "longer",
+          "local_date": "2026-11-19",
+          "timer_s": 3100
+        },
+        {
+          "activity_id": "shorter",
+          "local_date": "2026-11-19",
+          "timer_s": 2900
+        },
+        {
+          "strong_workout_id": "lifting",
+          "local_date": "2026-11-20"
+        },
+        {
+          "manual_session_id": "extra",
+          "local_date": "2026-11-24"
+        }
+      ],
+      "completions": [
+        {
+          "session_uid": "run-plan",
+          "subject_key": "longer",
+          "match_method": "auto_same_day"
+        },
+        {
+          "session_uid": "old-extra",
+          "subject_key": "shorter",
+          "status": "extra"
+        }
+      ]
+    },
+    "result": {
+      "delete_auto_session_uids": [
+        "run-plan"
+      ],
+      "delete_extra_subject_keys": [
+        "shorter"
+      ],
+      "links": [
+        {
+          "session_uid": "strength-plan",
+          "subject_key": "strong:lifting",
+          "match_method": "auto_same_day"
+        }
+      ],
+      "extras": [
+        {
+          "session_uid": "5ada2296-a417-50f2-a3a5-19ac2bbef074",
+          "subject_key": "manual:extra",
+          "match_method": "none"
+        }
+      ],
+      "candidates": {
+        "run-plan": [
+          {
+            "subject_key": "longer",
+            "local_date": "2026-11-19",
+            "kind": "run",
+            "reason": "AMBIGUOUS_MATCH",
+            "cost": 0.033
+          },
+          {
+            "subject_key": "shorter",
+            "local_date": "2026-11-19",
+            "kind": "run",
+            "reason": "AMBIGUOUS_MATCH",
+            "cost": 0.034
+          }
+        ]
+      }
+    }
+  }
+]

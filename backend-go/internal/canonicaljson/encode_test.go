@@ -1,4 +1,4 @@
-package coaching
+package canonicaljson
 
 import (
 	"bytes"
@@ -13,18 +13,16 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestCoachingCanonicalFixture(t *testing.T) {
+func TestPersistedCanonicalBytes(t *testing.T) {
 	raw, err := os.ReadFile("../../../backend/tests/fixtures/canonical-hashes.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var fixture struct {
 		Input    map[string]any
-		Expected struct {
-			Coaching struct {
-				Canonical string `json:"canonical_json"`
-				SHA256    string
-			}
+		Expected map[string]struct {
+			Canonical string `json:"canonical_json"`
+			SHA256    string
 		}
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -46,16 +44,21 @@ func TestCoachingCanonicalFixture(t *testing.T) {
 		instants = append(instants, instant)
 	}
 	fixture.Input["instants"] = instants
-	got, err := CanonicalJSON(fixture.Input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != fixture.Expected.Coaching.Canonical {
-		t.Errorf("canonical bytes = %q, want %q", got, fixture.Expected.Coaching.Canonical)
-	}
-	hash := sha256.Sum256(got)
-	if digest := hex.EncodeToString(hash[:]); digest != fixture.Expected.Coaching.SHA256 {
-		t.Errorf("sha256 = %s, want %s", digest, fixture.Expected.Coaching.SHA256)
+	for name, encode := range map[string]func(any) ([]byte, error){"coaching": Coaching, "metrics": Metric} {
+		t.Run(name, func(t *testing.T) {
+			want := fixture.Expected[name]
+			got, err := encode(fixture.Input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != want.Canonical {
+				t.Errorf("canonical bytes = %q, want %q", got, want.Canonical)
+			}
+			hash := sha256.Sum256(got)
+			if digest := hex.EncodeToString(hash[:]); digest != want.SHA256 {
+				t.Errorf("sha256 = %s, want %s", digest, want.SHA256)
+			}
+		})
 	}
 }
 
@@ -71,7 +74,7 @@ func TestCanonicalScalarEdges(t *testing.T) {
 		{"offset crosses date", time.Date(2026, 1, 1, 0, 30, 0, 1000, time.FixedZone("plus one", 3600)), `"2025-12-31T23:30:00.000001+00:00"`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := CanonicalJSON(tc.input)
+			got, err := Coaching(tc.input)
 			if err != nil || string(got) != tc.want {
 				t.Fatalf("CanonicalJSON = %q, %v; want %q", got, err, tc.want)
 			}
@@ -84,7 +87,7 @@ func TestCanonicalInvalidValues(t *testing.T) {
 		math.Inf(1), math.NaN(), json.Number("01"), json.Number("1e400"), map[int]string{},
 		"\xff", time.Unix(0, 1),
 	} {
-		if got, err := CanonicalJSON(value); err == nil {
+		if got, err := Coaching(value); err == nil {
 			t.Errorf("CanonicalJSON(%v) = %q, want error", value, got)
 		}
 	}
