@@ -388,14 +388,14 @@ func isRunning(sport string) bool {
 	return sport == "running" || sport == "trail_running" || sport == "treadmill_running"
 }
 
-func RefreshStrengthKey(ctx context.Context, tx pgx.Tx, key string, zone *time.Location, now time.Time) error {
+func CalculateStrength(ctx context.Context, tx pgx.Tx, key string, zone *time.Location) (*metrics.Result, error) {
 	prefix, id, ok := strings.Cut(key, ":")
 	if !ok || prefix != "strong" && prefix != "manual" {
-		return fmt.Errorf("invalid strength subject")
+		return nil, fmt.Errorf("invalid strength subject")
 	}
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sql := `SELECT local_date::text FROM strong_workouts WHERE id=$1`
 	if prefix == "manual" {
@@ -404,22 +404,34 @@ func RefreshStrengthKey(ctx context.Context, tx pgx.Tx, key string, zone *time.L
 	var day string
 	err = tx.QueryRow(ctx, sql, uid).Scan(&day)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
+		return nil, err
 	}
 	if err == nil {
 		start, err := time.ParseInLocation(time.DateOnly, day, zone)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		facts, err := rpeStrength(ctx, tx, start, start.AddDate(0, 0, 1), true)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for _, f := range facts {
 			if f.key == key {
-				return persistRPE(ctx, tx, f, zone.String(), now)
+				r := rpeResult(f, zone.String())
+				return &r, nil
 			}
 		}
+	}
+	return nil, nil
+}
+func RefreshStrengthKey(ctx context.Context, tx pgx.Tx, key string, zone *time.Location, now time.Time) error {
+	r, err := CalculateStrength(ctx, tx, key, zone)
+	if err != nil {
+		return err
+	}
+	if r != nil {
+		_, err = metrics.StoreResult(ctx, tx, *r, now)
+		return err
 	}
 	_, err = tx.Exec(ctx, `UPDATE metric_results SET is_current=false WHERE metric_id='session_rpe_load' AND method_version='v1' AND subject_key=$1 AND is_current`, key)
 	return err

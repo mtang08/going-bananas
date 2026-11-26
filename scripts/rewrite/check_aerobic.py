@@ -48,10 +48,106 @@ def seed(env):
                 ),
             )
 
+        for n in (0, 1, 2, 3, 4):
+            db.execute(
+                """INSERT INTO activity_streams(activity_id,t_s,hr_bpm,speed_mps,distance_m,altitude_m,cadence,timer_on,sample_count,max_gap_s,quality_flags)
+                SELECT %s,array_agg(t ORDER BY t),array_agg((CASE WHEN t<1900 THEN 135 ELSE 146 END)::smallint ORDER BY t),
+                  array_agg((CASE WHEN %s=2 AND (t/60)%%2=0 THEN 6.5 WHEN %s=3 AND t<1700 THEN 0 ELSE 3.2 END)::real ORDER BY t),
+                  array_agg(t*3.2::real ORDER BY t),array_agg((t/75)::real ORDER BY t),array_agg(80::real ORDER BY t),
+                  ARRAY[[0,1900],[1920,3600]],361,10,'{}' FROM generate_series(0,3600,10) t""",
+                (uid(2000 + n), n, n),
+            )
+        db.execute(
+            "UPDATE activities SET sport='treadmill_running' WHERE id=%s", (uid(2001),)
+        )
+        db.execute(
+            """INSERT INTO activity_annotations(id,activity_id,version,excluded,workout_label)
+                    VALUES(%s,%s,1,false,'quality')""",
+            (uid(8200), uid(2004)),
+        )
+
+        for i, (kind, limit) in enumerate(
+            [
+                ("hr_aerobic_upper", 140),
+                ("hr_threshold_lower", 160),
+                ("speed_aerobic_upper", 3),
+                ("speed_threshold_lower", 4),
+            ]
+        ):
+            db.execute(
+                """INSERT INTO intensity_anchors(id,anchor_key,kind,value_low,unit,protocol,confidence,status,calibrated_at,valid_from,review_after)
+            VALUES(%s,%s,%s,%s,%s,'manual','low','active','2026-02-01T12:00Z','2026-02-01','2026-03-01')""",
+                (
+                    uid(9000 + i),
+                    "anchor" + str(i),
+                    kind,
+                    limit,
+                    "bpm" if i < 2 else "mps",
+                ),
+            )
+
+        db.execute(
+            "INSERT INTO calendar_versions(id,number,kind,actor) VALUES(%s,1,'manual_edit','user')",
+            (uid(9500),),
+        )
+        db.execute("UPDATE app_state SET calendar_head_version=1")
+        for n in (0, 1, 2):
+            structure = [
+                {
+                    "type": "work",
+                    "duration_type": "time",
+                    "duration_value": 200,
+                    "target": {"modality": "speed", "low": 3.0, "high": 3.5},
+                },
+                {"type": "recovery", "duration_type": "time", "duration_value": 60},
+                {"type": "work", "duration_type": "time", "duration_value": 200},
+            ]
+            db.execute(
+                """INSERT INTO calendar_session_revisions(id,session_uid,revision,calendar_version_number,local_date,kind,intent,certainty,structure)
+                    VALUES(%s,%s,1,1,'2026-03-04','run','quality','committed',%s)""",
+                (uid(9510 + n), uid(9520 + n), Jsonb(structure)),
+            )
+            db.execute(
+                """INSERT INTO session_completions(id,session_uid,activity_id,status,match_method,version,input_version,updated_at)
+                    VALUES(%s,%s,%s,'unknown','explicit',1,1,now())""",
+                (uid(9530 + n), uid(9520 + n), uid(2000 + n)),
+            )
+            if n == 2:
+                continue
+            for j, (intensity, offset, duration) in enumerate(
+                [("active", 0, 200), ("recovery", 200, 60), ("active", 260, 200)]
+            ):
+                db.execute(
+                    """INSERT INTO activity_workout_steps(id,activity_id,message_index,intensity,duration_type,duration_value)
+                    VALUES(%s,%s,%s,%s,'time',%s)""",
+                    (uid(9540 + n * 10 + j), uid(2000 + n), j, intensity, duration),
+                )
+                db.execute(
+                    """INSERT INTO activity_laps(id,activity_id,lap_index,start_at,end_at,timer_s,elapsed_s,distance_m,wkt_step_index,intensity)
+                    SELECT %s,id,%s,start_at+%s*interval '1s',start_at+%s*interval '1s',%s,%s,%s,%s,%s FROM activities WHERE id=%s""",
+                    (
+                        uid(9570 + n * 10 + j),
+                        j,
+                        offset,
+                        offset + duration,
+                        duration,
+                        duration,
+                        duration * 3,
+                        j,
+                        intensity,
+                        uid(2000 + n),
+                    ),
+                )
+        db.execute(
+            """UPDATE activities SET treadmill_interval_paces=jsonb_build_object('0',jsonb_build_object(
+            'pace_s_per_mile',450.0,'lap_identity','2026-03-05T12:00:00+00:00|2026-03-05T12:03:20+00:00|200.0|200.0|0')) WHERE id=%s""",
+            (uid(2001),),
+        )
+
 
 def reference():
     from app.db import SessionLocal
-    from app.metrics import aerobic, engine
+    from app.metrics import aerobic, engine, intensity, intervals
     from sqlalchemy import text
 
     result = []
@@ -63,6 +159,73 @@ def reference():
                 engine.upsert_results(s, aerobic.compute(s, f"w{d}:{START}"))
             s.flush()
             result.append({"sql": change, "state": s.execute(text(STATE)).scalar_one()})
+    activity_query = STATE.replace(
+        "subject_type='window'", "subject_type='activity' AND config_hash<>'fixture'"
+    )
+    keys = [uid(2000 + n) for n in range(6)]
+    for change in [
+        "",
+        f"UPDATE activity_annotations SET workout_label='easy',version=2 WHERE activity_id='{uid(2004)}'",
+    ]:
+        with SessionLocal.begin() as s:
+            if change:
+                s.execute(text(change))
+            for key in keys:
+                engine.upsert_results(s, aerobic.compute(s, key))
+            s.flush()
+            result.append(
+                {
+                    "sql": change,
+                    "keys": keys,
+                    "query": activity_query,
+                    "state": s.execute(text(activity_query)).scalar_one(),
+                }
+            )
+    intensity_query = activity_query.replace(
+        "aerobic_efficiency", "intensity_time_distribution"
+    )
+    for change in [
+        "",
+        "UPDATE intensity_anchors SET confidence='insufficient' WHERE kind='hr_threshold_lower'",
+    ]:
+        with SessionLocal.begin() as s:
+            if change:
+                s.execute(text(change))
+            for key in keys:
+                engine.upsert_results(s, intensity.compute(s, key))
+            s.flush()
+            result.append(
+                {
+                    "metric": "intensity",
+                    "sql": change,
+                    "keys": keys,
+                    "query": intensity_query,
+                    "state": s.execute(text(intensity_query)).scalar_one(),
+                }
+            )
+    interval_query = activity_query.replace(
+        "aerobic_efficiency", "work_interval_execution"
+    )
+    for change in [
+        "",
+        f"UPDATE activity_laps SET timer_s=98 WHERE activity_id='{uid(2000)}' AND lap_index=2",
+        f"UPDATE activities SET fit_status='decoded' WHERE id='{uid(2000)}'",
+    ]:
+        with SessionLocal.begin() as s:
+            if change:
+                s.execute(text(change))
+            for key in keys:
+                engine.upsert_results(s, intervals.compute(s, key))
+            s.flush()
+            result.append(
+                {
+                    "metric": "intervals",
+                    "sql": change,
+                    "keys": keys,
+                    "query": interval_query,
+                    "state": s.execute(text(interval_query)).scalar_one(),
+                }
+            )
     return {"cases": result, "query": STATE}
 
 
