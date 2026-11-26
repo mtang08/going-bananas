@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/mtang08/going-bananas/backend-go/internal/canonicaljson"
+
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics"
 )
 
@@ -27,41 +27,14 @@ func location(ctx context.Context, tx pgx.Tx) (*time.Location, int, error) {
 }
 
 func persist(ctx context.Context, tx pgx.Tx, in inputs, days []string, now time.Time) error {
-	cfg, err := metrics.Digest(config)
-	if err != nil {
-		return err
-	}
-	dep, err := metrics.Digest(object{"source_refs": in.refs, "config_hash": cfg, "anchor_set_hash": nil, "timezone": in.zone.String(), "calculator_dependency_hash": ""})
-	if err != nil {
-		return err
-	}
-	raw, err := canonicaljson.Metric(in.refs)
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO metric_configs(id,metric_id,method_version,config,config_hash) VALUES(gen_random_uuid(),'hard_session_spacing','v1',$1,$2) ON CONFLICT(metric_id,method_version,config_hash) DO NOTHING`, config, cfg)
-	if err != nil {
-		return err
-	}
 	for _, day := range days {
 		t, err := time.ParseInLocation(time.DateOnly, day, in.zone)
 		if err != nil {
 			return err
 		}
 		key := "w14:" + day
-		_, err = tx.Exec(ctx, `UPDATE metric_results SET is_current=false WHERE metric_id='hard_session_spacing' AND method_version='v1' AND subject_key=$1 AND is_current AND (config_hash<>$2 OR coalesce(anchor_set_hash,'')<>'' OR dependency_hash<>$3)`, key, cfg, dep)
-		if err != nil {
-			return err
-		}
-		tag, err := tx.Exec(ctx, `UPDATE metric_results SET is_current=true WHERE metric_id='hard_session_spacing' AND method_version='v1' AND subject_key=$1 AND config_hash=$2 AND coalesce(anchor_set_hash,'')='' AND dependency_hash=$3`, key, cfg, dep)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() > 0 {
-			continue
-		}
-		_, err = tx.Exec(ctx, `INSERT INTO metric_results(id,metric_id,method_version,subject_type,subject_key,window_label,window_start,window_end,status,value,reason_codes,quality_flags,source_refs,config_hash,calculated_at,dependency_hash,timezone,is_current)
- VALUES(gen_random_uuid(),'hard_session_spacing','v1','window',$1,$1,$2,$3,'available',$4,'{}','{}',$5::jsonb,$6,$7,$8,$9,true)`, key, t.AddDate(0, 0, -7), t.AddDate(0, 0, 7), outcome(in.entries, t), raw, cfg, now, dep, in.zone.String())
+		start, end := t.AddDate(0, 0, -7), t.AddDate(0, 0, 7)
+		_, err = metrics.StoreResult(ctx, tx, metrics.Result{MetricID: "hard_session_spacing", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Status: "available", Value: outcome(in.entries, t), SourceRefs: in.refs, Config: config, Timezone: in.zone.String()}, now)
 		if err != nil {
 			return err
 		}
