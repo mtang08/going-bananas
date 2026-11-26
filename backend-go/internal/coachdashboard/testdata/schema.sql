@@ -13,3 +13,5 @@ CREATE TABLE coach_chat_receipts (
     digest text NOT NULL,
     PRIMARY KEY (mode, client_message_id)
 );
+
+CREATE TABLE coach_chat_file_imports (mode text PRIMARY KEY);
