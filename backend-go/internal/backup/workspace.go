@@ -30,7 +30,16 @@ func pg(ctx context.Context, u *url.URL, program string, args ...string) error {
 	if port == "" {
 		port = "5432"
 	}
-	cmd.Env = append(os.Environ(), "PGHOST="+u.Hostname(), "PGPORT="+port, "PGDATABASE="+strings.TrimPrefix(u.Path, "/"))
+	// Ambient libpq service and hostaddr settings can redirect an explicit URL.
+	for _, variable := range os.Environ() {
+		name, _, _ := strings.Cut(variable, "=")
+		switch name {
+		case "PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE":
+			continue
+		}
+		cmd.Env = append(cmd.Env, variable)
+	}
+	cmd.Env = append(cmd.Env, "PGHOST="+u.Hostname(), "PGPORT="+port, "PGDATABASE="+strings.TrimPrefix(u.Path, "/"))
 	if u.User != nil {
 		cmd.Env = append(cmd.Env, "PGUSER="+u.User.Username())
 		if pw, ok := u.User.Password(); ok {
@@ -70,8 +79,8 @@ func Create(ctx context.Context, dsn, private, output string) (Manifest, error) 
 	if err = os.MkdirAll(parent, 0700); err != nil {
 		return m, err
 	}
-	// Keep intermediate files outside the allowlisted data roots, even if output is inside private.
-	stage, err := os.MkdirTemp("", "workspace-dump-")
+	// Stage beside the output so publication uses a single filesystem.
+	stage, err := os.MkdirTemp(parent, ".workspace-backup-")
 	if err != nil {
 		return m, err
 	}
@@ -80,25 +89,11 @@ func Create(ctx context.Context, dsn, private, output string) (Manifest, error) 
 	if err = pg(ctx, u, "pg_dump", "--format=custom", "--file", dump); err != nil {
 		return m, err
 	}
-	// Spool outside private so traversal cannot include the archive being written.
-	spool, err := os.CreateTemp(stage, "archive-")
+	tmp, err := os.OpenFile(filepath.Join(stage, "archive"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return m, err
 	}
-	defer func() { _ = spool.Close() }()
-	m, err = writeArchive(spool, private, dump)
-	if err != nil {
-		return m, err
-	}
-	if _, err = spool.Seek(0, 0); err != nil {
-		return m, err
-	}
-	tmp, err := os.CreateTemp(parent, ".backup-")
-	if err != nil {
-		return m, err
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-	_, err = tmp.ReadFrom(spool)
+	m, err = writeArchive(tmp, private, dump)
 	closeErr := tmp.Close()
 	if err != nil {
 		return m, err
