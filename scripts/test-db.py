@@ -138,6 +138,7 @@ def main():
         'provider': 'check_provider_replay.py',
         'strong': 'check_strong_import.py',
         'calendar': 'check_self_reports.py',
+        'rematch': 'check_rematch.py',
     }
     actions = ['start', 'stop', 'test', 'test-external', *checks, *(name + '-external' for name in checks)]
     parser.add_argument('action', choices=actions)
