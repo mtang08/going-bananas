@@ -115,7 +115,13 @@ def python_spacing(mode, uid):
     with SessionLocal.begin() as session:
         now = datetime.fromisoformat(NOW)
         session.info["metrics_now"] = now
-        if mode in WINDOW_METRICS:
+        if mode == "subjects":
+            from app.metrics.refresh import _refresh_strength
+            from datetime import timedelta
+            _refresh_strength(session, now.date()-timedelta(days=83),now.date())
+            for metric in ("symptom_response_timeline","session_rpe_load","long_run_exposure"):
+                compute_subjects(session,metric,uid.split(","))
+        elif mode in WINDOW_METRICS:
             compute_subjects(session,WINDOW_METRICS[mode],[f"w{width}:2026-11-22" for width in ((28,) if mode=="symptoms" else (7,14,28,56,84))])
         elif mode == "date":
             compute_subjects(session, "hard_session_spacing", ["w14:2026-11-11"])
@@ -163,6 +169,20 @@ def spacing_check(binary, py, go):
                 if a!=b:
                     raise AssertionError({k:(a[k],b[k]) for k in a if a[k]!=b[k]})
             raise AssertionError("spacing row count")
+    keys=",".join(id(n) for n in (21,22,23,24))
+    for env in (py,go):
+        with conn(env) as db:
+            db.execute("UPDATE activities SET end_at=start_at+interval '45 minutes' WHERE id IN (%s,%s)",(id(21),id(23)))
+            db.execute("UPDATE checkins_v2 SET activity_id=%s,kind='delayed_followup' WHERE id=%s",(id(22),id(192)))
+    subprocess.run([sys.executable,__file__,"spacing","subjects",keys],env=dict(py,PYTHONPATH=str(BACKEND)),check=True)
+    subprocess.run([binary,"-test.run","^TestPythonDatabase$"],env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,ASSESSMENT_SUBJECTS=keys,ASSESSMENT_SPACING="subjects",GORACE="atexit_sleep_ms=0"),check=True)
+    subject_rows=[]
+    for env in (py,go):
+        with conn(env) as db:
+            subject_rows.append(db.execute("""SELECT to_jsonb(m)-'id' FROM metric_results m WHERE subject_type='activity' AND is_current
+                AND metric_id IN('symptom_response_timeline','session_rpe_load','long_run_exposure') ORDER BY metric_id,subject_key""").fetchall())
+    for (a,), (b,) in zip(*subject_rows,strict=True):
+        if a!=b: raise AssertionError((a["metric_id"],a["subject_key"],{k:(a[k],b[k]) for k in a if a[k]!=b[k]}))
     assert len(left)==4
     print("PASS spacing windows, exposure and provenance payloads, manual selection and association refresh")
 

@@ -46,6 +46,21 @@ func TestPythonDatabase(t *testing.T) {
 				return err
 			}
 			switch mode {
+			case "subjects":
+				zone, err := time.LoadLocation("America/New_York")
+				if err != nil {
+					return err
+				}
+				end := now.In(zone)
+				if err := trainingwindows.RefreshStrength(t.Context(), tx, end.AddDate(0, 0, -83), end.AddDate(0, 0, 1), now); err != nil {
+					return err
+				}
+				for _, key := range strings.Split(os.Getenv("ASSESSMENT_SUBJECTS"), ",") {
+					if err := trainingwindows.RefreshRun(t.Context(), tx, uuid.MustParse(key), zone.String(), now); err != nil {
+						return err
+					}
+				}
+				return nil
 			case "volume", "symptoms", "long", "intensity", "rpe":
 				zone, err := time.LoadLocation("America/New_York")
 				if err != nil {
