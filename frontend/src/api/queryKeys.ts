@@ -40,6 +40,7 @@ export const qk = {
   blocksActive: ['v2', 'blocks', 'active'] as const,
   blockBenchmarks: ['v2', 'blocks', 'benchmarks'] as const,
   profile: ['profile'] as const,
+  loginStartup: ['v2', 'settings', 'login-startup'] as const,
   weeklyProjection: ['v2', 'calendar', 'weekly-projection'] as const,
   activityDetails: ['v2', 'activity'] as const,
   activities: ['v2', 'activities'] as const,

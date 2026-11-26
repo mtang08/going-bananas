@@ -3,10 +3,13 @@
 
 from __future__ import annotations
 
+import fcntl
 import http.client
 import json
 import os
 import plistlib
+import pwd
+import shutil
 import socket
 import subprocess
 import sys
@@ -14,7 +17,9 @@ import tempfile
 import time
 from contextlib import suppress
 from pathlib import Path
+from typing import Literal, TypedDict
 from urllib.parse import urlsplit
+from xml.parsers.expat import ExpatError
 
 SCRIPT = Path(__file__).resolve()
 ROOT = SCRIPT.parents[1]
@@ -23,6 +28,11 @@ LOG = PRIVATE / "dashboard-launch.log"
 LABEL = "com.local.going-bananas.dashboard"
 URL = "http://127.0.0.1:8000"
 LAUNCHCTL = "/bin/launchctl"
+STARTUP_ACTIONS = {
+    "login-startup-status": None,
+    "login-startup-enable": True,
+    "login-startup-disable": False,
+}
 PATH = ":".join(
     (
         "/opt/homebrew/opt/postgresql@17/bin",
@@ -38,11 +48,19 @@ PATH = ":".join(
 
 
 class LaunchError(Exception):
-    pass
+    def __init__(self, message: str, *, other_checkout: bool = False) -> None:
+        super().__init__(message)
+        self.other_checkout = other_checkout
+
+
+class LoginStartup(TypedDict):
+    status: Literal["enabled", "disabled", "unsupported", "other_checkout", "unavailable"]
+    enabled: bool | None
+    message: str | None
 
 
 def agent_path() -> Path:
-    return Path.home() / "Library" / "LaunchAgents" / f"{LABEL}.plist"
+    return Path(pwd.getpwuid(os.getuid()).pw_dir) / "Library" / "LaunchAgents" / f"{LABEL}.plist"
 
 
 def domain() -> str:
@@ -53,7 +71,7 @@ def serve_command() -> list[str]:
     return [
         "/bin/bash",
         str(ROOT / "scripts" / "run"),
-        sys.executable,
+        shutil.which("python3", path=PATH) or sys.executable,
         str(SCRIPT),
         "serve",
     ]
@@ -61,7 +79,13 @@ def serve_command() -> list[str]:
 
 def launchctl(*args: str) -> bool:
     return (
-        subprocess.run([LAUNCHCTL, *args], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+        subprocess.run(
+            [LAUNCHCTL, *args],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+        ).returncode
         == 0
     )
 
@@ -70,17 +94,107 @@ def agent_running() -> bool:
     return launchctl("print", f"{domain()}/{LABEL}")
 
 
-def owns_agent(path: Path) -> bool:
-    if not path.exists():
-        return False
+def installed_agent(path: Path) -> dict | None:
+    if path.is_symlink():
+        raise LaunchError("The existing Going Bananas login item is a symbolic link. Check it before changing startup.")
     try:
         job = plistlib.loads(path.read_bytes())
-    except (ValueError, OSError, plistlib.InvalidFileException) as exc:
+    except FileNotFoundError:
+        return None
+    except (ValueError, OSError, ExpatError, plistlib.InvalidFileException) as exc:
         raise LaunchError("The existing Going Bananas login agent could not be read.") from exc
-    args = job.get("ProgramArguments", []) if isinstance(job, dict) else []
-    if not isinstance(job, dict) or job.get("Label") != LABEL or len(args) != 5 or args[-2:] != [str(SCRIPT), "serve"]:
-        raise LaunchError("A login agent already points to another Going Bananas checkout. Manage it there.")
-    return True
+    if not isinstance(job, dict) or job.get("Label") != LABEL:
+        raise LaunchError("The existing Going Bananas login item is malformed. Check it before changing startup.")
+    args = job.get("ProgramArguments")
+    if not isinstance(args, list) or len(args) != 5 or not all(isinstance(arg, str) for arg in args):
+        raise LaunchError("The existing Going Bananas login item is malformed. Check it before changing startup.")
+    command = serve_command()
+    if args[:2] != command[:2] or args[-2:] != command[-2:] or job.get("WorkingDirectory") != str(ROOT):
+        raise LaunchError(
+            "A login agent already points to another Going Bananas checkout. Manage it there.",
+            other_checkout=True,
+        )
+    return job
+
+
+def launchd_disabled() -> bool:
+    result = subprocess.run(
+        [LAUNCHCTL, "print-disabled", domain()],
+        check=False,
+        encoding="utf-8",
+        errors="replace",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        timeout=3,
+    )
+    if result.returncode != 0:
+        raise LaunchError("macOS could not read login startup. Open Going Bananas from your Mac desktop session.")
+    for line in result.stdout.splitlines():
+        name, marker, state = line.partition("=>")
+        if not marker or name.strip().strip('"') != LABEL:
+            continue
+        state = state.strip().rstrip(",;")
+        if state in {"enabled", "disabled", "true", "false"}:
+            return state in {"disabled", "true"}
+        raise LaunchError("macOS returned an unreadable login startup status.")
+    return False
+
+
+def _startup_state(path: Path) -> tuple[dict | None, bool]:
+    job = installed_agent(path)
+    disabled = launchd_disabled()
+    if job is None and agent_running():
+        raise LaunchError(
+            "A Going Bananas login agent is registered but its settings file is missing. Sign out and in to reset it."
+        )
+    return job, disabled
+
+
+def _starts_at_login(job: dict | None) -> bool:
+    return job is not None and job.get("RunAtLoad") is True and job.get("Disabled") is not True
+
+
+def _describe_startup(job: dict | None, disabled: bool) -> LoginStartup:
+    enabled = _starts_at_login(job) and not disabled
+    if job is None and not checkout_ready():
+        return {
+            "status": "unavailable",
+            "enabled": None,
+            "message": "Finish local setup and build Going Bananas before enabling login startup.",
+        }
+    return {
+        "status": "enabled" if enabled else "disabled",
+        "enabled": enabled,
+        "message": None,
+    }
+
+
+def _startup_error(exc: Exception) -> LoginStartup:
+    if isinstance(exc, LaunchError):
+        status = "other_checkout" if exc.other_checkout else "unavailable"
+        return {"status": status, "enabled": None, "message": str(exc)}
+    return {
+        "status": "unavailable",
+        "enabled": None,
+        "message": "macOS could not update login startup. Try again.",
+    }
+
+
+def supports_login_startup() -> bool:
+    return sys.platform == "darwin" and os.getuid() != 0
+
+
+def login_startup_status() -> LoginStartup:
+    if not supports_login_startup():
+        return {
+            "status": "unsupported",
+            "enabled": None,
+            "message": "Login startup requires a macOS user session.",
+        }
+    try:
+        return _describe_startup(*_startup_state(agent_path()))
+    except (LaunchError, OSError, KeyError, subprocess.SubprocessError) as exc:
+        return _startup_error(exc)
 
 
 def health(check: str) -> dict:
@@ -119,22 +233,17 @@ def port_in_use() -> bool:
         return sock.connect_ex(("127.0.0.1", 8000)) == 0
 
 
+def checkout_ready() -> bool:
+    return (ROOT / ".env").is_file() and (ROOT / "frontend" / "dist" / "index.html").is_file()
+
+
 def require_checkout() -> None:
-    if not (ROOT / ".env").is_file() or not (ROOT / "frontend" / "dist" / "index.html").is_file():
+    if not checkout_ready():
         raise LaunchError("Finish local database setup and build the app before launching this checkout.")
     PRIVATE.mkdir(mode=0o700, exist_ok=True)
 
 
-def enable_agent() -> None:
-    require_checkout()
-    path = agent_path()
-    installed = owns_agent(path)
-    if agent_running():
-        if not installed:
-            raise LaunchError("A Going Bananas login process is already registered for this Mac account.")
-        return
-
-    path.parent.mkdir(parents=True, exist_ok=True)
+def write_agent(path: Path) -> None:
     job = {
         "Label": LABEL,
         "ProgramArguments": serve_command(),
@@ -145,23 +254,53 @@ def enable_agent() -> None:
         "StandardErrorPath": str(LOG),
     }
     with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as output:
-        plistlib.dump(job, output)
         staging = Path(output.name)
-    staging.replace(path)
-    launchctl("enable", f"{domain()}/{LABEL}")
-    if not launchctl("bootstrap", domain(), str(path)):
-        if not installed:
-            path.unlink(missing_ok=True)
-        raise LaunchError("macOS could not enable the Going Bananas login agent.")
+        try:
+            plistlib.dump(job, output)
+            output.flush()
+            os.fsync(output.fileno())
+            staging.replace(path)
+        finally:
+            staging.unlink(missing_ok=True)
 
 
-def disable_agent() -> None:
-    path = agent_path()
-    if not owns_agent(path):
-        return
-    if agent_running() and not launchctl("bootout", f"{domain()}/{LABEL}"):
-        raise LaunchError("macOS could not stop the Going Bananas login agent.")
-    path.unlink()
+def set_login_startup(enabled: bool) -> LoginStartup:
+    if not supports_login_startup():
+        return login_startup_status()
+    try:
+        path = agent_path()
+        before = _describe_startup(*_startup_state(path))
+        if before["enabled"] == enabled or before["status"] == "unavailable":
+            return before
+        if not path.parent.resolve().is_relative_to(path.parents[2].resolve()):
+            raise LaunchError("The LaunchAgents directory points outside the macOS user's home.")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = path.parent / f".{LABEL}.lock"
+        with os.fdopen(os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600), "r+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            return _change_startup(path, enabled)
+    except (LaunchError, OSError, KeyError, subprocess.SubprocessError) as exc:
+        return _startup_error(exc)
+
+
+def _change_startup(path: Path, enabled: bool) -> LoginStartup:
+    job, disabled = _startup_state(path)
+    before = _describe_startup(job, disabled)
+    if before["enabled"] == enabled or before["status"] == "unavailable":
+        return before
+    target = f"{domain()}/{LABEL}"
+    if enabled:
+        require_checkout()
+        if disabled and not launchctl("enable", target):
+            raise LaunchError("macOS could not enable the Going Bananas login agent.")
+        if not _starts_at_login(job):
+            write_agent(path)
+    elif not launchctl("disable", target):
+        raise LaunchError("macOS could not disable the Going Bananas login agent.")
+    after = _describe_startup(*_startup_state(path))
+    if after["enabled"] != enabled:
+        raise LaunchError("macOS did not confirm the login startup setting. Try again.")
+    return after
 
 
 def open_dashboard(*, interactive: bool = False) -> None:
@@ -192,7 +331,7 @@ def open_dashboard(*, interactive: bool = False) -> None:
     if port_in_use():
         raise LaunchError("Port 8000 is already in use. Check the local dashboard or the other service and try again.")
     require_checkout()
-    if owns_agent(agent_path()) and agent_running():
+    if login_startup_status()["enabled"] is True and agent_running():
         if not launchctl("kickstart", f"{domain()}/{LABEL}"):
             raise LaunchError("macOS could not start the Going Bananas login agent.")
     else:
@@ -250,17 +389,25 @@ def show_dialog(script: str, message: str) -> str:
 
 
 def choose() -> str:
-    enabled = owns_agent(agent_path())
-    status = "Start at Login is enabled." if enabled else "Start at Login is disabled."
     return show_dialog(
         'button returned of (display dialog (item 1 of argv) with title "Going Bananas" '
         'buttons {"Disable at Login", "Enable at Login", "Open"} default button "Open")',
-        status,
+        startup_message(login_startup_status()),
     )
+
+
+def startup_message(startup: LoginStartup) -> str:
+    if startup["message"]:
+        return startup["message"]
+    return "Start at Login is enabled." if startup["enabled"] else "Start at Login is disabled."
 
 
 def main() -> int:
     os.umask(0o077)
+    if len(sys.argv) == 2 and sys.argv[1] in STARTUP_ACTIONS:
+        enabled = STARTUP_ACTIONS[sys.argv[1]]
+        print(json.dumps(login_startup_status() if enabled is None else set_login_startup(enabled)))
+        return 0
     if sys.platform != "darwin":
         print("Use make start on this platform.", file=sys.stderr)
         return 1
@@ -270,17 +417,20 @@ def main() -> int:
         action = choose() if interactive else sys.argv[1]
         if action in {"Open", "open"}:
             open_dashboard(interactive=interactive)
-        elif action in {"Enable at Login", "enable"}:
-            enable_agent()
+        elif action in {"Enable at Login", "enable", "Disable at Login", "disable"}:
+            enabled = action in {"Enable at Login", "enable"}
+            startup = set_login_startup(enabled)
+            if startup["enabled"] != enabled:
+                raise LaunchError(startup_message(startup))
             if interactive:
                 show_dialog(
                     'display dialog (item 1 of argv) with title "Going Bananas" buttons {"OK"}',
-                    "Going Bananas will start at login. Choose Open to launch the dashboard in your browser.",
+                    "Going Bananas will start at your next login."
+                    if enabled
+                    else "Going Bananas will stay closed at your next login. The current dashboard can keep running.",
                 )
-        elif action in {"Disable at Login", "disable"}:
-            disable_agent()
         elif action == "status":
-            print("Start at Login is enabled." if owns_agent(agent_path()) else "Start at Login is disabled.")
+            print(startup_message(login_startup_status()))
             live = health("live")
             if live and not has_coach(live):
                 print(f"The running dashboard is in {live['mode']} mode and predates the Coach update.")

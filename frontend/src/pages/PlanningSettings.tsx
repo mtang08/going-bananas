@@ -19,6 +19,7 @@ import { Routine } from './settings/strengthRoutine'
 import { CalendarSetup } from './settings/CalendarSetup'
 import { RunningLimits } from './settings/RunningLimits'
 import { ReviewDay, Preferences } from './settings/ProfilePreferences'
+import { LoginStartup } from './settings/LoginStartup'
 
 export function PlanningSettings({ unit, setUnit }: { unit: Unit; setUnit: (unit: Unit) => void }) {
   const calendar = useQuery({
@@ -53,6 +54,7 @@ export function PlanningSettings({ unit, setUnit }: { unit: Unit; setUnit: (unit
         </p>
       )}
       <SyncCard unit={unit} />
+      <LoginStartup />
       <QueryState
         loading={calendar.isPending || profile.isPending || routine.isPending}
         error={calendar.error || profile.error || routine.error}

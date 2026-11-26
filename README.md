@@ -84,6 +84,10 @@ Open **http://127.0.0.1:8000**. `Ctrl+C` stops the app and its worker; database
 contents persist. `make db-stop` stops this project's PostgreSQL cluster.
 The desktop app listens on loopback. For offline morning ankle check-ins on an iPhone, follow the [private phone setup guide](docs/iphone-setup.md).
 
+To start Going Bananas automatically in real mode when you sign in to your Mac,
+open **Settings → Start Going Bananas when I log in**. Turning it off keeps the
+current dashboard and worker running.
+
 For development, `make dev` starts the API, worker (real mode), and Vite at
 http://127.0.0.1:5173. Do not run `make dev` and `make start` simultaneously.
 

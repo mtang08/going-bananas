@@ -240,7 +240,7 @@ On treadmill runs, the overall planned-versus-done assessment omits pace targets
 - [Calendar](#calendar) shows one week at a time, with arrows to browse accepted sessions, workout details, the coach’s brief, and your notes, patch, benchmark, and trip badges, and **Plan versions** with a link to the proposal behind each coach change. Completed, historical, and locked sessions are protected during undo.
 - [Trends](#trends) covers volume, effort load, long runs, intensity, aerobic efficiency on steady runs, workout progression, recovery, and benchmark history. Panels without enough data wait under **Not yet assessable**.
 - [Training block](#block) shows the current objective, timeline, review indicators, and block benchmark.
-- [Settings](#settings) contains sync, setup or strength routine, display timezone and units, weekly review day, goals, events, travel and Google Calendar, and intensity anchors.
+- [Settings](#settings) contains sync, login startup, setup or strength routine, display timezone and units, weekly review day, goals, events, travel and Google Calendar, and intensity anchors.
 
 Open a recorded run for plan comparison, reps, laps, intensity, aerobic efficiency, and **Data quality**. Inspect coverage before comparing similar sessions. An incomplete sensor stream, unmeasured night, or ambiguous watch-step match can make a result unavailable. Heart-rate drift needs at least 40 minutes of timer-on analysis after the 10-minute warm-up.
 That is about 50 minutes of running before allowing for extra time after pauses.
@@ -286,6 +286,8 @@ Use the icon for one entry per iPhone-local day, including rest days. Enter your
 The iPhone app records morning ankle observations. See [docs/iphone-checkins.md](iphone-checkins.md) for the daily phone workflow. Use the Mac for the calendar, other check-ins, imports, and coaching.
 
 ## Maintain the local workspace
+
+On your Mac in Real mode, use **Settings → Start Going Bananas when I log in** to have the app start in the background at your next sign-in. You can open Going Bananas from Finder or visit the dashboard in your browser. Turning startup off keeps the current dashboard and worker running.
 
 Use [README.md → Fresh setup](../README.md#fresh-setup) for setup and [docs/operations.md](operations.md) for startup, mode isolation, automated sync, credentials, backups, restore, and the versioned coach skill. These are occasional owner tasks. Open the app directly whenever it is already serving your workspace. Start the local database when needed. Use the runbook before changing schema or modes, and leave migrations and testing out of ordinary training use.
 

@@ -25,19 +25,21 @@ menu identifies an already running demo or test dashboard before opening it.
 After a software update, stop the dashboard from the session that originally
 launched it, then open it again from Finder.
 
-Choose **Enable at Login** to register the dashboard with macOS for your user
-account. The login agent uses this checkout's `.env` and starts the existing
-project-local PostgreSQL cluster when the configured database uses it. Keep the
-checkout at the same path while the login agent is enabled. Each login uses the
-current built frontend. Build and migrate during setup or an update, before the
-next startup. Startup diagnostics are recorded in
-`private/dashboard-launch.log`. If another process owns port 8000, the agent
-leaves it running and exits.
+On macOS, open the real dashboard and turn on **Start Going Bananas when I log in**
+in **Settings**. You can also choose **Enable at Login** from the Finder
+launcher. Both set up startup for your next macOS login. The login agent uses
+this checkout's `.env` and starts the existing project-local PostgreSQL cluster
+when the configured database uses it. Keep the checkout at the same path while
+login startup is enabled. Each login uses the current built frontend. Build and
+migrate during setup or an update, before the next startup. Startup diagnostics
+are recorded in `private/dashboard-launch.log`. If another process owns port
+8000, the agent leaves it running and exits.
 
-Choose **Disable at Login** to remove the login agent and stop any app process
-it supervises. PostgreSQL and separately launched app processes keep running.
-The Finder menu shows whether login startup is enabled. The equivalent terminal
-status command is `./'Going Bananas.command' status`.
+Turn off the switch or choose **Disable at Login** to prevent startup at the
+next login. The current dashboard, worker, and PostgreSQL keep running. macOS
+retains the disabled agent so you can re-enable it from either control. If
+another checkout owns the login item, open that checkout to manage it. The
+equivalent terminal status command is `./'Going Bananas.command' status`.
 
 The Coach page uses the local Codex CLI and offers a ChatGPT sign-in button.
 Complete sign-in in the OpenAI browser window, then return to the dashboard.

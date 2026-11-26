@@ -6,6 +6,7 @@ import { qk } from '../src/api/queryKeys'
 import type { Profile } from '../src/api/types/profile'
 import type { StrengthRoutine, RaceEvent } from '../src/api/types/blocks'
 import type { IntensityAnchor } from '../src/api/types/anchors'
+import type { LoginStartup } from '../src/api/types/loginStartup'
 
 let profile: Profile,
   routine: StrengthRoutine,
@@ -14,11 +15,22 @@ let profile: Profile,
   events: RaceEvent[],
   conflict: string | null
 let orderConflict: boolean
+const startupUrl = '/api/v1/settings/login-startup'
+let startup: LoginStartup
+let startupWriteError: string | null
+let startupWriteWait: Promise<void> | null
 let requests: { url: string; method: string; body: Record<string, unknown> | null }[]
 const clients: QueryClient[] = []
 beforeEach(() => {
   requests = []
   orderConflict = false
+  startup = {
+    status: 'unsupported',
+    enabled: null,
+    message: 'Login startup is available in real mode on macOS.',
+  }
+  startupWriteError = null
+  startupWriteWait = null
   head = 0
   anchors = []
   events = []
@@ -75,6 +87,35 @@ beforeEach(() => {
         method = init?.method ?? 'GET',
         body = init?.body ? JSON.parse(String(init.body)) : null
       requests.push({ url, method, body })
+      if (url === startupUrl) {
+        if (method === 'PUT') {
+          await startupWriteWait
+          if (startupWriteError) {
+            return {
+              ok: false,
+              status: 500,
+              json: async () => ({
+                error: { code: 'login_startup_update_failed', message: startupWriteError },
+              }),
+            }
+          }
+          startup = {
+            status: body.enabled ? 'enabled' : 'disabled',
+            enabled: body.enabled,
+            message: null,
+          }
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            schema_version: 'v1',
+            mode: 'demo',
+            data_revision: 1,
+            data: startup,
+          }),
+        }
+      }
       if (
         conflict &&
         method !== 'GET' &&
@@ -146,12 +187,84 @@ function mount(setUnit = vi.fn()) {
 const input = (id: string, value: string) =>
   fireEvent.change(document.getElementById(id)!, { target: { value } })
 const writes = () => requests.filter((r) => r.method !== 'GET')
+const startupCard = () =>
+  within(screen.getByRole('region', { name: 'Start Going Bananas when I log in' }))
+const startupSwitch = () =>
+  startupCard().getByRole('switch', { name: 'Start Going Bananas when I log in' })
 async function setup() {
   await screen.findByText('Set up your plan')
   input('setup-anchor', '2026-11-10')
   fireEvent.click(document.getElementById('setup-anchor-confirm')!)
   fireEvent.click(screen.getByRole('button', { name: 'Create my 14-day calendar' }))
 }
+
+it('reads startup on open and toggles both ways without any training writes', async () => {
+  startup = { status: 'disabled', enabled: false, message: null }
+  let complete: () => void = () => {}
+  startupWriteWait = new Promise<void>((resolve) => {
+    complete = resolve
+  })
+  mount()
+  await startupCard().findByRole('switch')
+  expect(startupSwitch()).not.toBeChecked()
+  expect(writes()).toEqual([])
+
+  fireEvent.click(startupSwitch())
+  expect(await startupCard().findByText('Turning on startup…')).toBeVisible()
+  expect(startupSwitch()).not.toBeChecked()
+  expect(startupSwitch()).toHaveAttribute('aria-disabled', 'true')
+  complete()
+  await waitFor(() => expect(startupSwitch()).toBeChecked())
+
+  fireEvent.click(startupSwitch())
+  await waitFor(() => expect(startupSwitch()).not.toBeChecked())
+  expect(writes()).toEqual([
+    { url: startupUrl, method: 'PUT', body: { enabled: true } },
+    { url: startupUrl, method: 'PUT', body: { enabled: false } },
+  ])
+})
+
+it('keeps the effective startup status after a failed write and can retry', async () => {
+  startup = { status: 'enabled', enabled: true, message: null }
+  startupWriteError = 'macOS did not update the login setting.'
+  mount()
+  fireEvent.click(await startupCard().findByRole('switch'))
+  expect(await startupCard().findByRole('alert')).toHaveTextContent(startupWriteError)
+  expect(startupSwitch()).toBeChecked()
+  expect(await screen.findByLabelText('Review day')).toBeInTheDocument()
+
+  startupWriteError = null
+  fireEvent.click(startupSwitch())
+  await waitFor(() => expect(startupSwitch()).not.toBeChecked())
+  expect(writes()).toEqual([
+    { url: startupUrl, method: 'PUT', body: { enabled: false } },
+    { url: startupUrl, method: 'PUT', body: { enabled: false } },
+  ])
+})
+
+it('explains unavailable login startup in demo or test mode without offering a write', async () => {
+  mount()
+  expect(
+    await startupCard().findByText('Login startup is available in real mode on macOS.'),
+  ).toBeVisible()
+  expect(startupCard().queryByRole('switch')).not.toBeInTheDocument()
+  expect(writes()).toEqual([])
+})
+
+it('can refresh startup status independently after a host-side availability problem', async () => {
+  startup = {
+    status: 'other_checkout',
+    enabled: null,
+    message: 'Another checkout manages startup.',
+  }
+  mount()
+  expect(await startupCard().findByText('Another checkout manages startup.')).toBeVisible()
+  expect(startupCard().queryByRole('switch')).not.toBeInTheDocument()
+  startup = { status: 'disabled', enabled: false, message: null }
+  fireEvent.click(startupCard().getByRole('button', { name: 'Refresh startup status' }))
+  expect(await startupCard().findByRole('switch')).not.toBeChecked()
+  expect(writes()).toEqual([])
+})
 
 it('wizard saves profile, routine, then bootstraps', async () => {
   mount()

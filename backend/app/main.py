@@ -21,6 +21,8 @@ from app.api.coach_chat import get_chat_gateway
 from app.api.coach_chat import router as coach_chat_router
 from app.api.core import router as core_router
 from app.api.exceptions import router as exceptions_router
+from app.api.login_startup import PATH as LOGIN_STARTUP_PATH
+from app.api.login_startup import router as login_startup_router
 from app.api.metrics import router as metrics_router
 from app.api.planning import router as planning_router
 from app.api.sync import router as sync_router
@@ -88,9 +90,13 @@ async def local_security(request: Request, call_next):
     }
     if host not in allowed_hosts:
         return error_response(request, "invalid_host", "Local host required", 403)
-    if request.url.path == COACH_CHAT_PATH or request.url.path.startswith(f"{COACH_CHAT_PATH}/"):
+    path = request.url.path
+    coach_path = path == COACH_CHAT_PATH or path.startswith(f"{COACH_CHAT_PATH}/")
+    if coach_path or path == f"/api/v1{LOGIN_STARTUP_PATH}":
         if not local_peer(request) or request.headers.get("sec-fetch-site") == "cross-site":
-            return error_response(request, "local_coach_required", "Local coach request required", 403)
+            if coach_path:
+                return error_response(request, "local_coach_required", "Local coach request required", 403)
+            return error_response(request, "local_login_startup_required", "Local app request required", 403)
     origin = request.headers.get("origin")
     allowed_origins = {f"http://{host}"}
     if host in {f"127.0.0.1:{settings.port}", f"localhost:{settings.port}"}:
@@ -194,6 +200,7 @@ app.include_router(sync_router, prefix="/api/v1")
 app.include_router(travel_router, prefix="/api/v1")
 app.include_router(coach_router, prefix="/api/v1")
 app.include_router(coach_chat_router, prefix="/api/v1")
+app.include_router(login_startup_router, prefix="/api/v1")
 
 
 @app.get("/{path:path}", include_in_schema=False)
