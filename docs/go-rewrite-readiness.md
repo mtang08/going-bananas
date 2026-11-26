@@ -1,0 +1,49 @@
+# Go rewrite readiness
+
+**Ready to start the first production-quality slice.** A disposable Go server served the proposal list from PostgreSQL and Home’s existing client consumed it over HTTP. A fresh install, historical upgrade, synthetic backup/restore, Garmin protocol checks and native FIT decoding also ran successfully. The rehearsal used published `main` at `fc6490c`. The athlete’s server and data were outside the exercise. The checked-in fixtures and commands below are the handoff to implementation. [Rewrite specification](go-backend-rewrite.md)
+
+## Decisions from running the code
+
+| Question | Result | Implementation decision |
+| --- | --- | --- |
+| Can both languages consume the existing API schema? | The mounted OpenAPI 3.1.0 schema generated strict Go handlers with `oapi-codegen` v2.9.0 and its runtime v1.9.1. `openapi-typescript` 7.13.0 reproduced the committed TypeScript file byte for byte. Renaming a required field broke compilation of both consumers after regeneration. | Use the native 3.1 document, generated strict interfaces and `net/http`. Pin the tested generators. Validate the status enum explicitly. Go can still construct an invalid zero value or decode an absent nullable field as nil. Test required fields on the wire. [Export command](../scripts/api-types.py) · [Go generator](https://github.com/oapi-codegen/oapi-codegen/releases/tag/v2.9.0) |
+| Can the existing schema feed typed Go queries? | sqlc v1.30.0 generated a pgx/v5.7.6 query from PostgreSQL 17.11 DDL. It ran against 52 rows with tied timestamps and a 50-row cap. Changing the sole open draft from pending to stale to invalid verified that all three are included by the open filter. | Use named SQL and pgx. For sqlc input, dump the migrated synthetic schema with `--schema-only --no-owner --no-acl --no-comments --no-tablespaces` and strip the psql-only `\restrict` and `\unrestrict` lines. Use the version-1 backup containing the data and private files for restore. The pilot query counts the JSON changes array, defaults a missing array to zero, filters before limiting, and orders by submission time and UUID descending. |
+| Does the Go response actually work for Home? | FastAPI and Go answered 14 requests against the same immutable fixture. Status, parsed JSON, ordering, nulls, timestamp strings, validation field errors and application headers matched after normalizing the random request ID. Home’s real client fetched both listeners. A mounted Home component with React Query displayed the pending proposal and its review link from Go, then removed the card when the fixture became accepted. Other Home requests used existing test fixtures. | Preserve last-value semantics for repeated scalar filters, including invalid/valid permutations. Emit an empty array when there are no items and explicit nulls on nullable dates. Python emits timestamps in the database session’s offset and retains six fractional digits when present. Apply these wire rules separately from how hashes encode timestamps. The component check ran in jsdom. A whole-dashboard browser run remains a pilot exit check. [SQL fixture](../backend/tests/fixtures/proposal-list.sql) · [HTTP comparison](../scripts/rewrite/compare_proposals.py) |
+| Does Garmin require Python? | A native Go HTTP probe and Garmin’s Python client 1.0.0 reused each other’s synthetic token cache. The probe exercised expiry, forced renewal and private file permissions. The existing client and app adapter were also tested through mocked HTTP for one retry on 401, propagation of a second 401, `Retry-After` on 429, binary fidelity and repeated-page detection. | Implement the Personal API with `net/http` and test the Go client against the same cases. Use `github.com/muktihari/fit` v0.28.7 for the decoder. Against Garmin’s Python SDK it matched primitive message values on two generated files covering pauses, laps, workout steps, RPE, duplicate records, alternate speed/altitude fields and invalid sentinels. Both rejected damaged CRCs and malformed input. The remaining work is app-level normalization of intervals, merging, targets, ZIP limits and provenance. Live account/device coverage remains a separate check. [HTTP reference test](../backend/tests/unit/test_garmin_http_contract.py) · [FIT comparison](../scripts/rewrite/fit/check.py) |
+| Can Go preserve historical hash identities? | The stock Go JSON encoder produced different bytes. An offline Go encoder reproduced both typed timestamp formats, their exact bytes and SHA-256 hashes, the existing proposal fingerprint and its revised-content case. A deterministic additional corpus of 11,989 finite floating-point values agreed with Python. | Decode dynamic numbers without first converting all integers to float64. Preserve the integer/float distinction, Python float formatting and UTF-8 string escaping. Include an integer above 2⁵³, negative zero, null, DST offsets and Unicode separators in regression tests. Read a Python-created draft with the finished Go planner before switching writers. [Canonical vectors](../backend/tests/fixtures/canonical-hashes.json) · [Draft fingerprint](../backend/tests/fixtures/coach-fingerprint.json) |
+
+## Run the reference checks
+
+From the repository root with project dependencies installed and Go on `PATH` (the rehearsal used Go 1.27.4 on macOS arm64):
+
+```sh
+mkdir -p private
+make proposal-list-schema > private/proposal-list.openapi.json
+go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.9.0 -config scripts/rewrite/oapi-codegen.yaml -o private/proposal-list.gen.go private/proposal-list.openapi.json
+make check-api-types
+uv run --project backend python scripts/rewrite/fit/check.py
+./scripts/with-mode test bash -c 'cd backend && uv run pytest -q tests/unit/test_canonical_hash_vectors.py tests/unit/test_garmin_http_contract.py'
+```
+
+This generates the stock Go types. For the HTTP comparison the rehearsal applied a Go-only `x-go-type` override to the three proposal timestamp fields and encoded their offset and precision as observed in FastAPI. The TypeScript output remained identical with the override.
+
+For the HTTP comparison, start from a fresh Alembic-migrated disposable database whose name ends in `_test`. Configure libpq to target that database, then run the following from the repository root. The fixture checks the destination and existing state before inserting. Use dedicated test-mode listeners for FastAPI and the Go candidate on the same frozen fixture, with the same database session timezone. The ports below are examples. Run mutating scenarios on separate restored databases.
+
+```sh
+psql -X --set ON_ERROR_STOP=1 --single-transaction --file backend/tests/fixtures/proposal-list.sql
+python3 scripts/rewrite/compare_proposals.py 18001 18002
+```
+
+## What the persistence rehearsal changed
+
+- **Bootstrap requires data.** The rehearsal’s Alembic head was `0027_rehab_sessions`. Both a fresh upgrade and a populated upgrade from `0009_agent_plan` produced the same schema. A fresh database also has its Alembic stamp and singleton `app_state` row with id 1, data revision 0 and calendar head 0. The fresh `app_state_id_seq` reported `last_value=1` and `is_called=false`. A new SQL baseline must reproduce the schema, both bootstrap rows and sequence behavior. Re-read the actual head when implementing the baseline. [Upgrade tests](../backend/tests/integration/test_schema_upgrade.py)
+- **Compare equivalent catalogs.** PostgreSQL rewrote casts in 68 check/index expression lines when restoring the test dump. Comparing the raw text of an upgraded database against a restored one would report false drift. The fresh baseline and historical backup produced identical schema dumps after the same restore cycle. Compare structured constraints/defaults/index predicates or normalize both through that cycle. Keep sequence and data checks separate.
+- **Rehearse failed recovery.** A version-1 archive of the populated synthetic database restored matching rows across all 61 tables, sequence state, allowlisted private files and a referenced raw-object checksum. A damaged dump failed after creating the new targets. The source stayed intact. Retry into fresh targets and verify them before starting the supervisor. Real cutover also needs a verified current backup and a read-only preflight before startup refresh or worker writes. [Backup implementation](../backend/app/services/backup.py) · [Operating procedure](operations.md)
+
+## First implementation ticket
+
+1. Create `backend-go/` with the pinned contract and query generators, test-mode configuration, and a read-only proposal-list handler. Export the schema with the command above. Pin generated outputs and enforce drift in the existing Make workflow. Load the actual workspace mode. Read the list and its data revision from a consistent database snapshot.
+2. Run the fixture comparison and the compiler rename check. Exercise local host/origin guards, the normal error envelope and request IDs on the actual listener. Keep per-request values and database/session configuration out of the generated types.
+3. Open rendered Home in demo with its proposal-list request routed to Go and its other requests served by the existing backend. Check open, empty, and failed-list states. Ship the slice when the database tests, Go build/vet/tests, schema drift check, TypeScript build and UI check pass from a fresh checkout.
+
+The later release gates belong to the slices that implement them. The first write must pass competing-writer and injected-refresh-failure tests. Coaching must replay a saved decision receipt and accept or revise an unchanged pre-cutover draft. Ingestion must replay retained files and compare normalized metrics and source history. Normal server startup, phone delivery, worker ownership and recovery after new writes must be exercised before the real switch. These checks do not block starting the read-only slice.

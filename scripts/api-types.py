@@ -13,8 +13,12 @@ from fastapi.routing import iter_route_contexts
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--check", action="store_true", help="check the committed types without writing"
+    )
+    mode.add_argument(
+        "--schema", action="store_true", help="print the mounted OpenAPI schema as JSON"
     )
     args = parser.parse_args()
 
@@ -24,6 +28,9 @@ def main() -> None:
         if route.endpoint is get_proposals
     )
     schema = get_openapi(title=app.title, version=app.version, routes=[proposal_list])
+    if args.schema:
+        print(json.dumps(schema, indent=2))
+        return
     frontend = Path(__file__).resolve().parents[1] / "frontend"
     command = [
         "node_modules/.bin/openapi-typescript",
