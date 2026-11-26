@@ -27,6 +27,7 @@ def main():
             case = rule_inputs(doc, ctx)
             case.update(
                 document=doc.model_dump(mode="json"),
+                payload=doc.model_dump(mode="json", exclude_unset=True),
                 expected=[i.to_json() for i in issues],
                 index={
                     key: {v: True for v in vals}

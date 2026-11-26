@@ -16,24 +16,28 @@ import (
 
 // RuleContext carries the facts needed for draft validation after freshness.
 type RuleContext struct {
-	Today        string          `json:"today"`
-	Timezone     string          `json:"timezone"`
-	BlockUID     string          `json:"block_uid"`
-	HeadSessions map[string]bool `json:"head_sessions"`
-}
-
-// ReferenceGroups contains only groups whose validation is still furnished by
-// the synthetic reference adapter. Native checks keep the same issue ordering.
-type ReferenceGroups struct {
-	Changes    []Issue `json:"changes"`
-	Calendar   []Issue `json:"calendar"`
-	Exceptions []Issue `json:"exceptions"`
+	Guard           *safetyGuard      `json:"guard"`
+	Interruption    *interruption     `json:"interruption"`
+	Restriction     *restriction      `json:"restriction"`
+	EligibleRecipes []string          `json:"eligible_recipes"`
+	CycleAnchor     string            `json:"cycle_anchor"`
+	ReviewDate      string            `json:"review_date"`
+	ConfirmedDates  map[string]bool   `json:"confirmed_dates"`
+	OmittedDates    map[string]bool   `json:"omitted_dates"`
+	ConfirmedSlots  map[string]string `json:"confirmed_slots"`
+	OmittedSlots    map[string]string `json:"omitted_slots"`
+	reviewFacts
+	Today        string                   `json:"today"`
+	Timezone     string                   `json:"timezone"`
+	BlockUID     string                   `json:"block_uid"`
+	HeadSessions map[string]sessionFields `json:"head_sessions"`
 }
 
 type reason struct {
 	Kind string `json:"kind"`
 }
 type ruleDocument struct {
+	reviewDocument
 	Operation   string   `json:"operation"`
 	Preserved   []string `json:"preserved"`
 	PolicyIDs   []string `json:"policy_ids"`
@@ -52,14 +56,14 @@ type ruleDocument struct {
 		Decision string `json:"decision"`
 		UID      string `json:"block_uid"`
 		Fields   struct {
+			benchmarkFields
 			Start   string   `json:"start_date"`
 			Review  string   `json:"review_date"`
 			Recipes []string `json:"eligible_recipe_ids"`
 			Why     []reason `json:"why"`
 		} `json:"version_fields"`
 	} `json:"block_change"`
-	EventReview *json.RawMessage `json:"event_review"`
-	Anchors     []struct {
+	Anchors []struct {
 		Kind       string    `json:"kind"`
 		Unit       string    `json:"unit"`
 		Protocol   string    `json:"protocol"`
@@ -229,18 +233,32 @@ func textRules(d ruleDocument, raw json.RawMessage, today string) ([]Issue, erro
 	return issues, nil
 }
 
-func ValidateRules(raw json.RawMessage, ctx RuleContext, idx coaching.KnowledgeIndex, ref ReferenceGroups) ([]Issue, error) {
+func ValidateRules(raw, payload json.RawMessage, ctx RuleContext, idx coaching.KnowledgeIndex) ([]Issue, error) {
 	var d ruleDocument
 	if err := json.Unmarshal(raw, &d); err != nil {
 		return nil, err
 	}
-	issues := append([]Issue{}, ref.Changes...)
+	var authored struct {
+		Changes []changeRequest `json:"changes"`
+	}
+	if err := json.Unmarshal(payload, &authored); err != nil {
+		return nil, err
+	}
+	d.Changes = authored.Changes
+	state, err := resulting(d, ctx)
+	if err != nil {
+		return nil, err
+	}
+	issues, err := changeRules(d, ctx, state)
+	if err != nil {
+		return nil, err
+	}
 	for i, uid := range d.Preserved {
-		if !ctx.HeadSessions[uid] {
+		if _, ok := ctx.HeadSessions[uid]; !ok {
 			issues = append(issues, staleIssue("V4.unknown_preserved", fmt.Sprintf("preserved.%d", i)))
 		}
 	}
-	issues = append(issues, ref.Calendar...)
+	issues = append(issues, calendarRules(d, ctx, state)...)
 	for _, group := range []struct {
 		name  string
 		ids   []string
@@ -258,7 +276,9 @@ func ValidateRules(raw json.RawMessage, ctx RuleContext, idx coaching.KnowledgeI
 		return nil, err
 	}
 	issues = append(issues, a...)
-	issues = append(issues, ref.Exceptions...)
+	for _, rule := range []func(ruleDocument, RuleContext) []Issue{exceptionRules, eventRules, benchmarkRules, targetRules, resolutionRules} {
+		issues = append(issues, rule(d, ctx)...)
+	}
 	t, err := textRules(d, raw, ctx.Today)
 	return append(issues, t...), err
 }
