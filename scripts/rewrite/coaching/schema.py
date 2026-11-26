@@ -15,6 +15,10 @@ def schema():
     source = ProposalDoc.model_json_schema()
     models = source.pop("$defs")
     models["ProposalDoc"] = source
+    from app.services.proposals.lifecycle import RevisionRequest
+    from app.services.proposals.decision import DecisionRequest
+    for command in (RevisionRequest, DecisionRequest):
+        models[command.__name__] = command.model_json_schema()
 
     def clean(shape):
         value = {k: v for k, v in shape.items() if k not in {"title", "description"}}

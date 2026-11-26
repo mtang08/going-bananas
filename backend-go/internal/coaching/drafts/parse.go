@@ -218,6 +218,11 @@ func normalize(s shape, path string, raw json.RawMessage) normalized {
 		return invalid(path, "Input should be "+options)
 	}
 	switch s.Type {
+	case "object":
+		if _, ok := orderedObject(raw); !ok {
+			return invalid(path, "Input should be a valid dictionary")
+		}
+		return scalar(raw)
 	case "array":
 		var items []json.RawMessage
 		if err := json.Unmarshal(raw, &items); err != nil || items == nil {
@@ -467,4 +472,22 @@ func normalizeDate(format, path string, raw json.RawMessage, text string, isStri
 func ParseDocument(raw json.RawMessage) Validation {
 	n := normalizeModel("ProposalDoc", "", raw)
 	return Validation{Document: n.full, Payload: n.authored, Issues: n.issues}
+}
+
+func parseCommand(name string, raw json.RawMessage, out any) ([]Issue, error) {
+	n := normalizeModel(name, "body", raw)
+	if n.issues != nil {
+		return n.issues, nil
+	}
+	return nil, json.Unmarshal(n.full, out)
+}
+func ParseRevisionRequest(raw json.RawMessage) (RevisionRequest, []Issue, error) {
+	var req RevisionRequest
+	issues, err := parseCommand("RevisionRequest", raw, &req)
+	return req, issues, err
+}
+func ParseDecisionRequest(raw json.RawMessage) (DecisionRequest, []Issue, error) {
+	var req DecisionRequest
+	issues, err := parseCommand("DecisionRequest", raw, &req)
+	return req, issues, err
 }

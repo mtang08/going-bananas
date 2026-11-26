@@ -41,7 +41,9 @@ def main():
         op = req["op"]
         if op == "seed":
             day = now.astimezone(ZoneInfo("America/New_York")).date()
-            result = build_snapshot(s, "proceed_or_modify_today", day, now=now)
+            result = build_snapshot(
+                s, req.get("operation", "proceed_or_modify_today"), day, now=now
+            )
             print(
                 json.dumps(
                     {"snapshot_id": result["snapshot_id"], "day": day.isoformat()}
