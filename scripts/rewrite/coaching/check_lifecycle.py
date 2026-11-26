@@ -264,6 +264,48 @@ def main():
         assert new["status"] == "pending" and new["proposal_id"] != gid, new
         again = native("submit", body={**gdoc, "headline": "Second draft"})
         assert again == new, (again, new)
+        rnew = python(ref, "submit", document={**rdoc, "headline": "Second draft"})
+        for key in ("reject-1", "reject-1", "reject-2"):
+            rejection = python(
+                ref,
+                "decide",
+                id=rnew["proposal_id"],
+                request=dict(
+                    idempotency_key=key,
+                    expected_head=0,
+                    expected_revision=1,
+                    accept_change_ids=[],
+                    reject_change_ids=["c1"],
+                ),
+            )
+            assert rejection["status"] == "rejected"
+        subprocess.run(
+            [
+                "go",
+                "test",
+                "-count=1",
+                "-run",
+                "^TestRejectDecisionLedger$",
+                "./internal/coaching/drafts",
+            ],
+            cwd=ROOT / "backend-go",
+            check=True,
+            env={
+                **go,
+                "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
+                    "postgresql+psycopg://", "postgresql://"
+                ),
+                "COACHING_DECISION_TEST_ID": new["proposal_id"],
+                "COACHING_DECISION_TEST_NOW": NOW,
+            },
+        )
+
+        def receipts(conn):
+            return conn.execute(
+                "SELECT idempotency_key,result FROM coach_decision_keys ORDER BY idempotency_key"
+            ).fetchall()
+
+        assert receipts(refdb) == receipts(godb) and len(receipts(godb)) == 2
         for conn in (refdb, godb):
             assert conn.execute(
                 "SELECT calendar_head_version FROM app_state WHERE id=1"
