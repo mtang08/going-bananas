@@ -22,7 +22,7 @@ type AppServer interface {
 }
 
 type TurnRequest struct {
- TurnID string
+	TurnID   string
 	ThreadID string
 	Message  string
 	OnThread func(string) error
@@ -160,7 +160,7 @@ func (g *Gateway) run(ctx context.Context, t *runningTurn, lease *TurnLease, mes
 			defer close(watchDone)
 			g.watchCancellation(ctx, t)
 		}()
-		req := TurnRequest{TurnID:t.id, ThreadID: lease.ThreadID, Message: message, OnDelta: t.addDelta, OnThread: func(thread string) error {
+		req := TurnRequest{TurnID: t.id, ThreadID: lease.ThreadID, Message: message, OnDelta: t.addDelta, OnThread: func(thread string) error {
 			return g.store.SaveThread(ctx, t.id, thread)
 		}}
 		reply, err = g.transport.RunTurn(ctx, req)
