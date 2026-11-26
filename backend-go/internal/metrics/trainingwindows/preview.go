@@ -61,3 +61,7 @@ func CalculateActivity(ctx context.Context, tx pgx.Tx, metricID string, id uuid.
 		return nil, fmt.Errorf("unknown activity metric %q", metricID)
 	}
 }
+
+func Configs() map[string]map[string]any {
+	return map[string]map[string]any{"run_volume_frequency": volumeConfig, "long_run_exposure": longConfig, "session_rpe_load": rpeConfig, "symptom_response_timeline": symptomConfig}
+}

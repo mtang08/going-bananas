@@ -3,7 +3,8 @@ package refresh
 
 import (
 	"context"
-	"errors"
+	"fmt"
+
 	"slices"
 
 	"time"
@@ -40,6 +41,12 @@ func newBatch(ctx context.Context, tx pgx.Tx, now time.Time, calculate RunMetric
 	if err != nil {
 		return nil, err
 	}
+	if err := ensureConfigs(ctx, tx); err != nil {
+		return nil, err
+	}
+	if calculate == nil {
+		calculate = Runs
+	}
 	return &batch{ctx: ctx, tx: tx, now: now, zone: zone, calculate: calculate, runs: map[uuid.UUID]bool{}, plans: map[uuid.UUID]bool{}}, nil
 }
 
@@ -54,9 +61,6 @@ func (b *batch) run(ids []uuid.UUID) error {
 	for _, id := range ids {
 		if b.runs[id] {
 			continue
-		}
-		if b.calculate == nil {
-			return errors.New("activity metric calculation is required")
 		}
 		if err := b.calculate(b.ctx, b.tx, id, b.zone.String(), b.now); err != nil {
 			return err
@@ -206,7 +210,7 @@ func EnsureNights(ctx context.Context, tx pgx.Tx, first, last, now time.Time) er
 	first = time.Date(first.Year(), first.Month(), first.Day(), 0, 0, 0, 0, time.UTC)
 	last = time.Date(last.Year(), last.Month(), last.Day(), 0, 0, 0, 0, time.UTC)
 	if last.Before(first) {
-		return errors.New("invalid recovery date window")
+		return fmt.Errorf("invalid recovery date window")
 	}
 	for day := first; !day.After(last); day = day.AddDate(0, 0, 1) {
 		if _, err := recovery.Refresh(ctx, tx, "night:"+day.Format(time.DateOnly), now); err != nil {

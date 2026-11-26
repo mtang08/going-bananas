@@ -13,7 +13,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics"
 )
 
-var config = object{"quality_recipes": qualityRecipes, "long_recipe": "REC002", "lower_body_cost": []string{"moderate", "high"}, "range_rule": "interval_subtraction.v1"}
+var Config = object{"quality_recipes": qualityRecipes, "long_recipe": "REC002", "lower_body_cost": []string{"moderate", "high"}, "range_rule": "interval_subtraction.v1"}
 
 func location(ctx context.Context, tx pgx.Tx) (*time.Location, int, error) {
 	var name string
@@ -34,7 +34,7 @@ func persist(ctx context.Context, tx pgx.Tx, in inputs, days []string, now time.
 		}
 		key := "w14:" + day
 		start, end := t.AddDate(0, 0, -7), t.AddDate(0, 0, 7)
-		_, err = metrics.StoreResult(ctx, tx, metrics.Result{MetricID: "hard_session_spacing", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Status: "available", Value: outcome(in.entries, t), SourceRefs: in.refs, Config: config, Timezone: in.zone.String()}, now)
+		_, err = metrics.StoreResult(ctx, tx, metrics.Result{MetricID: "hard_session_spacing", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Status: "available", Value: outcome(in.entries, t), SourceRefs: in.refs, Config: Config, Timezone: in.zone.String()}, now)
 		if err != nil {
 			return err
 		}
