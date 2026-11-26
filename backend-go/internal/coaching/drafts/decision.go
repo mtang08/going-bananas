@@ -86,7 +86,7 @@ func readDecision(ctx context.Context, tx pgx.Tx, id uuid.UUID, r DecisionReques
 func (s Store) decide(ctx context.Context, id uuid.UUID, r DecisionRequest, now time.Time, kbRoot string, apply decisionEffects) (DecisionResult, error) {
 	result := DecisionResult{ProposalID: id, DecisionReceipt: DecisionReceipt{AnchorKeys: []string{}, StaleProposals: []uuid.UUID{}}}
 	var committedError error
-	err := pgx.BeginTxFunc(ctx, s.Pool, pgx.TxOptions{AccessMode: pgx.ReadWrite, IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadWrite, IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
 		if err := LockPlanning(ctx, tx); err != nil {
 			return err
 		}

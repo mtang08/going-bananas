@@ -105,7 +105,7 @@ type SnapshotEvidence struct {
 
 func (s Store) ReadSnapshot(ctx context.Context, id uuid.UUID, now time.Time, kbRoot string) (SnapshotEvidence, error) {
 	var result SnapshotEvidence
-	err := pgx.BeginTxFunc(ctx, s.Pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		snap, err := LoadSnapshot(ctx, tx, id)
 		if err != nil {
 			return err

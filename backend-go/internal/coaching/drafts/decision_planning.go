@@ -31,7 +31,7 @@ func saveBlock(ctx context.Context, tx pgx.Tx, p PreparedDecision, now time.Time
 	version := 0
 	if old := p.current.BlockID; old != nil {
 		var equal bool
-		err := tx.QueryRow(ctx, "SELECT block_uid,version,to_jsonb(v) @> $2::jsonb FROM block_versions v WHERE id=$1", old, fields).Scan(&block, &version, &equal)
+		err := tx.QueryRow(ctx, "SELECT block_uid,version,NOT EXISTS (SELECT 1 FROM jsonb_each($2::jsonb) field WHERE (to_jsonb(v)->field.key) IS DISTINCT FROM field.value) FROM block_versions v WHERE id=$1", old, fields).Scan(&block, &version, &equal)
 		if err != nil {
 			return uuid.Nil, false, err
 		}
