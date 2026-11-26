@@ -1,8 +1,11 @@
 """Exercise the Python and Go backup commands in both directions on synthetic PostgreSQL."""
+import hashlib
+import io
 import json
 import os
 import subprocess
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -28,7 +31,7 @@ def main():
     with (tempfile.TemporaryDirectory() as directory, psycopg.connect(url, autocommit=True) as control):
         root = Path(directory)
         private = root / "private"
-        env = dict(os.environ, PRIVATE_DIR=str(private), DATABASE_URL=base + source)
+        env = dict(os.environ, PRIVATE_DIR=str(private), DATABASE_URL=base + source, PGHOSTADDR="192.0.2.1")
         binary = root / "workspace-backup"
         subprocess.run(["go", "build", "-o", binary, "./cmd/workspace-backup"], cwd=MODULE, check=True)
         (private / "raw").mkdir(parents=True)
@@ -39,7 +42,7 @@ def main():
             with psycopg.connect(base + source) as db:
                 db.execute("CREATE TABLE backup_fixture (value text)")
                 db.execute("INSERT INTO backup_fixture VALUES ('synthetic row')")
-            py_archive, go_archive = root / "py.tar.gz", root / "go.tar.gz"
+            py_archive, go_archive = root / "py.tar.gz", private / "raw/go.tar.gz"
             create_backup(base + source, private, py_archive)
             go = lambda *args, **kw: subprocess.run([binary, *args], env=env, capture_output=True, **kw)
             info = json.loads(go("backup", go_archive, check=True).stdout)
@@ -55,6 +58,20 @@ def main():
             assert restore(source, root / "unused").returncode == 2
             assert restore(to_go, root / "unused").returncode == 2 and not (root / "unused").exists()
             assert restore(to_py, root / "restored-go").returncode == 2
+            # A valid archive manifest with an invalid PostgreSQL dump must roll back both targets.
+            invalid = root / "invalid.tar.gz"
+            dump = b"synthetic invalid dump"
+            manifest = json.dumps({"version": 1, "contains_credentials": False, "files": {
+                "database.pgdump": {"sha256": hashlib.sha256(dump).hexdigest(), "bytes": len(dump)}}}).encode()
+            with tarfile.open(invalid, "w:gz") as archive:
+                for name, data in (("database.pgdump", dump), ("manifest.json", manifest)):
+                    header = tarfile.TarInfo(name)
+                    header.size = len(data)
+                    archive.addfile(header, io.BytesIO(data))
+            rejected = "backup_synthetic_" + uuid4().hex
+            result = go("restore", invalid, "--target-database-name", rejected, "--target-private-dir", root / "invalid")
+            assert result.returncode == 2 and not (root / "invalid").exists()
+            assert not control.execute("SELECT FROM pg_database WHERE datname=%s", (rejected,)).fetchall()
             for target, folder in [(to_py, "restored-python"), (to_go, "restored-go")]:
                 assert (root / folder / "raw/fixture.fit").read_bytes() == b"synthetic fit bytes"
                 assert not (root / folder / "raw/token.json").exists()
