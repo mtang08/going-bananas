@@ -6,7 +6,6 @@ import (
 	"errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/mtang08/going-bananas/backend-go/internal/db"
 	"maps"
 	"reflect"
 	"regexp"
@@ -24,16 +23,19 @@ type PlanEdit struct {
 }
 type EditBatch struct {
 	Head                       int
-	Kind, Actor, Reason, Today string
+	Kind, Actor, Today         string
+	Reason                     *string
+	RestoredFrom               *int
 	ProposalID, BlockVersionID *uuid.UUID
 	Edits                      []PlanEdit
 }
 type AppliedEdits struct {
-	Version  int
-	Created  map[string]uuid.UUID
-	PlanUIDs []uuid.UUID
-	Dates    []string
-	Stale    []uuid.UUID
+	Preserved []uuid.UUID
+	Version   int
+	Created   map[string]uuid.UUID
+	PlanUIDs  []uuid.UUID
+	Dates     []string
+	Stale     []uuid.UUID
 }
 
 // CheckPrescription validates exercise structure and athlete-specific limits on
@@ -231,15 +233,12 @@ func prepareEdit(b EditBatch, e PlanEdit, head map[uuid.UUID]revisionRow, check 
 // ApplyEdits appends a version and revisions within the caller's transaction.
 // The caller consumes affected days and UIDs for the same transaction's refresh.
 func ApplyEdits(ctx context.Context, tx pgx.Tx, b EditBatch, check CheckPrescription) (AppliedEdits, error) {
-	out := AppliedEdits{Created: map[string]uuid.UUID{}, Stale: []uuid.UUID{}}
+	out := AppliedEdits{Created: map[string]uuid.UUID{}, Stale: []uuid.UUID{}, Preserved: []uuid.UUID{}}
 	if check == nil {
 		return out, errors.New("calendar prescription validator required")
 	}
-	if err := db.New(tx).LockGlobalWriter(ctx); err != nil {
-		return out, err
-	}
-	var head int
-	if err := tx.QueryRow(ctx, "SELECT calendar_head_version FROM app_state WHERE id=1 FOR UPDATE").Scan(&head); err != nil {
+	head, err := lockedHead(ctx, tx)
+	if err != nil {
 		return out, err
 	}
 	if head != b.Head {
@@ -268,6 +267,11 @@ func ApplyEdits(ctx context.Context, tx pgx.Tx, b EditBatch, check CheckPrescrip
 			out.Created[e.ChangeID] = r.uid
 		}
 	}
+	return appendEdits(ctx, tx, b, rows, prepared, out)
+}
+func appendEdits(ctx context.Context, tx pgx.Tx, b EditBatch, rows map[uuid.UUID]revisionRow, prepared []revisionRow, out AppliedEdits) (AppliedEdits, error) {
+	head := b.Head
+	var err error
 	for _, r := range prepared {
 		rows[r.uid] = r
 	}
@@ -283,7 +287,7 @@ func ApplyEdits(ctx context.Context, tx pgx.Tx, b EditBatch, check CheckPrescrip
 		}
 	}
 	out.Version = head + 1
-	_, err = tx.Exec(ctx, `INSERT INTO calendar_versions(id,number,parent_number,kind,actor,reason,proposal_id,block_version_id) VALUES($1,$2,nullif($3,0),$4,$5,$6,$7,$8)`, uuid.New(), out.Version, head, b.Kind, b.Actor, b.Reason, b.ProposalID, b.BlockVersionID)
+	_, err = tx.Exec(ctx, `INSERT INTO calendar_versions(id,number,parent_number,kind,actor,reason,proposal_id,block_version_id,restored_from_number) VALUES($1,$2,nullif($3,0),$4,$5,$6,$7,$8,$9)`, uuid.New(), out.Version, head, b.Kind, b.Actor, b.Reason, b.ProposalID, b.BlockVersionID, b.RestoredFrom)
 	if err != nil {
 		return out, err
 	}

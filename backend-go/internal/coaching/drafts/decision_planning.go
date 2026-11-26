@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/anchors"
 	"strings"
 	"time"
 )
@@ -66,63 +66,16 @@ func saveBlock(ctx context.Context, tx pgx.Tx, p PreparedDecision, now time.Time
 }
 
 func saveAnchor(ctx context.Context, tx pgx.Tx, p PreparedDecision, raw json.RawMessage) (string, error) {
-	var a struct {
-		Kind       string
-		Low        float64   `json:"value_low"`
-		High       *float64  `json:"value_high"`
-		Supersedes *string   `json:"supersedes_key"`
-		At         time.Time `json:"calibrated_at"`
-	}
-	if err := json.Unmarshal(raw, &a); err != nil {
+	var input anchors.Input
+	if err := json.Unmarshal(raw, &input); err != nil {
 		return "", err
 	}
-	for _, n := range []*float64{&a.Low, a.High} {
-		if n == nil {
-			continue
-		}
-		var msg string
-		switch {
-		case strings.HasPrefix(a.Kind, "hr_") && (*n < 30 || *n > 230):
-			msg = "Heart rate anchor must be 30 to 230 bpm"
-		case strings.HasPrefix(a.Kind, "speed_") && (*n <= 0 || *n > 10):
-			msg = "Speed anchor must be above zero and at most 10 m/s"
-		case strings.HasPrefix(a.Kind, "performance_") && *n <= 0:
-			msg = "Performance anchor must be positive"
-		}
-		if msg != "" {
-			return "", &Error{"invalid_anchor_value", msg, 422}
-		}
+	input.ValidFrom = p.rules.Today
+	input.ProposalID = &p.ProposalID
+	result, err := anchors.Create(ctx, tx, input, p.rules.Timezone)
+	var problem *anchors.Problem
+	if errors.As(err, &problem) {
+		return "", &Error{problem.Code, problem.Message, problem.Status}
 	}
-	var previous, from string
-	err := tx.QueryRow(ctx, `SELECT a.anchor_key,a.valid_from::text FROM intensity_anchors a WHERE a.kind=$1 AND NOT EXISTS(SELECT 1 FROM intensity_anchors child WHERE child.kind=a.kind AND child.supersedes_key=a.anchor_key)
- ORDER BY a.valid_from DESC,a.calibrated_at DESC,a.anchor_key DESC LIMIT 1`, a.Kind).Scan(&previous, &from)
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		if a.Supersedes != nil {
-			return "", &Error{"anchor_supersede_required", "No predecessor exists for this anchor", 409}
-		}
-	case err != nil:
-		return "", err
-	case a.Supersedes == nil:
-		return "", &Error{"anchor_supersede_required", "Specify the anchor being superseded", 409}
-	case *a.Supersedes != previous:
-		return "", &Error{"anchor_superseded", "The selected predecessor has a newer successor", 409}
-	case p.rules.Today < from:
-		return "", &Error{"anchor_backdate_conflict", "Successor cannot predate its predecessor", 422}
-	}
-	base := a.Kind + "-" + p.rules.Today
-	key := base
-	for n := 2; ; n++ {
-		var exists bool
-		if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM intensity_anchors WHERE anchor_key=$1)", key).Scan(&exists); err != nil {
-			return "", err
-		}
-		if !exists {
-			break
-		}
-		key = fmt.Sprintf("%s-%d", base, n)
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO intensity_anchors(id,anchor_key,kind,value_low,value_high,unit,protocol,confidence,status,calibrated_at,valid_from,review_after,source_activity_id,source_event_id,proposal_id,conditions,notes,supersedes_key)
- SELECT $1,$2,f.kind,f.value_low,f.value_high,f.unit,f.protocol,f.confidence,'active',f.calibrated_at,$3::date,(f.calibrated_at AT TIME ZONE $4)::date+84,f.source_activity_id,f.source_event_id,$5,f.conditions,f.notes,f.supersedes_key FROM jsonb_populate_record(NULL::intensity_anchors,$6::jsonb) f`, uuid.New(), key, p.rules.Today, p.rules.Timezone, p.ProposalID, raw)
-	return key, err
+	return result.Key, err
 }
