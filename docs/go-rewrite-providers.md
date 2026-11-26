@@ -14,11 +14,21 @@ Port **downloaded ZIP bytes to application-level decoded FIT data**. Put the pro
 
 The existing Go probe compares primitive decoder messages. Passing it alone does not exercise the normalized values consumed by ingestion. This first deliverable needs synthetic files only. [Synthetic FIT builder](../backend/tests/fixtures/fit/synthetic.py) · [Decoder scenarios](../backend/tests/unit/test_fit_decode.py) · [Existing probe](../scripts/rewrite/fit/check.py)
 
-Run the references from a configured checkout with Go on `PATH`. Add the package's normalized-output comparison to these checks when handing back the branch.
+### Stream 1 handoff
+
+Pass the bytes from `garmin.Client.DownloadActivity` to `fit.DecodeZIP(archive []byte) (*fit.DecodedFit, error)`. The import path is `github.com/mtang08/going-bananas/backend-go/internal/garmin/fit`. The result includes the uncompressed FIT SHA-256, the header profile version, and the native decoder version. Read a failure code with `errors.As` into a `*fit.DecodeError`. The Python worker continues to own ingestion and persistence. [Entry point](../backend-go/internal/garmin/fit/decode.go) · [Observation types](../backend-go/internal/garmin/fit/types.go)
+
+The normalized comparison rebuilds deterministic archives, calls Python’s `decode_fit_zip`, and compares every result field or error code with the Go decoder. The SDK version identifies each implementation. Pass `--update` to the comparison to refresh the checked-in reference after a deliberate contract change. The focused Go test can use the fixtures on its own. [Normalized comparison](../scripts/rewrite/fit/check_normalized.py) · [Go parity test](../backend-go/internal/garmin/fit/parity_test.go)
+
+Two ZIP differences remain. Go accepts stored, Deflate and BZIP2 members. Python also accepts LZMA, which Go reports as `bad_zip`. Go selects the central-directory filename and can accept a ZIP whose local header gives that member a different name. Python reports `bad_zip` for that mismatch.
+
+Run the checks from a configured checkout with Go on `PATH`.
 
 ```sh
 ./scripts/with-mode test bash -c 'cd backend && uv run pytest -q tests/unit/test_fit_decode.py'
 uv run --project backend python scripts/rewrite/fit/check.py
+uv run --project backend python scripts/rewrite/fit/check_normalized.py
+(cd backend-go && go test -race -count=1 ./internal/garmin/fit)
 make check-go
 ```
 

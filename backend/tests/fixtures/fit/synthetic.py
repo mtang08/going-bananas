@@ -27,7 +27,7 @@ _CRC = (
     0x8801,
     0x4400,
 )
-_FMT = {0x00: "B", 0x02: "B", 0x84: "H", 0x85: "i", 0x86: "I"}
+_FMT = {0x00: "B", 0x02: "B", 0x84: "H", 0x85: "i", 0x86: "I", 0x8C: "I"}
 
 
 def crc16(data: bytes, crc: int = 0) -> int:
@@ -56,8 +56,14 @@ class _Writer:
             if base == 0x07:
                 assert isinstance(value, str)
                 self.body += value.encode().ljust(size, b"\x00")[:size]
+            elif base == 0x0D:
+                assert isinstance(value, bytes) and len(value) == size
+                self.body += value
             else:
-                self.body += struct.pack("<" + _FMT[base], value)
+                items = value if isinstance(value, tuple) else (value,)
+                packed = struct.pack("<" + _FMT[base] * len(items), *items)
+                assert len(packed) == size
+                self.body += packed
 
     def finish(self) -> bytes:
         header = struct.pack("<BBHI4s", 14, 0x20, 21221, len(self.body), b".FIT")
