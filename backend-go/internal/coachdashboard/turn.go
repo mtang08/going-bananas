@@ -101,6 +101,9 @@ func (g *Gateway) View(ctx context.Context) (View, error) {
 	}
 	if review.ProposalID != "" {
 		view.ProposalID = &review.ProposalID
+		if review.ProposalRevision > 0 {
+			view.ProposalRevision = &review.ProposalRevision
+		}
 	}
 	return view, nil
 }
