@@ -16,24 +16,25 @@ import (
 
 // RuleContext carries the facts needed for draft validation after freshness.
 type RuleContext struct {
-	Today        string          `json:"today"`
-	Timezone     string          `json:"timezone"`
-	BlockUID     string          `json:"block_uid"`
-	HeadSessions map[string]bool `json:"head_sessions"`
+	reviewFacts
+	Today        string                   `json:"today"`
+	Timezone     string                   `json:"timezone"`
+	BlockUID     string                   `json:"block_uid"`
+	HeadSessions map[string]sessionFields `json:"head_sessions"`
 }
 
 // ReferenceGroups contains only groups whose validation is still furnished by
 // the synthetic reference adapter. Native checks keep the same issue ordering.
 type ReferenceGroups struct {
-	Changes    []Issue `json:"changes"`
-	Calendar   []Issue `json:"calendar"`
-	Exceptions []Issue `json:"exceptions"`
+	Changes  []Issue `json:"changes"`
+	Calendar []Issue `json:"calendar"`
 }
 
 type reason struct {
 	Kind string `json:"kind"`
 }
 type ruleDocument struct {
+	reviewDocument
 	Operation   string   `json:"operation"`
 	Preserved   []string `json:"preserved"`
 	PolicyIDs   []string `json:"policy_ids"`
@@ -52,14 +53,14 @@ type ruleDocument struct {
 		Decision string `json:"decision"`
 		UID      string `json:"block_uid"`
 		Fields   struct {
+			benchmarkFields
 			Start   string   `json:"start_date"`
 			Review  string   `json:"review_date"`
 			Recipes []string `json:"eligible_recipe_ids"`
 			Why     []reason `json:"why"`
 		} `json:"version_fields"`
 	} `json:"block_change"`
-	EventReview *json.RawMessage `json:"event_review"`
-	Anchors     []struct {
+	Anchors []struct {
 		Kind       string    `json:"kind"`
 		Unit       string    `json:"unit"`
 		Protocol   string    `json:"protocol"`
@@ -236,7 +237,7 @@ func ValidateRules(raw json.RawMessage, ctx RuleContext, idx coaching.KnowledgeI
 	}
 	issues := append([]Issue{}, ref.Changes...)
 	for i, uid := range d.Preserved {
-		if !ctx.HeadSessions[uid] {
+		if _, ok := ctx.HeadSessions[uid]; !ok {
 			issues = append(issues, staleIssue("V4.unknown_preserved", fmt.Sprintf("preserved.%d", i)))
 		}
 	}
@@ -258,7 +259,9 @@ func ValidateRules(raw json.RawMessage, ctx RuleContext, idx coaching.KnowledgeI
 		return nil, err
 	}
 	issues = append(issues, a...)
-	issues = append(issues, ref.Exceptions...)
+	for _, rule := range []func(ruleDocument, RuleContext) []Issue{exceptionRules, eventRules, benchmarkRules, targetRules, resolutionRules} {
+		issues = append(issues, rule(d, ctx)...)
+	}
 	t, err := textRules(d, raw, ctx.Today)
 	return append(issues, t...), err
 }

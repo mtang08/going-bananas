@@ -31,12 +31,31 @@ def rule_inputs(doc, ctx):
             "today": ctx.today,
             "timezone": str(ctx.tz),
             "block_uid": str(ctx.active_block.block_uid) if ctx.active_block else "",
-            "head_sessions": {str(uid): True for uid in ctx.head_sessions},
+            "head_sessions": {
+                str(uid): vars(row) for uid, row in ctx.head_sessions.items()
+            },
+            "findings": {str(k): v for k, v in ctx.findings.items()},
+            "patches": {str(k): v for k, v in ctx.patches.items()},
+            "events": {
+                str(k): {
+                    "status": v[0],
+                    "day": v[1],
+                    "rank": v[2] if len(v) > 2 else None,
+                }
+                for k, v in ctx.events.items()
+            },
+            "open_rule_codes": sorted(ctx.open_rule_codes),
+            "benchmark": {
+                k: getattr(ctx.benchmark, k, None)
+                for k in ("status", "activity_id", "event_id", "local_date")
+            }
+            if ctx.benchmark
+            else None,
+            "last_benchmark_date": ctx.last_benchmark_date,
         },
         "groups": {
             "changes": [x.to_json() for x in change_issues],
             "calendar": [x.to_json() for x in calendar_issues],
-            "exceptions": [x.to_json() for x in v._exception_rules(doc, ctx)],
         },
     }
 
