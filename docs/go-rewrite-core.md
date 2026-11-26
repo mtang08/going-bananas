@@ -21,3 +21,14 @@ The public completion endpoint still uses Python. To switch it, finish recording
 - Integrate provider jobs from stream 2 and proposal decisions from stream 3. One coordinator owns the source write, revision advance, rematch, projection refresh and commit. Verify competing writers, job restart and a lost decision response. Rehearse backup, restore, phone replay, app startup, worker/CLI and macOS launcher before scheduling any real cutover with the owner. [Shared data handoff and rollback criteria](go-backend-rewrite.md#data-handoff-and-rollback)
 
 **Outstanding pilot check.** Run `make test-proposal-go` with a native browser on a host that permits browser launch. The live APIs, three Home states and the Settings goal edit passed through Vite and jsdom. This check can run alongside all three workstreams.
+
+### Planned-versus-actual assessment
+
+Call `assessment.Refresh(ctx, tx, sessionUID, now)` inside the completion command's globally locked PostgreSQL transaction, after refreshing the linked activity's interval result. It reads the accepted plan, eligible actual, candidates and coverage; selects or restores the metric result by its source/dependency identity; and updates a derived completion status and data revision when it changes. The caller can roll back both the result and the enclosing completion change. The returned result ID is nil when the subject has disappeared. Unlinked self-reports retain their user-marked status.
+
+```sh
+uv run --project backend python scripts/rewrite/check_assessment_outcomes.py
+python3 scripts/test-db.py assessment
+```
+
+The comparison runs in independently migrated schemas and checks all stored metric columns except generated UUIDs. It separately verifies stable row IDs on replay and restore, non-UTC session offsets, provenance for FIT, Strong and manual records, and caller rollback on a failing completion update. [Assessment transaction](../backend-go/internal/metrics/assessment/refresh.go) · [PostgreSQL comparison](../scripts/rewrite/check_assessment_db.py)
