@@ -2,7 +2,7 @@ package aerobic
 
 import (
 	"context"
-	"encoding/json"
+
 	"errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -127,14 +127,8 @@ func Refresh(ctx context.Context, tx pgx.Tx, id uuid.UUID, now time.Time) (uuid.
 		if reason != "" {
 			out = early("not_applicable", reason)
 		} else {
-			var raw []byte
-			var s *stream
-			err := tx.QueryRow(ctx, "SELECT to_jsonb(s) FROM activity_streams s WHERE activity_id=$1", id).Scan(&raw)
-			if err == nil {
-				if err = json.Unmarshal(raw, &s); err != nil {
-					return uuid.Nil, err
-				}
-			} else if !errors.Is(err, pgx.ErrNoRows) {
+			s, err := recording.LoadStream(ctx, tx, id)
+			if err != nil {
 				return uuid.Nil, err
 			}
 			out, err = calculate(s, r.Sport == "treadmill_running")

@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics/aerobic"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/intensity"
 	"os"
 	"reflect"
 	"regexp"
@@ -25,9 +26,9 @@ func TestAerobicWindowsPostgres(t *testing.T) {
 	var ref struct {
 		Query string
 		Cases []struct {
-			SQL, Query string
-			Keys       []string
-			State      []map[string]any
+			SQL, Query, Metric string
+			Keys               []string
+			State              []map[string]any
 		}
 	}
 	if err = json.Unmarshal(data, &ref); err != nil {
@@ -59,7 +60,11 @@ func TestAerobicWindowsPostgres(t *testing.T) {
 			query := c.Query
 			if len(c.Keys) > 0 {
 				for _, key := range c.Keys {
-					if _, err := aerobic.Refresh(ctx, tx, uuid.MustParse(key), day); err != nil {
+					calc := aerobic.Refresh
+					if c.Metric == "intensity" {
+						calc = intensity.Refresh
+					}
+					if _, err := calc(ctx, tx, uuid.MustParse(key), day); err != nil {
 						return err
 					}
 				}

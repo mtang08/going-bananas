@@ -66,10 +66,30 @@ def seed(env):
             (uid(8200), uid(2004)),
         )
 
+        for i, (kind, limit) in enumerate(
+            [
+                ("hr_aerobic_upper", 140),
+                ("hr_threshold_lower", 160),
+                ("speed_aerobic_upper", 3),
+                ("speed_threshold_lower", 4),
+            ]
+        ):
+            db.execute(
+                """INSERT INTO intensity_anchors(id,anchor_key,kind,value_low,unit,protocol,confidence,status,calibrated_at,valid_from,review_after)
+            VALUES(%s,%s,%s,%s,%s,'manual','low','active','2026-02-01T12:00Z','2026-02-01','2026-03-01')""",
+                (
+                    uid(9000 + i),
+                    "anchor" + str(i),
+                    kind,
+                    limit,
+                    "bpm" if i < 2 else "mps",
+                ),
+            )
+
 
 def reference():
     from app.db import SessionLocal
-    from app.metrics import aerobic, engine
+    from app.metrics import aerobic, engine, intensity
     from sqlalchemy import text
 
     result = []
@@ -101,6 +121,28 @@ def reference():
                     "keys": keys,
                     "query": activity_query,
                     "state": s.execute(text(activity_query)).scalar_one(),
+                }
+            )
+    intensity_query = activity_query.replace(
+        "aerobic_efficiency", "intensity_time_distribution"
+    )
+    for change in [
+        "",
+        "UPDATE intensity_anchors SET confidence='insufficient' WHERE kind='hr_threshold_lower'",
+    ]:
+        with SessionLocal.begin() as s:
+            if change:
+                s.execute(text(change))
+            for key in keys:
+                engine.upsert_results(s, intensity.compute(s, key))
+            s.flush()
+            result.append(
+                {
+                    "metric": "intensity",
+                    "sql": change,
+                    "keys": keys,
+                    "query": intensity_query,
+                    "state": s.execute(text(intensity_query)).scalar_one(),
                 }
             )
     return {"cases": result, "query": STATE}

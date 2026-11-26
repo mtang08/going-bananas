@@ -64,3 +64,26 @@ func Steps(ctx context.Context, tx pgx.Tx, id uuid.UUID) ([]FitStep, error) {
 		return s, err
 	})
 }
+
+type Stream struct {
+	Times    []int      `json:"t_s"`
+	HR       []*float64 `json:"hr_bpm"`
+	Speed    []*float64 `json:"speed_mps"`
+	Altitude []*float64 `json:"altitude_m"`
+	Timer    []Span     `json:"timer_on"`
+	Flags    []string   `json:"quality_flags"`
+}
+
+func LoadStream(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*Stream, error) {
+	var raw []byte
+	err := tx.QueryRow(ctx, "SELECT to_jsonb(s) FROM activity_streams s WHERE activity_id=$1", id).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var s Stream
+	err = json.Unmarshal(raw, &s)
+	return &s, err
+}

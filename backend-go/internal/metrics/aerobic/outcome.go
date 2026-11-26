@@ -8,14 +8,7 @@ import (
 )
 
 type obj = map[string]any
-type stream struct {
-	Times    []int            `json:"t_s"`
-	HR       []*float64       `json:"hr_bpm"`
-	Speed    []*float64       `json:"speed_mps"`
-	Altitude []*float64       `json:"altitude_m"`
-	Timer    []recording.Span `json:"timer_on"`
-	Flags    []string         `json:"quality_flags"`
-}
+type stream = recording.Stream
 type sample struct {
 	i         int
 	s         float64
