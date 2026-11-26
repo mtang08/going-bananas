@@ -228,6 +228,26 @@ func intervalComponents(b []byte) *Intervals {
 // Refresh evaluates one session at now, using the transaction's current interval
 // results. The caller owns the transaction, the global write lock, and commit.
 func Refresh(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time) (Result, error) {
+	return refresh(ctx, tx, uid, now, true)
+}
+
+func RefreshBatch(ctx context.Context, tx pgx.Tx, uids []uuid.UUID, now time.Time) error {
+	changed := false
+	for _, id := range uids {
+		result, err := refresh(ctx, tx, id, now, false)
+		if err != nil {
+			return err
+		}
+		changed = changed || result.StatusChanged
+	}
+	if changed {
+		_, err := db.New(tx).BumpDataRevision(ctx)
+		return err
+	}
+	return nil
+}
+
+func refresh(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time, bump bool) (Result, error) {
 	s, err := load(ctx, tx, uid, now)
 	if err != nil {
 		return Result{}, err
@@ -288,9 +308,10 @@ func Refresh(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time) (Resu
 		if err != nil {
 			return Result{}, err
 		}
-		_, err = db.New(tx).BumpDataRevision(ctx)
-		if err != nil {
-			return Result{}, err
+		if bump {
+			if _, err = db.New(tx).BumpDataRevision(ctx); err != nil {
+				return Result{}, err
+			}
 		}
 		result.StatusChanged = true
 	}
