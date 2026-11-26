@@ -9,26 +9,31 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
+	"github.com/mtang08/going-bananas/backend-go/internal/coaching/reference"
 )
 
 func run(ctx context.Context, args []string, w io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: coaching load|discard -id UUID [-revision N]")
+		return errors.New("usage: coaching load|discard|submit|revise [-id UUID] [-revision N]")
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	idArg := flags.String("id", "", "saved proposal ID")
 	revision := flags.Int("revision", 0, "expected draft revision")
+	root := flags.String("repo", ".", "repository root containing the verified knowledge package and reference adapter")
+	python := flags.String("python", "", "reference backend Python interpreter")
+	nowArg := flags.String("now", "", "synthetic evaluation time, RFC3339")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
 	id, err := uuid.Parse(*idArg)
-	if err != nil {
+	if err != nil && args[0] != "submit" {
 		return errors.New("valid proposal -id required")
 	}
 	mode := os.Getenv("APP_MODE")
@@ -49,15 +54,47 @@ func run(ctx context.Context, args []string, w io.Writer) error {
 	}
 	defer pool.Close()
 	s := drafts.Store{Pool: pool}
+	now := time.Now().UTC()
+	if *nowArg != "" {
+		now, err = time.Parse(time.RFC3339Nano, *nowArg)
+		if err != nil {
+			return errors.New("invalid evaluation timestamp")
+		}
+	}
+	absolute, err := filepath.Abs(*root)
+	if err != nil {
+		return err
+	}
+	if *python == "" {
+		*python = filepath.Join(absolute, "backend", ".venv", "bin", "python")
+	}
+	validate := reference.Adapter{Root: absolute, Python: *python}
 	var result any
 	switch args[0] {
+	case "submit":
+		var raw json.RawMessage
+		if err := json.NewDecoder(os.Stdin).Decode(&raw); err != nil {
+			return err
+		}
+		result, err = s.Submit(ctx, raw, now, validate.Validate)
+	case "revise":
+		var req drafts.RevisionRequest
+		dec := json.NewDecoder(os.Stdin)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
+			return err
+		}
+		if req.ExpectedRevision < 1 || len([]rune(req.Reason)) > 500 {
+			return errors.New("invalid revision request")
+		}
+		result, err = s.Revise(ctx, id, req, now, validate.Validate)
 	case "load":
 		result, err = s.Load(ctx, id)
 	case "discard":
 		if *revision < 1 {
 			return errors.New("positive -revision required")
 		}
-		result, err = s.Discard(ctx, id, *revision, time.Now().UTC())
+		result, err = s.Discard(ctx, id, *revision, now)
 	default:
 		return errors.New("unknown coaching operation")
 	}
@@ -69,8 +106,11 @@ func run(ctx context.Context, args []string, w io.Writer) error {
 
 func main() {
 	if err := run(context.Background(), os.Args[1:], os.Stdout); err != nil {
+		var command *drafts.CommandError
 		var decision *drafts.Error
-		if errors.As(err, &decision) {
+		if errors.As(err, &command) {
+			_ = json.NewEncoder(os.Stderr).Encode(command)
+		} else if errors.As(err, &decision) {
 			_ = json.NewEncoder(os.Stderr).Encode(decision)
 		} else {
 			fmt.Fprintln(os.Stderr, "Coaching command failed:", err)
