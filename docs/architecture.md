@@ -4,6 +4,8 @@ Open the [visual architecture guide](architecture-map.html) in a browser for dia
 
 Read each directory’s `AGENTS.md` for entry points and [contracts.md](contracts.md) for field-level contracts.
 
+The [Go backend rewrite specification](go-backend-rewrite.md) describes the target design, delivery sequence and data handoff.
+
 ## Layers
 
 ```
