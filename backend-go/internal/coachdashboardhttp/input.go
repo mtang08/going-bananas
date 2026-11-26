@@ -56,7 +56,7 @@ func parseInput(body io.Reader, message bool) (input, []field) {
 			add(name, "UUID input should be a string, bytes or UUID object")
 			return ""
 		}
-		if len(s) == 38 && !(strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) {
+		if len(s) == 38 && (!strings.HasPrefix(s, "{") || !strings.HasSuffix(s, "}")) {
 			add(name, "Input should be a valid UUID")
 			return ""
 		}
