@@ -35,6 +35,7 @@ func invalid(field, reason string) *problem {
 }
 func (h Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/metrics/recovery", h.respond(h.recovery))
+	mux.HandleFunc("GET /api/v1/activities/{activity_id}/workout-history", h.respond(h.history))
 	mux.HandleFunc("GET /api/v1/activities", h.respond(h.activities))
 	mux.HandleFunc("GET /api/v1/activities/{activity_id}", h.respond(h.detail))
 }
