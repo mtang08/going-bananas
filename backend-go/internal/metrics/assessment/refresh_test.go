@@ -46,12 +46,13 @@ func TestPythonDatabase(t *testing.T) {
 				return err
 			}
 			switch mode {
-			case "volume":
+			case "volume", "symptoms", "long", "intensity":
 				zone, err := time.LoadLocation("America/New_York")
 				if err != nil {
 					return err
 				}
-				return trainingwindows.RefreshVolume(t.Context(), tx, now.In(zone), now)
+				refresh := map[string]func(context.Context, pgx.Tx, time.Time, time.Time) error{"volume": trainingwindows.RefreshVolume, "symptoms": trainingwindows.RefreshSymptoms, "intensity": trainingwindows.RefreshIntensity, "long": trainingwindows.RefreshLong}
+				return refresh[mode](t.Context(), tx, now.In(zone), now)
 			case "date":
 				return spacing.RefreshDates(t.Context(), tx, []string{"2026-11-11"}, now)
 			default:
