@@ -38,6 +38,7 @@ type DashboardTools interface {
 type StdioAppServer struct {
 	Open                    func(context.Context) (io.ReadWriteCloser, error)
 	Workspace, Instructions string
+	LoadInstructions        func() (string, error)
 	Tools                   DashboardTools
 }
 
@@ -50,7 +51,14 @@ func allowedTool(name string) bool {
 }
 
 func (s *StdioAppServer) RunTurn(ctx context.Context, req TurnRequest) (reply string, err error) {
-	if s.Open == nil || s.Tools == nil || s.Instructions == "" || s.Workspace == "" || req.TurnID == "" {
+	instructions := s.Instructions
+	if s.LoadInstructions != nil {
+		instructions, err = s.LoadInstructions()
+		if err != nil {
+			return "", err
+		}
+	}
+	if s.Open == nil || s.Tools == nil || instructions == "" || s.Workspace == "" || req.TurnID == "" {
 		return "", errors.New("incomplete dashboard runtime configuration")
 	}
 	tools := s.Tools.Definitions()
@@ -82,7 +90,7 @@ func (s *StdioAppServer) RunTurn(ctx context.Context, req TurnRequest) (reply st
 	if err := requireModel(ctx, r); err != nil {
 		return "", err
 	}
-	thread, err := s.openThread(ctx, r, req.ThreadID, defs)
+	thread, err := s.openThread(ctx, r, req.ThreadID, instructions, defs)
 	if err != nil {
 		return "", err
 	}
@@ -146,8 +154,8 @@ func requireModel(ctx context.Context, r *RPC) error {
 	}
 }
 
-func (s *StdioAppServer) openThread(ctx context.Context, r *RPC, thread string, defs []Object) (string, error) {
-	params := Object{"cwd": s.Workspace, "model": coachModel, "modelProvider": "openai", "permissions": profile, "approvalPolicy": "never", "runtimeWorkspaceRoots": []string{}, "developerInstructions": s.Instructions}
+func (s *StdioAppServer) openThread(ctx context.Context, r *RPC, thread, instructions string, defs []Object) (string, error) {
+	params := Object{"cwd": s.Workspace, "model": coachModel, "modelProvider": "openai", "permissions": profile, "approvalPolicy": "never", "runtimeWorkspaceRoots": []string{}, "developerInstructions": instructions}
 	method := "thread/start"
 	if thread == "" {
 		params["allowProviderModelFallback"] = false

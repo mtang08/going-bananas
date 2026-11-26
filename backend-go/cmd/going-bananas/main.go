@@ -10,14 +10,18 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/api"
+	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
 	"github.com/mtang08/going-bananas/backend-go/internal/goals"
+	"github.com/mtang08/going-bananas/backend-go/internal/googlecalendar"
 	"github.com/mtang08/going-bananas/backend-go/internal/httpapi"
 	"github.com/mtang08/going-bananas/backend-go/internal/planning"
+	"github.com/mtang08/going-bananas/backend-go/internal/proposalhttp"
 	"github.com/mtang08/going-bananas/backend-go/internal/proposals"
 	"github.com/mtang08/going-bananas/backend-go/internal/travelhttp"
 	"github.com/oapi-codegen/runtime"
@@ -44,6 +48,7 @@ func runtimeConfig(mode api.AppMode, dsn string) (*pgxpool.Config, error) {
 
 func serve(args []string) error {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+	repo := flags.String("repo", os.Getenv("GB_MODE_ROOT"), "repository root containing running_coach_kb")
 	address := flags.String("listen", "127.0.0.1:8011", "loopback IPv4 address and port")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -82,8 +87,20 @@ func serve(args []string) error {
 	if vitePort == "" {
 		vitePort = "5173"
 	}
-	travel := travelhttp.Handler{Pool: pool, Mode: string(mode), PrivateDir: os.Getenv("PRIVATE_DIR")}
-	h := httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort, travel.Register)
+	root := *repo
+	if root == "" {
+		root, err = os.Getwd()
+		if err != nil {
+			return err
+		}
+		if filepath.Base(root) == "backend-go" {
+			root = filepath.Dir(root)
+		}
+	}
+	privateDir := os.Getenv("PRIVATE_DIR")
+	travel := travelhttp.Handler{Pool: pool, Mode: string(mode), PrivateDir: privateDir, Provider: googlecalendar.New(privateDir)}
+	review := proposalhttp.Handler{Store: drafts.Store{Pool: pool}, KBRoot: filepath.Join(root, "running_coach_kb"), Mode: string(mode)}
+	h := httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort, travel.Register, review.Register)
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Println(l.Addr())
 	return srv.Serve(l)

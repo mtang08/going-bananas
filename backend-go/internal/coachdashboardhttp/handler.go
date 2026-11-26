@@ -49,13 +49,18 @@ func (m PostgresMetadata) Read(ctx context.Context, reviewProposal string) (Meta
 }
 
 type handler struct {
+	auth                 *coachdashboard.Auth
 	gateway              Gateway
 	metadata             MetadataReader
 	mode, port, vitePort string
 }
 
 func New(gateway Gateway, metadata MetadataReader, mode, port, vitePort string) http.Handler {
-	return &handler{gateway, metadata, mode, port, vitePort}
+	return NewWithAuth(gateway, metadata, nil, mode, port, vitePort)
+}
+
+func NewWithAuth(gateway Gateway, metadata MetadataReader, auth *coachdashboard.Auth, mode, port, vitePort string) http.Handler {
+	return &handler{auth: auth, gateway: gateway, metadata: metadata, mode: mode, port: port, vitePort: vitePort}
 }
 
 type field struct {
@@ -75,7 +80,7 @@ func (h *handler) allowed(w http.ResponseWriter, r *http.Request, id string) boo
 	host := r.Host
 	api := host == "127.0.0.1:"+h.port || host == "localhost:"+h.port
 	vite := host == "127.0.0.1:"+h.vitePort || host == "localhost:"+h.vitePort
-	localHost := api || vite || host == "127.0.0.1" || host == "localhost" || host == "testserver"
+	localHost := api || vite || host == "127.0.0.1" || host == "localhost" || (host == "testserver" && h.mode == "test")
 	if !localHost {
 		writeError(w, id, 403, "invalid_host", "Local host required", nil)
 		return false
@@ -90,8 +95,8 @@ func (h *handler) allowed(w http.ResponseWriter, r *http.Request, id string) boo
 		return false
 	}
 	origin := r.Header.Get("Origin")
-	fromVite := api && (origin == "http://127.0.0.1:"+h.vitePort || origin == "http://localhost:"+h.vitePort)
-	if origin != "" && origin != "http://"+host && !fromVite {
+	viteOrigin := api && (origin == "http://127.0.0.1:"+h.vitePort || origin == "http://localhost:"+h.vitePort)
+	if origin != "" && origin != "http://"+host && !viteOrigin {
 		writeError(w, id, 403, "invalid_origin", "Local origin required", nil)
 		return false
 	}
@@ -121,11 +126,16 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Request-ID", id)
 	var method string
 	switch strings.TrimSuffix(r.URL.Path, "/") {
-	case path:
+	case path, path + "/auth":
 		method = "GET"
-	case path + "/messages", path + "/new", path + "/cancel":
+	case path + "/messages", path + "/new", path + "/cancel", path + "/auth/start", path + "/auth/cancel":
 		method = "POST"
 	default:
+		writeError(w, id, 404, "not_found", "API route not found", nil)
+		return
+	}
+	isAuth := strings.HasPrefix(r.URL.Path, path+"/auth")
+	if isAuth && h.auth == nil {
 		writeError(w, id, 404, "not_found", "API route not found", nil)
 		return
 	}
@@ -137,6 +147,10 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method != method {
 		writeError(w, id, 405, "method_not_allowed", "Request failed", nil)
+		return
+	}
+	if isAuth {
+		h.serveAuth(w, r, id)
 		return
 	}
 	ctx := r.Context()
