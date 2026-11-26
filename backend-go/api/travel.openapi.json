@@ -1,0 +1,1894 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Going Bananas travel API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/google-calendar/status": {
+      "get": {
+        "operationId": "getGoogleCalendarStatus",
+        "summary": "Read the calendar connection and latest sync receipt.",
+        "responses": {
+          "200": {
+            "description": "Read the calendar connection and latest sync receipt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarStatusEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/google-calendar/sync": {
+      "post": {
+        "operationId": "syncGoogleCalendar",
+        "summary": "Sync the calendar window and reconcile detected trips.",
+        "responses": {
+          "200": {
+            "description": "Sync the calendar window and reconcile detected trips.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResultEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Real mode or a usable Google Calendar connection is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The local API expects application/json for writes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Calendar provider failed or returned an invalid response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Calendar provider rate limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/google-calendar/events": {
+      "get": {
+        "operationId": "listGoogleCalendarEvents",
+        "summary": "List calendar events ordered by local start.",
+        "responses": {
+          "200": {
+            "description": "List calendar events ordered by local start.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventListEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid range, filter or request fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "First local date, inclusive."
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Last local date, inclusive. The date difference may be at most 400 days."
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "flight",
+                "lodging",
+                "ground_travel",
+                "reservation",
+                "out_of_office",
+                "appointment",
+                "work",
+                "social",
+                "other",
+                "travel"
+              ]
+            },
+            "description": "The travel filter includes flights, lodging and ground travel."
+          },
+          {
+            "in": "query",
+            "name": "include_removed",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Include removed events."
+          }
+        ]
+      }
+    },
+    "/api/v1/google-calendar/events/{event_id}": {
+      "patch": {
+        "operationId": "patchGoogleCalendarEvent",
+        "summary": "Set the event category or restore automatic categorization.",
+        "responses": {
+          "200": {
+            "description": "Set the event category or restore automatic categorization.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventPatchResultEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Calendar event not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Event version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The local API expects application/json for writes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          },
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventCategoryPatch"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trips": {
+      "get": {
+        "operationId": "listTrips",
+        "summary": "List trips overlapping the requested dates.",
+        "responses": {
+          "200": {
+            "description": "List trips overlapping the requested dates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripListEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid range, filter or request fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "First local date, inclusive."
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Last local date, inclusive. The date difference may be at most 400 days."
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated trip statuses. Dismissed trips are excluded by default."
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createTrip",
+        "summary": "Create a confirmed manual trip.",
+        "responses": {
+          "201": {
+            "description": "Create a confirmed manual trip.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The local API expects application/json for writes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid trip dates, availability or request fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualTripInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trips/{trip_id}": {
+      "patch": {
+        "operationId": "patchTrip",
+        "summary": "Edit a trip using its current version.",
+        "responses": {
+          "200": {
+            "description": "Edit a trip using its current version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Trip not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Trip version conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The local API expects application/json for writes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid trip edit or request fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          },
+          {
+            "in": "path",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TripPatch"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AppMode": {
+        "type": "string",
+        "enum": [
+          "demo",
+          "real",
+          "test"
+        ],
+        "title": "AppMode"
+      },
+      "SchemaVersion": {
+        "type": "string",
+        "const": "v1"
+      },
+      "ValidationField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "ValidationField"
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationField"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id",
+          "fields"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "EventCategory": {
+        "type": "string",
+        "enum": [
+          "flight",
+          "lodging",
+          "ground_travel",
+          "reservation",
+          "out_of_office",
+          "appointment",
+          "work",
+          "social",
+          "other"
+        ]
+      },
+      "TripStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "confirmed",
+          "dismissed",
+          "needs_review"
+        ]
+      },
+      "TripConfidence": {
+        "type": "string",
+        "enum": [
+          "high",
+          "medium",
+          "low"
+        ]
+      },
+      "RunningAccess": {
+        "type": "string",
+        "enum": [
+          "normal",
+          "limited",
+          "none"
+        ]
+      },
+      "GymAccess": {
+        "type": "string",
+        "enum": [
+          "full",
+          "limited",
+          "none"
+        ]
+      },
+      "DayAvailability": {
+        "type": "string",
+        "enum": [
+          "normal",
+          "reduced",
+          "unavailable"
+        ]
+      },
+      "DayAvailabilityEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/DayAvailability"
+          }
+        },
+        "required": [
+          "date",
+          "availability"
+        ]
+      },
+      "TripStop": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tz": {
+            "type": "string"
+          },
+          "arrive_date": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "label",
+          "tz",
+          "arrive_date"
+        ]
+      },
+      "DetectedTrip": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_tz": {
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/TripConfidence"
+          },
+          "stops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TripStop"
+            }
+          }
+        },
+        "required": [
+          "start_date",
+          "end_date",
+          "destination_label",
+          "destination_tz",
+          "confidence",
+          "stops"
+        ]
+      },
+      "TripLeg": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flight_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depart_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arrive_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depart_tz": {
+            "type": "string"
+          },
+          "arrive_tz": {
+            "type": "string"
+          },
+          "timezone_basis": {
+            "type": "string",
+            "enum": [
+              "calendar_endpoints",
+              "calendar_display",
+              "fallback"
+            ]
+          },
+          "depart_local": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arrive_local": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "event_id",
+          "seq",
+          "summary",
+          "flight_code",
+          "depart_at",
+          "arrive_at",
+          "depart_tz",
+          "arrive_tz",
+          "timezone_basis",
+          "depart_local",
+          "arrive_local",
+          "removed"
+        ]
+      },
+      "CalendarEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "all_day": {
+            "type": "boolean"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start_tz": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end_tz": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "busy": {
+            "type": "boolean"
+          },
+          "response_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "needsAction",
+                  "declined",
+                  "tentative",
+                  "accepted"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/EventCategory"
+          },
+          "category_source": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "athlete"
+            ]
+          },
+          "auto_category": {
+            "$ref": "#/components/schemas/EventCategory"
+          },
+          "flight_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "removed": {
+            "type": "boolean"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "summary",
+          "all_day",
+          "start_at",
+          "end_at",
+          "start_date",
+          "end_date",
+          "start_tz",
+          "end_tz",
+          "local_date",
+          "busy",
+          "response_status",
+          "category",
+          "category_source",
+          "auto_category",
+          "flight_code",
+          "destination_label",
+          "location_codes",
+          "removed",
+          "trip_id",
+          "version"
+        ]
+      },
+      "Trip": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TripStatus"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_tz": {
+            "type": "string"
+          },
+          "destination_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running_access": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunningAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gym_access": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GymAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "detected",
+              "manual"
+            ]
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TripConfidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "edited": {
+            "type": "boolean"
+          },
+          "review_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "source_removed",
+                  "source_changed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detected": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DetectedTrip"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "maxProperties": 0
+              }
+            ]
+          },
+          "day_availability": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DayAvailabilityEntry"
+            }
+          },
+          "travel_days": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          "legs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TripLeg"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "start_date",
+          "end_date",
+          "destination_tz",
+          "destination_label",
+          "running_access",
+          "gym_access",
+          "source",
+          "confidence",
+          "edited",
+          "review_reason",
+          "detected",
+          "day_availability",
+          "travel_days",
+          "legs",
+          "version"
+        ]
+      },
+      "ManualTripInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "destination_tz": {
+            "type": "string"
+          },
+          "destination_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running_access": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunningAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gym_access": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GymAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_availability": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DayAvailabilityEntry"
+            }
+          }
+        },
+        "required": [
+          "start_date",
+          "end_date",
+          "destination_tz"
+        ]
+      },
+      "TripPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "dismissed",
+                  "pending"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accept_detected": {
+            "type": "boolean"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_tz": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "running_access": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunningAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gym_access": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GymAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_availability": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DayAvailabilityEntry"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expected_version"
+        ]
+      },
+      "EventCategoryPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expected_version",
+          "category"
+        ]
+      },
+      "TripCounters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "updated": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "flagged": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deleted": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "created",
+          "updated",
+          "flagged",
+          "deleted"
+        ]
+      },
+      "EventCounters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fetched": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "changed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unchanged": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "removed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "restored": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "fetched",
+          "created",
+          "changed",
+          "unchanged",
+          "removed",
+          "restored"
+        ]
+      },
+      "SyncReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "window": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "start": {
+                "type": "string",
+                "format": "date"
+              },
+              "end": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ]
+          },
+          "counters": {
+            "$ref": "#/components/schemas/EventCounters"
+          }
+        },
+        "required": [
+          "started_at",
+          "finished_at",
+          "window",
+          "counters"
+        ]
+      },
+      "SyncResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sync": {
+            "$ref": "#/components/schemas/SyncReceipt"
+          },
+          "trips": {
+            "$ref": "#/components/schemas/TripCounters"
+          }
+        },
+        "required": [
+          "sync",
+          "trips"
+        ]
+      },
+      "LastSync": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "required": [
+          "started_at",
+          "finished_at",
+          "status",
+          "error_code",
+          "counters"
+        ]
+      },
+      "CalendarStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "window": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "days_back": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "days_ahead": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "days_back",
+              "days_ahead"
+            ]
+          },
+          "last_sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastSync"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "connected",
+          "window",
+          "last_sync",
+          "last_success_at"
+        ]
+      },
+      "EventList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CalendarEvent"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "TripList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Trip"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "EventPatchResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/CalendarEvent"
+          },
+          "trips": {
+            "$ref": "#/components/schemas/TripCounters"
+          }
+        },
+        "required": [
+          "event",
+          "trips"
+        ]
+      },
+      "CalendarStatusEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CalendarStatus"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "SyncResultEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SyncResult"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "EventListEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EventList"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "EventPatchResultEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EventPatchResult"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "TripListEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TripList"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "TripEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Trip"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      }
+    }
+  }
+}

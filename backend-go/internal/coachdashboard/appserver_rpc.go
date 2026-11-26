@@ -133,9 +133,14 @@ func (r *RPC) Event(ctx context.Context) (Object, error) {
 	return e.object, err
 }
 
-func (r *RPC) Request(ctx context.Context, method string, params Object) (Object, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+func (r *RPC) Request(parent context.Context, method string, params Object) (result Object, err error) {
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
+	defer func() {
+		if errors.Is(err, context.DeadlineExceeded) && parent.Err() == nil {
+			err = &Problem{"timeout", "The local Codex App Server took too long to respond. Try again."}
+		}
+	}()
 	r.sequence++
 	id := r.sequence
 	if err := r.Send(ctx, Object{"method": method, "id": id, "params": params}); err != nil {
@@ -159,7 +164,14 @@ func (r *RPC) Request(ctx context.Context, method string, params Object) (Object
 		}
 		result, ok := e.object["result"].(Object)
 		if !ok {
-			return nil, errors.New("app-server rejected request")
+			switch method {
+			case "thread/resume":
+				return nil, &Problem{"turn_failed", "Codex could not reopen this conversation. Try again or start a new chat."}
+			case "account/login/start":
+				return nil, &Problem{"auth_required", "Codex could not start ChatGPT sign-in. Try again."}
+			default:
+				return nil, &Problem{"turn_failed", "The local Codex App Server could not process this request. Try again."}
+			}
 		}
 		return result, nil
 	}

@@ -26,7 +26,7 @@ type provenance struct {
 	Field any       `json:"source_field"`
 }
 
-func reconcile(ctx context.Context, tx pgx.Tx, owner uuid.UUID, identity, remoteID string) (uuid.UUID, string, bool, error) {
+func reconcile(ctx context.Context, tx pgx.Tx, owner uuid.UUID, identity, remoteID string, bumpImmediately bool) (uuid.UUID, string, bool, error) {
 	rows, err := tx.Query(ctx, `SELECT id,source_kind,fields FROM source_records
 		WHERE source_account_id=$1 AND source_identity=$2 AND rejected_reason IS NULL
 		ORDER BY source_modified_at DESC NULLS LAST,(source_kind='garmin_api') DESC,
@@ -77,9 +77,12 @@ func reconcile(ctx context.Context, tx pgx.Tx, owner uuid.UUID, identity, remote
 		}
 	}
 	if changed {
-		if _, err = db.New(tx).BumpDataRevision(ctx); err == nil {
-			err = detectConflicts(ctx, tx, id)
+		if bumpImmediately {
+			if _, err = db.New(tx).BumpDataRevision(ctx); err != nil {
+				return id, day, changed, err
+			}
 		}
+		err = detectConflicts(ctx, tx, id, bumpImmediately)
 	}
 	return id, day, changed, err
 }
@@ -109,7 +112,7 @@ IS DISTINCT FROM (EXCLUDED.start_at,EXCLUDED.original_start,EXCLUDED.source_time
 	EXCLUDED.avg_hr_bpm,EXCLUDED.cadence_spm,EXCLUDED.source_workout_label,EXCLUDED.field_provenance)
 RETURNING id,local_date::text`
 
-func detectConflicts(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
+func detectConflicts(ctx context.Context, tx pgx.Tx, id uuid.UUID, bumpImmediately bool) error {
 	_, err := tx.Exec(ctx, `WITH neighbors AS (
 		SELECT a.id, jsonb_build_array(least(a.id,b.id)::text,greatest(a.id,b.id)::text) ids
 		FROM activities a JOIN activities b ON a.id<>b.id AND a.local_date=b.local_date AND a.sport=b.sport
@@ -122,7 +125,7 @@ func detectConflicts(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
 		FROM neighbors n WHERE NOT EXISTS(SELECT 1 FROM conflicts c WHERE c.kind='activity_overlap' AND c.activity_ids @> n.ids)
 		RETURNING id
 	), held AS (UPDATE activities SET resolution_state='pending' WHERE id=$1 AND EXISTS(SELECT FROM added))
-	UPDATE app_state SET data_revision=data_revision+(SELECT count(*) FROM added) WHERE id=1 AND EXISTS(SELECT FROM added)`, id)
+	UPDATE app_state SET data_revision=data_revision+(SELECT count(*) FROM added) WHERE id=1 AND $2::bool AND EXISTS(SELECT FROM added)`, id, bumpImmediately)
 	if err != nil {
 		return err
 	}
@@ -135,6 +138,6 @@ func detectConflicts(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
 			c.kind='manual_import_overlap' AND c.activity_ids ? a.id::text)
 		RETURNING activity_ids
 	), held AS (UPDATE activities SET resolution_state='pending' WHERE id IN(SELECT (activity_ids->>0)::uuid FROM added))
-	UPDATE app_state SET data_revision=data_revision+(SELECT count(*) FROM added) WHERE id=1 AND EXISTS(SELECT FROM added)`, id)
+	UPDATE app_state SET data_revision=data_revision+(SELECT count(*) FROM added) WHERE id=1 AND $2::bool AND EXISTS(SELECT FROM added)`, id, bumpImmediately)
 	return err
 }

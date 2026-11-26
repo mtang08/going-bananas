@@ -145,3 +145,24 @@ class CoachDecisionKey(Base):
     decision_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     result: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class CoachChatReview(Base):
+    __tablename__ = "coach_chat_reviews"
+    mode: Mapped[str] = mapped_column(Text, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    state: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    current: Mapped[bool] = mapped_column(nullable=False)
+    __table_args__ = (Index("coach_chat_current", "mode", unique=True, postgresql_where=text("current")),)
+
+
+class CoachChatReceipt(Base):
+    __tablename__ = "coach_chat_receipts"
+    mode: Mapped[str] = mapped_column(Text, primary_key=True)
+    client_message_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    digest: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class CoachChatFileImport(Base):
+    __tablename__ = "coach_chat_file_imports"
+    mode: Mapped[str] = mapped_column(Text, primary_key=True)

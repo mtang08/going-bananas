@@ -51,6 +51,41 @@ func New(pool *pgxpool.Pool) *Store {
 }
 
 func (s *Store) Patch(ctx context.Context, id uuid.UUID, patch Patch) (Result, error) {
+	return s.write(ctx, func(q *db.Queries) (db.Goal, error) {
+		key := pgtype.UUID{Bytes: id, Valid: true}
+		version, err := q.GoalVersion(ctx, key)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			return db.Goal{}, ErrNotFound
+		case err != nil:
+			return db.Goal{}, err
+		case patch.ExpectedVersion != int(version):
+			return db.Goal{}, ErrVersionConflict
+		case patch.HasNull:
+			return db.Goal{}, ErrNullField
+		}
+		params := db.PatchGoalParams{
+			ID: key, GoalText: optionalText(patch.Text), Horizon: optionalText(patch.Horizon),
+			Status: optionalText(patch.Status),
+		}
+		if patch.Priority != nil {
+			params.Priority = pgtype.Int8{Int64: int64(*patch.Priority), Valid: true}
+		}
+		return q.PatchGoal(ctx, params)
+	})
+}
+
+func (s *Store) Create(ctx context.Context, text, horizon string, priority int) (Result, error) {
+	return s.write(ctx, func(q *db.Queries) (db.Goal, error) {
+		id, err := uuid.NewRandom()
+		if err != nil {
+			return db.Goal{}, err
+		}
+		return q.CreateGoal(ctx, db.CreateGoalParams{ID: pgtype.UUID{Bytes: id, Valid: true}, GoalText: text, Horizon: horizon, Priority: int64(priority)})
+	})
+}
+
+func (s *Store) write(ctx context.Context, apply func(*db.Queries) (db.Goal, error)) (Result, error) {
 	var result Result
 	// READ COMMITTED gives the version check a fresh snapshot after waiting
 	// for the same transaction lock as the Python goal writer.
@@ -61,26 +96,7 @@ func (s *Store) Patch(ctx context.Context, id uuid.UUID, patch Patch) (Result, e
 		if err := q.LockGlobalWriter(ctx); err != nil {
 			return err
 		}
-		key := pgtype.UUID{Bytes: id, Valid: true}
-		version, err := q.GoalVersion(ctx, key)
-		switch {
-		case errors.Is(err, pgx.ErrNoRows):
-			return ErrNotFound
-		case err != nil:
-			return err
-		case patch.ExpectedVersion != int(version):
-			return ErrVersionConflict
-		case patch.HasNull:
-			return ErrNullField
-		}
-		params := db.PatchGoalParams{
-			ID: key, GoalText: optionalText(patch.Text), Horizon: optionalText(patch.Horizon),
-			Status: optionalText(patch.Status),
-		}
-		if patch.Priority != nil {
-			params.Priority = pgtype.Int8{Int64: int64(*patch.Priority), Valid: true}
-		}
-		row, err := q.PatchGoal(ctx, params)
+		row, err := apply(q)
 		if err != nil {
 			return err
 		}

@@ -61,13 +61,14 @@ func limitText(value string, maxChars int) (string, int) {
 type Gateway struct {
 	store     *Store
 	transport AppServer
+	auth      *Auth
 	mu        sync.Mutex
 	turn      *runningTurn
 	closed    bool
 }
 
-func NewGateway(store *Store, transport AppServer) *Gateway {
-	return &Gateway{store: store, transport: transport}
+func NewGateway(store *Store, transport AppServer, auth *Auth) *Gateway {
+	return &Gateway{store: store, transport: transport, auth: auth}
 }
 
 // View contains the athlete-facing chat state. Runtime IDs stay in the store.
@@ -101,6 +102,9 @@ func (g *Gateway) View(ctx context.Context) (View, error) {
 	}
 	if review.ProposalID != "" {
 		view.ProposalID = &review.ProposalID
+		if review.ProposalRevision > 0 {
+			view.ProposalRevision = &review.ProposalRevision
+		}
 	}
 	return view, nil
 }
@@ -173,6 +177,9 @@ func (g *Gateway) run(ctx context.Context, t *runningTurn, lease *TurnLease, mes
 		return
 	}
 	reply, problem := turnResult(reply, err)
+	if problem != nil && problem.Code == "auth_required" && g.auth != nil {
+		g.auth.turnSignedOut()
+	}
 	finishCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := g.store.Finish(finishCtx, t.id, t.responseID, reply, problem); err != nil {

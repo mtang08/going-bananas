@@ -1,0 +1,232 @@
+[
+  {
+    "name": "active_proposal",
+    "description": "Read the open draft, current revision and reusable proposal document.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "ToolInput",
+      "type": "object"
+    }
+  },
+  {
+    "name": "review_findings",
+    "description": "Read deterministic coaching findings, tracked patches and review recommendations.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "default": "active",
+          "enum": [
+            "active",
+            "recent"
+          ],
+          "title": "Include",
+          "type": "string"
+        }
+      },
+      "title": "FindingsInput",
+      "type": "object"
+    }
+  },
+  {
+    "name": "coaching_snapshot",
+    "description": "Get a current, filtered coaching snapshot with verified research excerpts.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "enum": [
+            "proceed_or_modify_today",
+            "review_rolling_plan",
+            "select_quality_session",
+            "review_training_block",
+            "recalibrate_intensity",
+            "handle_goal_or_race_change",
+            "exception_review",
+            "post_event_review"
+          ],
+          "title": "Operation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation"
+      ],
+      "title": "SnapshotInput",
+      "type": "object"
+    }
+  },
+  {
+    "name": "coaching_query",
+    "description": "Inspect a drill-down from the snapshot. Supply the fields for that query.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "enum": [
+            "activity_execution",
+            "long_run_history",
+            "recovery_nights",
+            "calendar_diff",
+            "explain_metric"
+          ],
+          "title": "Name",
+          "type": "string"
+        },
+        "activity_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activity Id"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "from_version": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Version"
+        },
+        "to_version": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To Version"
+        },
+        "result_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result Id"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "QueryInput",
+      "type": "object"
+    }
+  },
+  {
+    "name": "proposal_schema",
+    "description": "Get the current calendar-authority proposal schema and limits.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "ToolInput",
+      "type": "object"
+    }
+  },
+  {
+    "name": "save_pending_proposal",
+    "description": "Save the agreed plan for review. Supply proposal_id, expected_revision and reason to revise an open draft.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "additionalProperties": true,
+          "title": "Document",
+          "type": "object"
+        },
+        "proposal_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposal Id"
+        },
+        "expected_revision": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Revision"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "document"
+      ],
+      "title": "SaveInput",
+      "type": "object"
+    }
+  }
+]

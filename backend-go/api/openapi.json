@@ -216,6 +216,71 @@
             }
           }
         }
+      },
+      "post": {
+        "operationId": "createGoal",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created goal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid goal or request fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -783,6 +848,27 @@
           "mode",
           "data"
         ]
+      },
+      "GoalCreate": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "horizon": {
+            "$ref": "#/components/schemas/GoalHorizon"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "text",
+          "horizon",
+          "priority"
+        ],
+        "additionalProperties": false
       }
     }
   }

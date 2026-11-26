@@ -25,7 +25,6 @@ def main():
             with migrated_schema(db, url, Path(scratch) / "dashboard", "0") as env:
                 with psycopg.connect(env["PROPOSAL_TEST_DATABASE_URL"], options=env["PGOPTIONS"]) as fixture:
                     schema, = fixture.execute("SELECT current_schema()").fetchone()
-                    fixture.execute((MODULE / "internal/coachdashboard/testdata/schema.sql").read_text())
                 env["DASHBOARD_TEST_DATABASE_URL"] = pg_url.update_query_dict(
                     {"search_path": schema}
                 ).render_as_string(hide_password=False)

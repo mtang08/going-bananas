@@ -27,6 +27,9 @@ def main():
 
     if os.environ.get("APP_MODE") != "test":
         raise ValueError("requires test mode")
+    from app.services import derived
+
+    derived.install()
     req = json.load(sys.stdin)
     now = datetime.fromisoformat(req["now"])
     with SessionLocal.begin() as s:
@@ -38,7 +41,9 @@ def main():
         op = req["op"]
         if op == "seed":
             day = now.astimezone(ZoneInfo("America/New_York")).date()
-            result = build_snapshot(s, "proceed_or_modify_today", day, now=now)
+            result = build_snapshot(
+                s, req.get("operation", "proceed_or_modify_today"), day, now=now
+            )
             print(
                 json.dumps(
                     {"snapshot_id": result["snapshot_id"], "day": day.isoformat()}
@@ -53,13 +58,20 @@ def main():
                     decide_proposal,
                 )
 
-                decision = decide_proposal(
-                    s,
-                    UUID(req["id"]),
-                    DecisionRequest.model_validate(req["request"]),
-                    now=now,
-                    resolve_kb=resolve_kb,
-                )
+                from unittest.mock import patch
+                from app.services import calendar
+
+                # Pin the calendar writer's separate wall-clock day to the same
+                # synthetic reference instant supplied to proposal validation.
+                day = calendar.calendar_today(s, now)
+                with patch.object(calendar, "calendar_today", return_value=day):
+                    decision = decide_proposal(
+                        s,
+                        UUID(req["id"]),
+                        DecisionRequest.model_validate(req["request"]),
+                        now=now,
+                        resolve_kb=resolve_kb,
+                    )
                 print(json.dumps(asdict(decision), default=str))
                 return
             if op == "submit":

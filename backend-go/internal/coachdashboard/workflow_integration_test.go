@@ -128,7 +128,7 @@ func TestDashboardWorkflowPostgres(t *testing.T) {
 		}
 		return "We can discuss the next easy run.", nil
 	}}
-	first := NewGateway(NewStore(pool, "test"), app)
+	first := NewGateway(NewStore(pool, "test"), app, nil)
 	blank := workflowView(t, first, "idle")
 	if blank.ID != nil || len(blank.Messages) != 0 || app.count.Load() != 0 {
 		t.Fatal("opening the dashboard should show an empty review without starting a turn")
@@ -168,7 +168,10 @@ func TestDashboardWorkflowPostgres(t *testing.T) {
 			return "", &Problem{Code: "auth_required", Message: "Sign in to continue."}
 		}
 	}}
-	gateway := NewGateway(NewStore(pool, "test"), resumedApp)
+	auth := NewAuth(nil)
+	auth.view = AuthView{Status: "signed_in"}
+	auth.checked = time.Now()
+	gateway := NewGateway(NewStore(pool, "test"), resumedApp, auth)
 	t.Cleanup(func() { requireOK(t, gateway.Shutdown(context.Background())) })
 	if reloaded := workflowView(t, gateway, "idle"); !reflect.DeepEqual(reloaded, discussion) {
 		t.Fatal("review changed after gateway restart")
@@ -222,6 +225,9 @@ func TestDashboardWorkflowPostgres(t *testing.T) {
 	noAuth := "Review training this week"
 	requireOK(t, gateway.Send(ctx, Guard{Set: true, ID: *next.ID}, uuid.NewString(), noAuth, ""))
 	failed := workflowView(t, gateway, "failed")
+	if status := auth.Status(ctx); status.Status != "signed_out" {
+		t.Fatalf("auth-required turn left cached account %s", status.Status)
+	}
 	if failed.Error == nil || failed.Error.Code != "auth_required" || len(failed.Messages) != 1 || failed.Messages[0].Text != noAuth {
 		t.Fatal("authentication failure should keep the athlete's message and expose auth_required")
 	}

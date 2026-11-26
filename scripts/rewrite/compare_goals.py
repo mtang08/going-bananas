@@ -78,7 +78,7 @@ def state(conn):
     return row[0][0], revision, head, metrics
 
 
-def patch(port, vite_port, body, goal, headers):
+def send_goal(port, vite_port, body, goal, headers):
     fields = {
         "X-Local-Request": "1",
         "Content-Type": "application/json",
@@ -88,8 +88,8 @@ def patch(port, vite_port, body, goal, headers):
     with closing(HTTPConnection("127.0.0.1", int(port), timeout=10)) as client:
         payload = body if isinstance(body, bytes) else json.dumps(body).encode()
         client.request(
-            "PATCH",
-            f"/api/v1/goals/{goal}",
+            "PATCH" if goal is not None else "POST",
+            f"/api/v1/goals/{goal}" if goal is not None else "/api/v1/goals",
             payload,
             {k: v for k, v in fields.items() if v is not None},
         )
@@ -135,7 +135,7 @@ def compare_goals(python_port, go_port, reference_env, candidate_env):
         ):
             nonlocal count, revision
             first, second = (
-                patch(port, env["VITE_PORT"], body, goal, headers or {})
+                send_goal(port, env["VITE_PORT"], body, goal, headers or {})
                 for port, env in [
                     (python_port, reference_env),
                     (go_port, candidate_env),
@@ -256,11 +256,40 @@ def compare_goals(python_port, go_port, reference_env, candidate_env):
         )
         # Force the later revision UPDATE to fail after the goal UPDATE on both implementations.
         for conn in (ref, go):
-            conn.execute("ALTER TABLE app_state ADD CHECK (data_revision <= 4)")
+            conn.execute("ALTER TABLE app_state ADD CONSTRAINT fixture_revision_limit CHECK (data_revision <= 4)")
         compare(
             "rollback on revision failure",
             {"expected_version": 5, "text": "rollback"},
             500,
             "internal_error",
         )
-        return count
+        sample = {"text": "  Autumn goal  ", "horizon": "season", "priority": "3.0"}
+        for label, body, status in [
+            ("revision failure", sample, 500),
+            ("missing fields", {}, 422),
+            ("required nulls", dict.fromkeys(sample), 422),
+            ("invalid and extra", {**sample, "priority": -1, "horizon": "bad", "status": "paused"}, 422),
+            ("invalid JSON", b'{"text":}', 422),
+            ("smallint overflow", {**sample, "priority": 40000}, 500),
+            ("normalized input", sample, 201),
+        ]:
+            if label == "missing fields":
+                for conn in (ref, go):
+                    conn.execute("ALTER TABLE app_state DROP CONSTRAINT fixture_revision_limit")
+            replies = []
+            for port, env, conn in ((python_port, reference_env, ref), (go_port, candidate_env, go)):
+                result = send_goal(port, env["VITE_PORT"], body, None, {})
+                assert result[0] == status, (label, result[0])
+                row_count = conn.execute("SELECT count(*) FROM goals").fetchone()[0]
+                data_revision = conn.execute("SELECT data_revision FROM app_state WHERE id=1").fetchone()[0]
+                assert (row_count, data_revision) == (1 + (status == 201), revision + (status == 201))
+                if status == 201:
+                    item = result[1]["data"]
+                    saved = conn.execute("SELECT text, horizon, priority, status, version FROM goals WHERE id=%s",
+                                         (item["id"],)).fetchone()
+                    assert saved == ("Autumn goal", "season", 3, "active", 1)
+                    item["id"] = "<generated>"
+                replies.append(result)
+            assert replies[0] == replies[1], (label, replies)
+            print(f"PASS {status} POST goal: {label}", flush=True)
+        return count + 7

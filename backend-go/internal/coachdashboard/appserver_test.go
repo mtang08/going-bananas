@@ -204,3 +204,32 @@ func TestRPCRejectsOversizedAndMalformedFrames(t *testing.T) {
 		}
 	}
 }
+
+func TestRejectedRequestsHaveActionablePublicErrors(t *testing.T) {
+	for _, tc := range []struct{ method, code, hint string }{
+		{"thread/resume", "turn_failed", "start a new chat"},
+		{"account/login/start", "auth_required", "start ChatGPT sign-in"},
+		{"model/list", "turn_failed", "could not process"},
+	} {
+		t.Run(tc.method, func(t *testing.T) {
+			rt, _, done := setupPeer(t, func(p *peer) {
+				p.request("initialize", Object{})
+				p.request("initialized", nil)
+				request := p.read()
+				p.expect(request["method"] == tc.method, tc.method)
+				p.send(Object{"id": request["id"], "error": Object{"message": "private synthetic diagnostic"}})
+			})
+			stream, err := rt.Open(t.Context())
+			requireOK(t, err)
+			r, err := OpenRPC(t.Context(), stream)
+			requireOK(t, err)
+			defer r.Close()
+			_, err = r.Request(t.Context(), tc.method, Object{})
+			var problem *Problem
+			if !errors.As(err, &problem) || problem.Code != tc.code || !strings.Contains(problem.Message, tc.hint) || strings.Contains(problem.Message, "private") {
+				t.Fatalf("unexpected rejection: %v", err)
+			}
+			requireOK(t, <-done)
+		})
+	}
+}
