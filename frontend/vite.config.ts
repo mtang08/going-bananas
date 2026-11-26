@@ -12,8 +12,8 @@ function loopbackTarget(port: string): string {
   return `http://127.0.0.1:${port}`
 }
 
-const proposalProxy: Plugin = {
-  name: 'going-bananas-proposal-dev-proxy',
+const goProxy: Plugin = {
+  name: 'going-bananas-go-dev-proxy',
   configureServer(server) {
     const port = process.env.PROPOSAL_GO_PORT
     if (port === undefined) return
@@ -26,7 +26,11 @@ const proposalProxy: Plugin = {
         changeOrigin: true,
         configure(proxy) {
           server.middlewares.use((req, res, next) => {
-            if (req.method === 'GET' && req.url?.split('?', 1)[0] === '/api/v1/coach/proposals')
+            const path = req.url?.split('?', 1)[0] ?? ''
+            if (
+              (req.method === 'GET' && path === '/api/v1/coach/proposals') ||
+              (req.method === 'PATCH' && /^\/api\/v1\/goals\/[^/]+$/.test(path))
+            )
               return proxy.web(req, res, { target })
             next()
           })
@@ -39,7 +43,7 @@ const proposalProxy: Plugin = {
 export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   plugins: [
-    proposalProxy,
+    goProxy,
     react(),
     tailwindcss(),
     {

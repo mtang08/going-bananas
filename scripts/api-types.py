@@ -1,4 +1,4 @@
-"""Generate the Go and TypeScript clients from the proposal-list contract."""
+"""Generate Go and TypeScript wire types and verify the generated SQL queries."""
 
 import argparse
 import filecmp
@@ -9,8 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / 'backend-go'
-CONTRACT = Path('api/proposal-list.openapi.json')
-HANDLERS = Path('api/proposal-list.gen.go')
+CONTRACT = Path('api/openapi.json')
+HANDLERS = Path('api/api.gen.go')
 SQL_OUTPUT = Path('internal/db')
 
 
@@ -53,7 +53,7 @@ def main() -> None:
         generate_go(MODULE)
     command = [
         'node_modules/.bin/openapi-typescript', str(MODULE / CONTRACT),
-        '-o', 'src/api/generated/proposalList.ts',
+        '-o', 'src/api/generated/backend.ts',
     ]
     if args.check:
         command.append('--check')

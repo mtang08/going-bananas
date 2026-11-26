@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/api"
+	"github.com/mtang08/going-bananas/backend-go/internal/goals"
 	"github.com/mtang08/going-bananas/backend-go/internal/httpapi"
 	"github.com/mtang08/going-bananas/backend-go/internal/proposals"
 	"github.com/oapi-codegen/runtime"
@@ -79,7 +80,7 @@ func serve(args []string) error {
 	if vitePort == "" {
 		vitePort = "5173"
 	}
-	h := httpapi.New(proposals.New(pool), mode, port, vitePort)
+	h := httpapi.New(proposals.New(pool), goals.New(pool), mode, port, vitePort)
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Println(l.Addr())
 	return srv.Serve(l)

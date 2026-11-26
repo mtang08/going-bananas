@@ -64,7 +64,7 @@ def verify(work: Path) -> None:
     (frontend / "node_modules").symlink_to(
         ROOT / "frontend/node_modules", target_is_directory=True
     )
-    contract = work / "backend-go/api/proposal-list.openapi.json"
+    contract = work / "backend-go/api/openapi.json"
     doc = json.loads(contract.read_text())
     summary = doc["components"]["schemas"]["ProposalSummary"]
     summary["properties"]["proposed_change_count"] = summary["properties"].pop(
@@ -74,7 +74,7 @@ def verify(work: Path) -> None:
     required[required.index("change_count")] = "proposed_change_count"
     contract.write_text(json.dumps(doc, indent=2) + "\n")
 
-    run(work, "make", "check-api-types", expected=("proposal-list.gen.go differs",))
+    run(work, "make", "check-api-types", expected=("api.gen.go differs",))
     run(work, "make", "generate-api-types")
     run(work, "make", "check-api-types")
 

@@ -3,3 +3,16 @@
 //   sqlc v1.30.0
 
 package db
+
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type Goal struct {
+	ID       pgtype.UUID
+	Text     string
+	Horizon  string
+	Priority int16
+	Status   string
+	Version  int32
+}

@@ -76,15 +76,15 @@ func (g localGuard) allow(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-func New(reader ProposalReader, mode api.AppMode, port, vitePort string) http.Handler {
-	strict := api.NewStrictHandlerWithOptions(server{reader, mode}, nil, api.StrictHTTPServerOptions{
-		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, _ error) {
-			// The reference middleware returns before adding success/validation headers on internal errors.
-			w.Header().Del("Cache-Control")
-			w.Header().Del("X-Request-ID")
-			fail(w, r, http.StatusInternalServerError, "internal_error", "Internal server error")
-		},
-	})
+func internalError(w http.ResponseWriter, r *http.Request, _ error) {
+	w.Header().Del("Cache-Control")
+	w.Header().Del("X-Request-ID")
+	fail(w, r, http.StatusInternalServerError, "internal_error", "Internal server error")
+}
+
+func New(reader ProposalReader, writer GoalWriter, mode api.AppMode, port, vitePort string) http.Handler {
+	s := server{reader: reader, writer: writer, mode: mode}
+	strict := api.NewStrictHandlerWithOptions(s, nil, api.StrictHTTPServerOptions{ResponseErrorHandlerFunc: internalError})
 	handler := api.Handler(strict)
 	guard := newGuard(port, vitePort)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +97,19 @@ func New(reader ProposalReader, mode api.AppMode, port, vitePort string) http.Ha
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Request-ID", rid)
+		const goalPrefix = "/api/v1/goals/"
+		if id, ok := strings.CutPrefix(r.URL.Path, goalPrefix); ok && id != "" && !strings.Contains(strings.TrimSuffix(id, "/"), "/") {
+			if r.Method == http.MethodGet {
+				fail(w, r, http.StatusNotFound, "not_found", "API route not found")
+				return
+			}
+			if r.Method != http.MethodPatch || strings.HasSuffix(id, "/") {
+				fail(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "Request failed")
+				return
+			}
+			s.serveGoal(w, r, id)
+			return
+		}
 		const path = "/api/v1/coach/proposals"
 		if r.Method != http.MethodGet && (r.URL.Path == path || r.URL.Path == path+"/") {
 			fail(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "Request failed")

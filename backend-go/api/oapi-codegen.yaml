@@ -3,4 +3,4 @@ generate:
   models: true
   std-http-server: true
   strict-server: true
-output: api/proposal-list.gen.go
+output: api/api.gen.go

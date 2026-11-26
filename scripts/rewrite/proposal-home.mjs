@@ -1,5 +1,6 @@
 // Run after loading backend/tests/fixtures/proposal-list.sql. psql uses the same PG* environment.
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import { execFileSync, spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { channel } from 'node:diagnostics_channel'
@@ -16,6 +17,7 @@ assert(
 const [python, candidate] = ports.map((p) => 'http://127.0.0.1:' + Number(p))
 assert.notEqual(python, candidate)
 const list = '/api/v1/coach/proposals?status=open'
+const goalText = 'Settings fixture ' + randomUUID()
 const draft = '00000000-0000-0000-0000-000000000033'
 
 function setFixtureStatus(before, after) {
@@ -49,7 +51,7 @@ Object.assign(process.env, { APP_MODE: 'test', APP_PORT: ports[0], PROPOSAL_GO_P
 const { createServer } = await import(require.resolve('vite'))
 const vite = await createServer({
   root: frontend,
-  server: { host: '127.0.0.1', port: 0, strictPort: true },
+  server: { host: '127.0.0.1', port: Number(process.env.VITE_PORT ?? 5173), strictPort: true },
   logLevel: 'silent',
 })
 let origin
@@ -60,25 +62,25 @@ const httpRequests = channel('http.client.request.start')
 function observeUpstream({ request }) {
   if (!request.path.startsWith('/api/v1/')) return
   const target = 'http://' + request.getHeader('host')
-  upstreams.push({ path: request.path, target })
+  upstreams.push({ path: request.path, method: request.method, target })
   if (disconnectList && request.path === list && target === candidate) {
     request.destroy(new Error('Proposal upstream disconnected by the test'))
   }
 }
 
+async function renderDOM(testFile, extraEnv) {
+  const child = spawn(process.execPath, [require.resolve('vitest/vitest.mjs'), 'run', testFile], {
+    cwd: frontend,
+    env: { ...process.env, PROPOSAL_HOME_ORIGIN: origin, ...extraEnv },
+    stdio: 'inherit',
+  })
+  const [code] = await once(child, 'exit')
+  assert.equal(code, 0, 'UI check failed')
+}
+
 async function renderState(state) {
   if (!browser) {
-    const child = spawn(
-      process.execPath,
-      [require.resolve('vitest/vitest.mjs'), 'run', 'tests/proposal-home-http.test.tsx'],
-      {
-        cwd: frontend,
-        env: { ...process.env, PROPOSAL_HOME_STATE: state, PROPOSAL_HOME_ORIGIN: origin },
-        stdio: 'inherit',
-      },
-    )
-    const [code] = await once(child, 'exit')
-    assert.equal(code, 0, 'Home DOM check failed')
+    await renderDOM('tests/proposal-home-http.test.tsx', { PROPOSAL_HOME_STATE: state })
     return
   }
   const page = await browser.newPage()
@@ -131,6 +133,45 @@ async function checkState(state) {
   }
 }
 
+async function checkGoalEdit() {
+  upstreams.length = 0
+  disconnectList = false
+  if (browser) {
+    const page = await browser.newPage()
+    try {
+      await page.goto(origin + '/#settings')
+      await page.getByLabel('Goal', { exact: true }).fill(goalText)
+      await page.getByRole('button', { name: 'Add goal' }).click()
+      await page.getByText(goalText).getByRole('button', { name: 'Edit' }).click()
+      await page.getByLabel('Goal', { exact: true }).fill('Updated ' + goalText)
+      await page.getByRole('button', { name: 'Save goal' }).click()
+      await expect(page.getByText('Updated ' + goalText)).toBeVisible()
+    } finally {
+      await page.close()
+    }
+  } else {
+    await renderDOM('tests/goal-settings-http.test.tsx', { GOAL_SETTINGS_FIXTURE: goalText })
+  }
+
+  const goalsPath = '/api/v1/goals'
+  const reads = upstreams.filter(({ method, path }) => method === 'GET' && path === goalsPath)
+  assert(reads.length >= 2, 'Expected the Settings goal list to refresh after edits')
+  assert(upstreams.some(({ method, path }) => method === 'POST' && path === goalsPath))
+  const writes = upstreams.filter(({ method }) => method === 'PATCH')
+  assert.equal(writes.length, 1)
+  assert.match(writes[0].path, /^\/api\/v1\/goals\/[a-f0-9-]{36}$/)
+  for (const request of upstreams) {
+    assert.equal(
+      request.target,
+      request === writes[0] ? candidate : python,
+      'Wrong upstream for ' + request.path,
+    )
+  }
+  console.log(
+    `PASS Settings (${engine}) created a goal in Python, edited it in Go, and reloaded it from Python.`,
+  )
+}
+
 try {
   await vite.listen()
   origin = 'http://127.0.0.1:' + vite.httpServer.address().port
@@ -143,6 +184,7 @@ try {
     setFixtureStatus('accepted', 'pending')
   }
   await checkState('failed')
+  await checkGoalEdit()
   console.log(
     `PASS Home (${engine}) rendered the Go draft, empty list, and disconnected list alert alongside Python.`,
   )

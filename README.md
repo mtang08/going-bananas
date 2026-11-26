@@ -257,33 +257,34 @@ Inspect or update them in Settings.
 make check                 # docs, Python, Go and frontend checks
 make check-go              # generated code, build, lint, and race-enabled tests
 make check-go-vuln         # check the Go module against the current vulnerability database
-make generate-api-types    # regenerate Go HTTP types, sqlc queries and React proposal-list types
-make test-proposal-go      # historic Python contract, real PostgreSQL, Go HTTP, and Home in Chrome
+make generate-api-types    # regenerate Go and React HTTP types and sqlc queries
+make test-proposal-go      # compare Python and Go with PostgreSQL, Home and Settings
 make test-integration      # provision the isolated database and run PostgreSQL integration tests
 make test-integration TESTS=tests/integration/test_proposals.py
 python3 scripts/test_coach_skill_v2.py  # reviewed helper contract tests; no live writes
 ```
 
-The proposal list has a checked-in OpenAPI contract. Its generated Go handler and
-React types share field names, required values, nullability and status choices.
-`make check-api-types` also checks sqlc output and works with PostgreSQL stopped.
-To reproduce the compiler check, run `python3 scripts/rewrite/check_contract_rename.py`.
-It renames a field in a temporary copy and checks that both real consumers fail to build.
-[Proposal contract](backend-go/api/proposal-list.openapi.json)
+The proposal list and goal edit share a checked-in OpenAPI contract. Go and React
+compile against its request and response types. `make check-api-types` also checks
+sqlc output and works with PostgreSQL stopped. To exercise both compilers, run
+`python3 scripts/rewrite/check_contract_rename.py`. It renames a proposal field
+in a temporary copy and checks that both consumers fail to build.
+[Migrated HTTP operations](backend-go/api/openapi.json)
 
-To try Home interactively against the Go read, start `make demo-go-proposals`
-with the demo database already migrated. In a second terminal run
+To try both routes interactively, start `make demo-go-proposals` with the demo
+database already migrated. In a second terminal run
 `PROPOSAL_GO_PORT=8011 ./scripts/with-mode demo make dev`, then open Vite
-at `http://127.0.0.1:5173`. Vite forwards the proposal-list GET to Go.
-Opening a draft and making a decision still go to the demo Python server.
+at `http://127.0.0.1:5173`. Home lists proposals through Go. In Settings, Go
+saves edits to existing goals. Python handles goal creation and refreshes the list.
 
-`make test-proposal-go` creates a disposable schema in the isolated test database,
-migrates it, checks the schema snapshot, loads the 52-row fixture and starts both
-backends on loopback. It compares their HTTP responses and renders the open, empty
-and failed-list states in Home through the demo/test Vite proxy. The default browser is installed Chrome.
-Set `PROPOSAL_HOME_ENGINE=chromium` for Playwright's installed Chromium or
-`PROPOSAL_HOME_ENGINE=dom` for the Vitest/jsdom version. For the dedicated external
-test-cluster option below use `make test-proposal-go-external`.
+`make test-proposal-go` compares HTTP responses and persisted goal, revision
+and metric state on independent copies of the migrated test database. It also
+runs competing-writer and rollback tests. A shared disposable schema exercises
+the mixed-backend UI with a 52-proposal fixture. Home renders the open, empty
+and failed-list states, and Settings creates, edits and reloads a goal.
+The default browser is installed Chrome. Set `PROPOSAL_HOME_ENGINE=chromium` for
+Playwright's installed Chromium or `PROPOSAL_HOME_ENGINE=dom` for Vitest/jsdom.
+For the dedicated external test cluster use `make test-proposal-go-external`.
 
 The integration runner uses a checkout-local PostgreSQL cluster under
 `private/integration-postgres/55439/` on `127.0.0.1:55439`. It provisions

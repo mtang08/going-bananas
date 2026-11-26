@@ -1,14 +1,8 @@
+import type { components } from '../generated/backend'
 import type { CitedSource, Why } from './coachText'
 import type { BenchmarkOutcome } from './exceptions'
-export type GoalHorizon = '3_6_months' | 'season' | 'long_term'
-export interface Goal {
-  id: string
-  text: string
-  horizon: GoalHorizon
-  priority: number
-  status: 'active' | 'paused' | 'done' | 'dropped'
-  version: number
-}
+export type Goal = components['schemas']['Goal']
+export type GoalHorizon = Goal['horizon']
 export type GoalCreate = Omit<Goal, 'id' | 'version' | 'status'>
 export type EventPurpose = 'pr' | 'benchmark' | 'training'
 export type EventStatus = 'planned' | 'registered' | 'completed' | 'cancelled'

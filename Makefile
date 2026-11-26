@@ -52,8 +52,8 @@ check-docs:
 check-backend:
 	python3 scripts/test_phone_gateway.py
 	$(RUN) bash -c 'cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app --ignore-missing-imports && uv run pytest tests/unit tests/test_*.py -m "not integration"'
-.PHONY: generate-api-types check-api-types proposal-list-schema
-proposal-list-schema:
+.PHONY: generate-api-types check-api-types api-schema
+api-schema:
 	@$(API_TYPES) --schema
 generate-api-types:
 	$(API_TYPES)

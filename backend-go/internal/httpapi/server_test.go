@@ -43,7 +43,7 @@ func TestProposalListHTTP(t *testing.T) {
 	defer ts.Close()
 	addr := ts.Listener.Addr().String()
 	_, port, _ := strings.Cut(addr, ":")
-	ts.Config.Handler = New(store, api.Demo, port, "5173")
+	ts.Config.Handler = New(store, nil, api.Demo, port, "5173")
 	ts.Start()
 	ts.Client().CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	request := func(method, path, host, origin string) (int, http.Header, string) {

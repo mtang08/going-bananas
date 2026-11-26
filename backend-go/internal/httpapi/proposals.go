@@ -14,6 +14,7 @@ type ProposalReader interface {
 
 type server struct {
 	reader ProposalReader
+	writer GoalWriter
 	mode   api.AppMode
 }
 

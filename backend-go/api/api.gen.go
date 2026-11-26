@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/oapi-codegen/nullable"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -37,15 +38,45 @@ func (e AppMode) Valid() bool {
 	}
 }
 
-// Defines values for EnvelopeProposalListSchemaVersion.
+// Defines values for GoalHorizon.
 const (
-	V1 EnvelopeProposalListSchemaVersion = "v1"
+	LongTerm  GoalHorizon = "long_term"
+	N36Months GoalHorizon = "3_6_months"
+	Season    GoalHorizon = "season"
 )
 
-// Valid indicates whether the value is a known member of the EnvelopeProposalListSchemaVersion enum.
-func (e EnvelopeProposalListSchemaVersion) Valid() bool {
+// Valid indicates whether the value is a known member of the GoalHorizon enum.
+func (e GoalHorizon) Valid() bool {
 	switch e {
-	case V1:
+	case LongTerm:
+		return true
+	case N36Months:
+		return true
+	case Season:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GoalStatus.
+const (
+	Active  GoalStatus = "active"
+	Done    GoalStatus = "done"
+	Dropped GoalStatus = "dropped"
+	Paused  GoalStatus = "paused"
+)
+
+// Valid indicates whether the value is a known member of the GoalStatus enum.
+func (e GoalStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Done:
+		return true
+	case Dropped:
+		return true
+	case Paused:
 		return true
 	default:
 		return false
@@ -79,6 +110,21 @@ func (e ProposalSummaryStatus) Valid() bool {
 	case ProposalSummaryStatusRejected:
 		return true
 	case ProposalSummaryStatusStale:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SchemaVersion.
+const (
+	V1 SchemaVersion = "v1"
+)
+
+// Valid indicates whether the value is a known member of the SchemaVersion enum.
+func (e SchemaVersion) Valid() bool {
+	switch e {
+	case V1:
 		return true
 	default:
 		return false
@@ -156,14 +202,58 @@ type AppMode string
 
 // EnvelopeProposalList defines model for Envelope_ProposalList_.
 type EnvelopeProposalList struct {
-	Data          ProposalList                      `json:"data"`
-	DataRevision  int                               `json:"data_revision"`
-	Mode          AppMode                           `json:"mode"`
-	SchemaVersion EnvelopeProposalListSchemaVersion `json:"schema_version"`
+	Data          ProposalList  `json:"data"`
+	DataRevision  int           `json:"data_revision"`
+	Mode          AppMode       `json:"mode"`
+	SchemaVersion SchemaVersion `json:"schema_version"`
 }
 
-// EnvelopeProposalListSchemaVersion defines model for EnvelopeProposalList.SchemaVersion.
-type EnvelopeProposalListSchemaVersion string
+// ErrorDetail defines model for ErrorDetail.
+type ErrorDetail struct {
+	Code      string            `json:"code"`
+	Fields    []ValidationField `json:"fields"`
+	Message   string            `json:"message"`
+	RequestId string            `json:"request_id"`
+	Retryable bool              `json:"retryable"`
+}
+
+// ErrorEnvelope defines model for ErrorEnvelope.
+type ErrorEnvelope struct {
+	Error ErrorDetail `json:"error"`
+}
+
+// Goal defines model for Goal.
+type Goal struct {
+	Horizon  GoalHorizon        `json:"horizon"`
+	Id       openapi_types.UUID `json:"id"`
+	Priority int                `json:"priority"`
+	Status   GoalStatus         `json:"status"`
+	Text     string             `json:"text"`
+	Version  int                `json:"version"`
+}
+
+// GoalEnvelope defines model for GoalEnvelope.
+type GoalEnvelope struct {
+	Data          Goal          `json:"data"`
+	DataRevision  int           `json:"data_revision"`
+	Mode          AppMode       `json:"mode"`
+	SchemaVersion SchemaVersion `json:"schema_version"`
+}
+
+// GoalHorizon defines model for GoalHorizon.
+type GoalHorizon string
+
+// GoalPatch defines model for GoalPatch.
+type GoalPatch struct {
+	ExpectedVersion int                            `json:"expected_version"`
+	Horizon         nullable.Nullable[GoalHorizon] `json:"horizon,omitempty"`
+	Priority        nullable.Nullable[int]         `json:"priority,omitempty"`
+	Status          nullable.Nullable[GoalStatus]  `json:"status,omitempty"`
+	Text            nullable.Nullable[string]      `json:"text,omitempty"`
+}
+
+// GoalStatus defines model for GoalStatus.
+type GoalStatus string
 
 // ProposalList defines model for ProposalList.
 type ProposalList struct {
@@ -186,6 +276,9 @@ type ProposalSummary struct {
 
 // ProposalSummaryStatus defines model for ProposalSummary.Status.
 type ProposalSummaryStatus string
+
+// SchemaVersion defines model for SchemaVersion.
+type SchemaVersion string
 
 // ValidationErrorDetail defines model for ValidationErrorDetail.
 type ValidationErrorDetail struct {
@@ -221,11 +314,17 @@ type GetProposalsApiV1CoachProposalsGetParams struct {
 // GetProposalsApiV1CoachProposalsGetParamsStatus defines parameters for GetProposalsApiV1CoachProposalsGet.
 type GetProposalsApiV1CoachProposalsGetParamsStatus string
 
+// PatchGoalJSONRequestBody defines body for PatchGoal for application/json ContentType.
+type PatchGoalJSONRequestBody = GoalPatch
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetProposalsApiV1CoachProposalsGet Get Proposals
 	// (GET /api/v1/coach/proposals)
 	GetProposalsApiV1CoachProposalsGet(w http.ResponseWriter, r *http.Request, params GetProposalsApiV1CoachProposalsGetParams)
+
+	// (PATCH /api/v1/goals/{goal_id})
+	PatchGoal(w http.ResponseWriter, r *http.Request, goalId openapi_types.UUID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -261,6 +360,32 @@ func (siw *ServerInterfaceWrapper) GetProposalsApiV1CoachProposalsGet(w http.Res
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetProposalsApiV1CoachProposalsGet(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchGoal operation middleware
+func (siw *ServerInterfaceWrapper) PatchGoal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "goal_id" -------------
+	var goalId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "goal_id", r.PathValue("goal_id"), &goalId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "goal_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchGoal(w, r, goalId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -391,6 +516,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/coach/proposals", wrapper.GetProposalsApiV1CoachProposalsGet)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/goals/{goal_id}", wrapper.PatchGoal)
 
 	return m
 }
@@ -431,11 +557,121 @@ func (response GetProposalsApiV1CoachProposalsGet422JSONResponse) VisitGetPropos
 	return err
 }
 
+type PatchGoalRequestObject struct {
+	GoalId openapi_types.UUID `json:"goal_id"`
+	Body   *PatchGoalJSONRequestBody
+}
+
+type PatchGoalResponseObject interface {
+	VisitPatchGoalResponse(w http.ResponseWriter) error
+}
+
+type PatchGoal200JSONResponse GoalEnvelope
+
+func (response PatchGoal200JSONResponse) VisitPatchGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchGoal403JSONResponse ErrorEnvelope
+
+func (response PatchGoal403JSONResponse) VisitPatchGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchGoal404JSONResponse ErrorEnvelope
+
+func (response PatchGoal404JSONResponse) VisitPatchGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchGoal409JSONResponse ErrorEnvelope
+
+func (response PatchGoal409JSONResponse) VisitPatchGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchGoal415JSONResponse ErrorEnvelope
+
+func (response PatchGoal415JSONResponse) VisitPatchGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchGoal422JSONResponse ErrorEnvelope
+
+func (response PatchGoal422JSONResponse) VisitPatchGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchGoal500JSONResponse ErrorEnvelope
+
+func (response PatchGoal500JSONResponse) VisitPatchGoalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetProposalsApiV1CoachProposalsGet Get Proposals
 	// (GET /api/v1/coach/proposals)
 	GetProposalsApiV1CoachProposalsGet(ctx context.Context, request GetProposalsApiV1CoachProposalsGetRequestObject) (GetProposalsApiV1CoachProposalsGetResponseObject, error)
+
+	// (PATCH /api/v1/goals/{goal_id})
+	PatchGoal(ctx context.Context, request PatchGoalRequestObject) (PatchGoalResponseObject, error)
 }
 
 // StrictHandlerFunc and StrictMiddlewareFunc are type aliases rather than
@@ -499,6 +735,39 @@ func (sh *strictHandler) GetProposalsApiV1CoachProposalsGet(w http.ResponseWrite
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProposalsApiV1CoachProposalsGetResponseObject); ok {
 		if err := validResponse.VisitGetProposalsApiV1CoachProposalsGetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PatchGoal operation middleware
+func (sh *strictHandler) PatchGoal(w http.ResponseWriter, r *http.Request, goalId openapi_types.UUID) {
+	var request PatchGoalRequestObject
+
+	request.GoalId = goalId
+
+	var body PatchGoalJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+		return sh.ssi.PatchGoal(ctx, request.(PatchGoalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PatchGoal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PatchGoalResponseObject); ok {
+		if err := validResponse.VisitPatchGoalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

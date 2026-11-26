@@ -1,4 +1,4 @@
-"""Exercise the Go proposal list through PostgreSQL, both HTTP listeners and Home."""
+"""Compare migrated Go routes to FastAPI and exercise their UI through Vite."""
 
 import os
 import selectors
@@ -15,6 +15,7 @@ from uuid import uuid4
 import psycopg
 from psycopg import sql
 from sqlalchemy.engine import make_url
+from compare_goals import compare_goals
 from compare_proposals import read_response
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -70,7 +71,8 @@ def check_open_states(env, ports):
             print(f'PASS open filter includes {state}', flush=True)
 
 
-def compare_listeners(env, app_binary):
+@contextmanager
+def servers(python_env, go_env, app_binary):
     with ExitStack() as stack:
         sock = stack.enter_context(socket.socket())
         sock.bind(('127.0.0.1', 0))
@@ -79,11 +81,11 @@ def compare_listeners(env, app_binary):
         py = stack.enter_context(listener(
             [sys.executable, '-m', 'uvicorn', 'app.main:app', '--fd', str(sock.fileno()),
              '--no-access-log', '--log-level', 'error'],
-            env={**env, 'APP_PORT': python_port}, cwd=BACKEND, pass_fds=(sock.fileno(),),
+            env={**python_env, 'APP_PORT': python_port}, cwd=BACKEND, pass_fds=(sock.fileno(),),
         ))
         wait_ready(int(python_port), py)
         go = stack.enter_context(listener(
-            [app_binary, 'serve', '-listen', '127.0.0.1:0'], env=env,
+            [app_binary, 'serve', '-listen', '127.0.0.1:0'], env=go_env,
             stdout=subprocess.PIPE, text=True,
         ))
         with selectors.DefaultSelector() as selector:
@@ -94,22 +96,52 @@ def compare_listeners(env, app_binary):
         host, _, go_port = address.partition(':')
         if host != '127.0.0.1' or not go_port.isdigit():
             raise SystemExit('Go listener did not report its local port')
-        subprocess.run([sys.executable, ROOT / 'scripts/rewrite/compare_proposals.py', python_port, go_port], check=True)
-        check_open_states(env, (python_port, go_port))
-        subprocess.run(['node', ROOT / 'scripts/rewrite/proposal-home.mjs', python_port, go_port], cwd=ROOT, env=env, check=True)
+        yield python_port, go_port
 
 
-def exercise(env, scratch):
-    def run(command, cwd):
-        subprocess.run(command, cwd=cwd, env=env, check=True)
+@contextmanager
+def migrated_schema(db, url, directory, vite_port):
+    schema = 'go_parity_' + uuid4().hex
+    pg_url = url.set(drivername='postgresql').render_as_string(hide_password=False)
+    env = dict(
+        os.environ, PRIVATE_DIR=str(directory), VITE_PORT=vite_port,
+        DATABASE_URL=url.render_as_string(hide_password=False),
+        PROPOSAL_TEST_DATABASE_URL=pg_url, GOAL_TEST_DATABASE_URL=pg_url,
+        PGHOST=url.host, PGPORT=str(url.port), PGDATABASE=url.database, PGUSER=url.username,
+        PGPASSWORD=url.password or '', PGOPTIONS=f'-csearch_path={schema} -cTimeZone=Asia/Kathmandu',
+    )
+    directory.mkdir()
+    db.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
+    try:
+        subprocess.run([sys.executable, '-m', 'alembic', 'upgrade', 'head'], cwd=BACKEND, env=env, check=True)
+        yield env
+    finally:
+        db.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))
 
-    run([sys.executable, '-m', 'alembic', 'upgrade', 'head'], BACKEND)
-    run([sys.executable, 'sql/snapshot.py', '--check'], MODULE)
-    run(['psql', '-Xq', '-1', '-v', 'ON_ERROR_STOP=1', '-f', BACKEND / 'tests/fixtures/proposal-list.sql'], ROOT)
-    run(['go', 'test', '-count=1', '-race', './internal/proposals'], MODULE)
+
+def exercise(db, url, scratch):
     app_binary = scratch / 'going-bananas'
-    run(['go', 'build', '-o', app_binary, './cmd/going-bananas'], MODULE)
-    compare_listeners(env, app_binary)
+    subprocess.run(['go', 'build', '-o', app_binary, './cmd/going-bananas'], cwd=MODULE, check=True)
+    with socket.socket() as reservation:
+        reservation.bind(('127.0.0.1', 0))
+        vite_port = str(reservation.getsockname()[1])
+        with migrated_schema(db, url, scratch / 'ui', vite_port) as env:
+            subprocess.run([sys.executable, 'sql/snapshot.py', '--check'], cwd=MODULE, env=env, check=True)
+            subprocess.run(['psql', '-Xq', '-1', '-v', 'ON_ERROR_STOP=1', '-f',
+                            BACKEND / 'tests/fixtures/proposal-list.sql'], env=env, check=True)
+            subprocess.run(['go', 'test', '-count=1', '-race', './internal/proposals', './internal/goals'],
+                           cwd=MODULE, env=env, check=True)
+            with servers(env, env, app_binary) as ports:
+                subprocess.run([sys.executable, ROOT / 'scripts/rewrite/compare_proposals.py', *ports], check=True)
+                check_open_states(env, ports)
+                reservation.close()
+                subprocess.run(['node', ROOT / 'scripts/rewrite/proposal-home.mjs', *ports], cwd=ROOT, env=env, check=True)
+
+    # Each implementation must apply the same command against its own starting state.
+    with migrated_schema(db, url, scratch / 'reference', vite_port) as reference, \
+            migrated_schema(db, url, scratch / 'candidate', vite_port) as candidate:
+        with servers(reference, candidate, app_binary) as ports:
+            compare_goals(*ports, reference, candidate)
 
 
 def main():
@@ -120,23 +152,10 @@ def main():
             or str(url.port) != os.environ.get('TEST_DATABASE_PORT') or url.query
             or os.environ.get('DATABASE_URL') != os.environ['TEST_DATABASE_URL']):
         raise SystemExit('Use make test-proposal-go with the isolated PostgreSQL test runner')
-    schema = 'go_proposals_' + uuid4().hex
-    options = f'-csearch_path={schema} -cTimeZone=Asia/Kathmandu'
-    pg_url = url.set(drivername='postgresql')
-    with psycopg.connect(pg_url.render_as_string(hide_password=False), autocommit=True) as db:
-        db.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
-        try:
-            with tempfile.TemporaryDirectory(dir=ROOT / 'private', prefix='proposal-slice-') as directory:
-                env = dict(
-                    os.environ, PRIVATE_DIR=directory,
-                    DATABASE_URL=url.render_as_string(hide_password=False),
-                    PROPOSAL_TEST_DATABASE_URL=pg_url.render_as_string(hide_password=False),
-                    PGHOST=url.host, PGPORT=str(url.port), PGDATABASE=url.database, PGUSER=url.username,
-                    PGPASSWORD=url.password or '', PGOPTIONS=options,
-                )
-                exercise(env, Path(directory))
-        finally:
-            db.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))
+    pg_url = url.set(drivername='postgresql').render_as_string(hide_password=False)
+    with psycopg.connect(pg_url, autocommit=True) as db:
+        with tempfile.TemporaryDirectory(dir=ROOT / 'private', prefix='go-parity-') as directory:
+            exercise(db, url, Path(directory))
 
 
 if __name__ == '__main__':

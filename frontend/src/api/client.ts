@@ -1,4 +1,4 @@
-import type { paths } from './generated/proposalList'
+import type { paths } from './generated/backend'
 
 export type Mode = 'demo' | 'real' | 'test'
 export interface Envelope<T> {
@@ -88,6 +88,18 @@ type ProposalListGet = paths[typeof proposalListPath]['get']
 export type ProposalListResponse = ProposalListGet['responses'][200]['content']['application/json']
 export function listProposals(params: NonNullable<ProposalListGet['parameters']['query']> = {}) {
   return requestEnvelope<ProposalListResponse>(proposalListPath + query(params))
+}
+
+const goalPath = '/api/v1/goals/{goal_id}'
+type GoalPatch = paths[typeof goalPath]['patch']
+export function patchGoal(
+  goalId: GoalPatch['parameters']['path']['goal_id'],
+  changes: GoalPatch['requestBody']['content']['application/json'],
+) {
+  return requestEnvelope<GoalPatch['responses'][200]['content']['application/json']>(
+    goalPath.replace('{goal_id}', encodeURIComponent(goalId)),
+    { method: 'PATCH', body: JSON.stringify(changes) },
+  )
 }
 
 export const post = <T>(path: string, data: unknown) =>

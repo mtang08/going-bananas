@@ -1,7 +1,7 @@
 import { Button, Card, Input } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, post, patch } from '../../api/client'
+import { api, post, patchGoal } from '../../api/client'
 import { qk, invalidateKeys } from '../../api/queryKeys'
 import { HORIZON_LABELS, type Goal, type GoalHorizon } from '../../api/types/blocks'
 import { QueryState } from '../../components/QueryState'
@@ -25,7 +25,7 @@ export function Goals() {
   const save = useMutation({
     mutationFn: () =>
       editing
-        ? patch(`/goals/${encodeURIComponent(editing.id)}`, {
+        ? patchGoal(editing.id, {
             expected_version: editing.version,
             text: text.trim(),
             horizon,

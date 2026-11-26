@@ -1,0 +1,560 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Going Bananas Analytics",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/coach/proposals": {
+      "get": {
+        "tags": [
+          "coach"
+        ],
+        "summary": "Get Proposals",
+        "operationId": "get_proposals_api_v1_coach_proposals_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "pending",
+                    "accepted",
+                    "partially_accepted",
+                    "rejected",
+                    "stale",
+                    "invalid",
+                    "discarded"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ProposalList_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/goals/{goal_id}": {
+      "patch": {
+        "operationId": "patchGoal",
+        "parameters": [
+          {
+            "name": "goal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated goal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Goal not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid goal or request fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AppMode": {
+        "type": "string",
+        "enum": [
+          "demo",
+          "real",
+          "test"
+        ],
+        "title": "AppMode"
+      },
+      "Envelope_ProposalList_": {
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "data_revision": {
+            "type": "integer",
+            "title": "Data Revision"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProposalList"
+          }
+        },
+        "type": "object",
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ],
+        "title": "Envelope"
+      },
+      "ProposalList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ProposalList"
+      },
+      "ProposalSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "operation": {
+            "type": "string",
+            "title": "Operation"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "partially_accepted",
+              "rejected",
+              "stale",
+              "invalid",
+              "discarded"
+            ],
+            "title": "Status"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At",
+            "x-go-type": "Timestamp"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "x-go-type": "Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "discarded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "x-go-type": "Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discarded At"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "base_calendar_version": {
+            "type": "integer",
+            "title": "Base Calendar Version"
+          },
+          "change_count": {
+            "type": "integer",
+            "title": "Change Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "revision",
+          "operation",
+          "status",
+          "submitted_at",
+          "decided_at",
+          "discarded_at",
+          "headline",
+          "base_calendar_version",
+          "change_count"
+        ],
+        "title": "ProposalSummary"
+      },
+      "ValidationErrorDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "validation_error",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "retryable": {
+            "type": "boolean",
+            "const": false,
+            "title": "Retryable"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationField"
+            },
+            "type": "array",
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id",
+          "fields"
+        ],
+        "title": "ValidationErrorDetail"
+      },
+      "ValidationErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ValidationErrorDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ValidationErrorResponse"
+      },
+      "ValidationField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "ValidationField"
+      },
+      "GoalHorizon": {
+        "type": "string",
+        "enum": [
+          "3_6_months",
+          "season",
+          "long_term"
+        ]
+      },
+      "GoalStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "paused",
+          "done",
+          "dropped"
+        ]
+      },
+      "GoalPatch": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-go-type": "nullable.Nullable[string]",
+            "x-go-type-skip-optional-pointer": true,
+            "x-omitempty": true
+          },
+          "horizon": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalHorizon"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-go-type": "nullable.Nullable[GoalHorizon]",
+            "x-go-type-skip-optional-pointer": true,
+            "x-omitempty": true
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-go-type": "nullable.Nullable[int]",
+            "x-go-type-skip-optional-pointer": true,
+            "x-omitempty": true
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoalStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-go-type": "nullable.Nullable[GoalStatus]",
+            "x-go-type-skip-optional-pointer": true,
+            "x-omitempty": true
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "additionalProperties": false
+      },
+      "Goal": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "text": {
+            "type": "string"
+          },
+          "horizon": {
+            "$ref": "#/components/schemas/GoalHorizon"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/GoalStatus"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "horizon",
+          "priority",
+          "status",
+          "version"
+        ]
+      },
+      "GoalEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Goal"
+          }
+        },
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ]
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationField"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id",
+          "fields"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "SchemaVersion": {
+        "type": "string",
+        "const": "v1"
+      }
+    }
+  }
+}
