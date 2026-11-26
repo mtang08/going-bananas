@@ -16,23 +16,21 @@ import (
 
 // RuleContext carries the facts needed for draft validation after freshness.
 type RuleContext struct {
-	ReviewDate     string            `json:"review_date"`
-	ConfirmedDates map[string]bool   `json:"confirmed_dates"`
-	OmittedDates   map[string]bool   `json:"omitted_dates"`
-	ConfirmedSlots map[string]string `json:"confirmed_slots"`
-	OmittedSlots   map[string]string `json:"omitted_slots"`
+	Guard           *safetyGuard      `json:"guard"`
+	Interruption    *interruption     `json:"interruption"`
+	Restriction     *restriction      `json:"restriction"`
+	EligibleRecipes []string          `json:"eligible_recipes"`
+	CycleAnchor     string            `json:"cycle_anchor"`
+	ReviewDate      string            `json:"review_date"`
+	ConfirmedDates  map[string]bool   `json:"confirmed_dates"`
+	OmittedDates    map[string]bool   `json:"omitted_dates"`
+	ConfirmedSlots  map[string]string `json:"confirmed_slots"`
+	OmittedSlots    map[string]string `json:"omitted_slots"`
 	reviewFacts
 	Today        string                   `json:"today"`
 	Timezone     string                   `json:"timezone"`
 	BlockUID     string                   `json:"block_uid"`
 	HeadSessions map[string]sessionFields `json:"head_sessions"`
-}
-
-// ReferenceGroups contains only groups whose validation is still furnished by
-// the synthetic reference adapter. Native checks keep the same issue ordering.
-type ReferenceGroups struct {
-	Changes  []Issue `json:"changes"`
-	Calendar []Issue `json:"calendar"`
 }
 
 type reason struct {
@@ -235,7 +233,7 @@ func textRules(d ruleDocument, raw json.RawMessage, today string) ([]Issue, erro
 	return issues, nil
 }
 
-func ValidateRules(raw, payload json.RawMessage, ctx RuleContext, idx coaching.KnowledgeIndex, ref ReferenceGroups) ([]Issue, error) {
+func ValidateRules(raw, payload json.RawMessage, ctx RuleContext, idx coaching.KnowledgeIndex) ([]Issue, error) {
 	var d ruleDocument
 	if err := json.Unmarshal(raw, &d); err != nil {
 		return nil, err
@@ -251,7 +249,10 @@ func ValidateRules(raw, payload json.RawMessage, ctx RuleContext, idx coaching.K
 	if err != nil {
 		return nil, err
 	}
-	issues := append([]Issue{}, ref.Changes...)
+	issues, err := changeRules(d, ctx, state)
+	if err != nil {
+		return nil, err
+	}
 	for i, uid := range d.Preserved {
 		if _, ok := ctx.HeadSessions[uid]; !ok {
 			issues = append(issues, staleIssue("V4.unknown_preserved", fmt.Sprintf("preserved.%d", i)))

@@ -12,15 +12,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "backend"))
 
 
 def rule_inputs(doc, ctx):
-    from app.services.proposals import validation as v
-
-    start, end = v.scope(doc.operation, ctx.today, v._horizon_review_date(doc, ctx))
-    state = v._resulting(doc, ctx)
-    change_issues = v._change_rules(doc, ctx, start=start, end=end, state=state)
     return {
         "rule_context": {
             "today": ctx.today,
             "timezone": str(ctx.tz),
+            "guard": ctx.current_safety_guard,
+            "interruption": ctx.running_interruption.model_dump(mode="json")
+            if ctx.running_interruption
+            else None,
+            "restriction": ctx.running_restriction.model_dump(mode="json")
+            if ctx.running_restriction
+            else None,
+            "eligible_recipes": ctx.active_block.eligible_recipe_ids
+            if ctx.active_block
+            else [],
+            "cycle_anchor": ctx.cycle_anchor,
             "review_date": ctx.active_block.review_date if ctx.active_block else None,
             "confirmed_dates": {str(x): True for x in ctx.confirmed_strength_dates},
             "omitted_dates": {
@@ -55,9 +61,6 @@ def rule_inputs(doc, ctx):
             if ctx.benchmark
             else None,
             "last_benchmark_date": ctx.last_benchmark_date,
-        },
-        "groups": {
-            "changes": [x.to_json() for x in change_issues],
         },
     }
 
