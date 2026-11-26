@@ -31,12 +31,12 @@ func TestProfilePythonParity(t *testing.T) {
 	if err != nil {
 		t.Fatal("connect to profile fixture")
 	}
-	defer conn.Close(context.Background())
+	defer func() { _ = conn.Close(context.Background()) }()
 	tx, err := conn.Begin(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback(context.Background())
+	defer func() { _ = tx.Rollback(context.Background()) }()
 	if _, err := tx.Exec(t.Context(), `CREATE TEMP TABLE profile_versions AS SELECT * FROM profile_versions WITH NO DATA;
 		CREATE TEMP TABLE app_state AS SELECT * FROM app_state WITH NO DATA`); err != nil {
 		t.Fatal(err)
