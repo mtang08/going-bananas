@@ -49,6 +49,13 @@ func TestCheckinParityServer(t *testing.T) {
 		}
 		return result, err
 	}}
+	if fixed := os.Getenv("CHECKIN_REFRESH_CLOCK"); fixed != "" {
+		stamp, err := time.Parse(time.RFC3339, fixed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s = checkins.NewStore(pool, func() time.Time { return stamp }, nil)
+	}
 	api, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

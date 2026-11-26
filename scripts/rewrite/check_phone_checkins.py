@@ -51,6 +51,23 @@ def reference(fd):
     from app.services import derived
     from sqlalchemy import text
 
+    if instant := os.environ.get("CHECKIN_REFRESH_CLOCK"):
+        from app.metrics import refresh as metric_refresh
+
+        fixed = datetime.fromisoformat(instant)
+
+        class Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return fixed.astimezone(tz)
+
+        with (
+            patch.object(metric_refresh, "clock", lambda session: fixed),
+            patch.object(checkins, "datetime", Clock),
+        ):
+            uvicorn.run(app, fd=fd, access_log=False, log_level="error")
+        return
+
     def refresh(session, scopes):
         session.execute(
             text("INSERT INTO fixture_hooks(kind,scopes) VALUES ('refresh',:scopes)"),
@@ -494,6 +511,66 @@ def compare(binary, py, go):
     )
 
 
+def positive_refresh(binary, py, go):
+    fixed = "2026-11-15T15:00:00Z"
+    headers = {"X-Local-Request": "1", "Content-Type": "application/json"}
+
+    def state(env):
+        with connect(env) as db:
+            rows = db.execute("""SELECT metric_id,subject_type,subject_key,method_version,status,value
+                FROM metric_results WHERE is_current ORDER BY metric_id,subject_type,subject_key,method_version""").fetchall()
+            prompts = db.execute(
+                """SELECT id::text,kind,status FROM prompts ORDER BY kind,id"""
+            ).fetchall()
+            revision = db.execute(
+                "SELECT data_revision FROM app_state WHERE id=1"
+            ).fetchone()[0]
+            return rows, prompts, revision
+
+    for env in (py, go):
+        env["CHECKIN_REFRESH_CLOCK"] = fixed
+        with connect(env) as db:
+            db.execute("""INSERT INTO prompts(id,kind,opens_at,closes_at,status)
+                  VALUES ('bd66b144-0194-4690-aad1-b7e15835ca62','missing_activity',
+                        '2026-11-10T10:00Z','2026-11-12T10:00Z','open')""")
+    with servers(py, go, binary) as pairs:
+        previous = None
+        for _ in range(2):
+            receipts = []
+            for env, api, _gw in pairs:
+                code, _, raw = request(
+                    api,
+                    "PUT",
+                    PHONE,
+                    dict(BODY, observed_at="2026-11-15T09:00:00-05:00"),
+                    headers,
+                )
+                assert code == 200, (code, raw)
+                receipts.append(json.loads(raw))
+            assert receipts[0] == receipts[1], receipts
+            left, right = state(py), state(go)
+            if left != right:
+                from itertools import zip_longest
+
+                diff = next(
+                    ((a, b) for a, b in zip_longest(left[0], right[0]) if a != b), None
+                )
+                raise AssertionError(
+                    (len(left[0]), len(right[0]), diff, left[1:], right[1:])
+                )
+            assert (
+                left[0]
+                and left[1][0][2] == "expired"
+                and left[2] == receipts[0]["data_revision"]
+            )
+            if previous is not None:
+                assert left == previous
+            previous = left
+    print(
+        f"PASS full check-in refresh: {len(previous[0])} current metric results, prompt expiry and duplicate receipt"
+    )
+
+
 def main():
     url = test_url()
     with (
@@ -529,6 +606,11 @@ def main():
                 env=dict(go, CHECKIN_HTTP_FIXTURE="1"),
                 check=True,
             )
+        with (
+            migrated_schema(db, url, directory / "positive-py", "5173") as py,
+            migrated_schema(db, url, directory / "positive-go", "5173") as go,
+        ):
+            positive_refresh(binary, py, go)
 
 
 if __name__ == "__main__":
