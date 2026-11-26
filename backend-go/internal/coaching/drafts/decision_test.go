@@ -40,7 +40,7 @@ func TestRejectDecisionLedger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := Store{pool}
+	store := Store{Pool: pool}
 	apply := func(context.Context, pgx.Tx, PreparedDecision, *DecisionReceipt) error {
 		return errors.New("unexpected writes from a rejection")
 	}
@@ -88,7 +88,7 @@ func TestAcceptDecisionLedger(t *testing.T) {
 		t.Fatal(err)
 	}
 	injected := errors.New("injected refresh failure")
-	store := Store{pool}
+	store := Store{Pool: pool}
 	_, err = store.Decide(ctx, id, req, now, "../../../../running_coach_kb", func(context.Context, pgx.Tx, calendar.PlanScope, []uuid.UUID) error { return injected })
 	if !req.Block && !errors.Is(err, injected) {
 		t.Fatalf("expected injected refresh rollback: %v", err)

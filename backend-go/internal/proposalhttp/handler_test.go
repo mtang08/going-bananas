@@ -78,3 +78,64 @@ func TestReferenceViews(t *testing.T) {
 		t.Fatal(w.Code)
 	}
 }
+
+func TestReferenceCommands(t *testing.T) {
+	path := os.Getenv("COACHING_HTTP_COMMANDS")
+	if path == "" {
+		t.Skip("synthetic HTTP workflow supplied by check_lifecycle.py")
+	}
+	pool, err := pgxpool.New(context.Background(), os.Getenv("COACHING_DECISION_TEST_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	var name, schema string
+	if err := pool.QueryRow(context.Background(), "SELECT current_database(),current_schema()").Scan(&name, &schema); err != nil {
+		t.Fatal(err)
+	}
+	if name != "garmin_test" || !regexp.MustCompile(`^go_drafts_[0-9a-f]{32}$`).MatchString(schema) {
+		t.Fatal("requires isolated schema")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Method, Path string
+		Body         json.RawMessage
+		Status       int
+		Expected     map[string]any
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	h := Handler{Store: drafts.Store{Pool: pool}, KBRoot: "../../../running_coach_kb", Mode: "test"}
+	mux := http.NewServeMux()
+	h.Register(mux)
+	id := ""
+	for i, c := range cases {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(c.Method, prefix+strings.ReplaceAll(c.Path, "ID", id), strings.NewReader(string(c.Body)))
+		mux.ServeHTTP(w, req)
+		var got map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		if e, ok := got["error"].(map[string]any); ok {
+			delete(e, "request_id")
+		}
+		if d, ok := got["data"].(map[string]any); ok {
+			if v, ok := d["proposal_id"].(string); ok {
+				if c.Path == "" {
+					id = v
+				} else if id != v {
+					t.Fatalf("step %d proposal changed", i)
+				}
+				d["proposal_id"] = "ID"
+			}
+		}
+		if w.Code != c.Status || !reflect.DeepEqual(c.Expected, got) {
+			t.Fatalf("step %d %s %s: got %d %v want %d %v", i, c.Method, c.Path, w.Code, got, c.Status, c.Expected)
+		}
+	}
+}

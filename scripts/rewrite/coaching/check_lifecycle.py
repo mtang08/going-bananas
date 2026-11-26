@@ -403,7 +403,13 @@ def main():
                     "INSERT INTO calendar_session_revisions(id,session_uid,revision,calendar_version_number,local_date,kind,intent,certainty) VALUES (%s,%s,1,2,%s,'strength','Synthetic lift','committed')",
                     (uuid4(), uuid4(), day),
                 )
-        for kind in ["anchor", "block", "continue"]:
+        for kind in ["anchor", "block", "continue", "reorder"]:
+            if kind == "block":
+                for conn in (refdb, godb):
+                    conn.execute(
+                        "INSERT INTO exception_findings(id,rule_code,rule_version,category,severity,entity_key,status,summary,evidence,evidence_at,first_seen_at,last_seen_at) VALUES(%s,'FATIGUE_HIGH','exceptions.v1','accumulated_fatigue','observe','synthetic','open','Synthetic finding','[]',%s,%s,%s)",
+                        (uuid4(), NOW, NOW, NOW),
+                    )
             case_req = dict(
                 expected_head=2,
                 expected_revision=1,
@@ -443,7 +449,14 @@ def main():
                     doc["block_change"] = dict(
                         decision="continue" if active else "start",
                         block_uid=str(active[0]) if active else None,
-                        version_fields=block_fields,
+                        version_fields={
+                            **block_fields,
+                            "eligible_recipe_ids": list(
+                                reversed(block_fields["eligible_recipe_ids"])
+                            ),
+                        }
+                        if kind == "reorder"
+                        else block_fields,
                     )
                     case_req["accept_block_change"] = True
                 prop = python(env, "submit", document=doc)
@@ -479,6 +492,7 @@ def main():
                 "SELECT anchor_key,value_low,calibrated_at,review_after,status FROM intensity_anchors ORDER BY anchor_key",
                 "SELECT version,why,benchmark,objective,build_outline FROM block_versions ORDER BY version",
                 "SELECT decision,from_version,to_version,rationale FROM block_decisions ORDER BY to_version",
+                "SELECT status, version, reviewed_by_proposal_id IS NOT NULL FROM exception_findings ORDER BY rule_code",
             ]:
                 assert (
                     refdb.execute(query).fetchall() == godb.execute(query).fetchall()
@@ -530,12 +544,89 @@ def main():
         assert godb.execute(
             "SELECT calendar_head_version FROM app_state"
         ).fetchone() == (2,)
-        views = Path(scratch) / "http-views.json"
-        with views.open("w") as f:
+        godb.execute(
+            "UPDATE coach_proposals SET submitted_at='2026-11-16T15:33:22.493820Z' WHERE id=%s",
+            (published["proposal_id"],),
+        )
+        godb.execute(
+            "UPDATE coach_proposal_revisions SET saved_at='2026-11-16T15:33:22.493820Z' WHERE proposal_id=%s AND revision=1",
+            (published["proposal_id"],),
+        )
+        for zone in ["America/New_York", "UTC"]:
+            zoned = {**go, "PGOPTIONS": go["PGOPTIONS"] + " -cTimeZone=" + zone}
+            views = Path(scratch) / "http-views.json"
+            with views.open("w") as f:
+                subprocess.run(
+                    [
+                        sys.executable,
+                        ROOT / "scripts/rewrite/coaching/http_reference.py",
+                    ],
+                    env=zoned,
+                    cwd=ROOT,
+                    stdout=f,
+                    check=True,
+                )
             subprocess.run(
-                [sys.executable, ROOT / "scripts/rewrite/coaching/http_reference.py"],
-                env=go,
+                [
+                    "go",
+                    "test",
+                    "-count=1",
+                    "-run",
+                    "^TestReferenceViews$",
+                    "./internal/proposalhttp",
+                ],
+                cwd=ROOT / "backend-go",
+                env={
+                    **zoned,
+                    "COACHING_HTTP_REFERENCE": str(views),
+                    "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
+                        "postgresql+psycopg://", "postgresql://"
+                    ),
+                },
+                check=True,
+            )
+        subprocess.run(
+            [
+                "go",
+                "test",
+                "-count=1",
+                "-run",
+                "^TestDashboardBoundDraft$",
+                "./internal/coaching/drafts",
+            ],
+            cwd=ROOT / "backend-go",
+            env={
+                **go,
+                "COACHING_TX_TEST_URL": go["DATABASE_URL"].replace(
+                    "postgresql+psycopg://", "postgresql://"
+                ),
+            },
+            check=True,
+        )
+        native("discard", published["proposal_id"], revision=2)
+
+        def http_doc(env, db):
+            doc = document(env, at=datetime.now(UTC).isoformat())
+            doc.update(
+                base_calendar_version=2,
+                base_block_version_id=str(
+                    db.execute(
+                        "SELECT id FROM block_versions ORDER BY version DESC LIMIT 1"
+                    ).fetchone()[0]
+                ),
+                headline="HTTP proposal",
+            )
+            return doc
+
+        http_input = dict(document=http_doc(ref, refdb), candidate=http_doc(go, godb))
+        commands = Path(scratch) / "http-commands.json"
+        with commands.open("w") as f:
+            subprocess.run(
+                [sys.executable, ROOT / "scripts/rewrite/coaching/http_commands.py"],
+                env=ref,
                 cwd=ROOT,
+                input=json.dumps(http_input),
+                text=True,
                 stdout=f,
                 check=True,
             )
@@ -545,13 +636,13 @@ def main():
                 "test",
                 "-count=1",
                 "-run",
-                "^TestReferenceViews$",
+                "^TestReferenceCommands$",
                 "./internal/proposalhttp",
             ],
             cwd=ROOT / "backend-go",
             env={
                 **go,
-                "COACHING_HTTP_REFERENCE": str(views),
+                "COACHING_HTTP_COMMANDS": str(commands),
                 "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
                     "postgresql+psycopg://", "postgresql://"
                 ),

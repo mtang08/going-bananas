@@ -17,12 +17,14 @@ type View struct {
 
 func (s Store) DataRevision(ctx context.Context) (int, error) {
 	var revision int
-	err := s.Pool.QueryRow(ctx, "SELECT data_revision FROM app_state WHERE id=1").Scan(&revision)
+	err := s.withTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, "SELECT data_revision FROM app_state WHERE id=1").Scan(&revision)
+	})
 	return revision, err
 }
 func (s Store) ReadProposal(ctx context.Context, id uuid.UUID, which string, revision int, now time.Time, kbRoot string) (View, error) {
 	var view View
-	err := pgx.BeginTxFunc(ctx, s.Pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		var head int
 		if err := tx.QueryRow(ctx, "SELECT data_revision,calendar_head_version FROM app_state WHERE id=1").Scan(&view.Revision, &head); err != nil {
 			return err
@@ -33,7 +35,10 @@ func (s Store) ReadProposal(ctx context.Context, id uuid.UUID, which string, rev
 			if errors.Is(err, pgx.ErrNoRows) {
 				return &Error{"proposal_revision_not_found", "Proposal revision not found", 404}
 			}
-			view.Data = data
+			if err != nil {
+				return err
+			}
+			view.Data, err = timedRow(data, "saved_at")
 			return err
 		}
 		var d Draft
@@ -46,21 +51,9 @@ func (s Store) ReadProposal(ctx context.Context, id uuid.UUID, which string, rev
 			return err
 		}
 		if d.Status == "pending" {
-			kb, _, err := coaching.VerifySelection(kbRoot, snap.Selection)
-			if err == nil {
-				var base DocumentBase
-				if err := json.Unmarshal(d.Payload, &base); err != nil {
-					return err
-				}
-				_, facts, err := LoadRuleContext(ctx, tx, snap, now)
-				if err != nil {
-					return err
-				}
-				status, _, err := Freshness(snap, base, facts, kb, now)
-				if err != nil {
-					return err
-				}
-				current = status == "pending"
+			current, err = isCurrent(ctx, tx, d.Payload, snap, now, kbRoot)
+			if err != nil {
+				return err
 			}
 		}
 		if which == "document" {
@@ -71,6 +64,9 @@ func (s Store) ReadProposal(ctx context.Context, id uuid.UUID, which string, rev
 		var evidenceIDs, policyIDs []string
 		err = tx.QueryRow(ctx, `SELECT to_jsonb(p)-ARRAY['payload','decision_idempotency_key','decision_hash','input_hash'],evidence_ids,policy_ids FROM coach_proposals p WHERE p.id=$1`, id).Scan(&detail, &evidenceIDs, &policyIDs)
 		if err != nil {
+			return err
+		}
+		if err := viewTimes(detail, "submitted_at", "decided_at", "discarded_at"); err != nil {
 			return err
 		}
 		output := map[string]any{}
@@ -91,7 +87,10 @@ func (s Store) ReadProposal(ctx context.Context, id uuid.UUID, which string, rev
 		if err := json.Unmarshal(d.Payload, &doc); err != nil {
 			return err
 		}
-		output["revisions"] = revs
+		output["revisions"], err = timedRows(revs, "saved_at")
+		if err != nil {
+			return err
+		}
 		output["exception"] = doc["exception"]
 		output["event_review"] = doc["event_review"]
 		output["patch_resolutions"] = json.RawMessage("[]")
@@ -120,9 +119,74 @@ func (s Store) ReadProposal(ctx context.Context, id uuid.UUID, which string, rev
 		output["changes"] = changes
 		err = tx.QueryRow(ctx, `SELECT (SELECT to_jsonb(e) FROM exception_patches e WHERE proposal_id=$1),CASE WHEN jsonb_typeof(s.payload#>'{running_interruption,interruption}')='object' THEN
  jsonb_build_object('today',s.payload#>'{running_interruption,today}','interruption',s.payload#>'{running_interruption,interruption}','affected_runs',s.payload#>'{running_interruption,affected_runs}','affected_runs_omitted',s.payload#>'{running_interruption,affected_runs_omitted}') END FROM coach_snapshots s WHERE id=$2`, id, snap.ID).Scan(&patch, &interruption)
-		output["patch"], output["running_interruption"] = patch, interruption
+		if err != nil {
+			return err
+		}
+		output["patch"], err = timedRow(patch, "created_at", "resolved_at")
+		output["running_interruption"] = interruption
 		view.Data = output
 		return err
 	})
 	return view, err
+}
+
+// ActiveDraft carries the stable IDs and exact reusable authored document from
+// the active-proposal dashboard tool's locked read.
+type ActiveDraft struct {
+	ProposalID uuid.UUID       `json:"proposal_id"`
+	SnapshotID uuid.UUID       `json:"-"`
+	Revision   int             `json:"revision"`
+	Status     string          `json:"status"`
+	IsCurrent  bool            `json:"is_current"`
+	Document   json.RawMessage `json:"document"`
+	Proposal   json.RawMessage `json:"proposal"`
+}
+
+func (s Store) ActiveProposal(ctx context.Context, now time.Time, kbRoot string) (*ActiveDraft, error) {
+	var out ActiveDraft
+	err := s.withTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+		if err := LockPlanning(ctx, tx); err != nil {
+			return err
+		}
+		err := tx.QueryRow(ctx, `SELECT id,snapshot_id,revision,status,payload,jsonb_build_object('id',id,'revision',revision,'operation',operation,'status',status,'submitted_at',submitted_at,'decided_at',decided_at,'discarded_at',discarded_at,'headline',headline,'base_calendar_version',base_calendar_version,'change_count',jsonb_array_length(coalesce(payload->'changes','[]'))) FROM coach_proposals WHERE status IN ('pending','stale','invalid') ORDER BY submitted_at DESC,id DESC LIMIT 1`).Scan(&out.ProposalID, &out.SnapshotID, &out.Revision, &out.Status, &out.Document, &out.Proposal)
+		if err != nil {
+			return err
+		}
+		out.Proposal, err = timedRow(out.Proposal, "submitted_at", "decided_at", "discarded_at")
+		if err != nil {
+			return err
+		}
+		if out.Status != "pending" {
+			return nil
+		}
+		snap, err := LoadSnapshot(ctx, tx, out.SnapshotID)
+		if err != nil {
+			return err
+		}
+		out.IsCurrent, err = isCurrent(ctx, tx, out.Document, snap, now, kbRoot)
+		return err
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+func isCurrent(ctx context.Context, tx pgx.Tx, payload json.RawMessage, snap Snapshot, now time.Time, kbRoot string) (bool, error) {
+	kb, _, err := coaching.VerifySelection(kbRoot, snap.Selection)
+	if err != nil {
+		return false, nil
+	}
+	var base DocumentBase
+	if err := json.Unmarshal(payload, &base); err != nil {
+		return false, err
+	}
+	_, facts, err := LoadRuleContext(ctx, tx, snap, now)
+	if err != nil {
+		return false, err
+	}
+	status, _, err := Freshness(snap, base, facts, kb, now)
+	return status == "pending", err
 }
