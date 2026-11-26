@@ -2,8 +2,10 @@ package trainingwindows
 
 import (
 	"encoding/json"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/aerobic"
 	"os"
 	"reflect"
 	"regexp"
@@ -23,8 +25,9 @@ func TestAerobicWindowsPostgres(t *testing.T) {
 	var ref struct {
 		Query string
 		Cases []struct {
-			SQL   string
-			State []map[string]any
+			SQL, Query string
+			Keys       []string
+			State      []map[string]any
 		}
 	}
 	if err = json.Unmarshal(data, &ref); err != nil {
@@ -53,11 +56,21 @@ func TestAerobicWindowsPostgres(t *testing.T) {
 					return err
 				}
 			}
-			if err := RefreshAerobic(ctx, tx, day, day); err != nil {
-				return err
+			query := c.Query
+			if len(c.Keys) > 0 {
+				for _, key := range c.Keys {
+					if _, err := aerobic.Refresh(ctx, tx, uuid.MustParse(key), day); err != nil {
+						return err
+					}
+				}
+			} else {
+				if err := RefreshAerobic(ctx, tx, day, day); err != nil {
+					return err
+				}
+				query = ref.Query
 			}
 			var rows []map[string]any
-			if err := tx.QueryRow(ctx, ref.Query).Scan(&rows); err != nil {
+			if err := tx.QueryRow(ctx, query).Scan(&rows); err != nil {
 				return err
 			}
 			if len(rows) != len(c.State) {

@@ -48,6 +48,24 @@ def seed(env):
                 ),
             )
 
+        for n in (0, 1, 2, 3, 4):
+            db.execute(
+                """INSERT INTO activity_streams(activity_id,t_s,hr_bpm,speed_mps,distance_m,altitude_m,cadence,timer_on,sample_count,max_gap_s,quality_flags)
+                SELECT %s,array_agg(t ORDER BY t),array_agg((CASE WHEN t<1900 THEN 135 ELSE 146 END)::smallint ORDER BY t),
+                  array_agg((CASE WHEN %s=2 AND (t/60)%%2=0 THEN 6.5 WHEN %s=3 AND t<1700 THEN 0 ELSE 3.2 END)::real ORDER BY t),
+                  array_agg(t*3.2::real ORDER BY t),array_agg((t/75)::real ORDER BY t),array_agg(80::real ORDER BY t),
+                  ARRAY[[0,1900],[1920,3600]],361,10,'{}' FROM generate_series(0,3600,10) t""",
+                (uid(2000 + n), n, n),
+            )
+        db.execute(
+            "UPDATE activities SET sport='treadmill_running' WHERE id=%s", (uid(2001),)
+        )
+        db.execute(
+            """INSERT INTO activity_annotations(id,activity_id,version,excluded,workout_label)
+                    VALUES(%s,%s,1,false,'quality')""",
+            (uid(8200), uid(2004)),
+        )
+
 
 def reference():
     from app.db import SessionLocal
@@ -63,6 +81,28 @@ def reference():
                 engine.upsert_results(s, aerobic.compute(s, f"w{d}:{START}"))
             s.flush()
             result.append({"sql": change, "state": s.execute(text(STATE)).scalar_one()})
+    activity_query = STATE.replace(
+        "subject_type='window'", "subject_type='activity' AND config_hash<>'fixture'"
+    )
+    keys = [uid(2000 + n) for n in range(6)]
+    for change in [
+        "",
+        f"UPDATE activity_annotations SET workout_label='easy',version=2 WHERE activity_id='{uid(2004)}'",
+    ]:
+        with SessionLocal.begin() as s:
+            if change:
+                s.execute(text(change))
+            for key in keys:
+                engine.upsert_results(s, aerobic.compute(s, key))
+            s.flush()
+            result.append(
+                {
+                    "sql": change,
+                    "keys": keys,
+                    "query": activity_query,
+                    "state": s.execute(text(activity_query)).scalar_one(),
+                }
+            )
     return {"cases": result, "query": STATE}
 
 
