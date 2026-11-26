@@ -129,7 +129,7 @@ async function checkState(state) {
     'Home did not request calendar',
   )
   for (const { path, target } of upstreams) {
-    assert.equal(target, path === list ? candidate : python, 'Wrong upstream for ' + path)
+    assert.equal(target, [list, '/api/v1/goals'].includes(path) ? candidate : python, 'Wrong upstream for ' + path)
   }
 }
 
@@ -163,12 +163,12 @@ async function checkGoalEdit() {
   for (const request of upstreams) {
     assert.equal(
       request.target,
-      request === writes[0] ? candidate : python,
+      request === writes[0] || reads.includes(request) ? candidate : python,
       'Wrong upstream for ' + request.path,
     )
   }
   console.log(
-    `PASS Settings (${engine}) created a goal in Python, edited it in Go, and reloaded it from Python.`,
+    `PASS Settings (${engine}) created a goal in Python, edited it in Go, and reloaded it from Go.`,
   )
 }
 

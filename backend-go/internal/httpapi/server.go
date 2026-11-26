@@ -82,8 +82,8 @@ func internalError(w http.ResponseWriter, r *http.Request, _ error) {
 	fail(w, r, http.StatusInternalServerError, "internal_error", "Internal server error")
 }
 
-func New(reader ProposalReader, writer GoalWriter, mode api.AppMode, port, vitePort string) http.Handler {
-	s := server{reader: reader, writer: writer, mode: mode}
+func New(reader ProposalReader, writer GoalWriter, plans PlanningReader, mode api.AppMode, port, vitePort string) http.Handler {
+	s := server{plans: plans, reader: reader, writer: writer, mode: mode}
 	strict := api.NewStrictHandlerWithOptions(s, nil, api.StrictHTTPServerOptions{ResponseErrorHandlerFunc: internalError})
 	handler := api.Handler(strict)
 	guard := newGuard(port, vitePort)
@@ -111,11 +111,17 @@ func New(reader ProposalReader, writer GoalWriter, mode api.AppMode, port, viteP
 			return
 		}
 		const path = "/api/v1/coach/proposals"
-		if r.Method != http.MethodGet && (r.URL.Path == path || r.URL.Path == path+"/") {
+		const versions = "/api/v1/calendar/versions"
+		const goals = "/api/v1/goals"
+		route := strings.TrimSuffix(r.URL.Path, "/")
+		if r.Method != http.MethodGet && (route == path || route == versions || route == goals) {
 			fail(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "Request failed")
 			return
 		}
-		if r.URL.Path != path {
+		if r.URL.Path == versions && !bindCalendarLimit(w, r) {
+			return
+		}
+		if r.URL.Path != path && r.URL.Path != versions && r.URL.Path != goals {
 			fail(w, r, http.StatusNotFound, "not_found", "API route not found")
 			return
 		}

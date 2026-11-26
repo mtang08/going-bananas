@@ -28,7 +28,10 @@ const goProxy: Plugin = {
           server.middlewares.use((req, res, next) => {
             const path = req.url?.split('?', 1)[0] ?? ''
             if (
-              (req.method === 'GET' && path === '/api/v1/coach/proposals') ||
+              (req.method === 'GET' &&
+                ['/api/v1/coach/proposals', '/api/v1/calendar/versions', '/api/v1/goals'].includes(
+                  path,
+                )) ||
               (req.method === 'PATCH' && /^\/api\/v1\/goals\/[^/]+$/.test(path))
             )
               return proxy.web(req, res, { target })

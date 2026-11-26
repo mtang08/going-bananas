@@ -54,7 +54,7 @@ func TestGoalPatchHTTP(t *testing.T) {
 	})
 	ts := httptest.NewUnstartedServer(nil)
 	_, port, _ := strings.Cut(ts.Listener.Addr().String(), ":")
-	ts.Config.Handler = New(nil, writer, api.Test, port, "5173")
+	ts.Config.Handler = New(nil, writer, nil, api.Test, port, "5173")
 	ts.Start()
 	defer ts.Close()
 	request := func(id, body, local, contentType, origin string) (int, []byte, http.Header) {

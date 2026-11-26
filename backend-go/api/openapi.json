@@ -161,6 +161,62 @@
           }
         }
       }
+    },
+    "/api/v1/calendar/versions": {
+      "get": {
+        "operationId": "listCalendarVersions",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calendar history, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarVersionsEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/goals": {
+      "get": {
+        "operationId": "listGoals",
+        "responses": {
+          "200": {
+            "description": "Goals in priority order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoalListEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -554,6 +610,179 @@
       "SchemaVersion": {
         "type": "string",
         "const": "v1"
+      },
+      "CalendarVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "parent_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bootstrap",
+              "manual_edit",
+              "proposal_accept",
+              "rollback",
+              "legacy_import"
+            ]
+          },
+          "actor": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "coach"
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "restored_from_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "block_version_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "x-go-type": "Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "parent_number",
+          "kind",
+          "actor",
+          "reason",
+          "proposal_id",
+          "restored_from_number",
+          "block_version_id",
+          "created_at"
+        ]
+      },
+      "CalendarVersionList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CalendarVersion"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CalendarVersionsEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CalendarVersionList"
+          }
+        },
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ]
+      },
+      "GoalList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Goal"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "GoalListEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/GoalList"
+          }
+        },
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ]
       }
     }
   }

@@ -20,3 +20,6 @@ UPDATE app_state
 SET data_revision = data_revision + 1
 WHERE id = 1
 RETURNING data_revision;
+
+-- name: ListGoals :many
+SELECT * FROM goals ORDER BY priority, id;

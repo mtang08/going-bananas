@@ -13,6 +13,7 @@ type ProposalReader interface {
 }
 
 type server struct {
+	plans  PlanningReader
 	reader ProposalReader
 	writer GoalWriter
 	mode   api.AppMode
