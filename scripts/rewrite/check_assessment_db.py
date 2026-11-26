@@ -113,7 +113,9 @@ def python_spacing(mode, uid):
     with SessionLocal.begin() as session:
         now = datetime.fromisoformat(NOW)
         session.info["metrics_now"] = now
-        if mode == "date":
+        if mode == "volume":
+            compute_subjects(session,"run_volume_frequency",[f"w{width}:2026-11-22" for width in (7,14,28,56,84)])
+        elif mode == "date":
             compute_subjects(session, "hard_session_spacing", ["w14:2026-11-11"])
         else:
             _manual_completion_spacing(session, {UUID(uid)}, now.date(), associations_changed=mode=="association")
@@ -129,13 +131,13 @@ def spacing_check(binary, py, go):
             db.execute("""INSERT INTO metric_results(id,metric_id,method_version,subject_type,subject_key,status,value,source_refs,config_hash,calculated_at,dependency_hash,timezone)
                 VALUES(%s,'long_run_exposure','v1','activity',%s,'available',%s,'{}',%s,now(),%s,'America/New_York')""",
                 (id(191), id(21), Jsonb({"classification":"long"}), "3"*64,"4"*64))
-    def snapshots():
+    def snapshots(metric):
         values = []
         for env in [py,go]:
             with conn(env) as db:
-                values.append(db.execute("SELECT to_jsonb(m)-'id' FROM metric_results m WHERE metric_id='hard_session_spacing' ORDER BY subject_key,dependency_hash").fetchall())
+                values.append(db.execute("SELECT to_jsonb(m)-'id' FROM metric_results m WHERE metric_id=%s ORDER BY subject_key,dependency_hash",(metric,)).fetchall())
         return values
-    for mode, n in [("date",1),("manual",5),("manual",1),("association",5)]:
+    for mode, n in [("volume",1),("date",1),("manual",5),("manual",1),("association",5)]:
         if mode=="association":
             for env in [py,go]:
                 with conn(env) as db:
@@ -144,7 +146,7 @@ def spacing_check(binary, py, go):
         env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,
                  ASSESSMENT_SUBJECTS=id(n),ASSESSMENT_SPACING=mode,GORACE="atexit_sleep_ms=0")
         subprocess.run([binary,"-test.run","^TestPythonDatabase$"],env=env,check=True)
-        left,right=snapshots()
+        left,right=snapshots("run_volume_frequency" if mode=="volume" else "hard_session_spacing")
         if left!=right:
             for (a,), (b,) in zip(left,right):
                 if a!=b:

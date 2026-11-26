@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics/spacing"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/trainingwindows"
 )
 
 // check_assessment_db.py supplies a migrated throwaway schema with known seeded
@@ -45,6 +46,12 @@ func TestPythonDatabase(t *testing.T) {
 				return err
 			}
 			switch mode {
+			case "volume":
+				zone, err := time.LoadLocation("America/New_York")
+				if err != nil {
+					return err
+				}
+				return trainingwindows.RefreshVolume(t.Context(), tx, now.In(zone), now)
 			case "date":
 				return spacing.RefreshDates(t.Context(), tx, []string{"2026-11-11"}, now)
 			default:
