@@ -1,14 +1,19 @@
 SHELL := /bin/bash
 RUN := ./scripts/run
-API_TYPES := $(RUN) env APP_MODE=test DATABASE_URL=postgresql+psycopg://localhost/garmin_test \
-	PRIVATE_DIR="$(CURDIR)/private/test" PYTHONPATH=backend uv run --project backend python scripts/api-types.py
+GO_TOOLS := $(CURDIR)/private/go-tools/bin
+export PATH := $(GO_TOOLS):$(PATH)
+export GOTOOLCHAIN := go1.27.4
+export GOPATH ?= $(CURDIR)/private/cache/go
+export GOCACHE ?= $(CURDIR)/private/cache/go-build
+export GOLANGCI_LINT_CACHE ?= $(CURDIR)/private/cache/golangci-lint
+API_TYPES := python3 scripts/api-types.py
 BACKUP := cd backend && uv run python -m app.cli backup "$$PRIVATE_DIR/backups/backup-$$(date +%Y%m%d-%H%M%S).tar.gz"
 TESTS ?= tests/integration tests/test_ingestion_integration.py
 .PHONY: doctor setup db-start db-stop migrate seed-demo dev build start check test-db-start test-db-stop test-integration test-integration-external test-e2e sync backup check-backend check-frontend check-docs complexity
 
 doctor:
 	$(RUN) python3 scripts/doctor.py
-setup:
+setup: setup-go
 	$(RUN) bash -c 'cd backend && uv sync --locked --python 3.12'
 	$(RUN) bash -c 'cd frontend && npm ci'
 db-start:
@@ -25,7 +30,23 @@ build:
 	$(RUN) bash -c 'cd frontend && npm run build'
 start:
 	$(RUN) python3 scripts/serve.py
-check: check-docs check-backend check-frontend
+.PHONY: setup-go check-go check-go-vuln demo-go-proposals test-proposal-go test-proposal-go-external
+setup-go:
+	mkdir -p "$(GO_TOOLS)"
+	GOBIN="$(GO_TOOLS)" go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.9.0
+	GOBIN="$(GO_TOOLS)" go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
+	GOBIN="$(GO_TOOLS)" go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+check-go: check-api-types
+	cd backend-go && go build ./... && golangci-lint run --config ../.golangci.yml ./... && go test -race ./...
+check-go-vuln:
+	cd backend-go && go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
+demo-go-proposals:
+	./scripts/with-mode demo bash -c 'cd backend-go && go run ./cmd/going-bananas serve'
+test-proposal-go:
+	python3 scripts/test-db.py proposal
+test-proposal-go-external:
+	python3 scripts/test-db.py proposal-external
+check: check-docs check-backend check-frontend check-go
 check-docs:
 	$(RUN) python3 scripts/check-docs.py
 check-backend:

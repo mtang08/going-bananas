@@ -1,48 +1,64 @@
-"""Generate TypeScript from the mounted FastAPI endpoints with shared contracts."""
+"""Generate the Go and TypeScript clients from the proposal-list contract."""
 
 import argparse
-import json
+import filecmp
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
-from app.api.coach import get_proposals
-from app.main import app
-from fastapi.openapi.utils import get_openapi
-from fastapi.routing import iter_route_contexts
+ROOT = Path(__file__).resolve().parents[1]
+MODULE = ROOT / 'backend-go'
+CONTRACT = Path('api/proposal-list.openapi.json')
+HANDLERS = Path('api/proposal-list.gen.go')
+SQL_OUTPUT = Path('internal/db')
+
+
+def generate_go(work: Path) -> None:
+    subprocess.run(['oapi-codegen', '-config', 'api/oapi-codegen.yaml', CONTRACT], cwd=work, check=True)
+    subprocess.run(['sqlc', 'generate'], cwd=work, check=True)
+
+
+def check_generated_go() -> None:
+    scratch = ROOT / 'private'
+    scratch.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='go-generate-', dir=scratch) as directory:
+        work = Path(directory)
+        (work / 'api').mkdir()
+        for relative in [CONTRACT, Path('api/oapi-codegen.yaml'), Path('sqlc.yaml'), Path('go.mod')]:
+            shutil.copyfile(MODULE / relative, work / relative)
+        shutil.copytree(MODULE / 'sql', work / 'sql')
+        generate_go(work)
+        outputs = {HANDLERS}
+        for base in (work, MODULE):
+            outputs.update(path.relative_to(base) for path in (base / SQL_OUTPUT).glob('*.go'))
+        for relative in sorted(outputs):
+            checked_in, generated = MODULE / relative, work / relative
+            if not (checked_in.is_file() and generated.is_file() and filecmp.cmp(checked_in, generated, shallow=False)):
+                raise SystemExit(f'{relative} differs from generated output. Run make generate-api-types.')
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument(
-        "--check", action="store_true", help="check the committed types without writing"
-    )
-    mode.add_argument(
-        "--schema", action="store_true", help="print the mounted OpenAPI schema as JSON"
-    )
+    mode.add_argument('--check', action='store_true', help='verify generated files without changing the checkout')
+    mode.add_argument('--schema', action='store_true', help='print the Go-owned OpenAPI contract')
     args = parser.parse_args()
-
-    (proposal_list,) = (
-        route
-        for route in iter_route_contexts(app.routes)
-        if route.endpoint is get_proposals
-    )
-    schema = get_openapi(title=app.title, version=app.version, routes=[proposal_list])
     if args.schema:
-        print(json.dumps(schema, indent=2))
+        print((MODULE / CONTRACT).read_text(), end='')
         return
-    frontend = Path(__file__).resolve().parents[1] / "frontend"
+    if args.check:
+        check_generated_go()
+    else:
+        generate_go(MODULE)
     command = [
-        "node_modules/.bin/openapi-typescript",
-        "-o",
-        "src/api/generated/proposalList.ts",
+        'node_modules/.bin/openapi-typescript', str(MODULE / CONTRACT),
+        '-o', 'src/api/generated/proposalList.ts',
     ]
     if args.check:
-        command.append("--check")
-    subprocess.run(
-        command, cwd=frontend, input=json.dumps(schema), text=True, check=True
-    )
+        command.append('--check')
+    subprocess.run(command, cwd=ROOT / 'frontend', check=True)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

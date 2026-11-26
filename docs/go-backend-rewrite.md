@@ -61,13 +61,15 @@ Python continues serving the athlete while Go slices run against isolated demo/t
 
 ### First implementation assignment
 
+The first read now lives in `backend-go/`. Home can use it in the normal demo development server. The PostgreSQL and live HTTP comparisons pass. The remaining pilot check is a native browser run in an environment that permits browser launch. [Demo commands](../README.md#verification) · [Implementation evidence](go-rewrite-readiness.md#first-implementation-results)
+
 Implement `GET /api/v1/coach/proposals` from PostgreSQL, through the same-origin client, to Home. Use the existing success and validation-error schemas as the seed for the checked-in contract. Keep the existing envelope fields, request guards and error formatting. Exercise default filtering (discarded excluded), `status=open` (pending, stale, invalid), explicit statuses, the empty list, nullable timestamps, and an invalid filter with 422 and a `query.status` field error. Order by submission time descending, then ID descending, capped at 50. Test ties and at least 51 eligible rows. [Reference handler](../backend/app/api/coach.py) · [Typed response](../backend/app/api/responses.py)
 
 Use the same frozen synthetic fixture for read-only comparisons and independent copies for writes. Compare the JSON and status, including `data_revision`, and run Home against Go. Deliberately rename `change_count` in the contract. The generated-file check must detect stale output. After regeneration, the affected Go mapper and React reads must fail compilation until updated. Keep `make generate-api-types` and `make check-api-types` as the generation and drift entry points. Wire the Go checks below into the first slice. The pilot is complete when a fresh checkout can reproduce the comparison and Home can display those fixtures. It needs no provider account or real database.
 
 ### Go lint and build checks
 
-Ship `make check-go` with `backend-go/go.mod` and include it in `make check`. Start with Go 1.27.4 and golangci-lint v2.15.0. Pin both in the first slice's setup. From `backend-go/`, the target runs the following commands and fails on a diagnostic. With the pinned release, `run` checks formatting as well as the enabled analyzers. [Project lint configuration](../.golangci.yml) · [Pinned linter release](https://github.com/golangci/golangci-lint/releases/tag/v2.15.0) · [golangci-lint configuration](https://golangci-lint.run/docs/configuration/file/)
+`make check` includes `make check-go`. The project pins Go 1.27.4 and golangci-lint v2.15.0. From `backend-go/`, the target runs the following commands and fails on a diagnostic. With the pinned release, `run` checks formatting as well as the enabled analyzers. [Project lint configuration](../.golangci.yml) · [Pinned linter release](https://github.com/golangci/golangci-lint/releases/tag/v2.15.0) · [golangci-lint configuration](https://golangci-lint.run/docs/configuration/file/)
 
 ```sh
 go build ./...

@@ -93,10 +93,12 @@ http://127.0.0.1:5173. Do not run `make dev` and `make start` simultaneously.
 
 ## Fresh setup
 
-Prerequisites: Python 3.12+, uv, Node.js 22+, npm, and PostgreSQL 17 tools.
+Development prerequisites include Python 3.12+, uv, Node.js 22+, npm, Go and PostgreSQL 17 tools.
+The Go backend pins Go 1.27.4. Install that version, or use a Go installation that supports automatic toolchain selection.
 `scripts/env.sh` recognizes the Homebrew locations on this Mac and otherwise
 uses PATH. Dependencies are resolved in `backend/uv.lock` and
-`frontend/package-lock.json`.
+`frontend/package-lock.json` and `backend-go/go.sum`. Setup installs the pinned
+Go generators and linter under `private/go-tools/bin/`.
 
 ```sh
 make setup
@@ -252,17 +254,36 @@ Inspect or update them in Settings.
 ## Verification
 
 ```sh
-make check                 # docs links + backend lint/types/unit tests + frontend checks/build
-make check-backend         # one layer; also check-frontend, check-docs
-make generate-api-types    # refresh the React proposal-list types after changing its API contract
+make check                 # docs, Python, Go and frontend checks
+make check-go              # generated code, build, lint, and race-enabled tests
+make check-go-vuln         # check the Go module against the current vulnerability database
+make generate-api-types    # regenerate Go HTTP types, sqlc queries and React proposal-list types
+make test-proposal-go      # historic Python contract, real PostgreSQL, Go HTTP, and Home in Chrome
 make test-integration      # provision the isolated database and run PostgreSQL integration tests
 make test-integration TESTS=tests/integration/test_proposals.py
 python3 scripts/test_coach_skill_v2.py  # reviewed helper contract tests; no live writes
 ```
 
-The proposal list uses the FastAPI response schema for its TypeScript types.
-`make check-frontend` checks the generated file for drift before compiling the
-UI. Generation reads the registered route and works with the database stopped.
+The proposal list has a checked-in OpenAPI contract. Its generated Go handler and
+React types share field names, required values, nullability and status choices.
+`make check-api-types` also checks sqlc output and works with PostgreSQL stopped.
+To reproduce the compiler check, run `python3 scripts/rewrite/check_contract_rename.py`.
+It renames a field in a temporary copy and checks that both real consumers fail to build.
+[Proposal contract](backend-go/api/proposal-list.openapi.json)
+
+To try Home interactively against the Go read, start `make demo-go-proposals`
+with the demo database already migrated. In a second terminal run
+`PROPOSAL_GO_PORT=8011 ./scripts/with-mode demo make dev`, then open Vite
+at `http://127.0.0.1:5173`. Vite forwards the proposal-list GET to Go.
+Opening a draft and making a decision still go to the demo Python server.
+
+`make test-proposal-go` creates a disposable schema in the isolated test database,
+migrates it, checks the schema snapshot, loads the 52-row fixture and starts both
+backends on loopback. It compares their HTTP responses and renders the open, empty
+and failed-list states in Home through the demo/test Vite proxy. The default browser is installed Chrome.
+Set `PROPOSAL_HOME_ENGINE=chromium` for Playwright's installed Chromium or
+`PROPOSAL_HOME_ENGINE=dom` for the Vitest/jsdom version. For the dedicated external
+test-cluster option below use `make test-proposal-go-external`.
 
 The integration runner uses a checkout-local PostgreSQL cluster under
 `private/integration-postgres/55439/` on `127.0.0.1:55439`. It provisions

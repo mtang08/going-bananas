@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath } from 'node:url'
@@ -6,9 +6,40 @@ import { readFileSync } from 'node:fs'
 
 const guidePath = fileURLToPath(new URL('../docs/user-guide.md', import.meta.url))
 
+function loopbackTarget(port: string): string {
+  if (!/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535)
+    throw new Error('Proxy port must be an integer from 1 to 65535')
+  return `http://127.0.0.1:${port}`
+}
+
+const proposalProxy: Plugin = {
+  name: 'going-bananas-proposal-dev-proxy',
+  configureServer(server) {
+    const port = process.env.PROPOSAL_GO_PORT
+    if (port === undefined) return
+    if (process.env.APP_MODE !== 'test' && process.env.APP_MODE !== 'demo')
+      throw new Error('PROPOSAL_GO_PORT requires APP_MODE=test or demo')
+    const target = loopbackTarget(port)
+    server.config.server.proxy = {
+      '/api': {
+        target: loopbackTarget(process.env.APP_PORT ?? '8000'),
+        changeOrigin: true,
+        configure(proxy) {
+          server.middlewares.use((req, res, next) => {
+            if (req.method === 'GET' && req.url?.split('?', 1)[0] === '/api/v1/coach/proposals')
+              return proxy.web(req, res, { target })
+            next()
+          })
+        },
+      },
+    }
+  },
+}
+
 export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   plugins: [
+    proposalProxy,
     react(),
     tailwindcss(),
     {

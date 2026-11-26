@@ -133,11 +133,11 @@ def managed_urls(workspace, port, env, *, stop=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['start', 'stop', 'test', 'test-external'])
+    parser.add_argument('action', choices=['start', 'stop', 'test', 'test-external', 'proposal', 'proposal-external'])
     parser.add_argument('tests', nargs='*', help='test paths or pytest node IDs relative to backend')
     args = parser.parse_args()
     action = args.action
-    if args.tests and action in {'start', 'stop'}:
+    if args.tests and action not in {'test', 'test-external'}:
         parser.error(f'{action} does not take test selectors')
 
     backend = ROOT / 'backend'
@@ -163,7 +163,8 @@ def main():
     private = ROOT / 'private'
     managed = private / 'integration-postgres'
     external = private / 'integration-external'
-    workspace = (external if action == 'test-external' else managed) / str(port)
+    use_external = action.endswith('-external')
+    workspace = (external if use_external else managed) / str(port)
     for path in (private, workspace.parent, workspace, workspace / 'lock', workspace / 'app'):
         if path.is_symlink():
             raise SystemExit('The integration workspace cannot use symlinked paths.')
@@ -178,7 +179,7 @@ def main():
         except BlockingIOError:
             raise SystemExit(f'An integration database command is already running on port {port} in this checkout.')
 
-        if action == 'test-external':
+        if use_external:
             urls = external_urls(port, env)
         else:
             urls = managed_urls(workspace, port, env, stop=action == 'stop')
@@ -193,6 +194,12 @@ def main():
         )
         env.pop('UV_ENV_FILE', None)
         env.setdefault('UV_CACHE_DIR', str(private / 'cache' / 'uv'))
+        if action.startswith('proposal'):
+            subprocess.run(
+                ['uv', 'run', 'python', '../scripts/rewrite/test_proposal_slice.py'],
+                cwd=backend, env=env, check=True,
+            )
+            return
         subprocess.run(['uv', 'run', 'alembic', 'upgrade', 'head'], cwd=backend, env=env, check=True)
         subprocess.run(
             ['uv', 'run', 'pytest', *tests, '-m', 'integration'],
