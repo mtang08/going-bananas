@@ -15,7 +15,12 @@ import (
 )
 
 type Profile struct {
-	Version             int                 `json:"profile_version"`
+	Version int `json:"profile_version"`
+	ProfileMetadata
+	hasInterruption bool
+}
+
+type ProfileMetadata struct {
 	Timezone            string              `json:"timezone"`
 	CycleAnchor         *string             `json:"cycle_anchor"`
 	AnchorConfirmed     bool                `json:"anchor_confirmed"`
@@ -47,10 +52,11 @@ func LoadProfile(ctx context.Context, tx pgx.Tx, asOf string) (Profile, error) {
 		CASE WHEN jsonb_typeof(p.facts->'clinical_restriction')='string' THEN p.facts->>'clinical_restriction' END,
 		CASE WHEN jsonb_typeof(p.facts->'clinician_restriction')='string' THEN p.facts->>'clinician_restriction' END,
 		p.facts->'clinical_restriction_active',p.facts->'running_restriction',
+		coalesce(p.facts->'running_interruption' <> 'null'::jsonb,false),
 		coalesce(s.calendar_head_version,0),coalesce(s.data_revision,0)
 		FROM (VALUES(1)) anchor(n) LEFT JOIN app_state s ON s.id=1
 		LEFT JOIN (SELECT version,timezone,cycle_anchor,anchor_confirmed,facts FROM profile_versions ORDER BY version DESC LIMIT 1) p ON true`).Scan(
-		&p.Version, &p.Timezone, &p.CycleAnchor, &p.AnchorConfirmed, &clinical, &legacy, &legacyFlag, &limit, &p.CalendarVersion, &p.DataRevision)
+		&p.Version, &p.Timezone, &p.CycleAnchor, &p.AnchorConfirmed, &clinical, &legacy, &legacyFlag, &limit, &p.hasInterruption, &p.CalendarVersion, &p.DataRevision)
 	if err != nil {
 		return p, err
 	}

@@ -31,13 +31,18 @@ type Message struct {
 }
 
 type Review struct {
-	ID         string    `json:"id"`
-	Status     string    `json:"status"`
-	Messages   []Message `json:"messages"`
-	Error      *Problem  `json:"error"`
-	ProposalID string    `json:"proposal_id,omitempty"`
-	ThreadID   string    `json:"codex_thread_id,omitempty"`
-	ActiveTurn string    `json:"active_turn,omitempty"`
+	ID                 string    `json:"id"`
+	Status             string    `json:"status"`
+	Messages           []Message `json:"messages"`
+	Error              *Problem  `json:"error"`
+	ProposalID         string    `json:"proposal_id,omitempty"`
+	ThreadID           string    `json:"codex_thread_id,omitempty"`
+	ActiveTurn         string    `json:"active_turn,omitempty"`
+	SnapshotIDs        []string  `json:"snapshot_ids,omitempty"`
+	ReadActiveProposal bool      `json:"read_active_proposal,omitempty"`
+	ObservedProposal   string    `json:"observed_proposal,omitempty"`
+	ObservedRevision   int       `json:"observed_revision,omitempty"`
+	ProposalRevision   int       `json:"proposal_revision,omitempty"`
 }
 
 // Guard distinguishes a missing thread_id from an explicit null (ID == "").
