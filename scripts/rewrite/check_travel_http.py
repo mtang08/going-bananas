@@ -109,7 +109,8 @@ def listeners(py, go, binary, mode):
         proc = stack.enter_context(
             listener(
                 [binary, "-test.run=^TestParityServer$", "-test.timeout=5m"],
-                env=dict(go, TRAVEL_HTTP_FIXTURE_MODE=mode),
+                env=dict(go, TRAVEL_HTTP_FIXTURE_MODE=mode,
+                         PGOPTIONS=go["PGOPTIONS"] + " -cdefault_transaction_read_only=on"),
                 stdout=subprocess.PIPE,
                 text=True,
             )
@@ -170,9 +171,10 @@ def normalized(env, value, key=None):
             if UUID.fullmatch(obj):
                 return ids[obj]
             if field in {"finished_at", "last_success_at"}:
-                return finished[datetime.fromisoformat(obj).astimezone(UTC)]
+                stamp = datetime.fromisoformat(obj)
+                return (finished[stamp.astimezone(UTC)], stamp.utcoffset())
             if field in {"started_at", "start_at", "end_at", "depart_at", "arrive_at"}:
-                return datetime.fromisoformat(obj).astimezone(UTC).isoformat()
+                return datetime.fromisoformat(obj).isoformat()
             if field in {"depart_local", "arrive_local"}:
                 return datetime.fromisoformat(obj).isoformat()
         return obj

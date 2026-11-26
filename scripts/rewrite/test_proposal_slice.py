@@ -68,7 +68,9 @@ def check_open_states(env, ports):
             python, go = (read_response(int(port), '?status=open') for port in ports)
             if python != go or go[0] != 200 or [row['status'] for row in go[1]['data']['items']] != [state]:
                 raise SystemExit(f'Open filter omitted or misreported the {state} draft')
-            print(f'PASS open filter includes {state}', flush=True)
+            active = [read_response(int(port), '', '/api/v1/coach/proposals/active') for port in ports]
+            assert active[0] == active[1] and active[1][1]['data']['proposal']['status'] == state
+            print(f'PASS proposal list and active lookup include {state}', flush=True)
 
 
 def check_planning_lists(env, ports):

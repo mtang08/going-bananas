@@ -16,6 +16,7 @@ import (
 )
 
 type Page struct {
+	importBatch                 uuid.UUID // provided by an archive import spanning multiple datasets
 	JobID                       uuid.UUID
 	Index                       int
 	Final                       bool
@@ -162,7 +163,7 @@ func Apply(ctx context.Context, pool *pgxpool.Pool, root string, page Page) (Res
 		if page.Index != len(cp.Pages) || result.Status != "replaying" {
 			return errors.New("replay_page_out_of_order")
 		}
-		if err := applyRecords(ctx, tx, page, p, &result); err != nil {
+		if err := applyRecords(ctx, tx, page, p, &result, false); err != nil {
 			return err
 		}
 		cp.Pages = append(cp.Pages, p.hash)
@@ -224,7 +225,7 @@ func scopeFor(page Page) (string, error) {
 	return scope, nil
 }
 
-func applyRecords(ctx context.Context, tx pgx.Tx, page Page, p prepared, r *Result) error {
+func applyRecords(ctx context.Context, tx pgx.Tx, page Page, p prepared, r *Result, summaryOnly bool) error {
 	for _, o := range p.files {
 		if _, err := o.persist(ctx, tx); err != nil {
 			return err
@@ -254,10 +255,13 @@ func applyRecords(ctx context.Context, tx pgx.Tx, page Page, p prepared, r *Resu
 	if page.SourceKind == "garmin_export" {
 		version = "garmin-export-v1"
 	}
-	batch := uuid.New()
-	_, err = tx.Exec(ctx, `INSERT INTO import_batches(id,source_kind,status,adapter_version,counters) VALUES($1,$2,'running',$3,'{}')`, batch, page.SourceKind, version)
-	if err != nil {
-		return err
+	batch := page.importBatch
+	if batch == uuid.Nil {
+		batch = uuid.New()
+		_, err = tx.Exec(ctx, `INSERT INTO import_batches(id,source_kind,status,adapter_version,counters) VALUES($1,$2,'running',$3,'{}')`, batch, page.SourceKind, version)
+		if err != nil {
+			return err
+		}
 	}
 	counts := Counts{}
 	for _, item := range p.inputs {
@@ -308,7 +312,7 @@ func applyRecords(ctx context.Context, tx pgx.Tx, page Page, p prepared, r *Resu
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		id, day, changed, err := reconcile(ctx, tx, owner, identity, normalized.ProviderID)
+		id, day, changed, err := reconcile(ctx, tx, owner, identity, normalized.ProviderID, !summaryOnly)
 		if err != nil {
 			return err
 		}
@@ -340,7 +344,13 @@ func applyRecords(ctx context.Context, tx pgx.Tx, page Page, p prepared, r *Resu
 			counts.FITFailed++
 		}
 	}
-	_, err = tx.Exec(ctx, `UPDATE import_batches SET status='complete',finished_at=now(),counters=$2 WHERE id=$1`, batch, counts)
+	var batchCounts any = counts
+	if summaryOnly {
+		batchCounts = counts.providerCounts()
+	}
+	if page.importBatch == uuid.Nil {
+		_, err = tx.Exec(ctx, `UPDATE import_batches SET status='complete',finished_at=now(),counters=$2 WHERE id=$1`, batch, batchCounts)
+	}
 	slices.Sort(r.AffectedDates)
 	r.AffectedDates = slices.Compact(r.AffectedDates)
 	r.Counts.Seen += counts.Seen

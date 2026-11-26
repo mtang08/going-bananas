@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/mtang08/going-bananas/backend-go/internal/athletefacts"
 	"math"
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -66,49 +66,9 @@ func LoadProfile(ctx context.Context, tx pgx.Tx, asOf string) (Profile, error) {
 	if _, err := time.LoadLocation(p.Timezone); err != nil {
 		return p, err
 	}
-	p.ClinicalRestriction = clinicalText(clinical, legacy, legacyFlag)
+	p.ClinicalRestriction = athletefacts.ClinicalRestriction(clinical, legacy, legacyFlag)
 	p.RunningRestriction, err = parseRestriction(limit, asOf)
 	return p, err
-}
-
-func trimFact(s string) string {
-	return strings.TrimFunc(s, func(r rune) bool { return unicode.IsSpace(r) || r >= 0x1c && r <= 0x1f })
-}
-
-func clinicalText(current, legacy *string, flag json.RawMessage) *string {
-	for _, v := range []*string{current, legacy} {
-		if v == nil {
-			continue
-		}
-		s := trimFact(*v)
-		if s != "" && !strings.EqualFold(s, "unknown") && !strings.EqualFold(s, "none") {
-			return &s
-		}
-	}
-	var value any
-	if json.Unmarshal(flag, &value) != nil {
-		return nil
-	}
-	active := true
-	switch v := value.(type) {
-	case nil:
-		active = false
-	case bool:
-		active = v
-	case string:
-		active = v != ""
-	case float64:
-		active = v != 0
-	case map[string]any:
-		active = len(v) > 0
-	case []any:
-		active = len(v) > 0
-	}
-	if active {
-		s := "restricted"
-		return &s
-	}
-	return nil
 }
 
 var errRestriction = errors.New("invalid recorded running restriction")
@@ -141,7 +101,7 @@ func restrictionBool(raw json.RawMessage) (bool, error) {
 
 // The typed editor stores ISO dates. Older JSON facts can represent a date as
 // an exact-midnight timestamp, which the Python model also accepts.
-func FactDate(raw json.RawMessage) (string, error) {
+func restrictionDate(raw json.RawMessage) (string, error) {
 	var v any
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return "", errRestriction
@@ -206,7 +166,7 @@ func parseRestriction(raw json.RawMessage, asOf string) (*RunningRestriction, er
 		if len(value) == 0 || string(value) == "null" {
 			continue
 		}
-		date, err := FactDate(value)
+		date, err := restrictionDate(value)
 		if err != nil {
 			return nil, err
 		}

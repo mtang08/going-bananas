@@ -51,13 +51,12 @@ def main() -> None:
         check_generated_go()
     else:
         generate_go(MODULE)
-    command = [
-        'node_modules/.bin/openapi-typescript', str(MODULE / CONTRACT),
-        '-o', 'src/api/generated/backend.ts',
-    ]
-    if args.check:
-        command.append('--check')
-    subprocess.run(command, cwd=ROOT / 'frontend', check=True)
+    for source, target in ((CONTRACT, 'backend.ts'), (Path('api/travel.openapi.json'), 'travel.ts')):
+        command = ['node_modules/.bin/openapi-typescript', str(MODULE / source),
+                   '-o', f'src/api/generated/{target}']
+        if args.check:
+            command.append('--check')
+        subprocess.run(command, cwd=ROOT / 'frontend', check=True)
 
 
 if __name__ == '__main__':
