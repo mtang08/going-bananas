@@ -30,7 +30,19 @@ func (h Handler) Register(mux *http.ServeMux) {
 	if h.Mode != "demo" && h.Mode != "test" {
 		return
 	}
-	for pattern, method := range map[string]string{"POST " + prefix: "submit", "GET " + prefix + "/active": "active", "GET " + prefix + "/{id}": "detail", "GET " + prefix + "/{id}/document": "document", "GET " + prefix + "/{id}/revisions/{revision}": "revision", "DELETE " + prefix + "/{id}": "discard", "POST " + prefix + "/{id}/revise": "revise", "POST " + prefix + "/{id}/decision": "decide"} {
+	routes := map[string]string{
+		"GET " + prefix + "/active":                    "active",
+		"GET " + prefix + "/{id}":                      "detail",
+		"GET " + prefix + "/{id}/document":             "document",
+		"GET " + prefix + "/{id}/revisions/{revision}": "revision",
+		"DELETE " + prefix + "/{id}":                   "discard",
+		"POST " + prefix + "/{id}/revise":              "revise",
+		"POST " + prefix:                               "submit",
+	}
+	if h.Metrics != nil {
+		routes["POST "+prefix+"/{id}/decision"] = "decide"
+	}
+	for pattern, method := range routes {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) { h.serve(w, r, method) })
 	}
 }

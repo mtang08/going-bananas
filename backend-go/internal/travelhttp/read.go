@@ -6,8 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -56,20 +54,9 @@ func statusTime(raw *string) (*string, error) {
 	return &v, nil
 }
 
-func (h Handler) connected() bool {
-	if h.Provider != nil {
-		return h.Provider.Connected()
-	}
-	if h.PrivateDir == "" {
-		return false
-	}
-	info, err := os.Stat(filepath.Join(h.PrivateDir, "google-calendar-token.json"))
-	return err == nil && info.Mode().IsRegular()
-}
-
 func (h Handler) status(w http.ResponseWriter, r *http.Request) {
 	h.sendRead(w, r, func(tx pgx.Tx) (any, error) {
-		s := statusView{Connected: h.connected(), Window: map[string]int{"days_back": 30, "days_ahead": 180}}
+		s := statusView{Connected: h.Provider != nil && h.Provider.Connected(), Window: map[string]int{"days_back": 30, "days_ahead": 180}}
 		var a syncAttempt
 		var started, finished, success *string
 		err := tx.QueryRow(r.Context(), `SELECT to_jsonb(started_at)#>>'{}',to_jsonb(finished_at)#>>'{}',status,error_code,counters FROM import_batches WHERE source_kind='google_calendar' ORDER BY started_at DESC,id DESC LIMIT 1`).Scan(&started, &finished, &a.Status, &a.ErrorCode, &a.Counters)
