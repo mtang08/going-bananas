@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
+    "generate:travel-types": "openapi-typescript ../backend-go/api/travel.openapi.json -o src/api/generated/travel.ts",
+    "check:travel-types": "npm run generate:travel-types -- --check",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "lint": "eslint .",

@@ -170,9 +170,10 @@ def normalized(env, value, key=None):
             if UUID.fullmatch(obj):
                 return ids[obj]
             if field in {"finished_at", "last_success_at"}:
-                return finished[datetime.fromisoformat(obj).astimezone(UTC)]
+                stamp = datetime.fromisoformat(obj)
+                return (finished[stamp.astimezone(UTC)], stamp.utcoffset())
             if field in {"started_at", "start_at", "end_at", "depart_at", "arrive_at"}:
-                return datetime.fromisoformat(obj).astimezone(UTC).isoformat()
+                return datetime.fromisoformat(obj).isoformat()
             if field in {"depart_local", "arrive_local"}:
                 return datetime.fromisoformat(obj).isoformat()
         return obj

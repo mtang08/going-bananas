@@ -143,6 +143,7 @@ def main():
         'assessment': 'check_assessment_db.py',
         'gcal': 'check_gcal_replay.py',
         'travel-http': 'check_travel_http.py',
+        'provider-jobs': 'check_provider_jobs.py',
         'calendar': 'check_self_reports.py',
         'rematch': 'check_rematch.py',
         'dashboard': 'check_dashboard.py',
