@@ -53,3 +53,35 @@ Deliver a runnable synthetic replay from a downloaded activity page, FIT archive
 ## Continuation prompt
 
 > Own the complete Garmin replay assignment above with your Astra team. Continue from the published decoder on the active continuation branch. Work through normalization, database writes, replay and recovery, publishing each verified increment. Finish by reporting the runnable command, commits, Python comparison results and any remaining live-worker integration.
+
+## Running a synthetic activity replay
+
+From the repository root, run the two-order PostgreSQL comparison with Go on PATH. The test runner creates independent Alembic-migrated schemas for Python and Go. It checks immutable raw payload hashes, winning values and source links, the FIT observations and the job checkpoint. It also interrupts the checkpoint write, restarts the same job and checks retained-file reprocessing after corruption.
+
+```sh
+python3 scripts/test-db.py provider
+```
+
+For a downloaded JSON page, put this manifest beside the page and FIT ZIP. Supply a new job UUID for each independent replay. Subsequent pages increment `index` from zero. Use `export` with an account-export ZIP filename to import its activity summaries. A FIT-only delivery can identify an existing source account with `account_scope` and activity IDs in `fit`.
+
+```json
+{
+  "job_id": "c5a44696-4094-4dc9-95e7-cfe7172e448b",
+  "index": 0,
+  "final": true,
+  "activity_page": "activities.json",
+  "fit": {"70": "activity.zip"}
+}
+```
+
+Build once, then run the manifest in the selected synthetic workspace. The CLI accepts test and demo database names with matching mode suffixes.
+
+```sh
+(cd backend-go && go build -o ../private/garmin-replay ./cmd/garmin-replay)
+./scripts/with-mode demo private/garmin-replay -page private/fixtures/delivery.json
+./scripts/with-mode demo private/garmin-replay -reprocess "$ACTIVITY_UUID"
+```
+
+The worker integration entry point is `replay.Apply(ctx, pool, privateDir, page)`. It takes previously fetched inputs, including API records or `ScanExport` results and optional FIT bytes keyed by Garmin activity ID. It returns cumulative counters, next page, offset, and the changed activity IDs and dates for this delivery. A local-date move includes both dates. The checkpoint also retains the job-wide union of affected dates. The terminal status is `partial` when the job has rejected records or failed FIT attempts. A duplicate committed page returns its checkpoint with empty change sets. A changed redelivery or skipped page index fails.
+
+Python continues to schedule downloads, hold unconfirmed treadmill runs for review, maintain coverage, and refresh dependent metrics. The standalone command uses its own replay job dataset. It imports the activity portion of an account export. [Replay transaction](../backend-go/internal/garmin/replay/page.go) · [Synthetic comparison](../scripts/rewrite/check_provider_replay.py)

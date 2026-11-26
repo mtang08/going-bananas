@@ -133,7 +133,7 @@ def managed_urls(workspace, port, env, *, stop=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['start', 'stop', 'test', 'test-external', 'proposal', 'proposal-external'])
+    parser.add_argument('action', choices=['start', 'stop', 'test', 'test-external', 'proposal', 'proposal-external', 'provider', 'provider-external'])
     parser.add_argument('tests', nargs='*', help='test paths or pytest node IDs relative to backend')
     args = parser.parse_args()
     action = args.action
@@ -194,9 +194,10 @@ def main():
         )
         env.pop('UV_ENV_FILE', None)
         env.setdefault('UV_CACHE_DIR', str(private / 'cache' / 'uv'))
-        if action.startswith('proposal'):
+        if action.startswith(('proposal', 'provider')):
+            runner = 'test_proposal_slice.py' if action.startswith('proposal') else 'check_provider_replay.py'
             subprocess.run(
-                ['uv', 'run', 'python', '../scripts/rewrite/test_proposal_slice.py'],
+                ['uv', 'run', 'python', '../scripts/rewrite/' + runner],
                 cwd=backend, env=env, check=True,
             )
             return
