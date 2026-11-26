@@ -93,7 +93,7 @@ def main():
             )
 
         def native(op, id=None, body=None, failure=False, revision=None):
-            args = [binary, op, "-repo", ROOT, "-python", sys.executable, "-now", NOW]
+            args = [binary, op, "-repo", ROOT, "-now", NOW]
             if id:
                 args += ["-id", id]
             if revision:

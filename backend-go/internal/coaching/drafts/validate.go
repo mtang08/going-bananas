@@ -9,6 +9,17 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching"
 )
 
+// NewValidator verifies an authored proposal against facts visible to its transaction.
+func NewValidator(kbRoot string) Validator {
+	return func(ctx context.Context, tx pgx.Tx, raw json.RawMessage, now time.Time) (Validation, error) {
+		v := ParseDocument(raw)
+		if v.Document == nil {
+			return v, nil
+		}
+		return ValidateNormalized(ctx, tx, v, now, kbRoot)
+	}
+}
+
 // ValidateNormalized applies current source facts and verified knowledge to a
 // structurally valid document. It also projects persisted per-change before/after rows.
 func ValidateNormalized(ctx context.Context, tx pgx.Tx, v Validation, now time.Time, kbRoot string) (Validation, error) {

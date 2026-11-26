@@ -46,7 +46,7 @@ func countQuality(state map[string]sessionFields, week string) int {
 	return n
 }
 func changeRules(d ruleDocument, c RuleContext, state map[string]sessionFields) ([]Issue, error) {
-	issues:=[]Issue{}
+	issues := []Issue{}
 	ids, uids := map[string]bool{}, map[string]bool{}
 	end := scopeEnd(d, c)
 	daily := d.Operation == "proceed_or_modify_today" || d.Operation == "exception_review"
