@@ -19,6 +19,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/httpapi"
 	"github.com/mtang08/going-bananas/backend-go/internal/planning"
 	"github.com/mtang08/going-bananas/backend-go/internal/proposals"
+	"github.com/mtang08/going-bananas/backend-go/internal/travelhttp"
 	"github.com/oapi-codegen/runtime"
 )
 
@@ -81,7 +82,8 @@ func serve(args []string) error {
 	if vitePort == "" {
 		vitePort = "5173"
 	}
-	h := httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort)
+	travel := travelhttp.Handler{Pool: pool, Mode: string(mode), PrivateDir: os.Getenv("PRIVATE_DIR")}
+	h := httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort, travel.Register)
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Println(l.Addr())
 	return srv.Serve(l)

@@ -41,7 +41,7 @@ func Dates(ctx context.Context, tx pgx.Tx, days []string, now time.Time) ([]uuid
 	for _, stored := range facts.Planned {
 		steps, _ := calendarstructure.Expand(stored.Structure)
 		work := slices.ContainsFunc(steps, func(s calendarstructure.Step) bool { return s.Type == "work" })
-		stored.Plan.HasWorkSteps = &work
+		stored.HasWorkSteps = &work
 		input.Planned = append(input.Planned, stored.Plan)
 	}
 	result := matching.PlanMatches(input)

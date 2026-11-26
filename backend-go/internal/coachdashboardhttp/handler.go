@@ -75,7 +75,8 @@ func (h *handler) allowed(w http.ResponseWriter, r *http.Request, id string) boo
 	host := r.Host
 	api := host == "127.0.0.1:"+h.port || host == "localhost:"+h.port
 	vite := host == "127.0.0.1:"+h.vitePort || host == "localhost:"+h.vitePort
-	if !(api || vite || host == "127.0.0.1" || host == "localhost" || host == "testserver") {
+	localHost := api || vite || host == "127.0.0.1" || host == "localhost" || host == "testserver"
+	if !localHost {
 		writeError(w, id, 403, "invalid_host", "Local host required", nil)
 		return false
 	}
@@ -83,12 +84,14 @@ func (h *handler) allowed(w http.ResponseWriter, r *http.Request, id string) boo
 	if err != nil {
 		peer = r.RemoteAddr
 	}
-	if !(net.ParseIP(peer).IsLoopback() || h.mode == "test" && peer == "testclient") || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+	localPeer := net.ParseIP(peer).IsLoopback() || h.mode == "test" && peer == "testclient"
+	if !localPeer || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
 		writeError(w, id, 403, "local_coach_required", "Local coach request required", nil)
 		return false
 	}
 	origin := r.Header.Get("Origin")
-	if origin != "" && origin != "http://"+host && !(api && (origin == "http://127.0.0.1:"+h.vitePort || origin == "http://localhost:"+h.vitePort)) {
+	fromVite := api && (origin == "http://127.0.0.1:"+h.vitePort || origin == "http://localhost:"+h.vitePort)
+	if origin != "" && origin != "http://"+host && !fromVite {
 		writeError(w, id, 403, "invalid_origin", "Local origin required", nil)
 		return false
 	}
