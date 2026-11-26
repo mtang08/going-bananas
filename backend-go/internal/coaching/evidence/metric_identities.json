@@ -1,0 +1,52 @@
+[
+  {
+    "metric_id": "aerobic_efficiency",
+    "method_version": "v1",
+    "config_hash": "9215c3654b5d41af09dded43f55d10125426dd2ef147e8605dac9273e6cc55f9"
+  },
+  {
+    "metric_id": "hard_session_spacing",
+    "method_version": "v1",
+    "config_hash": "01c51faf66223ff3b228bf2bee35dd89b077036f052861e0ff89b5e03f85ab13"
+  },
+  {
+    "metric_id": "intensity_time_distribution",
+    "method_version": "v1",
+    "config_hash": "5fc9eda43a27378820c70804d371e11967a1bc4d1fcd110342f72ca27c19b4a8"
+  },
+  {
+    "metric_id": "long_run_exposure",
+    "method_version": "v1",
+    "config_hash": "8e891f44c2f7f0a1e1d299a84ba6c08d04553e7b06f40b702b8c49721deb7c85"
+  },
+  {
+    "metric_id": "planned_actual_session",
+    "method_version": "v2",
+    "config_hash": "0ad76bdb33e30a0a08637edcc290fe3d39e7cd77f1d2c6ff74a20f66c56fc29e"
+  },
+  {
+    "metric_id": "recovery_multisignal_summary",
+    "method_version": "v1",
+    "config_hash": "f2028ed462a1bc639b749b84574774112f0b894895dd960dd81acb3879428f9d"
+  },
+  {
+    "metric_id": "run_volume_frequency",
+    "method_version": "v1",
+    "config_hash": "eec848a6f9a54109d933bde74f4a11eb0989a6a544064dbd70ab195cafe1f2ce"
+  },
+  {
+    "metric_id": "session_rpe_load",
+    "method_version": "v1",
+    "config_hash": "540fe1e5a2dba14ad01ee7ce7f1bf1371e23a2ec79281df49f3515d135094c97"
+  },
+  {
+    "metric_id": "symptom_response_timeline",
+    "method_version": "v1",
+    "config_hash": "117a09c0aeb1ecba212c9b26b4a7cf1f1b4fa3fddc4d3c0088d409a3389b24d5"
+  },
+  {
+    "metric_id": "work_interval_execution",
+    "method_version": "v2",
+    "config_hash": "1ec5dbdbd4a0235f7387e1ac4824e510e4c0bc98d1ab41f51d16e3220ccf084e"
+  }
+]

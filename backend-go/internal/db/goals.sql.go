@@ -25,6 +25,38 @@ func (q *Queries) BumpDataRevision(ctx context.Context) (int32, error) {
 	return data_revision, err
 }
 
+const createGoal = `-- name: CreateGoal :one
+INSERT INTO goals (id, text, horizon, priority, status, version)
+VALUES ($1, $2, $3, $4::bigint, 'active', 1)
+RETURNING id, text, horizon, priority, status, version
+`
+
+type CreateGoalParams struct {
+	ID       pgtype.UUID
+	GoalText string
+	Horizon  string
+	Priority int64
+}
+
+func (q *Queries) CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, error) {
+	row := q.db.QueryRow(ctx, createGoal,
+		arg.ID,
+		arg.GoalText,
+		arg.Horizon,
+		arg.Priority,
+	)
+	var i Goal
+	err := row.Scan(
+		&i.ID,
+		&i.Text,
+		&i.Horizon,
+		&i.Priority,
+		&i.Status,
+		&i.Version,
+	)
+	return i, err
+}
+
 const goalVersion = `-- name: GoalVersion :one
 SELECT version FROM goals WHERE id = $1 FOR UPDATE
 `
@@ -34,6 +66,37 @@ func (q *Queries) GoalVersion(ctx context.Context, id pgtype.UUID) (int32, error
 	var version int32
 	err := row.Scan(&version)
 	return version, err
+}
+
+const listGoals = `-- name: ListGoals :many
+SELECT id, text, horizon, priority, status, version FROM goals ORDER BY priority, id
+`
+
+func (q *Queries) ListGoals(ctx context.Context) ([]Goal, error) {
+	rows, err := q.db.Query(ctx, listGoals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Goal
+	for rows.Next() {
+		var i Goal
+		if err := rows.Scan(
+			&i.ID,
+			&i.Text,
+			&i.Horizon,
+			&i.Priority,
+			&i.Status,
+			&i.Version,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const lockGlobalWriter = `-- name: LockGlobalWriter :exec

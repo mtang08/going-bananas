@@ -82,10 +82,14 @@ func internalError(w http.ResponseWriter, r *http.Request, _ error) {
 	fail(w, r, http.StatusInternalServerError, "internal_error", "Internal server error")
 }
 
-func New(reader ProposalReader, writer GoalWriter, mode api.AppMode, port, vitePort string) http.Handler {
-	s := server{reader: reader, writer: writer, mode: mode}
+func New(reader ProposalReader, writer GoalWriter, plans PlanningReader, mode api.AppMode, port, vitePort string, register ...func(*http.ServeMux)) http.Handler {
+	s := server{plans: plans, reader: reader, writer: writer, mode: mode}
 	strict := api.NewStrictHandlerWithOptions(s, nil, api.StrictHTTPServerOptions{ResponseErrorHandlerFunc: internalError})
 	handler := api.Handler(strict)
+	routes := http.NewServeMux()
+	for _, add := range register {
+		add(routes)
+	}
 	guard := newGuard(port, vitePort)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var id [8]byte
@@ -97,6 +101,10 @@ func New(reader ProposalReader, writer GoalWriter, mode api.AppMode, port, viteP
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Request-ID", rid)
+		if _, pattern := routes.Handler(r); pattern != "" {
+			routes.ServeHTTP(w, r)
+			return
+		}
 		const goalPrefix = "/api/v1/goals/"
 		if id, ok := strings.CutPrefix(r.URL.Path, goalPrefix); ok && id != "" && !strings.Contains(strings.TrimSuffix(id, "/"), "/") {
 			if r.Method == http.MethodGet {
@@ -111,11 +119,21 @@ func New(reader ProposalReader, writer GoalWriter, mode api.AppMode, port, viteP
 			return
 		}
 		const path = "/api/v1/coach/proposals"
-		if r.Method != http.MethodGet && (r.URL.Path == path || r.URL.Path == path+"/") {
+		const versions = "/api/v1/calendar/versions"
+		const goals = "/api/v1/goals"
+		if r.Method == http.MethodPost && r.URL.Path == goals {
+			s.serveCreateGoal(w, r)
+			return
+		}
+		route := strings.TrimSuffix(r.URL.Path, "/")
+		if r.Method != http.MethodGet && (route == path || route == versions || route == goals) {
 			fail(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "Request failed")
 			return
 		}
-		if r.URL.Path != path {
+		if r.URL.Path == versions && !bindCalendarLimit(w, r) {
+			return
+		}
+		if r.URL.Path != path && r.URL.Path != versions && r.URL.Path != goals {
 			fail(w, r, http.StatusNotFound, "not_found", "API route not found")
 			return
 		}

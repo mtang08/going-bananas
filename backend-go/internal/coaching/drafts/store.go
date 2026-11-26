@@ -68,30 +68,34 @@ func missing(err error) error {
 	return err
 }
 
+func loadDraft(ctx context.Context, tx pgx.Tx, id uuid.UUID, d *Draft) error {
+	err := tx.QueryRow(ctx, `SELECT id,revision,status,snapshot_id,base_calendar_version,payload,
+			coalesce(validation_errors,'[]'::jsonb) FROM coach_proposals WHERE id=$1`, id).Scan(
+		&d.ID, &d.Revision, &d.Status, &d.SnapshotID, &d.BaseCalendarVersion, &d.Payload, &d.ValidationErrors)
+	if err != nil {
+		return missing(err)
+	}
+	rows, err := tx.Query(ctx, `SELECT change_id,op,session_uid,before,after,reason,decision
+			FROM coach_proposal_changes WHERE proposal_id=$1`, id)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	d.Changes = map[string]Change{}
+	for rows.Next() {
+		var c Change
+		if err := rows.Scan(&c.ID, &c.Operation, &c.SessionUID, &c.Before, &c.After, &c.Reason, &c.Decision); err != nil {
+			return err
+		}
+		d.Changes[c.ID] = c
+	}
+	return rows.Err()
+}
+
 func (s Store) Load(ctx context.Context, id uuid.UUID) (Draft, error) {
 	var d Draft
 	err := pgx.BeginTxFunc(ctx, s.Pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		err := tx.QueryRow(ctx, `SELECT id,revision,status,snapshot_id,base_calendar_version,payload,
-			coalesce(validation_errors,'[]'::jsonb) FROM coach_proposals WHERE id=$1`, id).Scan(
-			&d.ID, &d.Revision, &d.Status, &d.SnapshotID, &d.BaseCalendarVersion, &d.Payload, &d.ValidationErrors)
-		if err != nil {
-			return missing(err)
-		}
-		rows, err := tx.Query(ctx, `SELECT change_id,op,session_uid,before,after,reason,decision
-			FROM coach_proposal_changes WHERE proposal_id=$1`, id)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		d.Changes = map[string]Change{}
-		for rows.Next() {
-			var c Change
-			if err := rows.Scan(&c.ID, &c.Operation, &c.SessionUID, &c.Before, &c.After, &c.Reason, &c.Decision); err != nil {
-				return err
-			}
-			d.Changes[c.ID] = c
-		}
-		return rows.Err()
+		return loadDraft(ctx, tx, id, &d)
 	})
 	if err != nil {
 		return Draft{}, err

@@ -20,7 +20,7 @@ from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
@@ -1514,3 +1514,17 @@ def test_rehab_downgrade_refuses_to_discard_existing_history(isolated_schema):
         == "rehab"
     )
     assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0027_rehab_sessions"
+
+
+def test_dashboard_migration_preserves_completed_import(isolated_schema):
+    connection = isolated_schema
+    _migration(connection, "0028_coach_chat_reviews")
+    _migration(connection, "0027_rehab_sessions", down=True)
+    _migration(connection, "0028_coach_chat_reviews")
+    connection.execute(text("INSERT INTO coach_chat_file_imports VALUES ('test')"))
+    connection.commit()
+    with pytest.raises(DBAPIError, match="Cannot downgrade"):
+        _migration(connection, "0027_rehab_sessions", down=True)
+    connection.rollback()
+    assert connection.execute(text("SELECT mode FROM coach_chat_file_imports")).scalar_one() == "test"
+    assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0028_coach_chat_reviews"

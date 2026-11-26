@@ -1,3 +1,4 @@
+import type { components } from '../generated/backend'
 import type { WorkoutFeedback } from './checkins'
 import type { SessionPatchRef } from './exceptions'
 import type { Rule } from './coachText'
@@ -138,20 +139,8 @@ export interface WeeklyProjection {
   plan_through: string | null
   activity_coverage_complete: boolean
 }
-export type CalendarVersionKind =
-  'bootstrap' | 'manual_edit' | 'proposal_accept' | 'rollback' | 'legacy_import'
-export interface CalendarVersion {
-  id: string
-  number: number
-  parent_number: number | null
-  kind: CalendarVersionKind
-  actor: 'system' | 'user' | 'coach'
-  reason: string | null
-  proposal_id: string | null
-  restored_from_number: number | null
-  block_version_id: string | null
-  created_at: string
-}
+export type CalendarVersion = components['schemas']['CalendarVersion']
+export type CalendarVersionKind = CalendarVersion['kind']
 export type ChangeOp = 'add' | 'modify' | 'move' | 'delete'
 export interface CalendarDiff {
   changes: {

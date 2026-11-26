@@ -93,7 +93,7 @@ def main():
             )
 
         def native(op, id=None, body=None, failure=False, revision=None):
-            args = [binary, op, "-repo", ROOT, "-python", sys.executable, "-now", NOW]
+            args = [binary, op, "-repo", ROOT, "-now", NOW]
             if id:
                 args += ["-id", id]
             if revision:
@@ -137,6 +137,13 @@ def main():
             }
 
         rdoc, gdoc = document(ref), document(go)
+        snap = native("snapshot", gdoc["snapshot_id"])
+        assert (
+            snap["current"]
+            and snap["snapshot"]["source_fingerprint"]
+            == snap["persisted_fingerprint"]
+            == snap["current_fingerprint"]
+        )
 
         def assert_result(r, g, status, rev):
             assert (
@@ -149,6 +156,32 @@ def main():
         r, g = python(ref, "submit", document=rdoc), python(go, "submit", document=gdoc)
         assert_result(r, g, "pending", 1)
         rid, gid = r["proposal_id"], g["proposal_id"]
+        selection = dict(
+            expected_revision=1,
+            expected_head=0,
+            idempotency_key="synthetic-selection",
+            accept_change_ids=["c1"],
+            reject_change_ids=[],
+        )
+        prepared = native("prepare", gid, selection)
+        sys.path.insert(0, str(ROOT / "backend"))
+        from app.services.decision_inputs import digest
+
+        assert prepared["decision_hash"] == digest(
+            dict(
+                proposal_id=gid,
+                revision=1,
+                accept_change_ids=["c1"],
+                reject_change_ids=[],
+                accept_anchor_changes=[],
+                accept_block_change=False,
+            )
+        )
+        assert prepared["changes"]["c1"]["after"]["kind"] == "rest"
+        assert (
+            native("prepare", gid, {**selection, "accept_change_ids": []}, True)["code"]
+            == "decision_incomplete"
+        )
         assert native("load", gid)["changes"]["c1"]["op"] == "add"
         assert native("submit", body=gdoc)["proposal_id"] == gid
 
@@ -190,6 +223,7 @@ def main():
                 "INSERT INTO goals(id,text,horizon,priority,status,version) VALUES (%s,'Updated goal','season',1,'active',1)",
                 (uuid4(),),
             )
+        assert not native("snapshot", gdoc["snapshot_id"])["current"]
         r = python(ref, "revise", id=rid, request=request(rdoc, 2, "Stale evidence"))
         g = native("revise", gid, request(gdoc, 2, "Stale evidence"), True)
         assert r["code"] == g["error"]["code"] == "stale_evidence", (r, g)
@@ -228,11 +262,136 @@ def main():
         # A distinct submission now exercises native insertion rather than original-hash replay.
         new = native("submit", body={**gdoc, "headline": "Second draft"})
         assert new["status"] == "pending" and new["proposal_id"] != gid, new
-        assert native("submit", body={**gdoc, "headline": "Second draft"}) == new
+        again = native("submit", body={**gdoc, "headline": "Second draft"})
+        assert again == new, (again, new)
+        rnew = python(ref, "submit", document={**rdoc, "headline": "Second draft"})
+        for key in ("reject-1", "reject-1", "reject-2"):
+            rejection = python(
+                ref,
+                "decide",
+                id=rnew["proposal_id"],
+                request=dict(
+                    idempotency_key=key,
+                    expected_head=0,
+                    expected_revision=1,
+                    accept_change_ids=[],
+                    reject_change_ids=["c1"],
+                ),
+            )
+            assert rejection["status"] == "rejected"
+        subprocess.run(
+            [
+                "go",
+                "test",
+                "-count=1",
+                "-run",
+                "^TestRejectDecisionLedger$",
+                "./internal/coaching/drafts",
+            ],
+            cwd=ROOT / "backend-go",
+            check=True,
+            env={
+                **go,
+                "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
+                    "postgresql+psycopg://", "postgresql://"
+                ),
+                "COACHING_DECISION_TEST_ID": new["proposal_id"],
+                "COACHING_DECISION_TEST_NOW": NOW,
+            },
+        )
+
+        def receipts(conn):
+            return conn.execute(
+                "SELECT idempotency_key,result FROM coach_decision_keys ORDER BY idempotency_key"
+            ).fetchall()
+
+        assert receipts(refdb) == receipts(godb) and len(receipts(godb)) == 2
         for conn in (refdb, godb):
             assert conn.execute(
                 "SELECT calendar_head_version FROM app_state WHERE id=1"
             ).fetchone() == (0,)
+        for head, accept, reject in [(0, ["c1"], ["c2"]), (1, ["c1", "c2"], [])]:
+
+            def make_pending(env):
+                doc = document(env)
+                c = doc["changes"][0]
+                doc.update(
+                    base_calendar_version=head,
+                    headline=f"Decision {head}",
+                    changes=[
+                        c,
+                        {
+                            **c,
+                            "change_id": "c2",
+                            "after": {
+                                **c["after"],
+                                "slot": 1,
+                                "intent": "Optional rest",
+                            },
+                        },
+                    ],
+                )
+                res = python(env, "submit", document=doc)
+                assert res["status"] == "pending", res
+                return res["proposal_id"]
+
+            pid, gid = make_pending(ref), make_pending(go)
+            request = dict(
+                expected_head=head,
+                expected_revision=1,
+                idempotency_key=f"accept-{head}-test",
+                accept_change_ids=accept,
+                reject_change_ids=reject,
+            )
+            expected = python(ref, "decide", id=pid, request=request)
+            assert expected.get("calendar_version") == head + 1, expected
+            subprocess.run(
+                [
+                    "go",
+                    "test",
+                    "-count=1",
+                    "-run",
+                    "^TestAcceptDecisionLedger$",
+                    "./internal/coaching/drafts",
+                ],
+                cwd=ROOT / "backend-go",
+                check=True,
+                env={
+                    **go,
+                    "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
+                        "postgresql+psycopg://", "postgresql://"
+                    ),
+                    "COACHING_DECISION_TEST_ID": gid,
+                    "COACHING_DECISION_TEST_NOW": NOW,
+                    "COACHING_DECISION_TEST_REQUEST": json.dumps(request),
+                },
+            )
+
+            def state(conn, id):
+                return (
+                    conn.execute(
+                        "SELECT calendar_head_version,data_revision FROM app_state"
+                    ).fetchall(),
+                    conn.execute(
+                        "SELECT number,parent_number,kind,actor,reason FROM calendar_versions ORDER BY number"
+                    ).fetchall(),
+                    conn.execute(
+                        "SELECT revision,calendar_version_number,deleted,slot,local_date,kind,intent,certainty FROM calendar_session_revisions ORDER BY calendar_version_number,slot"
+                    ).fetchall(),
+                    conn.execute(
+                        "SELECT change_id,decision,session_uid IS NOT NULL FROM coach_proposal_changes WHERE proposal_id=%s ORDER BY change_id",
+                        (id,),
+                    ).fetchall(),
+                    conn.execute(
+                        "SELECT status,decision_result - 'stale_proposals',jsonb_array_length(decision_result->'stale_proposals') FROM coach_proposals WHERE id=%s",
+                        (id,),
+                    ).fetchall(),
+                )
+
+            assert state(refdb, pid) == state(godb, gid), (
+                state(refdb, pid),
+                state(godb, gid),
+            )
     print(
         "Passed Python-created draft revision, no-duplicate retry, drift, rollback, concurrent edits, discard and native submit."
     )
