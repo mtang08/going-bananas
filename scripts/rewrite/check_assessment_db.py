@@ -115,7 +115,13 @@ def python_spacing(mode, uid):
     with SessionLocal.begin() as session:
         now = datetime.fromisoformat(NOW)
         session.info["metrics_now"] = now
-        if mode in WINDOW_METRICS:
+        if mode == "subjects":
+            from app.metrics.refresh import _refresh_strength
+            from datetime import timedelta
+            _refresh_strength(session, now.date()-timedelta(days=83),now.date())
+            for metric in ("symptom_response_timeline","session_rpe_load","long_run_exposure"):
+                compute_subjects(session,metric,uid.split(","))
+        elif mode in WINDOW_METRICS:
             compute_subjects(session,WINDOW_METRICS[mode],[f"w{width}:2026-11-22" for width in ((28,) if mode=="symptoms" else (7,14,28,56,84))])
         elif mode == "date":
             compute_subjects(session, "hard_session_spacing", ["w14:2026-11-11"])
@@ -163,6 +169,21 @@ def spacing_check(binary, py, go):
                 if a!=b:
                     raise AssertionError({k:(a[k],b[k]) for k in a if a[k]!=b[k]})
             raise AssertionError("spacing row count")
+    keys=",".join(id(n) for n in (21,22,23,24))
+    for env in (py,go):
+        with conn(env) as db:
+            db.execute("UPDATE activities SET end_at=start_at+interval '45 minutes' WHERE id IN (%s,%s)",(id(21),id(23)))
+            db.execute("UPDATE checkins_v2 SET activity_id=%s,kind='delayed_followup' WHERE id=%s",(id(22),id(192)))
+    subprocess.run([sys.executable,__file__,"spacing","subjects",keys],env=dict(py,PYTHONPATH=str(BACKEND)),check=True)
+    subprocess.run([binary,"-test.run","^TestPythonDatabase$"],env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,ASSESSMENT_SUBJECTS=keys,ASSESSMENT_SPACING="subjects",GORACE="atexit_sleep_ms=0"),check=True)
+    subprocess.run([binary,"-test.run","^TestPythonDatabase$"],env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,ASSESSMENT_SUBJECTS=keys,ASSESSMENT_SPACING="preview",GORACE="atexit_sleep_ms=0"),check=True)
+    subject_rows=[]
+    for env in (py,go):
+        with conn(env) as db:
+            subject_rows.append(db.execute("""SELECT to_jsonb(m)-'id' FROM metric_results m WHERE subject_type='activity' AND is_current
+                AND metric_id IN('symptom_response_timeline','session_rpe_load','long_run_exposure') ORDER BY metric_id,subject_key""").fetchall())
+    for (a,), (b,) in zip(*subject_rows,strict=True):
+        if a!=b: raise AssertionError((a["metric_id"],a["subject_key"],{k:(a[k],b[k]) for k in a if a[k]!=b[k]}))
     assert len(left)==4
     print("PASS spacing windows, exposure and provenance payloads, manual selection and association refresh")
 
@@ -207,6 +228,75 @@ def exercise(binary,py,go):
     print("PASS assessment results, source/dependency hashes, linked and self-reported statuses, invalidation, historical restoration, caller rollback")
 
 
+def reference_scope(mode):
+    from app.db import SessionLocal
+    from app.metrics import refresh
+    from app.metrics.engine import metric_modules
+    metric_modules()
+    if mode=="link":
+        from app.services import calendar, derived
+        derived.install()
+        with SessionLocal.begin() as session:
+            session.info["metrics_now"]=datetime.fromisoformat(NOW)
+            calendar.put_completion(session,UUID(id(251)),{"activity_id":id(252),"expected_version":0},assess=refresh.assess_completion)
+        return
+    with SessionLocal.begin() as session:
+        session.info["metrics_now"]=datetime.fromisoformat(NOW)
+        scopes=({"plan":["date:2026-11-22"], "manual":["manual_completion:"+id(1)]}.get(mode) or mode.split(";"))
+        targets=refresh.scope_targets(session,scopes)
+        refresh.refresh_targets(session,targets,[])
+
+
+def scope_check(binary,py,go):
+    for env in [py,go]:
+        with conn(env) as db:
+            db.execute("""CREATE FUNCTION fixture_result_id() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN NEW.id=md5(NEW.metric_id||NEW.method_version||NEW.subject_key||NEW.dependency_hash)::uuid; RETURN NEW; END $$;
+                CREATE TRIGGER fixture_result_id BEFORE INSERT ON metric_results FOR EACH ROW EXECUTE FUNCTION fixture_result_id()""")
+            db.execute("INSERT INTO checkins_v2(id,idempotency_key,kind,observed_at) VALUES(%s,'scope','exception','2026-11-20T23:30Z')",(id(250),))
+    for mode in ["plan","manual","recovery_dates:2026-11-20","checkin:"+id(250),"since:2026-11-19;coverage_date:2026-11-20","link"]:
+        if mode=="link":
+            for env in (py,go):
+                with conn(env) as db:
+                    db.execute("INSERT INTO calendar_versions(id,number,kind,actor) VALUES(%s,1,'bootstrap','system')",(id(253),))
+                    db.execute("UPDATE app_state SET calendar_head_version=1 WHERE id=1")
+                    db.execute("""INSERT INTO calendar_session_revisions(id,session_uid,revision,calendar_version_number,local_date,kind,certainty,intent,planned_duration_s,recipe_id)
+                        VALUES(%s,%s,1,1,'2026-11-22','run','committed','synthetic',1800,'REC002')""",(id(254),id(251)))
+                    db.execute("""INSERT INTO activities(id,start_at,end_at,original_start,local_date,sport,timer_s,elapsed_s,distance_m,canonical_revision,resolution_state,field_provenance)
+                        VALUES(%s,'2026-11-22 10:00Z','2026-11-22 10:30Z','2026-11-22T10:00Z','2026-11-22','running',1800,1800,4000,1,'resolved','{}')""",(id(252),))
+            with conn(go) as db:
+                before=db.execute("SELECT data_revision,(SELECT count(*) FROM metric_results) FROM app_state WHERE id=1").fetchone()
+                db.execute("""CREATE FUNCTION fail_link() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic linked metric failure'; END $$;
+                    CREATE TRIGGER fail_link BEFORE INSERT ON metric_results FOR EACH ROW WHEN (NEW.metric_id='run_volume_frequency') EXECUTE FUNCTION fail_link()""")
+            subprocess.run([binary,"-test.run","^TestScopeDatabase$"],env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,ASSESSMENT_SCOPE="link-fail",GORACE="atexit_sleep_ms=0"),check=True)
+            with conn(go) as db:
+                assert db.execute("SELECT data_revision,(SELECT count(*) FROM metric_results) FROM app_state WHERE id=1").fetchone()==before
+                assert db.execute("SELECT count(*) FROM session_completions WHERE session_uid=%s",(id(251),)).fetchone()==(0,)
+                db.execute("DROP TRIGGER fail_link ON metric_results")
+        subprocess.run([sys.executable,__file__,"scope",mode],env=dict(py,PYTHONPATH=str(BACKEND)),check=True)
+        subprocess.run([binary,"-test.run","^TestScopeDatabase$"],env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,ASSESSMENT_SCOPE=mode,GORACE="atexit_sleep_ms=0"),check=True)
+        snapshots=[]
+        for env in [py,go]:
+            with conn(env) as db:
+                snapshots.append(db.execute("SELECT to_jsonb(m)-'id' FROM metric_results m ORDER BY metric_id,subject_key,dependency_hash").fetchall())
+        for (a,), (b,) in zip(*snapshots,strict=True):
+            if a!=b: raise AssertionError((mode,a["metric_id"],a["subject_key"],{k:(a[k],b[k]) for k in a if a[k]!=b[k]}))
+    states=[]
+    for env in (py,go):
+        with conn(env) as db:
+            states.append((db.execute("SELECT session_uid,activity_id,status,match_method,version,input_version FROM session_completions ORDER BY session_uid").fetchall(),db.execute("SELECT data_revision FROM app_state WHERE id=1").fetchone(),db.execute("SELECT metric_id,config_hash FROM metric_configs ORDER BY metric_id,config_hash").fetchall(),db.execute("SELECT to_jsonb(p)-'id' FROM prompts p ORDER BY kind,activity_id,session_uid").fetchall()))
+    assert states[0]==states[1],states
+    for mode in ("read-stored","read-preview"):
+        if mode=="read-preview":
+            with conn(go) as db:
+                db.execute("UPDATE metric_results SET config_hash=%s WHERE is_current AND (subject_key=%s OR subject_key='night:2026-11-22')",("0"*64,id(252)))
+        subprocess.run([binary,"-test.run","^TestScopeDatabase$"],env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,ASSESSMENT_SCOPE=mode,GORACE="atexit_sleep_ms=0"),check=True)
+    subprocess.run([binary,"-test.run","^TestScopeDatabase$"],env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,ASSESSMENT_SCOPE="marker",GORACE="atexit_sleep_ms=0"),check=True)
+    print("PASS shared revision across nested writes, savepoint rollback and next pooled transaction")
+    print("PASS linked completion and native assessment, rematch, metrics and prompt transaction")
+    print("PASS full metric window fan-out and histories for plan, manual, check-in, recovery, coverage and since scopes")
+
+
 def main():
     url=make_url(os.environ["TEST_DATABASE_URL"])
     if (os.environ.get("APP_MODE")!="test" or url.database!="garmin_test" or url.host not in {"localhost","127.0.0.1"}
@@ -218,9 +308,14 @@ def main():
         subprocess.run(["go","test","-race","-c","-o",binary,"./internal/metrics/assessment"],cwd=MODULE,check=True)
         with migrated_schema(db,url,directory/"reference","5173") as py,migrated_schema(db,url,directory/"go","5173") as go:
             exercise(binary,py,go)
+        refresh=directory/"refresh.test"
+        subprocess.run(["go","test","-race","-c","-o",refresh,"./internal/metrics/refresh"],cwd=MODULE,check=True)
+        with migrated_schema(db,url,directory/"scoperef","5173") as py,migrated_schema(db,url,directory/"scopego","5173") as go:
+            scope_check(refresh,py,go)
 
 
 if __name__=="__main__":
     if sys.argv[1:2]==["python"]:python_assess(sys.argv[3:],datetime.fromisoformat(sys.argv[2]))
+    elif sys.argv[1:2]==["scope"]:reference_scope(sys.argv[2])
     elif sys.argv[1:2]==["spacing"]:python_spacing(*sys.argv[2:])
     else:main()
