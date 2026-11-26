@@ -93,21 +93,18 @@ def main():
             )["code"]
             == "proposal_revision_conflict"
         )
-        python = (
-            """from datetime import datetime,UTC
-import json,uuid
+        python = """from datetime import datetime,UTC
+import json,uuid,sys
 from app.db import SessionLocal
 from app.services.proposals.lifecycle import discard_proposal
 with SessionLocal.begin() as session:
- r=discard_proposal(session,uuid.UUID('%s'),1,now=datetime.now(UTC))
+ r=discard_proposal(session,uuid.UUID(sys.argv[1]),1,now=datetime.now(UTC))
  print(json.dumps({'proposal_id':str(r.proposal_id),'revision':r.revision,'status':r.status}))
 """
-            % DRAFT_ID
-        )
         for _ in range(2):
-            assert command(ref, os.sys.executable, "-c", python) == command(
-                go, binary, "discard", "-id", str(DRAFT_ID), "-revision", "1"
-            )
+            assert command(
+                ref, os.sys.executable, "-c", python, str(DRAFT_ID)
+            ) == command(go, binary, "discard", "-id", str(DRAFT_ID), "-revision", "1")
         query = """SELECT p.revision,p.status,p.discarded_at IS NOT NULL,s.data_revision,s.calendar_head_version
                  FROM coach_proposals p CROSS JOIN app_state s WHERE p.id=%s AND s.id=1"""
         assert (
