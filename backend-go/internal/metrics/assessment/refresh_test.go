@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/spacing"
 )
 
 // check_assessment_db.py supplies a migrated throwaway schema with known seeded
@@ -37,6 +38,24 @@ func TestPythonDatabase(t *testing.T) {
 	now, err := time.Parse(time.RFC3339, os.Getenv("ASSESSMENT_NOW"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if mode := os.Getenv("ASSESSMENT_SPACING"); mode != "" {
+		err := pgx.BeginTxFunc(t.Context(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			if err := db.New(tx).LockGlobalWriter(t.Context()); err != nil {
+				return err
+			}
+			switch mode {
+			case "date":
+				return spacing.RefreshDates(t.Context(), tx, []string{"2026-11-11"}, now)
+			default:
+				_, err := spacing.RefreshCompletions(t.Context(), tx, []uuid.UUID{uuid.MustParse(os.Getenv("ASSESSMENT_SUBJECTS"))}, mode == "association", now)
+				return err
+			}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return
 	}
 	for _, key := range strings.Split(os.Getenv("ASSESSMENT_SUBJECTS"), ",") {
 		uid := uuid.MustParse(key)
