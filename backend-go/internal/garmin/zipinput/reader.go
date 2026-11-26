@@ -19,16 +19,16 @@ import (
 type Reader struct {
 	*zip.Reader
 	source *headerReader
-	data   []byte
+	size   int64
 }
 
 type headerReader struct {
-	*bytes.Reader
+	source       io.ReaderAt
 	headerOffset int64
 }
 
 func (r *headerReader) ReadAt(p []byte, off int64) (int, error) {
-	n, err := r.Reader.ReadAt(p, off)
+	n, err := r.source.ReadAt(p, off)
 	// File.DataOffset reads the fixed local header, but doesn't expose its
 	// offset or compare its filename with the central directory's name.
 	if n == 30 && string(p[:4]) == "PK\x03\x04" {
@@ -38,13 +38,17 @@ func (r *headerReader) ReadAt(p []byte, off int64) (int, error) {
 }
 
 func New(data []byte) (*Reader, error) {
-	source := &headerReader{Reader: bytes.NewReader(data)}
-	r, err := zip.NewReader(source, int64(len(data)))
+	return NewReaderAt(bytes.NewReader(data), int64(len(data)))
+}
+
+func NewReaderAt(input io.ReaderAt, size int64) (*Reader, error) {
+	source := &headerReader{source: input}
+	r, err := zip.NewReader(source, size)
 	if err != nil {
 		return nil, err
 	}
 	r.RegisterDecompressor(12, func(src io.Reader) io.ReadCloser { return io.NopCloser(bzip2.NewReader(src)) })
-	return &Reader{Reader: r, source: source, data: data}, nil
+	return &Reader{Reader: r, source: source, size: size}, nil
 }
 
 func decodeName(raw string, flags uint16) (string, error) {
@@ -70,10 +74,13 @@ func (r *Reader) OpenMember(f *zip.File) (io.ReadCloser, error) {
 	r.source.headerOffset = -1
 	dataOffset, err := f.DataOffset()
 	header := r.source.headerOffset
-	if err != nil || header < 0 || dataOffset > int64(len(r.data)) || dataOffset < header+30 {
+	if err != nil || header < 0 || dataOffset > r.size || dataOffset < header+30 {
 		return nil, zip.ErrFormat
 	}
-	b := r.data[header:dataOffset]
+	b := make([]byte, dataOffset-header)
+	if _, err := r.source.source.ReadAt(b, header); err != nil {
+		return nil, zip.ErrFormat
+	}
 	nameEnd := 30 + int(binary.LittleEndian.Uint16(b[26:28]))
 	if nameEnd > len(b) {
 		return nil, zip.ErrFormat

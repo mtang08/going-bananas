@@ -168,6 +168,11 @@ func ScanExport(archive []byte) (ExportScan, error) {
 	if err != nil {
 		return empty, errors.New("invalid_export_archive")
 	}
+	return scanExportReader(reader, digest(archive))
+}
+
+func scanExportReader(reader *zipinput.Reader, archiveHash string) (ExportScan, error) {
+	empty := ExportScan{}
 	member, scan, err := exportInventory(reader)
 	if err != nil {
 		return empty, err
@@ -181,7 +186,6 @@ func ScanExport(archive []byte) (ExportScan, error) {
 	if err != nil {
 		return empty, err
 	}
-	archiveHash := fmt.Sprintf("%x", sha256.Sum256(archive))
 	memberHash := fmt.Sprintf("%x", sha256.Sum256(scan.MemberBytes))
 	seen := map[string]bool{}
 	owners := map[string]bool{}

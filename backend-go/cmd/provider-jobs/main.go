@@ -52,7 +52,7 @@ func run() error {
 			return errors.New("invalid date")
 		}
 		var job providerjobs.Job
-		err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		err = pgx.BeginTxFunc(ctx, pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 			job, err = providerjobs.Enqueue(ctx, tx, *dataset, start, end)
 			return err
 		})

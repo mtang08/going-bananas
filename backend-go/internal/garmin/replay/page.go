@@ -16,6 +16,7 @@ import (
 )
 
 type Page struct {
+	importBatch                 uuid.UUID // provided by an archive import spanning multiple datasets
 	JobID                       uuid.UUID
 	Index                       int
 	Final                       bool
@@ -254,10 +255,13 @@ func applyRecords(ctx context.Context, tx pgx.Tx, page Page, p prepared, r *Resu
 	if page.SourceKind == "garmin_export" {
 		version = "garmin-export-v1"
 	}
-	batch := uuid.New()
-	_, err = tx.Exec(ctx, `INSERT INTO import_batches(id,source_kind,status,adapter_version,counters) VALUES($1,$2,'running',$3,'{}')`, batch, page.SourceKind, version)
-	if err != nil {
-		return err
+	batch := page.importBatch
+	if batch == uuid.Nil {
+		batch = uuid.New()
+		_, err = tx.Exec(ctx, `INSERT INTO import_batches(id,source_kind,status,adapter_version,counters) VALUES($1,$2,'running',$3,'{}')`, batch, page.SourceKind, version)
+		if err != nil {
+			return err
+		}
 	}
 	counts := Counts{}
 	for _, item := range p.inputs {
@@ -344,7 +348,9 @@ func applyRecords(ctx context.Context, tx pgx.Tx, page Page, p prepared, r *Resu
 	if summaryOnly {
 		batchCounts = counts.providerCounts()
 	}
-	_, err = tx.Exec(ctx, `UPDATE import_batches SET status='complete',finished_at=now(),counters=$2 WHERE id=$1`, batch, batchCounts)
+	if page.importBatch == uuid.Nil {
+		_, err = tx.Exec(ctx, `UPDATE import_batches SET status='complete',finished_at=now(),counters=$2 WHERE id=$1`, batch, batchCounts)
+	}
 	slices.Sort(r.AffectedDates)
 	r.AffectedDates = slices.Compact(r.AffectedDates)
 	r.Counts.Seen += counts.Seen

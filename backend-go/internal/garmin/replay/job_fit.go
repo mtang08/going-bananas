@@ -64,7 +64,7 @@ func runActivityFIT(ctx context.Context, pool *pgxpool.Pool, root string, source
 		}
 		f = decodeFile(raw, b)
 	}
-	return pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+	return pgx.BeginTxFunc(ctx, pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		q := db.New(tx)
 		if err := q.LockGlobalWriter(ctx); err != nil {
 			return err

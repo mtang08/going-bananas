@@ -126,7 +126,7 @@ func applyWindow(ctx context.Context, pool *pgxpool.Pool, delivery Delivery, hom
 		return Result{}, err
 	}
 	var result Result
-	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+	err = pgx.BeginTxFunc(ctx, pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		q := db.New(tx)
 		if err := q.LockGlobalWriter(ctx); err != nil {
 			return err
@@ -181,7 +181,9 @@ func applyWindow(ctx context.Context, pool *pgxpool.Pool, delivery Delivery, hom
 
 // RecordFailure records a fetch failure without reconciling a partial calendar.
 func RecordFailure(ctx context.Context, pool *pgxpool.Pool, started time.Time, code string) error {
-	_, err := pool.Exec(ctx, `INSERT INTO import_batches(id,source_kind,adapter_version,status,started_at,finished_at,counters,error_code)
+	return pgx.BeginTxFunc(ctx, pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO import_batches(id,source_kind,adapter_version,status,started_at,finished_at,counters,error_code)
 		VALUES(gen_random_uuid(),'google_calendar','gcal-v1','failed',$1,clock_timestamp(),'{}',$2)`, started, code)
-	return err
+		return err
+	})
 }

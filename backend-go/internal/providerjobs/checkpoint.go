@@ -14,7 +14,7 @@ import (
 func (r Runner) commitPage(ctx context.Context, conn *pgxpool.Conn, j *Job, page []garmin.Record, offset int, next time.Time) (PageResult, error) {
 	var result PageResult
 	var saved Job
-	err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+	err := pgx.BeginTxFunc(ctx, conn, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		q := db.New(tx)
 		if err := q.LockGlobalWriter(ctx); err != nil {
 			return err
@@ -72,7 +72,7 @@ func (r Runner) commitPage(ctx context.Context, conn *pgxpool.Conn, j *Job, page
 
 func (r Runner) finish(ctx context.Context, conn *pgxpool.Conn, j *Job, failure string) (string, error) {
 	var status string
-	err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+	err := pgx.BeginTxFunc(ctx, conn, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		q := db.New(tx)
 		if err := q.LockGlobalWriter(ctx); err != nil {
 			return err

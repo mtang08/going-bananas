@@ -319,7 +319,8 @@ def failure_coverage(go, remote, enqueue, task, argv):
 def scenario(binary, py, go):
     remote = Remote()
     with endpoint(remote) as url:
-        env = dict(go, GARMIN_PERSONAL_API_BASE_URL=url, GORACE="atexit_sleep_ms=0")
+        env = dict(go, GARMIN_PERSONAL_API_BASE_URL=url, GORACE="atexit_sleep_ms=0",
+                   PGOPTIONS=go["PGOPTIONS"] + " -cdefault_transaction_read_only=on")
 
         def task(*args):
             return json.loads(

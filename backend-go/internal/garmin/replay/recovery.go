@@ -43,29 +43,46 @@ func recoveryDay(v any) (time.Time, bool) {
 }
 
 func recoveryJobPage(ctx context.Context, tx pgx.Tx, root, dataset string, records []garmin.Record, at time.Time) (JobPage, error) {
+	batch := uuid.New()
+	if _, err := tx.Exec(ctx, `INSERT INTO import_batches(id,source_kind,status,adapter_version,counters) VALUES($1,'garmin_api','running','garmin-personal-v1','{}')`, batch); err != nil {
+		return JobPage{}, err
+	}
+	rows := make([]ActivityRecord, len(records))
+	for i, row := range records {
+		rows[i].Record = row
+	}
+	result, err := importRecoveryRows(ctx, tx, root, dataset, rows, at, batch, "garmin_api", "garmin-personal-v1")
+	if err != nil {
+		return JobPage{}, err
+	}
+	if result.Counters["changed"] > 0 {
+		if _, err = db.New(tx).BumpDataRevision(ctx); err != nil {
+			return JobPage{}, err
+		}
+	}
+	_, err = tx.Exec(ctx, `UPDATE import_batches SET status='complete',finished_at=$2,counters=$3 WHERE id=$1`, batch, at, result.Counters)
+	return result, err
+}
+
+func importRecoveryRows(ctx context.Context, tx pgx.Tx, root, dataset string, rows []ActivityRecord, at time.Time, batch uuid.UUID, kind, version string) (JobPage, error) {
 	def, ok := recoveryMetrics[dataset]
 	if !ok {
 		return JobPage{}, errors.New("unsupported_dataset")
 	}
 	owner := ""
-	for _, r := range records {
-		id, known := recoveryOwner(r)
-		if !known {
-			continue
+	for _, row := range rows {
+		if id, known := recoveryOwner(row.Record); known {
+			if owner != "" && owner != id {
+				return JobPage{}, errors.New("mixed_source_account")
+			}
+			owner = id
 		}
-		if owner != "" && id != owner {
-			return JobPage{}, errors.New("mixed_source_account")
-		}
-		owner = id
-	}
-	batch := uuid.New()
-	if _, err := tx.Exec(ctx, `INSERT INTO import_batches(id,source_kind,status,adapter_version,counters) VALUES($1,'garmin_api','running','garmin-personal-v1','{}')`, batch); err != nil {
-		return JobPage{}, err
 	}
 	counts := Counts{}
 	result := JobPage{}
 	account := uuid.Nil
-	for _, r := range records {
+	for _, row := range rows {
+		r := row.Record
 		counts.Seen++
 		day, validDay := recoveryDay(r["calendarDate"])
 		if validDay {
@@ -82,7 +99,11 @@ func recoveryJobPage(ctx context.Context, tx pgx.Tx, root, dataset string, recor
 				continue
 			}
 		}
-		raw, err := canonicaljson.Coaching(map[string]any(r))
+		original := row.Original
+		if original == nil {
+			original = r
+		}
+		raw, err := canonicaljson.Coaching(original)
 		if err != nil {
 			counts.Rejected++
 			continue
@@ -104,14 +125,18 @@ func recoveryJobPage(ctx context.Context, tx pgx.Tx, root, dataset string, recor
 		d := day.Format(time.DateOnly)
 		identity := dataset + ":" + d + ":" + def.statistic
 		fields := map[string]any{"metric": dataset, "source_date": d, "value": value, "unit": def.unit, "statistic": def.statistic, "source_field": def.field}
+		if row.Metadata != nil {
+			fields["export_provenance"] = row.Metadata
+			fields["source_field"] = row.Metadata["source_field"]
+		}
 		var reject *string
 		if _, known := recoveryOwner(r); !known {
 			code := "missing_recovery_owner"
 			reject = &code
 		}
 		tag, err := tx.Exec(ctx, `INSERT INTO source_records(id,source_account_id,import_batch_id,raw_object_id,source_identity,payload_hash,fetched_at,parser_version,source_kind,fields,rejected_reason)
-			VALUES(gen_random_uuid(),$1,$2,$3,$4,$5,$6,'garmin-personal-v1','garmin_api',$7,$8)
-			ON CONFLICT(source_account_id,source_identity,payload_hash) DO NOTHING`, account, batch, rawID, identity, obj.Hash, at, fields, reject)
+			VALUES(gen_random_uuid(),$1,$2,$3,$4,$5,$6,$9,$10,$7,$8)
+			ON CONFLICT(source_account_id,source_identity,payload_hash) DO NOTHING`, account, batch, rawID, identity, obj.Hash, at, fields, reject, version, kind)
 		if err != nil {
 			return JobPage{}, err
 		}
@@ -134,14 +159,8 @@ func recoveryJobPage(ctx context.Context, tx pgx.Tx, root, dataset string, recor
 			result.AffectedDates = append(result.AffectedDates, d)
 		}
 	}
-	if counts.Changed > 0 {
-		if _, err := db.New(tx).BumpDataRevision(ctx); err != nil {
-			return JobPage{}, err
-		}
-	}
 	slices.Sort(result.AffectedDates)
 	result.AffectedDates = slices.Compact(result.AffectedDates)
 	result.Counters = counts.providerCounts()
-	_, err := tx.Exec(ctx, `UPDATE import_batches SET status='complete',finished_at=$2,counters=$3 WHERE id=$1`, batch, at, result.Counters)
-	return result, err
+	return result, nil
 }

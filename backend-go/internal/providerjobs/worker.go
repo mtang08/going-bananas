@@ -14,7 +14,7 @@ func (r Runner) Work(ctx context.Context) error {
 	catchup := true
 	for ctx.Err() == nil {
 		if catchup {
-			if err := pgx.BeginFunc(ctx, r.Pool, func(tx pgx.Tx) error {
+			if err := pgx.BeginTxFunc(ctx, r.Pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 				name, err := db.New(tx).CalendarTimezone(ctx)
 				if err != nil {
 					return err
