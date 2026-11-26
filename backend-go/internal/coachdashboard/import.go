@@ -22,7 +22,7 @@ func (s *Store) ImportPythonFiles(ctx context.Context, privateDir string) error 
 	if !filepath.IsLocal(s.mode) || filepath.Base(s.mode) != s.mode || s.mode == "." {
 		return errors.New("invalid dashboard mode")
 	}
-	root, err := os.OpenRoot(filepath.Join(privateDir, "coach-chat", s.mode))
+	root, err := pythonModeDir(privateDir, s.mode)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
@@ -54,6 +54,47 @@ func (s *Store) ImportPythonFiles(ctx context.Context, privateDir string) error 
 		_, err := tx.Exec(ctx, "INSERT INTO coach_chat_file_imports(mode) VALUES ($1)", s.mode)
 		return err
 	})
+}
+
+// Pin each directory before descending so a link or concurrent replacement
+// cannot redirect one mode to another mode's files.
+func pythonModeDir(privateDir, mode string) (*os.Root, error) {
+	info, err := os.Lstat(privateDir)
+	if err != nil {
+		return nil, err
+	}
+	root, err := os.OpenRoot(privateDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, part := range []string{"coach-chat", mode} {
+		got, err := root.Stat(".")
+		if err != nil || !info.IsDir() || !os.SameFile(info, got) {
+			_ = root.Close()
+			return nil, errors.New("invalid private dashboard directory")
+		}
+		info, err = root.Lstat(part)
+		if err != nil {
+			_ = root.Close()
+			return nil, err
+		}
+		if !info.IsDir() {
+			_ = root.Close()
+			return nil, errors.New("invalid dashboard file directory")
+		}
+		child, err := root.OpenRoot(part)
+		_ = root.Close()
+		if err != nil {
+			return nil, err
+		}
+		root = child
+	}
+	got, err := root.Stat(".")
+	if err != nil || !os.SameFile(info, got) {
+		_ = root.Close()
+		return nil, errors.New("dashboard directory changed during import")
+	}
+	return root, nil
 }
 
 func (s *Store) importLocked(ctx context.Context, tx pgx.Tx, root *os.Root) error {

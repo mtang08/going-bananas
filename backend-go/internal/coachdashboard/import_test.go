@@ -62,3 +62,13 @@ func TestPythonFileCutoverPostgres(t *testing.T) {
 		t.Fatalf("imported archive count %d", count)
 	}
 }
+
+func TestImportRejectsRedirectedMode(t *testing.T) {
+	private := t.TempDir()
+	root := filepath.Join(private, "coach-chat")
+	requireOK(t, os.MkdirAll(filepath.Join(root, "other"), 0700))
+	requireOK(t, os.Symlink("other", filepath.Join(root, "test")))
+	if _, err := pythonModeDir(private, "test"); err == nil {
+		t.Fatal("followed redirected mode")
+	}
+}
