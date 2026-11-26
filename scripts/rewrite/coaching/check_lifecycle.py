@@ -483,6 +483,53 @@ def main():
                 assert (
                     refdb.execute(query).fetchall() == godb.execute(query).fetchall()
                 ), query
+        from datetime import datetime, UTC
+
+        live_doc = document(go, at=datetime.now(UTC).isoformat())
+        live_doc["base_calendar_version"] = 2
+        live_doc["base_block_version_id"] = str(
+            godb.execute(
+                "SELECT id FROM block_versions ORDER BY version DESC LIMIT 1"
+            ).fetchone()[0]
+        )
+        draft_file = Path(scratch) / "skill-draft.json"
+        draft_file.write_text(json.dumps(live_doc))
+        helper = [
+            sys.executable,
+            ROOT / ".codex/skills/going-bananas-coach/scripts/coach_app.py",
+            "--repo",
+            ROOT,
+            "--mode",
+            "test",
+        ]
+        skill_env = {**go, "UV_PROJECT_ENVIRONMENT": sys.prefix}
+        published = execute([*helper, "submit", "--file", draft_file], skill_env)
+        assert published["status"] == "pending" and published["revision"] == 1, (
+            published
+        )
+        live_doc["headline"] = "Synthetic skill revision"
+        draft_file.write_text(json.dumps(live_doc))
+        revised = execute(
+            [
+                *helper,
+                "revise",
+                published["proposal_id"],
+                "--expected-revision",
+                "1",
+                "--reason",
+                "Synthetic request",
+                "--file",
+                draft_file,
+            ],
+            skill_env,
+        )
+        assert (
+            revised["proposal_id"] == published["proposal_id"]
+            and revised["revision"] == 2
+        ), revised
+        assert godb.execute(
+            "SELECT calendar_head_version FROM app_state"
+        ).fetchone() == (2,)
         views = Path(scratch) / "http-views.json"
         with views.open("w") as f:
             subprocess.run(
