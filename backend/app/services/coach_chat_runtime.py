@@ -16,6 +16,7 @@ from app.services.coach_chat_runtime_protocol import AppServer, CoachRuntimeErro
 MODEL = "gpt-6-astra"
 EFFORT = "medium"
 PERMISSIONS = "going_bananas_coach"
+TOOL_NAMESPACE = "going_bananas"
 LAUNCH_FLAGS = (
     "--listen",
     "stdio://",
@@ -40,6 +41,16 @@ LAUNCH_FLAGS = (
     'web_search="disabled"',
     "-c",
     "mcp_servers={}",
+    # Astra uses Code Mode by default. Expose only the coaching namespace as
+    # direct functions and remove the built-in namespace from nested calls.
+    "-c",
+    f'features.code_mode.direct_only_tool_namespaces=["{TOOL_NAMESPACE}"]',
+    "-c",
+    'features.code_mode.excluded_tool_namespaces=["functions"]',
+    "-c",
+    "features.multi_agent_v2={enabled=false,disable_native_tools=true}",
+    "-c",
+    "tools.experimental_request_user_input.enabled=false",
     "-c",
     "project_doc_max_bytes=0",
     "-c",
@@ -63,7 +74,13 @@ LAUNCH_FLAGS = (
     "--disable",
     "multi_agent",
     "--disable",
-    "multi_agent_v2",
+    "view_image",
+    "--disable",
+    "sleep_tool",
+    "--disable",
+    "goals",
+    "--disable",
+    "tool_suggest",
     "--enable",
     "skip_host_skill_discovery",
 )
@@ -218,7 +235,14 @@ class CoachChatRuntime:
                     "allowProviderModelFallback": False,
                     "environments": [],
                     "ephemeral": False,
-                    "dynamicTools": [{"type": "function", **tool} for tool in tool_definitions],
+                    "dynamicTools": [
+                        {
+                            "type": "namespace",
+                            "name": TOOL_NAMESPACE,
+                            "description": "Read filtered Going Bananas training evidence and save pending proposals.",
+                            "tools": [{"type": "function", **tool} for tool in tool_definitions],
+                        }
+                    ],
                 },
             )
         else:
@@ -370,7 +394,12 @@ async def _tool_reply(
     server: AppServer, request_id: int | str, data: JsonObject, tools: set[str], call_tool: ToolHandler
 ) -> None:
     name, arguments = data.get("tool"), data.get("arguments")
-    if isinstance(name, str) and name in tools and data.get("namespace") is None and isinstance(arguments, dict):
+    if (
+        isinstance(name, str)
+        and name in tools
+        and data.get("namespace") == TOOL_NAMESPACE
+        and isinstance(arguments, dict)
+    ):
         await server.respond_tool(request_id, await call_tool(name, arguments), success=True)
     else:
         await server.respond_tool(request_id, {"error": "This coaching tool is unavailable."}, success=False)

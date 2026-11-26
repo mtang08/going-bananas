@@ -68,7 +68,7 @@ for line in sys.stdin:
         event('item/commandExecution/requestApproval', identity, 'approval')
         if scenario == 'cancel':
             continue
-        arguments = {**identity, 'tool': 'active_proposal', 'arguments': {}, 'namespace': None}
+        arguments = {**identity, 'tool': 'active_proposal', 'arguments': {}, 'namespace': 'going_bananas'}
         event('item/tool/call', arguments, tool_recipient)
         continue
     elif request_id == tool_recipient and 'result' in message:
@@ -161,7 +161,9 @@ def test_replies_stream_and_reopen_durable_thread(coach: runtime.CoachChatRuntim
     asyncio.run(exercise())
     calls = records(coach)
     start = next(call["params"] for call in calls if call.get("method") == "thread/start")
-    assert start["dynamicTools"][0]["type"] == "function"
+    namespace = start["dynamicTools"][0]
+    assert namespace["name"] == "going_bananas"
+    assert namespace["tools"][0]["type"] == "function"
     assert start["developerInstructions"] == "Trusted coaching instructions"
     assert start["environments"] == start["runtimeWorkspaceRoots"] == []
     turn = next(call["params"] for call in calls if call.get("method") == "turn/start")
