@@ -12,12 +12,18 @@ import (
 )
 
 const bumpDataRevision = `-- name: BumpDataRevision :one
-UPDATE app_state
-SET data_revision = data_revision + 1
-WHERE id = 1
-RETURNING data_revision
+WITH bumped AS (
+    UPDATE app_state SET data_revision = data_revision + 1
+    WHERE id = 1 AND current_setting('going_bananas.revision_bumped', true) IS DISTINCT FROM '1'
+    RETURNING data_revision
+)
+SELECT data_revision FROM bumped WHERE set_config('going_bananas.revision_bumped', '1', true) = '1'
+UNION ALL
+SELECT data_revision FROM app_state WHERE id = 1 AND NOT EXISTS (SELECT 1 FROM bumped)
 `
 
+// A transaction-local setting follows PostgreSQL savepoints and resets on commit
+// or rollback. Calendar writes and their derived assessments share one revision.
 func (q *Queries) BumpDataRevision(ctx context.Context) (int32, error) {
 	row := q.db.QueryRow(ctx, bumpDataRevision)
 	var data_revision int32

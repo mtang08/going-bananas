@@ -16,7 +16,7 @@ import (
 const metricID = "planned_actual_session"
 const methodVersion = "v2"
 
-var config = object{"ratio_met": 0.9, "ratio_partial": 0.5, "exceeded": 1.15, "step_met": 1, "target_met": 0.75, "target_partial": 0.4,
+var Config = object{"ratio_met": 0.9, "ratio_partial": 0.5, "exceeded": 1.15, "step_met": 1, "target_met": 0.75, "target_partial": 0.4,
 	"continuous_run_rule": "whole_activity_dose.v1", "partial_rule": "any_not_met.v1", "moved_rule": "assessed.v1",
 	"precedence": []string{"skipped", "moved", "extra", "partial", "modified", "as_planned", "unknown"}}
 
@@ -268,13 +268,13 @@ func refresh(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time, bump 
 		return Result{}, err
 	}
 	s.refs["input_hash"] = h
-	cfg, err := metrics.Digest(config)
+	cfg, err := metrics.Digest(Config)
 	if err != nil {
 		return Result{}, err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO metric_configs(id,metric_id,method_version,config,config_hash)
 		VALUES(gen_random_uuid(),$1,$2,$3,$4) ON CONFLICT(metric_id,method_version,config_hash) DO NOTHING`,
-		metricID, methodVersion, config, cfg); err != nil {
+		metricID, methodVersion, Config, cfg); err != nil {
 		return Result{}, err
 	}
 	dep, err := metrics.Digest(object{"source_refs": s.refs, "config_hash": cfg, "anchor_set_hash": nil, "timezone": s.zone, "calculator_dependency_hash": ""})
