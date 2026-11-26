@@ -14,13 +14,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
 )
 
 func run(ctx context.Context, args []string, w io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: coaching load|discard|submit|revise [-id UUID] [-revision N]")
+		return errors.New("usage: coaching prepare|snapshot|load|discard|submit|revise [-id UUID] [-revision N]")
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	idArg := flags.String("id", "", "saved proposal ID")
@@ -83,6 +84,23 @@ func run(ctx context.Context, args []string, w io.Writer) error {
 			return errors.New("invalid revision request")
 		}
 		result, err = s.Revise(ctx, id, req, now, validate)
+	case "prepare":
+		var req drafts.DecisionRequest
+		dec := json.NewDecoder(os.Stdin)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
+			return err
+		}
+		err = pgx.BeginTxFunc(ctx, pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+			if err := drafts.LockPlanning(ctx, tx); err != nil {
+				return err
+			}
+			prepared, err := drafts.PrepareDecision(ctx, tx, id, req, now, filepath.Join(absolute, "running_coach_kb"))
+			result = prepared
+			return err
+		})
+	case "snapshot":
+		result, err = s.ReadSnapshot(ctx, id, now, filepath.Join(absolute, "running_coach_kb"))
 	case "load":
 		result, err = s.Load(ctx, id)
 	case "discard":

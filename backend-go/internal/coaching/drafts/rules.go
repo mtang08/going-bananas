@@ -245,6 +245,10 @@ func ValidateRules(raw, payload json.RawMessage, ctx RuleContext, idx coaching.K
 		return nil, err
 	}
 	d.Changes = authored.Changes
+	return runRules(d, raw, ctx, idx, true)
+}
+
+func runRules(d ruleDocument, raw json.RawMessage, ctx RuleContext, idx coaching.KnowledgeIndex, full bool) ([]Issue, error) {
 	state, err := resulting(d, ctx)
 	if err != nil {
 		return nil, err
@@ -276,6 +280,9 @@ func ValidateRules(raw, payload json.RawMessage, ctx RuleContext, idx coaching.K
 		return nil, err
 	}
 	issues = append(issues, a...)
+	if !full {
+		return issues, nil
+	}
 	for _, rule := range []func(ruleDocument, RuleContext) []Issue{exceptionRules, eventRules, benchmarkRules, targetRules, resolutionRules} {
 		issues = append(issues, rule(d, ctx)...)
 	}
