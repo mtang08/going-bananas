@@ -126,3 +126,9 @@ The manifest has the following form. An empty terminal page completes a window, 
 ```json
 {"now":"2026-11-22T15:00:00Z","pages":[{"items":[],"nextPageToken":"p2"},{"page_token":"p2","items":[]}]}
 ```
+
+### Travel HTTP integration
+
+Mount `travelhttp.Handler{Pool: pool, Mode: mode, PrivateDir: dir, Provider: provider}.Register(mux)` on the central mux behind the application's host, origin and write guards. It serves the three Google Calendar reads/writes under `/api/v1/google-calendar`, the event-category patch, and trip list/create/patch under `/api/v1/trips`. Set the request ID response header before dispatch. Each response carries the revision observed with its data.
+
+The injected provider supplies connection status and complete primary-calendar pages. Sync shares the Python fetch lock, releases database connections during the fetch, and uses the captured window for reconciliation. Its public route requires real mode. The differential test uses loopback fixtures in isolated test schemas, including for the real-mode route contract. Run `python3 scripts/test-db.py travel-http` to compare all seven routes. [Handlers](../backend-go/internal/travelhttp/handler.go) · [HTTP comparison](../scripts/rewrite/check_travel_http.py)
