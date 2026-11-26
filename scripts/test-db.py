@@ -139,6 +139,7 @@ def main():
         'strong': 'check_strong_import.py',
         'gcal': 'check_gcal_replay.py',
         'travel-http': 'check_travel_http.py',
+        'provider-jobs': 'check_provider_jobs.py',
         'calendar': 'check_self_reports.py',
     }
     actions = ['start', 'stop', 'test', 'test-external', *checks, *(name + '-external' for name in checks)]

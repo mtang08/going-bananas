@@ -132,3 +132,15 @@ The manifest has the following form. An empty terminal page completes a window, 
 Mount `travelhttp.Handler{Pool: pool, Mode: mode, PrivateDir: dir, Provider: provider}.Register(mux)` on the central mux behind the application's host, origin and write guards. It serves the three Google Calendar reads/writes under `/api/v1/google-calendar`, the event-category patch, and trip list/create/patch under `/api/v1/trips`. Set the request ID response header before dispatch. Each response carries the revision observed with its data.
 
 The injected provider supplies connection status and complete primary-calendar pages. Sync shares the Python fetch lock, releases database connections during the fetch, and uses the captured window for reconciliation. Its public route requires real mode. The differential test uses loopback fixtures in isolated test schemas, including for the real-mode route contract. Run `python3 scripts/test-db.py travel-http` to compare all seven routes. [Handlers](../backend-go/internal/travelhttp/handler.go) · [HTTP comparison](../scripts/rewrite/check_travel_http.py)
+
+## Native Garmin sync jobs
+
+`providerjobs.Runner.RunOne(ctx)` claims one due job under the same PostgreSQL session lock as Python. `Work(ctx)` also enqueues catch-up windows in the athlete's timezone, drains the queue and polls until cancellation. The runner fetches activity pages and bounded sleep, HRV and resting-heart-rate windows outside the writer transaction. It commits source records, winning observations, pending treadmill reviews, counters and page progress together. A short retry waits locally. A longer Retry-After persists a due time and releases the worker. Coverage records distinguish completed enumeration, rejected records and failures. [Queue and runner](../backend-go/internal/providerjobs) · [Source importer](../backend-go/internal/garmin/replay/job.go)
+
+For the synthetic worker, build `backend-go/cmd/provider-jobs`. It supports `-dataset activities -start YYYY-MM-DD -end YYYY-MM-DD enqueue`, `run` for one claim and `worker` for catch-up and polling. The command requires a local `garmin_test` connection, a test private directory and a loopback fixture at `GARMIN_PERSONAL_API_BASE_URL`. The integrated scenario provisions these inputs, compares persisted state against the Python worker, interrupts an activity page and restarts in a fresh process.
+
+```sh
+python3 scripts/test-db.py provider-jobs
+```
+
+For worker cutover, supply core's transaction-bound metric and matching refresh functions to `Runner.RefreshPage` and `Runner.RefreshCoverage`. A page callback receives the changed dates and activity IDs. A coverage callback receives the inserted interval ID and status. Downloaded FITs use separate best-effort transactions after eligible activity pages commit. Pass a FIT refresh function to `replay.RunFIT` to refresh the activity ID and local date inside its write transaction. Production scheduling and cutover stay with core. [Synthetic CLI](../backend-go/cmd/provider-jobs/main.go) · [Database and retry comparison](../scripts/rewrite/check_provider_jobs.py)
