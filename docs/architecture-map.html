@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>How Going Bananas works · Architecture guide</title>
+  <style>
+    :root {
+      --ink: #182e2a;
+      --muted: #465b55;
+      --paper: #f7f7f0;
+      --white: #fffefa;
+      --line: #c7d1c5;
+      --green: #245e43;
+      --mint: #e3efdf;
+      --yellow: #f6db6a;
+      --cream: #fcf2c1;
+      --blue: #305c72;
+      --ice: #e5eef1;
+      --topbar: 58px;
+      --sans: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+      --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-padding-top: calc(var(--topbar) + 16px); }
+    body { margin: 0; color: var(--ink); background: var(--paper); font: 16px/1.55 var(--sans); }
+    h1, h2, h3, p, ol, figure { margin: 0; }
+    a { color: var(--green); text-underline-offset: .22em; }
+    a:focus-visible { outline: 3px solid #225a86; outline-offset: 4px; border-radius: 2px; }
+    .wrap { width: min(1180px, calc(100% - 72px)); margin: 0 auto; }
+    .skip { position: absolute; left: 12px; top: -100px; z-index: 5; padding: 8px 16px; background: white; }
+    .skip:focus { top: 8px; }
+    header { position: sticky; top: 0; background: var(--ink); color: white; z-index: 3; }
+    .bar { display: flex; align-items: center; justify-content: space-between; min-height: var(--topbar); gap: 20px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; letter-spacing: -.035em; color: white; text-decoration: none; }
+    .brand svg { width: 29px; height: 29px; color: var(--yellow); }
+    nav { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; }
+    nav a { color: #ecf2e7; padding: 7px 3px; font-size: 14px; text-decoration: none; font-weight: 600; }
+    nav a:hover, nav a:focus-visible { color: #ffe383; text-decoration: underline; }
+    header a:focus-visible { outline-color: var(--yellow); }
+    main { padding-bottom: 32px; }
+    .intro { padding: 44px 0 28px; }
+    .kicker, .lane-name, .small-label { font: 700 11px/1.4 var(--mono); letter-spacing: .09em; text-transform: uppercase; }
+    .kicker { color: var(--green); display: flex; gap: 10px; align-items: center; }
+    .kicker::before { content: ""; width: 27px; height: 3px; background: var(--green); }
+    h1 { margin-top: 11px; font-size: clamp(38px, 5.7vw, 72px); letter-spacing: -.065em; line-height: 1.04; font-weight: 720; }
+    .intro > p:last-child { margin-top: 15px; max-width: 73ch; font-size: clamp(17px, 1.48vw, 21px); color: var(--muted); }
+    h2 { font-size: clamp(27px, 3.1vw, 42px); line-height: 1.15; letter-spacing: -.045em; font-weight: 700; }
+    h3 { font-size: 19px; letter-spacing: -.025em; line-height: 1.25; }
+    .diagram { border: 1px solid #b4c5b8; border-radius: 15px; background: var(--white); overflow: hidden; }
+    .system-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 16px 22px; border-bottom: 1px solid var(--line); }
+    .system-heading h2 { font-size: 22px; }
+    .legend { display: flex; align-items: center; gap: 7px 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 12px; height: 12px; border: 1px solid; border-radius: 3px; }
+    .source-color { background: var(--ice); border-color: #7f9eab; }
+    .system-color { background: var(--mint); border-color: #84a88b; }
+    .decision-color { background: var(--cream); border-color: #b6933f; }
+    .map-body { background-color: #f5f7ef; background-image: radial-gradient(#d1dace .9px, transparent .9px); background-size: 12px 12px; }
+    .system-svg { display: block; width: 100%; height: auto; }
+    .system-svg text { font-family: var(--sans); fill: var(--ink); }
+    .system-svg .t { font-size: 18px; font-weight: 700; letter-spacing: -.45px; }
+    .system-svg .d { font-size: 14px; fill: var(--muted); }
+    .system-svg .micro { font: 700 11px var(--mono); fill: var(--green); letter-spacing: 1px; }
+    .system-svg .edge-text { font: 600 12px var(--sans); fill: var(--green); text-anchor: middle; }
+    .system-svg .edge { fill: none; stroke: #42644f; stroke-width: 1.8; marker-end: url(#tip); }
+    .system-svg .two { marker-start: url(#tip); }
+    .system-svg .source { fill: var(--ice); stroke: #839faa; }
+    .system-svg .local { fill: var(--mint); stroke: #7f9d82; }
+    .system-svg .human { fill: var(--cream); stroke: #ac8e3a; }
+    .system-svg .store { fill: #fffefa; stroke: #8ea495; }
+    .system-svg .rule { stroke: #b9c8b8; }
+    .mobile-map { display: none; }
+    figcaption { padding: 12px 21px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+    .section { padding: 42px 0 0; }
+    .section > p { max-width: 78ch; margin: 8px 0 17px; color: var(--muted); }
+    .flow { padding: 22px; }
+    .row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(44px, .21fr) minmax(0, 1fr) minmax(44px, .21fr) minmax(0, 1fr); align-items: stretch; }
+    .node { position: relative; padding: 17px 18px; border: 1px solid; border-radius: 10px; }
+    .node.source-color { border-color: #8da7b0; }
+    .node.system-color { border-color: #8eaf93; }
+    .node.decision-color { border-color: #b99c4a; }
+    .node p { margin-top: 6px; font-size: 14px; line-height: 1.5; }
+    .node .lane-name { display: block; margin-bottom: 7px; color: var(--muted); }
+    .edge-h { display: grid; place-items: center; color: var(--green); }
+    .edge-h::before { content: ""; width: calc(100% - 10px); height: 12px; background: currentColor; clip-path: polygon(0 43%, 78% 43%, 78% 0, 100% 50%, 78% 100%, 78% 57%, 0 57%); }
+    .scoped { border-top: 1px dashed #aab9aa; margin-top: 17px; padding-top: 13px; font-size: 14px; color: var(--muted); }
+    .scoped strong, figcaption strong { color: var(--ink); }
+    .branch { margin-top: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+    .fork, .route { position: relative; }
+    .fork { grid-column: 1/-1; height: 30px; }
+    .fork::before { content: ""; position: absolute; top: 0; bottom: 50%; left: 50%; border-left: 2px solid #667d68; }
+    .fork::after { content: ""; position: absolute; top: 50%; bottom: 0; left: calc(25% - 7px); right: calc(25% - 7px); border: solid #667d68; border-width: 2px 2px 0; border-radius: 4px 4px 0 0; }
+    .route { border: 1px solid var(--line); background: #f8f9f4; padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .route strong { display: block; font-size: 15px; }
+    .decision-link { position: relative; height: 22px; margin: 0 0 -22px; }
+    .decision-link::before { content: ""; position: absolute; top: 0; right: 14.7%; left: 50%; height: 10px; border: solid #667d68; border-width: 0 2px 2px 0; border-radius: 0 0 4px; }
+    .decision-link::after { content: ""; position: absolute; left: 50%; top: 10px; bottom: 0; border-left: 2px solid #667d68; }
+    .review { background: #f2f5eb; padding: 18px 22px 20px; border-top: 1px solid var(--line); }
+    .review .branch { grid-template-columns: 1fr 1fr 1fr; gap: 0 18px; }
+    .review .fork::after { left: calc(16.666% - 6px); right: calc(16.666% - 6px); }
+    .review .fork i { position: absolute; top: 50%; bottom: 0; left: 50%; border-left: 2px solid #667d68; }
+    .gate { width: fit-content; margin: 0 auto; padding: 9px 20px; border: 1px solid #ad8b30; border-radius: 8px; background: var(--yellow); text-align: center; font-weight: 750; }
+    .route.applied { background: var(--mint); border-color: #8eaf93; }
+    .follow { border-top: 1px solid var(--line); padding: 12px 21px; color: var(--ink); background: #f9f9f3; font-size: 14px; }
+    .follow strong { color: var(--green); }
+    .inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 15px; }
+    .input-line { font-size: 14px; color: var(--muted); border-left: 3px solid #879fa9; padding: 3px 13px; }
+    .input-line strong { display: block; color: var(--ink); }
+    .phone-track { display: grid; grid-template-columns: 1fr minmax(44px, .21fr) 1fr minmax(44px, .21fr) 1fr; align-items: stretch; }
+    .return { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; color: var(--green); font-size: 14px; font-weight: 650; }
+    .return::before { content: "←"; font: 700 22px var(--mono); }
+    .sources { margin: 36px 0 0; border-top: 1px solid var(--line); padding-top: 18px; }
+    .sources h2 { font-size: 20px; }
+    .links { display: flex; gap: 8px 24px; flex-wrap: wrap; padding-top: 8px; font-size: 14px; }
+    @media (max-width: 900px) {
+      .wrap { width: calc(100% - 36px); }
+      .system-svg { display: none; }
+      .mobile-map { display: block; padding: 18px; }
+      .inlets { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0,1fr)); }
+      .m-inlet { padding: 12px; border-radius: 8px; border: 1px solid #a4b5aa; background: var(--white); font-size: 14px; }
+      .m-inlet strong { display: block; }
+      .m-inlet .lane-name { display: block; color: var(--green); margin-bottom: 4px; }
+      .m-connector { text-align: center; color: var(--green); font-weight: 700; font-size: 19px; }
+      .m-local { background: var(--mint); border: 1px solid #86a68c; border-radius: 8px; padding: 12px 15px; }
+      .m-local p { margin-top: 4px; font-size: 14px; }
+    }
+    @media (max-width: 670px) {
+      :root { --topbar: 89px; }
+      .wrap { width: calc(100% - 28px); }
+      .bar { align-items: flex-start; flex-direction: column; justify-content: center; gap: 1px; padding: 6px 0; }
+      nav { gap: 0 14px; }
+      nav a { padding: 4px 0; font-size: 13px; }
+      .intro { padding: 29px 0 20px; }
+      .system-heading { padding: 15px; gap: 8px; }
+      .legend { gap: 4px 10px; }
+      .inlets, .row, .phone-track, .inputs { grid-template-columns: 1fr; }
+      .mobile-map, .flow, .review { padding: 15px; }
+      .node { padding: 13px 15px; }
+      .edge-h { height: 24px; }
+      .edge-h::before { width: 17px; height: 10px; transform: rotate(90deg); }
+      .section { padding-top: 31px; }
+      .branch, .review .branch { display: block; padding-left: 12px; border-left: 2px solid #6e866e; margin: 10px 0 0 7px; }
+      .fork { display: none; }
+      .route + .route { margin-top: 7px; }
+      .route::before { content: ""; position: absolute; left: -14px; top: 18px; width: 13px; border-top: 2px solid #6e866e; }
+      .gate { width: 100%; text-align: left; padding: 9px 13px; }
+      .decision-link { height: 15px; margin-bottom: -15px; }
+      .decision-link::before { display: none; }
+      .decision-link::after { top: 0; }
+      .return { justify-content: flex-start; }
+      .return::before { content: "↑"; }
+      figcaption, .follow { padding: 11px 15px; }
+      .sources { margin-top: 26px; }
+    }
+    @media print {
+      @page { margin: 13mm; }
+      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      body { background: white; font-size: 11pt; }
+      header, .skip { display: none; }
+      .wrap { width: 100%; }
+      .intro { padding: 0 0 14px; }
+      h1 { font-size: 30pt; }
+      .section { padding-top: 0; break-before: page; }
+      h2 { font-size: 19pt; }
+      figure, .inputs, .sources { break-inside: avoid; }
+      h2, .section > p { break-after: avoid; }
+      .system-svg { display: block; }
+      .mobile-map { display: none; }
+    }
+  </style>
+</head>
+<body>
+<a href="#system" class="skip">Skip to system map</a>
+<header>
+  <div class="wrap bar">
+    <a class="brand" href="#system">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M4 16c6 4 15 4 22-8l2 1c-2 10-9 17-17 15-4-1-6-4-7-8Z" fill="currentColor"/><path d="m25 9 1-4 3 1-1 4" stroke="currentColor" stroke-width="2"/><path d="M9 19c5 3 11 0 15-5" stroke="#3a533e" stroke-width="1.4" stroke-linecap="round"/></svg>
+      Going Bananas
+    </a>
+    <nav aria-label="Diagram sections">
+      <a href="#system">System map</a><a href="#training">Training</a><a href="#coaching">Coaching</a><a href="#iphone">iPhone</a>
+    </nav>
+  </div>
+</header>
+<main class="wrap">
+  <section id="system" aria-labelledby="title">
+    <div class="intro">
+      <p class="kicker">Architecture guide</p>
+      <h1 id="title">How Going Bananas works</h1>
+      <p>Your Mac keeps the training record and the accepted calendar. You record what happened during the week, discuss the evidence with the coach in Codex, and decide which proposed changes to apply.</p>
+    </div>
+    <figure class="diagram" aria-labelledby="map-title">
+      <div class="system-heading">
+        <h2 id="map-title">The system at a glance</h2>
+        <div class="legend"><span><i class="swatch source-color"></i>Outside input</span><span><i class="swatch system-color"></i>Local software</span><span><i class="swatch decision-color"></i>Athlete action</span></div>
+      </div>
+      <div class="map-body">
+        <svg class="system-svg" viewBox="0 0 1100 350" role="img" aria-labelledby="svg-title svg-desc">
+          <title id="svg-title">Three routes into the local training app</title>
+          <desc id="svg-desc">Garmin, Strong and Google Calendar feed local sync and import tools. You use a React dashboard that talks to FastAPI on the Mac. The coach in Codex uses a local helper to read evidence and submit drafts. All three routes use shared app services. PostgreSQL stores structured history. Private files retain original imports and backups.</desc>
+          <defs><marker id="tip" markerWidth="6" markerHeight="7" refX="5.5" refY="3.5" orient="auto-start-reverse"><path d="M0 0 6 3.5 0 7Z" fill="#42644f"/></marker></defs>
+          <rect x="277" y="15" width="803" height="320" rx="13" fill="#eef4e8" stroke="#739478" stroke-dasharray="5 4"/>
+          <text x="24" y="42" class="micro">WHO CONNECTS</text>
+          <text x="296" y="42" class="micro">ON YOUR MAC</text>
+          <g>
+            <rect class="source" x="20" y="62" width="211" height="71" rx="9"/>
+            <text x="36" y="89" class="t">Training sources</text><text x="36" y="112" class="d">Garmin · Strong · Google</text>
+            <rect class="human" x="20" y="157" width="211" height="71" rx="9"/>
+            <text x="36" y="184" class="t">You, the athlete</text><text x="36" y="207" class="d">Review, record and decide</text>
+            <rect class="source" x="20" y="251" width="211" height="71" rx="9"/>
+            <text x="36" y="278" class="t">Coach in Codex</text><text x="36" y="301" class="d">Discuss and draft changes</text>
+          </g>
+          <path class="edge" d="M234 97H291"/><path class="edge two" d="M238 192H291"/><path class="edge two" d="M238 286H291"/>
+          <g>
+            <rect class="local" x="296" y="62" width="204" height="71" rx="9"/>
+            <text x="311" y="89" class="t">Sync &amp; import tools</text><text x="311" y="112" class="d">Worker or manual import</text>
+            <rect class="local" x="296" y="157" width="204" height="71" rx="9"/>
+            <text x="311" y="184" class="t">React dashboard</text><text x="311" y="207" class="d">Home, Calendar and Trends</text>
+            <rect class="local" x="296" y="251" width="204" height="71" rx="9"/>
+            <text x="311" y="278" class="t">Coaching helper</text><text x="311" y="301" class="d">Filtered access to the app</text>
+          </g>
+          <path class="edge" d="M503 97H592"/><text class="edge-text" x="548" y="87">import</text>
+          <path class="edge two" d="M508 192H592"/><text class="edge-text" x="548" y="182">FastAPI</text>
+          <path class="edge two" d="M508 286H592"/><text class="edge-text" x="548" y="276">API / CLI</text>
+          <rect class="local" x="597" y="62" width="191" height="260" rx="10"/>
+          <text class="t" x="614" y="105">App services</text>
+          <path class="rule" d="M614 121H770"/>
+          <text class="d" x="614" y="148">Calendar &amp; matching</text>
+          <text class="d" x="614" y="175">Metrics &amp; prompts</text>
+          <text class="d" x="614" y="202">Snapshots &amp; drafts</text>
+          <path class="rule" d="M614 224H770"/>
+          <text class="d" x="614" y="251">Imports and analytics</text><text class="d" x="614" y="272">run locally without</text><text class="d" x="614" y="293">calling a model.</text>
+          <path class="edge two" d="M795 192H848"/>
+          <rect class="store" x="853" y="62" width="206" height="260" rx="10"/>
+          <text class="micro" x="868" y="90">LOCAL STORAGE</text>
+          <text class="t" x="868" y="123">PostgreSQL</text>
+          <text class="d" x="868" y="145">Activities, feedback,</text><text class="d" x="868" y="165">metrics and plan history</text>
+          <path class="rule" d="M868 181H1042"/>
+          <text class="t" x="868" y="206">Private files</text>
+          <text class="d" x="868" y="228">Source files and backups</text>
+          <path class="rule" d="M868 246H1042"/>
+          <text class="t" x="868" y="272">Research library</text>
+          <text class="d" x="868" y="294">Verified coaching excerpts</text>
+        </svg>
+        <div class="mobile-map">
+          <div class="inlets">
+            <div class="m-inlet"><span class="lane-name">Training sources → Mac</span><strong>Sync &amp; import tools</strong>Garmin, Strong and Google Calendar supply records.</div>
+            <div class="m-inlet"><span class="lane-name">You ↔ Mac</span><strong>React dashboard</strong>You use Home, Calendar and Trends through the local FastAPI service.</div>
+            <div class="m-inlet"><span class="lane-name">Codex ↔ Mac</span><strong>Coaching helper</strong>The coach reads filtered evidence and submits drafts through the local API and command-line tools.</div>
+          </div>
+          <div class="m-connector" aria-hidden="true">↓</div>
+          <div class="m-local"><h3>Shared services on your Mac</h3><p>Local rules handle imports, calendar matching, metrics, prompts and proposals. PostgreSQL holds the structured training record and plan history. Private files retain source files and backups. The research library supplies verified excerpts for coaching.</p></div>
+        </div>
+      </div>
+      <figcaption><strong>The accepted calendar answers “What am I doing?”</strong> You can edit it directly in the app. A coaching proposal reaches it through your decision on the proposal page.</figcaption>
+    </figure>
+  </section>
+  <section class="section" id="training" aria-labelledby="training-title">
+    <h2 id="training-title">From a recorded run to your week</h2>
+    <p>Open Home after a run. The “Planned vs done” view brings together the workout you accepted, the recording that arrived and your own account of how it went.</p>
+    <figure class="diagram" aria-label="Run import, matching and feedback">
+      <div class="flow">
+        <div class="row">
+          <div class="node source-color"><span class="lane-name">Garmin → Mac</span><h3>Import the recording</h3><p>The sync worker saves the activity. A FIT file can add laps, workout steps and samples when available.</p></div>
+          <span class="edge-h" aria-hidden="true"></span>
+          <div class="node system-color"><span class="lane-name">Recording + accepted plan</span><h3>Match the workout</h3><p>The app links a clear same-day match. If the pairing is ambiguous or the run moved a day, you can review and link it in Calendar.</p></div>
+          <span class="edge-h" aria-hidden="true"></span>
+          <div class="node system-color"><span class="lane-name">App → Home &amp; Trends</span><h3>Refresh the week</h3><p>The app recalculates affected metrics and updates prompts. Home shows planned versus completed sessions and the weekly mileage estimate.</p></div>
+        </div>
+        <p class="scoped"><strong>Your feedback completes the picture.</strong> Open the recorded run to report effort or a delayed response. If you finished without a recording, mark the session complete in Calendar. Distance and pace stay unknown.</p>
+      </div>
+      <figcaption><strong>Why Home updates with the record</strong> &nbsp; The app saves each source change and its required refreshes together. A failed refresh rolls back that change.</figcaption>
+    </figure>
+    <div class="inputs">
+      <p class="input-line"><strong>Garmin → recovery trends</strong>Sleep, heart-rate variability and resting heart rate can put a night in the context of your recent baseline. Missing readings stay unknown in the review.</p>
+      <p class="input-line"><strong>Strong → lifting history</strong>You export and import a CSV. The app can match recorded lifts to planned strength sessions and bring that history into the next review.</p>
+      <p class="input-line"><strong>Google Calendar → travel context</strong>A read-only sync detects possible trips from flight events. You can confirm, edit or dismiss a trip. The coach sees trip status and availability when planning.</p>
+    </div>
+  </section>
+  <section class="section" id="coaching" aria-labelledby="coaching-title">
+    <h2 id="coaching-title">How a Sunday review changes the plan</h2>
+    <p>You start the conversation in Codex. The coach reviews the training block if it is missing or due for review. Otherwise, you work through the upcoming sessions together.</p>
+    <figure class="diagram" aria-label="Evidence and discussion lead to a proposal and an explicit decision">
+      <div class="flow">
+        <div class="row">
+          <div class="node system-color"><span class="lane-name">App → coach</span><h3>Gather the evidence</h3><p>The helper checks for an open draft and reads a snapshot of the accepted plan, actuals, feedback and constraints, alongside selected, verified research excerpts.</p></div>
+          <span class="edge-h" aria-hidden="true"></span>
+          <div class="node decision-color"><span class="lane-name">You ↔ Codex</span><h3>Discuss the changes</h3><p>Compare the proposed workouts against your week. Tell the coach what to move, keep or reconsider.</p></div>
+          <span class="edge-h" aria-hidden="true"></span>
+          <div class="node system-color"><span class="lane-name">Coach → app</span><h3>Save a pending draft</h3><p>Once you agree or ask to publish, the coach saves the draft for review. Revisions keep the same proposal link.</p></div>
+        </div>
+        <div class="decision-link" aria-hidden="true"></div>
+      </div>
+      <div class="review">
+        <div class="gate">You review the draft in the app</div>
+        <div class="branch">
+          <div class="fork" aria-hidden="true"><i></i></div>
+          <div class="route applied"><strong>Accept all or selected changes</strong>The app checks freshness and validates the selection. Approved session edits create a calendar version. You choose any block or calibration changes separately.</div>
+          <div class="route"><strong>Ask for a revision</strong>Discuss the adjustment in Codex and reopen the same link. If the evidence or calendar has changed, the coach refreshes the draft before acceptance.</div>
+          <div class="route"><strong>Reject or discard</strong>Close the proposal. Your existing schedule stays in effect and the proposal history remains available.</div>
+        </div>
+      </div>
+      <figcaption class="follow"><strong>Back to the next review ↺</strong> &nbsp; The next snapshot includes your saved decisions, the calendar you actually followed, the recordings and the feedback you supplied.</figcaption>
+    </figure>
+  </section>
+  <section class="section" id="iphone" aria-labelledby="phone-title">
+    <h2 id="phone-title">When an iPhone check-in reaches the Mac</h2>
+    <p>The optional Home Screen app records morning first-step ankle pain, including on rest days. After the phone is set up for offline use, it can save an observation while the Mac is asleep.</p>
+    <figure class="diagram" aria-label="Offline phone check-in upload and acknowledgement">
+      <div class="flow">
+        <div class="phone-track">
+          <div class="node decision-color"><span class="lane-name">On the iPhone</span><h3>“Saved on iPhone”</h3><p>The phone stores the entry and its local date. It can wait here offline.</p></div>
+          <span class="edge-h" aria-hidden="true"></span>
+          <div class="node source-color"><span class="lane-name">When connected</span><h3>Upload privately</h3><p>Reopening the app or choosing Retry sync sends pending entries through Tailscale to the owner-only phone gateway on the Mac.</p></div>
+          <span class="edge-h" aria-hidden="true"></span>
+          <div class="node system-color"><span class="lane-name">On the Mac</span><h3>Save the check-in</h3><p>The local API records the observation in PostgreSQL, where it becomes evidence for the next review. Retrying the same entry preserves a single record.</p></div>
+        </div>
+        <div class="return">The Mac returns the entry’s ID. The phone then shows “Synced”.</div>
+      </div>
+    </figure>
+  </section>
+  <section class="sources" aria-labelledby="read-more">
+    <h2 id="read-more">Further reading in the repository</h2>
+    <div class="links">
+      <a href="user-guide.md">Athlete’s user guide</a>
+      <a href="architecture.md">Backend layers and refresh rules</a>
+      <a href="../backend/app/services/matching.py">Workout matching code</a>
+      <a href="../backend/app/services/proposals/decision.py">Proposal decision code</a>
+      <a href="../.codex/skills/going-bananas-coach/references/app-access.md">Coach helper access</a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

@@ -101,7 +101,7 @@ plan changes still require explicit acceptance.
 
 ### IDEA-006 — Strength goals and integrated hybrid coaching
 
-Recorded 2026-11-11. Updated 2026-11-24. Status: idea; dedicated research round planned, not started. Revisit after PTT rehab scheduling (IDEA-010).
+Recorded 2026-11-11. Updated 2026-11-25. Status: idea; dedicated research round planned, not started. Revisit after PTT rehab scheduling (IDEA-010).
 
 Extend the Strong integration beyond browsing imported lifting history so the
 coach can recommend how to pursue explicit lifting goals alongside running
@@ -124,6 +124,20 @@ Before interpreting load progression, resolve the Strong export's unknown
 weight units and dumbbell recording convention where relevant. Do not compare
 loads across an unverified convention change or infer effort from load alone.
 No research or implementation is authorized merely by recording this idea.
+
+One narrower use case to revisit is a running-first block where the athlete
+wants to adjust lifting to protect a key run. Keep Strong as the detailed
+lifting log, with no routine double entry. In a future review, compare recent
+lower-body work with the athlete's usual sets,
+reps, loads in known units, and set effort where recorded. Consider how the
+athlete executed a key run and how they reported feeling afterward. If a
+change looks worthwhile, propose a specific adjustment to lifting timing or
+volume for the athlete to review, then follow up on the next comparable run.
+Leave open what caused any change in running performance or symptoms.
+
+Revisit using Garmin alone if manual Strong exports leave the history stale
+and a real watch workout shows that the exercise and set details needed for
+coaching reach Going Bananas end to end.
 
 **Where to resume the requirements conversation**
 

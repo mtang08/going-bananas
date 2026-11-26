@@ -1,5 +1,7 @@
 # Architecture
 
+Open the [visual architecture guide](architecture-map.html) in a browser for diagrams of the local system, training week, coaching decisions, and iPhone check-ins.
+
 Read each directory’s `AGENTS.md` for entry points and [contracts.md](contracts.md) for field-level contracts.
 
 ## Layers
