@@ -2,16 +2,14 @@
 package replay
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
-	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/rawobject"
 )
 
 type object struct {
@@ -36,42 +34,7 @@ func retain(root, kind string, b []byte) (object, error) {
 		media = "application/zip"
 	}
 	o := object{hash, path, media, len(b)}
-	target := filepath.Join(root, path)
-	dir := filepath.Dir(target)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return o, err
-	}
-	existing, err := os.ReadFile(target)
-	if errors.Is(err, os.ErrNotExist) {
-		tmp, err := os.CreateTemp(dir, ".raw-*")
-		if err != nil {
-			return o, err
-		}
-		defer func() { _ = os.Remove(tmp.Name()) }()
-		if _, err = tmp.Write(b); err == nil {
-			err = tmp.Sync()
-		}
-		closeErr := tmp.Close()
-		if err != nil {
-			return o, err
-		}
-		if closeErr != nil {
-			return o, closeErr
-		}
-		if err = os.Link(tmp.Name(), target); err != nil && !errors.Is(err, os.ErrExist) {
-			return o, err
-		}
-		existing, err = os.ReadFile(target)
-		if err != nil {
-			return o, err
-		}
-	} else if err != nil {
-		return o, err
-	}
-	if !bytes.Equal(existing, b) {
-		return o, errors.New("raw_hash_mismatch")
-	}
-	return o, nil
+	return o, rawobject.Write(root, path, b)
 }
 
 func (o object) persist(ctx context.Context, tx pgx.Tx) (uuid.UUID, error) {
