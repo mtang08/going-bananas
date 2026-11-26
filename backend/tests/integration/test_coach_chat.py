@@ -25,6 +25,25 @@ CHAT = "/api/v1/coach/chat"
 PROPOSALS = "/api/v1/coach/proposals"
 
 
+class _SavepointRuntime(ScriptedCoachRuntime):
+    """Start provider I/O after the POST releases the test fixture's one DB connection."""
+
+    post_finished: asyncio.Event | None = None
+
+    async def run_turn(self, **kwargs):
+        if self.post_finished is not None:
+            await self.post_finished.wait()
+        return await super().run_turn(**kwargs)
+
+    def send(self, client, message):
+        gate = self.post_finished = asyncio.Event()
+        try:
+            return client.post(f"{CHAT}/messages", json=message)
+        finally:
+            assert client.portal is not None
+            client.portal.call(gate.set)
+
+
 def _until(check):
     deadline = monotonic() + 10
     while monotonic() < deadline:
@@ -49,7 +68,7 @@ def chat_stack(tmp_path, api_client, session_factory, proposal_session, monkeypa
 
     monkeypatch.setattr(coach, "datetime", Clock)
     fixture_root = Path(__file__).resolve().parents[3]
-    runtime = ScriptedCoachRuntime(mode="test", repo_root=fixture_root)
+    runtime = _SavepointRuntime(mode="test", repo_root=fixture_root)
     store = ChatStore(tmp_path, "test")
 
     def make():
@@ -81,7 +100,7 @@ def test_review_resumes_after_restart_and_manual_decision_applies_calendar(chat_
         assert view["id"] is None and view["messages"] == [] and not runtime.started_turns
         discussion = _message("Can we adjust next week's easy run?")
         discussion["intent"] = "sunday_review"
-        first = client.post(f"{CHAT}/messages", json=discussion).json()["data"]
+        first = runtime.send(client, discussion).json()["data"]
         review_id = first["id"]
         chat = _finished(client, store)
         assert chat["status"] == "idle" and chat["proposal_id"] is None
@@ -97,7 +116,7 @@ def test_review_resumes_after_restart_and_manual_decision_applies_calendar(chat_
         assert client.post(f"{CHAT}/messages", json=discussion).json()["data"] == chat
         assert len(runtime.started_turns) == 1
         agreement = _message("Looks good. Save it.", review_id)
-        client.post(f"{CHAT}/messages", json=agreement).raise_for_status()
+        runtime.send(client, agreement).raise_for_status()
         pending = _finished(client, store)
         assert pending["status"] == "idle", pending["error"]
         proposal_id = pending["proposal_id"]
@@ -116,7 +135,7 @@ def test_review_resumes_after_restart_and_manual_decision_applies_calendar(chat_
             assert head_version(session) == head
 
         revision = _message("Please save a revision.", review_id)
-        client.post(f"{CHAT}/messages", json=revision).raise_for_status()
+        runtime.send(client, revision).raise_for_status()
         revised = _finished(client, store)
         assert revised["proposal_id"] == proposal_id
         assert revised["proposal_revision"] == 2, runtime.draft_results
@@ -151,7 +170,7 @@ def test_in_flight_replay_conflict_cancel_and_new_review(chat_stack):
     client, gateway = make()
     with client:
         body = _message("Hold this turn")
-        first = client.post(f"{CHAT}/messages", json=body).json()["data"]
+        first = runtime.send(client, body).json()["data"]
         review_id = first["id"]
         _until(lambda: gateway.turn and gateway.turn.reply)
         replay = client.post(f"{CHAT}/messages", json=body).json()["data"]
@@ -178,7 +197,7 @@ def test_source_edit_during_coaching_cannot_create_a_stale_draft(chat_stack, ses
     runtime.before_save = asyncio.Event()
     client, _ = make()
     with client:
-        client.post(f"{CHAT}/messages", json=_message("Looks good. Save it.")).raise_for_status()
+        runtime.send(client, _message("Looks good. Save it.")).raise_for_status()
         _until(lambda: runtime.save_ready)
         with session_factory() as session:
             head = head_version(session)
@@ -232,7 +251,7 @@ def test_unavailable_auth_retains_the_users_message(chat_stack):
     client, _ = make()
     with client:
         body = _message("Review training this week")
-        client.post(f"{CHAT}/messages", json=body).raise_for_status()
+        runtime.send(client, body).raise_for_status()
         chat = _finished(client, store)
         assert chat["status"] == "failed" and chat["error"]["code"] == "auth_required"
         assert [item["text"] for item in chat["messages"]] == [body["text"]]

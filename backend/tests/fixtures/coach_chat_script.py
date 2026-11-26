@@ -9,7 +9,7 @@ from datetime import date, timedelta
 from typing import Any, cast
 from uuid import uuid4
 
-from app.services.coach_chat_runtime import EFFORT, MODEL, PERMISSIONS, CoachChatRuntime
+from app.services.coach_chat_runtime import EFFORT, MODEL, PERMISSIONS, TOOL_NAMESPACE, CoachChatRuntime
 from app.services.coach_chat_runtime_protocol import AppServer
 
 SIGN_IN_URL = "https://auth.openai.com/oauth/authorize?redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback"
@@ -156,7 +156,10 @@ class _ScriptedServer:
 
     def _tool(self, name: str, arguments: dict | None = None) -> dict:
         self.request_id += 1
-        return {"id": self.request_id, **self._notification("item/tool/call", tool=name, arguments=arguments or {})}
+        return {
+            "id": self.request_id,
+            **self._notification("item/tool/call", namespace=TOOL_NAMESPACE, tool=name, arguments=arguments or {}),
+        }
 
     async def _completed(self, status: str) -> AsyncIterator[dict]:
         yield self._notification("turn/completed", turn={"id": self.turn_id, "status": status})
