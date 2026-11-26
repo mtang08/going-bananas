@@ -1,6 +1,6 @@
 # Workstream 3 · Coaching evidence and proposal lifecycle
 
-**Owner:** the third Astra session. **Branch:** `go/coaching`. Home's Go proposal-list read is the existing transport reference. Pending proposals, decisions, the dashboard coach and the repo-local helper still use the Python application. [Working Go read](../backend-go/internal/proposals) · [Shared specification](go-backend-rewrite.md)
+**Owner:** the third Astra session. **First delivery:** `go/coaching` at `33b2b61`. **Continuation branch:** `go/coaching-lifecycle`. Home's Go proposal-list read is the existing transport reference. Pending proposals, decisions, the dashboard coach and the repo-local helper still use the Python application. [Working Go read](../backend-go/internal/proposals) · [Shared specification](go-backend-rewrite.md)
 
 ## First independent assignment
 
@@ -12,7 +12,7 @@ Port the **coaching evidence fingerprint used to decide whether an existing draf
 | Construction of the fingerprint from source versions and verified knowledge | Match the original fixture digest and its revised selected-content digest. Reordered object keys retain identity. Changed evidence invalidates the fingerprint. Cover missing/null values and order-sensitive lists as in Python. |
 | Reproducible reference comparison | Run the existing Python canonical-hash and proposal fingerprint cases and the new focused Go race tests. Use the committed synthetic evidence. A database, Garmin account and model session are unnecessary for this package. |
 
-Stream 1 owns metric identity, whose timestamp encoding differs. Keep the coaching entry point explicit. A shared encoder can be extracted later if both domains' byte fixtures still pass. [Python hash tests](../backend/tests/unit/test_canonical_hash_vectors.py) · [Changed-evidence case](../backend/tests/unit/test_proposals.py)
+The shared JSON encoder preserves separate coaching and metric timestamp formats. Both domains have byte-for-byte regression fixtures. [Python hash tests](../backend/tests/unit/test_canonical_hash_vectors.py) · [Changed-evidence case](../backend/tests/unit/test_proposals.py)
 
 ### Fingerprint handoff
 
@@ -35,6 +35,17 @@ make check-go
 - Port proposal validation, partial selections, revision/retry receipts, stale outcomes, the CLI/helper and native dashboard coaching operations. Preserve stable IDs and draft revisions. A saved draft requires an explicit athlete decision before calendar activation. The dashboard must preserve its private conversation receipts, local-only access and six approved tools. [Proposal services](../backend/app/services/proposals) · [Coaching API scenarios](../backend/tests/integration/test_coach_api.py) · [Dashboard scenarios](https://github.com/mtang08/going-bananas/blob/de3bdf504b8dc6f9b1577d610889349ffd723fb2/backend/tests/integration/test_coach_chat.py)
 - Stream 3 owns coaching packages and domain tests. Stream 1 owns calendar/block/anchor mutations, exception detection, shared database migrations, global API/CLI registration and their transaction runner. Hand it the validated selected changes keyed by change ID, expected revisions and idempotency key. Under one locked transaction, recheck freshness, apply accepted changes and persist the receipt. Demonstrate an unchanged Python-created draft can be revised or accepted and a lost response can be retried without a second calendar edit. [Decision scenarios](../backend/tests/integration/test_proposals.py)
 
-## Prompt for the third Astra session
+## Active assignment · Complete pending-draft lifecycle
 
-> Own workstream 3 in Going Bananas. Read the root AGENTS.md and docs/go-rewrite-coaching.md. Start from current origin/main containing dc15070, in a separate checkout on go/coaching. Use your own Astra subagents for canonical encoding, fingerprint fixtures and independent review. Deliver the first assignment end to end, comparing actual Go bytes and digests against the existing Python evidence. Run the focused reference cases, race tests and project checks, then commit and push your branch. Report the commit, exact checks, parity gaps and the typed inputs that snapshot or proposal code will supply. Leave metric identity, shared write infrastructure and proposal activation with their documented owners. Use only synthetic evidence.
+Deliver a runnable synthetic workflow that builds or loads a snapshot, saves a pending proposal, reloads it, revises it under the same ID and discards it. Include a draft originally created by Python. The coaching team owns package-local persistence, knowledge selection and validation. Core owns shared route registration and calendar writes.
+
+1. Read persisted draft and snapshot evidence in PostgreSQL, verify the selected knowledge, and check its fingerprint. Cover changed source inputs and changed selected record content.
+2. Port proposal validation and submit/load/revise/discard. Preserve the current draft ID, revision checks, duplicate handling, structured errors and authorization. Produce typed inputs keyed by change ID for a future manual acceptance.
+3. Compare the responses and durable rows from Go and Python on independent synthetic schemas. Exercise a duplicate submission, stale revision, concurrent edits, a failed write with rollback and the unchanged Python-created draft.
+4. Push each verified increment on `go/coaching-lifecycle` and continue through the whole workflow. The runnable entry point and package-local tests can proceed while core owns shared HTTP registration. Manual acceptance remains a separate athlete action.
+
+[Proposal lifecycle tests](../backend/tests/integration/test_proposals.py) · [Proposal services](../backend/app/services/proposals)
+
+## Continuation prompt
+
+> Own the complete pending-draft lifecycle above with your Astra team. Continue from the published fingerprint package on the active continuation branch. Work through evidence, validation, persistence and rollback, publishing each verified increment. Finish by reporting the runnable command, commits and Python-created draft comparison.

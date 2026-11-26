@@ -10,7 +10,7 @@ Keep the React app, PostgreSQL, the offline phone queue, the running knowledge b
 
 The reference app mounts **81 method/path pairs under `/api/v1`**, including two health operations. Re-enumerate the mounted operations when work begins and record the slice or intentional retirement of each operation. Inventory the CLI, worker and macOS launcher separately. [App wiring](../backend/app/main.py) · [HTTP handlers](../backend/app/api) · [CLI commands](../backend/app/cli.py) · [Launcher behavior](operations.md)
 
-At the goal-edit milestone, Go handles **2 of 81 HTTP operations** in demo and test. Home lists proposals and Settings edits an existing goal. Python still serves the real API and worker. Count the Garmin client and coaching fingerprint separately from route coverage. Each has fixture-based checks and still needs a runtime caller. [Go HTTP contract](../backend-go/api/openapi.json) · [Verification results](go-rewrite-readiness.md#first-implementation-results)
+At the goal-edit milestone, Go handles **2 of 81 HTTP operations** in demo and test. Home lists proposals and Settings edits an existing goal. Python still serves the real API and worker. The native Garmin client, FIT decoder, coaching fingerprint, workout matcher and metric identity have separate reference checks. The Python worker and coaching workflows still own their runtime calls. [Go HTTP contract](../backend-go/api/openapi.json) · [Verification results](go-rewrite-readiness.md#first-implementation-results)
 
 | Surface | HTTP operations | Other callers and state to carry |
 | --- | ---: | --- |
@@ -54,9 +54,9 @@ The shared starting point is `dc15070`. Each session uses a separate checkout an
 
 | Session | Owned work | First independently verifiable delivery |
 | --- | --- | --- |
-| 1 · This session | [Application, training data and integration](go-rewrite-core.md) | Goal metadata edit implemented in demo/test. Next is manual calendar completion with rollback and refresh parity. |
-| 2 · New Astra session | [Provider ingestion and FIT](go-rewrite-providers.md) | Downloaded ZIP bytes to normalized FIT session, laps, steps and streams, compared against the Python decoder. |
-| 3 · New Astra session | [Coaching evidence and proposal lifecycle](go-rewrite-coaching.md) | Coaching fingerprints for original and revised evidence match the saved Python fixtures. Next is collecting that evidence and checking a persisted draft. |
+| 1 · This session | [Application, training data and integration](go-rewrite-core.md) | Goal editing works in demo/test. Workout matching and metric identity are ported. Next is completion persistence and refresh. |
+| 2 · New Astra session | [Provider ingestion and FIT](go-rewrite-providers.md) | Normalized FIT decoder published. In progress on `go/provider-replay`: Garmin/export replay through persisted source history and a restartable checkpoint. |
+| 3 · New Astra session | [Coaching evidence and proposal lifecycle](go-rewrite-coaching.md) | Coaching fingerprints match both saved fixtures. In progress on `go/coaching-lifecycle`: snapshot and pending-draft submission, revision and discard. |
 
 Stream 1 owns shared schema, transaction boundaries, generated API wiring and final integration. Stream 2 can add the FIT dependency to the Go module. Stream 3's first package works from existing evidence without new dependencies. At the first database write from streams 2 or 3, integrate with stream 1's transaction runner and verify retry and rollback on independent test databases. The real switch remains a single coordinated operation after the three workstreams pass their conformance checks and the recovery rehearsal. [Cutover criteria](#data-handoff-and-rollback)
 

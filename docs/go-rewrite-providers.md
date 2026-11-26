@@ -1,6 +1,6 @@
 # Workstream 2 · Provider ingestion and FIT
 
-**Owner:** the second Astra session. **Branch:** `go/providers`. The native Garmin HTTP client is already in `main` at `dc15070`. It handles authentication/cache reuse, activity and recovery reads, pagination and FIT downloads. Python still normalizes and persists the data. [Go client](../backend-go/internal/garmin) · [Shared specification](go-backend-rewrite.md)
+**Owner:** the second Astra session. **First delivery:** `go/providers` at `258167c`. **Continuation branch:** `go/provider-replay`. The native Garmin HTTP client is already in `main` at `dc15070`. It handles authentication/cache reuse, activity and recovery reads, pagination and FIT downloads. Python still normalizes and persists the data. [Go client](../backend-go/internal/garmin) · [Shared specification](go-backend-rewrite.md)
 
 ## First independent assignment
 
@@ -38,6 +38,17 @@ Stream 2 owns Garmin JSON and export normalization, FIT reprocessing, Strong pre
 
 Hand stream 1 typed observations, their provenance, affected source identities/dates and the proposed job checkpoint. Connect persistence when stream 1 publishes its transaction boundary. A replay unit must commit source history, the winning values and its checkpoint together. Leave the existing worker as the sole runtime owner until the integrated replay and rollback checks pass. Stream 1 owns the shared router, schema, Makefile and supervisor. The FIT decoder and offline adapters can merge before that integration.
 
-## Prompt for the second Astra session
+## Active assignment · Replay one Garmin activity end to end
 
-> Own workstream 2 in Going Bananas. Read the root AGENTS.md and docs/go-rewrite-providers.md. Start from current origin/main containing dc15070, in a separate checkout on go/providers. Use your own Astra subagents for ZIP/FIT decoding, Python parity fixtures, and independent review. Deliver the first assignment end to end using synthetic files. Respect the documented ownership boundary. Run the focused comparisons, race tests and project checks, then commit and push your branch. Report the commit, exact checks, parity gaps and the package entry point stream 1 can call. Leave production ingestion and real athlete data untouched.
+Deliver a runnable synthetic replay from a downloaded activity page, FIT archive or export through normalized observations, field precedence, persisted source history and the job checkpoint. The lead owns the replay command and PostgreSQL transaction. The second agent owns the archive decoder and export parsing. Use the existing Python fixtures and ingestion behavior as the reference.
+
+1. Close the LZMA and local-header filename differences in the FIT comparison. Normalize Garmin JSON, FIT and export inputs with typed provenance and explicit missing values.
+2. Run API-first and export-first replays in independently migrated test schemas. Compare the canonical activity and source history with Python. Duplicate input must preserve identity and provenance.
+3. Apply the observations and checkpoint atomically. Inject an error after a source write, then restart the job. Verify the durable state, checkpoint and affected activity IDs/dates, including a partial page.
+4. Push each verified increment on `go/provider-replay` and keep going until the runnable replay passes the full matrix. Hand the worker and refresh integration code the command and its affected dates. Python continues to own live ingestion.
+
+[Ingestion and precedence tests](../backend/tests/integration/test_export_precedence.py) · [Job implementation](../backend/app/services/sync.py)
+
+## Continuation prompt
+
+> Own the complete Garmin replay assignment above with your Astra team. Continue from the published decoder on the active continuation branch. Work through normalization, database writes, replay and recovery, publishing each verified increment. Finish by reporting the runnable command, commits, Python comparison results and any remaining live-worker integration.

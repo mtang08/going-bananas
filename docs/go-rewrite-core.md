@@ -6,9 +6,11 @@
 
 The goal metadata edit is the first Go write. Settings sends `PATCH /api/v1/goals/{goal_id}` through a generated TypeScript contract. Go acquires the same PostgreSQL advisory lock as Python, checks the expected version, updates the goal and increments the data revision in one transaction. The calendar head and stored training metrics stay intact. Competing edits, an injected revision failure and HTTP comparisons against independent migrated schemas cover that behavior. [Transaction](../backend-go/internal/goals/store.go) · [Differential checks](../scripts/rewrite/compare_goals.py)
 
-## Next assignment
+## In progress · Manual calendar completion
 
-Port manual calendar completion. Return the actual affected days and links from the command, then rematch and refresh within the same transaction. Prove retry, protected history, undo, savepoint rollback and whole-command rollback. Record the affected metric results alongside the existing completion benchmark. Publish the concrete transaction-bound query and refresh interfaces after these two commands exercise them. Streams 2 and 3 can build and merge their pure packages while this work proceeds. [Calendar](../backend/app/services/calendar.py) · [Completion benchmark](../backend/tests/integration/test_manual_completion_refresh.py)
+Go now computes plan-to-recording matches, including protected links, adjacent-day candidates, ambiguous scores and deterministic IDs for extra activities. The comparison runner exercises every call in the Python matching unit suite. Metric and coaching identity share an encoder with separate timestamp formats, and Go reproduces the stored completion-association hash. [Matcher](../backend-go/internal/matching) · [Python comparison](../scripts/rewrite/check_matching.py) · [Metric identity](../backend-go/internal/metrics/completion.go)
+
+The remaining work is the transactional calendar completion endpoint. Return the actual affected days and links from the command, then rematch and refresh within the same transaction. Prove retry, protected history, undo, savepoint rollback and whole-command rollback. The Python run/strength mark and undo benchmark recalculated one planned-versus-actual result and ten spacing windows per operation. The easy self-report case recalculated just one result. Verify both against Go, including prompt and exception state. Publish the concrete transaction-bound query and refresh interfaces after these two commands exercise them. Streams 2 and 3 can build and merge their pure packages while this work proceeds. [Calendar](../backend/app/services/calendar.py) · [Completion benchmark](../backend/tests/integration/test_manual_completion_refresh.py)
 
 ## Remaining ownership
 
