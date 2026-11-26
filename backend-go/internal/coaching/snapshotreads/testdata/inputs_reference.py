@@ -18,7 +18,6 @@ from app.services.decision_inputs import (
     canonical_json,
     collect_decision_inputs,
 )
-from app.services.running_interruption import return_view
 from app.services.snapshot.inputs import load_inputs
 
 as_of = date(2027, 3, 14)
@@ -93,7 +92,6 @@ with Session(engine) as s:
             {
                 "expected": asdict(inputs),
                 "weeks": inputs.weekly_digest,
-                "return_view": return_view(s, as_of),
                 "confirmed": inputs.confirmed_strength_sessions,
                 "omissions": inputs.accepted_strength_omissions,
             }
