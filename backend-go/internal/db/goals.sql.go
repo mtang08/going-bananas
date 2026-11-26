@@ -36,6 +36,37 @@ func (q *Queries) GoalVersion(ctx context.Context, id pgtype.UUID) (int32, error
 	return version, err
 }
 
+const listGoals = `-- name: ListGoals :many
+SELECT id, text, horizon, priority, status, version FROM goals ORDER BY priority, id
+`
+
+func (q *Queries) ListGoals(ctx context.Context) ([]Goal, error) {
+	rows, err := q.db.Query(ctx, listGoals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Goal
+	for rows.Next() {
+		var i Goal
+		if err := rows.Scan(
+			&i.ID,
+			&i.Text,
+			&i.Horizon,
+			&i.Priority,
+			&i.Status,
+			&i.Version,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockGlobalWriter = `-- name: LockGlobalWriter :exec
 SELECT pg_advisory_xact_lock(71382413)
 `

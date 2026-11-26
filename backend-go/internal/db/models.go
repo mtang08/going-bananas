@@ -16,3 +16,18 @@ type Goal struct {
 	Status   string
 	Version  int32
 }
+
+type SessionCompletion struct {
+	ID                 pgtype.UUID
+	SessionUid         pgtype.UUID
+	ActivityID         pgtype.UUID
+	StrongWorkoutID    pgtype.UUID
+	ManualSessionID    pgtype.UUID
+	Status             string
+	MatchMethod        string
+	ModificationReason pgtype.Text
+	ReasonNote         pgtype.Text
+	Version            int32
+	InputVersion       int32
+	UpdatedAt          pgtype.Timestamptz
+}

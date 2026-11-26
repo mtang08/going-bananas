@@ -1,0 +1,195 @@
+[
+  {
+    "name": "bom-grouped-sets",
+    "csv": "﻿Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n2026-11-09 21:13:58,\"Upper \"\"A\"\" <左右> & café\",1h 5m,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0,\r\n2026-11-8 1:2:3,\"Upper \"\"A\"\" <左右> & café\",120h 41m,\"Press, dumbbell\r\nbench\",W,45.0,8,0,0,\r\n2026-11-09 21:13:58,\"Upper \"\"A\"\" <左右> & café\",1h 5m,\"Press, dumbbell\r\nbench\",F,0_5.0,8,0,0,1e0\r\n",
+    "workouts": [
+      {
+        "source_identity": "e839a59056a23a302652d55a4b891b4cb3eac10d1bb71fdfd03dbf60676262dd",
+        "payload_hash": "d5fb896b9d3047baa2c012d586166bf3906ca0671b0e10d29273f38a89d256cb",
+        "local_start": "2026-11-08 01:02:03",
+        "local_date": "2026-11-08",
+        "workout_name": "Upper \"A\" <左右> & café",
+        "duration_s": null,
+        "sets": [
+          {
+            "Date": "2026-11-8 1:2:3",
+            "Workout Name": "Upper \"A\" <左右> & café",
+            "Duration": "120h 41m",
+            "Exercise Name": "Press, dumbbell\r\nbench",
+            "Set Order": "W",
+            "Weight": "45.0",
+            "Reps": "8",
+            "Distance": "0",
+            "Seconds": "0",
+            "RPE": ""
+          }
+        ],
+        "row_count": 1
+      },
+      {
+        "source_identity": "ba242a39db86b79a0741b573eb8c598456a71cb3d8955766466830abdb10a52e",
+        "payload_hash": "5707861df0bd47229d1bdbfb6eea7c4f96061b9e3f4845be3f2368e4dff9ef1f",
+        "local_start": "2026-11-09 21:13:58",
+        "local_date": "2026-11-09",
+        "workout_name": "Upper \"A\" <左右> & café",
+        "duration_s": 3900,
+        "sets": [
+          {
+            "Date": "2026-11-09 21:13:58",
+            "Workout Name": "Upper \"A\" <左右> & café",
+            "Duration": "1h 5m",
+            "Exercise Name": "Press, dumbbell\r\nbench",
+            "Set Order": "1",
+            "Weight": "45.0",
+            "Reps": "8",
+            "Distance": "0",
+            "Seconds": "0",
+            "RPE": ""
+          },
+          {
+            "Date": "2026-11-09 21:13:58",
+            "Workout Name": "Upper \"A\" <左右> & café",
+            "Duration": "1h 5m",
+            "Exercise Name": "Press, dumbbell\r\nbench",
+            "Set Order": "F",
+            "Weight": "0_5.0",
+            "Reps": "8",
+            "Distance": "0",
+            "Seconds": "0",
+            "RPE": "1e0"
+          }
+        ],
+        "row_count": 2
+      }
+    ],
+    "digest": "cca5c4714ad9ed7f3a75672143f95e156cf79c73952704f52071d0c0ebbbe8e4"
+  },
+  {
+    "name": "unicode-source-spellings",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n２０２６-1- 1 ١:١:٢,\"Upper \"\"A\"\" <左右> & café\",１h ５m,\"Press, dumbbell\r\nbench\",1,４５.０,8,0,0,\r\n",
+    "workouts": [
+      {
+        "source_identity": "1db09384828577926d8565ca8599447d530f23fe19af3d0f276d80ab6e6f7543",
+        "payload_hash": "f12bc9cf23da3ee98e0a6472839c5e24903044f9984ffa865b8d5593973d288b",
+        "local_start": "2026-01-01 01:01:02",
+        "local_date": "2026-01-01",
+        "workout_name": "Upper \"A\" <左右> & café",
+        "duration_s": 3900,
+        "sets": [
+          {
+            "Date": "２０２６-1- 1 ١:١:٢",
+            "Workout Name": "Upper \"A\" <左右> & café",
+            "Duration": "１h ５m",
+            "Exercise Name": "Press, dumbbell\r\nbench",
+            "Set Order": "1",
+            "Weight": "４５.０",
+            "Reps": "8",
+            "Distance": "0",
+            "Seconds": "0",
+            "RPE": ""
+          }
+        ],
+        "row_count": 1
+      }
+    ],
+    "digest": "55ebf789f9a6477d751b91c169912c82cc3993a162540bffa720c0ccbdcad4ec"
+  },
+  {
+    "name": "unknown-and-boundary-duration",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n2026-11-09 21:13:58,\"Upper \"\"A\"\" <左右> & café\",,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0,\r\n2026-11-10 00:00:00,\"Upper \"\"A\"\" <左右> & café\",24h,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0,\r\n",
+    "workouts": [
+      {
+        "source_identity": "ba242a39db86b79a0741b573eb8c598456a71cb3d8955766466830abdb10a52e",
+        "payload_hash": "da71cb2e20f4e903d6420098e1b52f6cef856e55729096d24aa258f9a73fc280",
+        "local_start": "2026-11-09 21:13:58",
+        "local_date": "2026-11-09",
+        "workout_name": "Upper \"A\" <左右> & café",
+        "duration_s": null,
+        "sets": [
+          {
+            "Date": "2026-11-09 21:13:58",
+            "Workout Name": "Upper \"A\" <左右> & café",
+            "Duration": "",
+            "Exercise Name": "Press, dumbbell\r\nbench",
+            "Set Order": "1",
+            "Weight": "45.0",
+            "Reps": "8",
+            "Distance": "0",
+            "Seconds": "0",
+            "RPE": ""
+          }
+        ],
+        "row_count": 1
+      },
+      {
+        "source_identity": "1702f7468ed025a5d32d7b8b4ea3237b19646bfa927a475c3c1ee98db729a79e",
+        "payload_hash": "543345bd02e8213df768a26d91ddc4d0f8d45243544d165fe49b2fe2f490f252",
+        "local_start": "2026-11-10 00:00:00",
+        "local_date": "2026-11-10",
+        "workout_name": "Upper \"A\" <左右> & café",
+        "duration_s": 86400,
+        "sets": [
+          {
+            "Date": "2026-11-10 00:00:00",
+            "Workout Name": "Upper \"A\" <左右> & café",
+            "Duration": "24h",
+            "Exercise Name": "Press, dumbbell\r\nbench",
+            "Set Order": "1",
+            "Weight": "45.0",
+            "Reps": "8",
+            "Distance": "0",
+            "Seconds": "0",
+            "RPE": ""
+          }
+        ],
+        "row_count": 1
+      }
+    ],
+    "digest": "05651548735ca00146802c68d51da25b78a2e39a24d465b65875bac3ef13fae8"
+  },
+  {
+    "name": "empty",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n",
+    "error": "empty_csv"
+  },
+  {
+    "name": "wrong-columns",
+    "csv": "Date,Workout\n",
+    "error": "unsupported_columns"
+  },
+  {
+    "name": "malformed_row",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n2026-11-09 21:13:58,\"Upper \"\"A\"\" <左右> & café\",1h 5m,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0\r\n",
+    "error": "malformed_row"
+  },
+  {
+    "name": "invalid_date",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n2026-02-30 10:00:00,\"Upper \"\"A\"\" <左右> & café\",1h 5m,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0,\r\n",
+    "error": "invalid_date"
+  },
+  {
+    "name": "missing_name",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n2026-11-09 21:13:58, ,1h 5m,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0,\r\n",
+    "error": "missing_name"
+  },
+  {
+    "name": "invalid_number",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n2026-11-09 21:13:58,\"Upper \"\"A\"\" <左右> & café\",1h 5m,\"Press, dumbbell\r\nbench\",1,45.0,NaN,0,0,\r\n",
+    "error": "invalid_number"
+  },
+  {
+    "name": "invalid_set_order",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n2026-11-09 21:13:58,\"Upper \"\"A\"\" <左右> & café\",1h 5m,\"Press, dumbbell\r\nbench\",100,45.0,8,0,0,\r\n",
+    "error": "invalid_set_order"
+  },
+  {
+    "name": "invalid_duration",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n2026-11-09 21:13:58,\"Upper \"\"A\"\" <左右> & café\",6 mins,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0,\r\n",
+    "error": "invalid_duration"
+  },
+  {
+    "name": "inconsistent_duration",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n2026-11-09 21:13:58,\"Upper \"\"A\"\" <左右> & café\",1h 5m,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0,\r\n2026-11-09 21:13:58,\"Upper \"\"A\"\" <左右> & café\",5m,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0,\r\n",
+    "error": "inconsistent_duration"
+  }
+]

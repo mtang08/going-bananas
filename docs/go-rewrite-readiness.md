@@ -1,6 +1,6 @@
 # Go rewrite readiness
 
-**Go serves the proposal list and saves goal edits in test and demo.** Both routes use PostgreSQL and share generated contracts with React. The first-party module also contains the Garmin Personal API client, normalized FIT decoder, coaching fingerprint, plan-to-recording matcher and completion metric identity. FastAPI and the Python worker still serve the athlete. Earlier readiness rehearsals used published `main` at `fc6490c`. [Go module](../backend-go) · [Rewrite specification](go-backend-rewrite.md)
+**Go serves four HTTP operations in test and demo.** The proposal list, goal list, goal edit and calendar version history use PostgreSQL and share generated contracts with React. Native Chrome exercised the Home draft, empty and disconnected states and the Settings goal create/edit/reload flow. Python still creates the goal in this checkpoint. The first-party module also contains the Garmin Personal API client, normalized FIT decoder, coaching fingerprint, plan-to-recording matcher and completion metric identity. FastAPI and the Python worker still serve the athlete. Earlier readiness rehearsals used published `main` at `fc6490c`. [Go module](../backend-go) · [Rewrite specification](go-backend-rewrite.md)
 
 ## Decisions from running the code
 

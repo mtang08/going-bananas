@@ -37,6 +37,38 @@ export interface paths {
         patch: operations["patchGoal"];
         trace?: never;
     };
+    "/api/v1/calendar/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listCalendarVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/goals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listGoals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -159,6 +191,40 @@ export interface components {
         };
         /** @constant */
         SchemaVersion: "v1";
+        CalendarVersion: {
+            /** Format: uuid */
+            id: string;
+            number: number;
+            parent_number: number | null;
+            /** @enum {string} */
+            kind: "bootstrap" | "manual_edit" | "proposal_accept" | "rollback" | "legacy_import";
+            /** @enum {string} */
+            actor: "system" | "user" | "coach";
+            reason: string | null;
+            proposal_id: string | null;
+            restored_from_number: number | null;
+            block_version_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CalendarVersionList: {
+            items: components["schemas"]["CalendarVersion"][];
+        };
+        CalendarVersionsEnvelope: {
+            schema_version: components["schemas"]["SchemaVersion"];
+            data_revision: number;
+            mode: components["schemas"]["AppMode"];
+            data: components["schemas"]["CalendarVersionList"];
+        };
+        GoalList: {
+            items: components["schemas"]["Goal"][];
+        };
+        GoalListEnvelope: {
+            schema_version: components["schemas"]["SchemaVersion"];
+            data_revision: number;
+            mode: components["schemas"]["AppMode"];
+            data: components["schemas"]["GoalList"];
+        };
     };
     responses: never;
     parameters: never;
@@ -275,6 +341,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCalendarVersions: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Calendar history, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarVersionsEnvelope"];
+                };
+            };
+            /** @description Invalid request fields */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationErrorResponse"];
+                };
+            };
+        };
+    };
+    listGoals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Goals in priority order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalListEnvelope"];
                 };
             };
         };

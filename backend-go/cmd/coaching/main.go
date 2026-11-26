@@ -14,20 +14,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
-	"github.com/mtang08/going-bananas/backend-go/internal/coaching/reference"
 )
 
 func run(ctx context.Context, args []string, w io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: coaching load|discard|submit|revise [-id UUID] [-revision N]")
+		return errors.New("usage: coaching prepare|snapshot|load|discard|submit|revise [-id UUID] [-revision N]")
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	idArg := flags.String("id", "", "saved proposal ID")
 	revision := flags.Int("revision", 0, "expected draft revision")
-	root := flags.String("repo", ".", "repository root containing the verified knowledge package and reference adapter")
-	python := flags.String("python", "", "reference backend Python interpreter")
+	root := flags.String("repo", ".", "repository root containing the verified knowledge package")
 	nowArg := flags.String("now", "", "synthetic evaluation time, RFC3339")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -65,10 +64,7 @@ func run(ctx context.Context, args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if *python == "" {
-		*python = filepath.Join(absolute, "backend", ".venv", "bin", "python")
-	}
-	validate := reference.Adapter{Root: absolute, Python: *python}
+	validate := drafts.NewValidator(filepath.Join(absolute, "running_coach_kb"))
 	var result any
 	switch args[0] {
 	case "submit":
@@ -76,7 +72,7 @@ func run(ctx context.Context, args []string, w io.Writer) error {
 		if err := json.NewDecoder(os.Stdin).Decode(&raw); err != nil {
 			return err
 		}
-		result, err = s.Submit(ctx, raw, now, validate.Validate)
+		result, err = s.Submit(ctx, raw, now, validate)
 	case "revise":
 		var req drafts.RevisionRequest
 		dec := json.NewDecoder(os.Stdin)
@@ -87,7 +83,24 @@ func run(ctx context.Context, args []string, w io.Writer) error {
 		if req.ExpectedRevision < 1 || len([]rune(req.Reason)) > 500 {
 			return errors.New("invalid revision request")
 		}
-		result, err = s.Revise(ctx, id, req, now, validate.Validate)
+		result, err = s.Revise(ctx, id, req, now, validate)
+	case "prepare":
+		var req drafts.DecisionRequest
+		dec := json.NewDecoder(os.Stdin)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
+			return err
+		}
+		err = pgx.BeginTxFunc(ctx, pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+			if err := drafts.LockPlanning(ctx, tx); err != nil {
+				return err
+			}
+			prepared, err := drafts.PrepareDecision(ctx, tx, id, req, now, filepath.Join(absolute, "running_coach_kb"))
+			result = prepared
+			return err
+		})
+	case "snapshot":
+		result, err = s.ReadSnapshot(ctx, id, now, filepath.Join(absolute, "running_coach_kb"))
 	case "load":
 		result, err = s.Load(ctx, id)
 	case "discard":

@@ -38,6 +38,54 @@ func (e AppMode) Valid() bool {
 	}
 }
 
+// Defines values for CalendarVersionActor.
+const (
+	Coach  CalendarVersionActor = "coach"
+	System CalendarVersionActor = "system"
+	User   CalendarVersionActor = "user"
+)
+
+// Valid indicates whether the value is a known member of the CalendarVersionActor enum.
+func (e CalendarVersionActor) Valid() bool {
+	switch e {
+	case Coach:
+		return true
+	case System:
+		return true
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CalendarVersionKind.
+const (
+	Bootstrap      CalendarVersionKind = "bootstrap"
+	LegacyImport   CalendarVersionKind = "legacy_import"
+	ManualEdit     CalendarVersionKind = "manual_edit"
+	ProposalAccept CalendarVersionKind = "proposal_accept"
+	Rollback       CalendarVersionKind = "rollback"
+)
+
+// Valid indicates whether the value is a known member of the CalendarVersionKind enum.
+func (e CalendarVersionKind) Valid() bool {
+	switch e {
+	case Bootstrap:
+		return true
+	case LegacyImport:
+		return true
+	case ManualEdit:
+		return true
+	case ProposalAccept:
+		return true
+	case Rollback:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GoalHorizon.
 const (
 	LongTerm  GoalHorizon = "long_term"
@@ -200,6 +248,39 @@ func (e GetProposalsApiV1CoachProposalsGetParamsStatus) Valid() bool {
 // AppMode defines model for AppMode.
 type AppMode string
 
+// CalendarVersion defines model for CalendarVersion.
+type CalendarVersion struct {
+	Actor              CalendarVersionActor `json:"actor"`
+	BlockVersionId     *openapi_types.UUID  `json:"block_version_id"`
+	CreatedAt          Timestamp            `json:"created_at"`
+	Id                 openapi_types.UUID   `json:"id"`
+	Kind               CalendarVersionKind  `json:"kind"`
+	Number             int                  `json:"number"`
+	ParentNumber       *int                 `json:"parent_number"`
+	ProposalId         *openapi_types.UUID  `json:"proposal_id"`
+	Reason             *string              `json:"reason"`
+	RestoredFromNumber *int                 `json:"restored_from_number"`
+}
+
+// CalendarVersionActor defines model for CalendarVersion.Actor.
+type CalendarVersionActor string
+
+// CalendarVersionKind defines model for CalendarVersion.Kind.
+type CalendarVersionKind string
+
+// CalendarVersionList defines model for CalendarVersionList.
+type CalendarVersionList struct {
+	Items []CalendarVersion `json:"items"`
+}
+
+// CalendarVersionsEnvelope defines model for CalendarVersionsEnvelope.
+type CalendarVersionsEnvelope struct {
+	Data          CalendarVersionList `json:"data"`
+	DataRevision  int                 `json:"data_revision"`
+	Mode          AppMode             `json:"mode"`
+	SchemaVersion SchemaVersion       `json:"schema_version"`
+}
+
 // EnvelopeProposalList defines model for Envelope_ProposalList_.
 type EnvelopeProposalList struct {
 	Data          ProposalList  `json:"data"`
@@ -242,6 +323,19 @@ type GoalEnvelope struct {
 
 // GoalHorizon defines model for GoalHorizon.
 type GoalHorizon string
+
+// GoalList defines model for GoalList.
+type GoalList struct {
+	Items []Goal `json:"items"`
+}
+
+// GoalListEnvelope defines model for GoalListEnvelope.
+type GoalListEnvelope struct {
+	Data          GoalList      `json:"data"`
+	DataRevision  int           `json:"data_revision"`
+	Mode          AppMode       `json:"mode"`
+	SchemaVersion SchemaVersion `json:"schema_version"`
+}
 
 // GoalPatch defines model for GoalPatch.
 type GoalPatch struct {
@@ -306,6 +400,11 @@ type ValidationField struct {
 	Message string `json:"message"`
 }
 
+// ListCalendarVersionsParams defines parameters for ListCalendarVersions.
+type ListCalendarVersionsParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetProposalsApiV1CoachProposalsGetParams defines parameters for GetProposalsApiV1CoachProposalsGet.
 type GetProposalsApiV1CoachProposalsGetParams struct {
 	Status *GetProposalsApiV1CoachProposalsGetParamsStatus `form:"status,omitempty" json:"status,omitempty"`
@@ -319,9 +418,15 @@ type PatchGoalJSONRequestBody = GoalPatch
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+
+	// (GET /api/v1/calendar/versions)
+	ListCalendarVersions(w http.ResponseWriter, r *http.Request, params ListCalendarVersionsParams)
 	// GetProposalsApiV1CoachProposalsGet Get Proposals
 	// (GET /api/v1/coach/proposals)
 	GetProposalsApiV1CoachProposalsGet(w http.ResponseWriter, r *http.Request, params GetProposalsApiV1CoachProposalsGetParams)
+
+	// (GET /api/v1/goals)
+	ListGoals(w http.ResponseWriter, r *http.Request)
 
 	// (PATCH /api/v1/goals/{goal_id})
 	PatchGoal(w http.ResponseWriter, r *http.Request, goalId openapi_types.UUID)
@@ -335,6 +440,39 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListCalendarVersions operation middleware
+func (siw *ServerInterfaceWrapper) ListCalendarVersions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListCalendarVersionsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCalendarVersions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetProposalsApiV1CoachProposalsGet operation middleware
 func (siw *ServerInterfaceWrapper) GetProposalsApiV1CoachProposalsGet(w http.ResponseWriter, r *http.Request) {
@@ -360,6 +498,20 @@ func (siw *ServerInterfaceWrapper) GetProposalsApiV1CoachProposalsGet(w http.Res
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetProposalsApiV1CoachProposalsGet(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListGoals operation middleware
+func (siw *ServerInterfaceWrapper) ListGoals(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListGoals(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -517,8 +669,46 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/coach/proposals", wrapper.GetProposalsApiV1CoachProposalsGet)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/goals/{goal_id}", wrapper.PatchGoal)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/calendar/versions", wrapper.ListCalendarVersions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/goals", wrapper.ListGoals)
 
 	return m
+}
+
+type ListCalendarVersionsRequestObject struct {
+	Params ListCalendarVersionsParams
+}
+
+type ListCalendarVersionsResponseObject interface {
+	VisitListCalendarVersionsResponse(w http.ResponseWriter) error
+}
+
+type ListCalendarVersions200JSONResponse CalendarVersionsEnvelope
+
+func (response ListCalendarVersions200JSONResponse) VisitListCalendarVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCalendarVersions422JSONResponse ValidationErrorResponse
+
+func (response ListCalendarVersions422JSONResponse) VisitListCalendarVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetProposalsApiV1CoachProposalsGetRequestObject struct {
@@ -553,6 +743,27 @@ func (response GetProposalsApiV1CoachProposalsGet422JSONResponse) VisitGetPropos
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListGoalsRequestObject struct {
+}
+
+type ListGoalsResponseObject interface {
+	VisitListGoalsResponse(w http.ResponseWriter) error
+}
+
+type ListGoals200JSONResponse GoalListEnvelope
+
+func (response ListGoals200JSONResponse) VisitListGoalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -666,9 +877,15 @@ func (response PatchGoal500JSONResponse) VisitPatchGoalResponse(w http.ResponseW
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+
+	// (GET /api/v1/calendar/versions)
+	ListCalendarVersions(ctx context.Context, request ListCalendarVersionsRequestObject) (ListCalendarVersionsResponseObject, error)
 	// GetProposalsApiV1CoachProposalsGet Get Proposals
 	// (GET /api/v1/coach/proposals)
 	GetProposalsApiV1CoachProposalsGet(ctx context.Context, request GetProposalsApiV1CoachProposalsGetRequestObject) (GetProposalsApiV1CoachProposalsGetResponseObject, error)
+
+	// (GET /api/v1/goals)
+	ListGoals(ctx context.Context, request ListGoalsRequestObject) (ListGoalsResponseObject, error)
 
 	// (PATCH /api/v1/goals/{goal_id})
 	PatchGoal(ctx context.Context, request PatchGoalRequestObject) (PatchGoalResponseObject, error)
@@ -716,6 +933,32 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// ListCalendarVersions operation middleware
+func (sh *strictHandler) ListCalendarVersions(w http.ResponseWriter, r *http.Request, params ListCalendarVersionsParams) {
+	var request ListCalendarVersionsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+		return sh.ssi.ListCalendarVersions(ctx, request.(ListCalendarVersionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListCalendarVersions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListCalendarVersionsResponseObject); ok {
+		if err := validResponse.VisitListCalendarVersionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetProposalsApiV1CoachProposalsGet operation middleware
 func (sh *strictHandler) GetProposalsApiV1CoachProposalsGet(w http.ResponseWriter, r *http.Request, params GetProposalsApiV1CoachProposalsGetParams) {
 	var request GetProposalsApiV1CoachProposalsGetRequestObject
@@ -735,6 +978,30 @@ func (sh *strictHandler) GetProposalsApiV1CoachProposalsGet(w http.ResponseWrite
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProposalsApiV1CoachProposalsGetResponseObject); ok {
 		if err := validResponse.VisitGetProposalsApiV1CoachProposalsGetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListGoals operation middleware
+func (sh *strictHandler) ListGoals(w http.ResponseWriter, r *http.Request) {
+	var request ListGoalsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+		return sh.ssi.ListGoals(ctx, request.(ListGoalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListGoals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListGoalsResponseObject); ok {
+		if err := validResponse.VisitListGoalsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

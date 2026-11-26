@@ -7,10 +7,10 @@ from http.client import HTTPConnection
 PATH = "/api/v1/coach/proposals"
 
 
-def read_response(port, query):
+def read_response(port, query, path=PATH):
     connection = HTTPConnection("127.0.0.1", port, timeout=5)
     try:
-        connection.request("GET", PATH + query)
+        connection.request("GET", path + query)
         response = connection.getresponse()
         body = json.loads(response.read())
         if response.getheader("Content-Type", "").split(";")[0] != "application/json":

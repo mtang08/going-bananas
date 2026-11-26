@@ -15,3 +15,10 @@ LIMIT 50;
 
 -- name: DataRevision :one
 SELECT coalesce((SELECT data_revision FROM app_state WHERE id = 1), 0)::integer AS data_revision;
+
+-- name: ListCalendarVersions :many
+SELECT id, number, parent_number, kind, actor, reason, proposal_id, restored_from_number,
+       block_version_id, created_at, extract(timezone FROM created_at)::integer AS created_offset
+FROM calendar_versions
+ORDER BY number DESC
+LIMIT $1;

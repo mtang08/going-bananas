@@ -133,7 +133,17 @@ def managed_urls(workspace, port, env, *, stop=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['start', 'stop', 'test', 'test-external', 'proposal', 'proposal-external', 'provider', 'provider-external', 'assessment', 'assessment-external'])
+    checks = {
+        'proposal': 'test_proposal_slice.py',
+        'provider': 'check_provider_replay.py',
+        'strong': 'check_strong_import.py',
+        'assessment': 'check_assessment_db.py',
+        'calendar': 'check_self_reports.py',
+        'rematch': 'check_rematch.py',
+        'dashboard': 'check_dashboard.py',
+    }
+    actions = ['start', 'stop', 'test', 'test-external', *checks, *(name + '-external' for name in checks)]
+    parser.add_argument('action', choices=actions)
     parser.add_argument('tests', nargs='*', help='test paths or pytest node IDs relative to backend')
     args = parser.parse_args()
     action = args.action
@@ -194,11 +204,7 @@ def main():
         )
         env.pop('UV_ENV_FILE', None)
         env.setdefault('UV_CACHE_DIR', str(private / 'cache' / 'uv'))
-        if action in {'assessment', 'assessment-external'}:
-            subprocess.run(['uv', 'run', 'python', '../scripts/rewrite/check_assessment_db.py'], cwd=backend, env=env, check=True)
-            return
-        if action.startswith(('proposal', 'provider')):
-            runner = 'test_proposal_slice.py' if action.startswith('proposal') else 'check_provider_replay.py'
+        if runner := checks.get(action.removesuffix('-external')):
             subprocess.run(
                 ['uv', 'run', 'python', '../scripts/rewrite/' + runner],
                 cwd=backend, env=env, check=True,

@@ -1,0 +1,39 @@
+{
+  "interpretation": "descriptive_only.v1",
+  "eligibility_rule": "plan_class_then_label_then_watch.v1",
+  "eligible_classes": [
+    "easy",
+    "long",
+    "unplanned"
+  ],
+  "structured_min_work_steps": 2,
+  "max_record_gap_s": 10,
+  "hr_valid_bpm": [
+    30,
+    230
+  ],
+  "speed_valid_mps": [
+    0,
+    10
+  ],
+  "moving_speed_min_mps": 1.5,
+  "warmup_exclude_s": 600,
+  "resume_exclude_s": 60,
+  "min_analysis_s": 1200,
+  "min_decoupling_analysis_s": 2400,
+  "coverage_good": 0.9,
+  "coverage_limited": 0.7,
+  "stopped_max_fraction": 0.1,
+  "steady_bin_s": 60,
+  "steady_cv_max_pct": 15.0,
+  "ef_rule": "sixty_x_mean_speed_over_mean_hr.v1",
+  "decoupling_rule": "first_minus_second_over_first_equal_timer_halves.v1",
+  "altitude_smoothing_s": 30,
+  "hilly_gain_m_per_km": 15.0,
+  "half_grade_diff_max_pct": 1.0,
+  "window_rule": "median_and_early_late_half_median.v1",
+  "trend_min_runs_per_half": 3,
+  "window_excluded_flags": [
+    "TREADMILL"
+  ]
+}

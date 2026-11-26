@@ -71,6 +71,46 @@ def check_open_states(env, ports):
             print(f'PASS open filter includes {state}', flush=True)
 
 
+def check_planning_lists(env, ports):
+    def compare(path, query, expected):
+        python, go = (read_response(int(port), query, path) for port in ports)
+        if python != go:
+            raise AssertionError(f'{path}{query} differs: {python!r} vs {go!r}')
+        if expected is None:
+            assert go[0] == 422
+        else:
+            assert go[0] == 200 and len(go[1]['data']['items']) == expected
+
+    versions = '/api/v1/calendar/versions'
+    compare(versions, '', 0)
+    compare('/api/v1/goals', '', 0)
+    with psycopg.connect(env['PROPOSAL_TEST_DATABASE_URL'], options=env['PGOPTIONS'], autocommit=True) as fixture:
+        fixture.execute("""
+            INSERT INTO calendar_versions (id, number, parent_number, kind, actor, reason,
+                proposal_id, restored_from_number, created_at)
+            SELECT md5(i::text)::uuid, i, nullif(i - 1, 0), 'manual_edit', 'user',
+                CASE WHEN i > 1 THEN 'synthetic edit' END,
+                CASE WHEN i = 51 THEN '00000000-0000-0000-0000-000000000033'::uuid END,
+                nullif(i - 1, 0), '2026-01-02T00:00:00.123400Z'::timestamptz + i * interval '1 day'
+            FROM generate_series(1, 51) i
+        """)
+        for query, expected in [('', 50), ('?limit=1', 1), ('?limit=50', 50), ('?limit=0', None),
+                                ('?limit=51', None), ('?limit=', None), ('?limit=bad', None),
+                                ('?limit=2.0', 2), ('?limit=1_0', 10), ('?limit=bad&limit=3', 3),
+                                ('?limit=3&limit=bad', None)]:
+            compare(versions, query, expected)
+        fixture.execute("DELETE FROM calendar_versions WHERE reason = 'synthetic edit' OR number = 1")
+        fixture.execute("""
+            INSERT INTO goals (id, text, horizon, priority, status, version) VALUES
+              (md5('g1')::uuid, 'history one', 'season', 2, 'paused', 3),
+              (md5('g2')::uuid, 'history two', 'long_term', 2, 'active', 1),
+              (md5('g3')::uuid, 'history three', 'season', 1, 'done', 2)
+        """)
+        compare('/api/v1/goals', '', 3)
+        fixture.execute("DELETE FROM goals WHERE id IN (md5('g1')::uuid, md5('g2')::uuid, md5('g3')::uuid)")
+    print('PASS calendar history limits, nulls, timestamps, validation and goal list ordering', flush=True)
+
+
 @contextmanager
 def servers(python_env, go_env, app_binary):
     with ExitStack() as stack:
@@ -134,6 +174,7 @@ def exercise(db, url, scratch):
             with servers(env, env, app_binary) as ports:
                 subprocess.run([sys.executable, ROOT / 'scripts/rewrite/compare_proposals.py', *ports], check=True)
                 check_open_states(env, ports)
+                check_planning_lists(env, ports)
                 reservation.close()
                 subprocess.run(['node', ROOT / 'scripts/rewrite/proposal-home.mjs', *ports], cwd=ROOT, env=env, check=True)
 

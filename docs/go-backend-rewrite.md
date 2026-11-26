@@ -54,9 +54,9 @@ The shared starting point is `dc15070`. Each session uses a separate checkout an
 
 | Session | Owned work | First independently verifiable delivery |
 | --- | --- | --- |
-| 1 · This session | [Application, training data and integration](go-rewrite-core.md) | Goal editing works in demo/test. Workout matching and metric identity are ported. Next is completion persistence and refresh. |
-| 2 · New Astra session | [Provider ingestion and FIT](go-rewrite-providers.md) | Normalized FIT decoder published. In progress on `go/provider-replay`: Garmin/export replay through persisted source history and a restartable checkpoint. |
-| 3 · New Astra session | [Coaching evidence and proposal lifecycle](go-rewrite-coaching.md) | Coaching fingerprints match both saved fixtures. In progress on `go/coaching-lifecycle`: snapshot and pending-draft submission, revision and discard. |
+| 1 · This session | [Application, training data and integration](go-rewrite-core.md) | Goal editing works in demo/test. Self-report and undo source writes match Python. Recording links, assessments and derived refresh are in progress. |
+| 2 · New Astra session | [Provider ingestion and FIT](go-rewrite-providers.md) | Garmin/export replay and Strong preview/apply run against synthetic PostgreSQL, including duplicate delivery, precedence conflicts and rollback. The live worker still uses Python. |
+| 3 · New Astra session | [Coaching evidence and proposal lifecycle](go-rewrite-coaching.md) | Synthetic draft submission, revision, discard and the contextual rules are implemented. Native evidence collection and schema normalization are under verification on `go/coaching-lifecycle`. |
 
 Stream 1 owns shared schema, transaction boundaries, generated API wiring and final integration. Stream 2 can add the FIT dependency to the Go module. Stream 3's first package works from existing evidence without new dependencies. At the first database write from streams 2 or 3, integrate with stream 1's transaction runner and verify retry and rollback on independent test databases. The real switch remains a single coordinated operation after the three workstreams pass their conformance checks and the recovery rehearsal. [Cutover criteria](#data-handoff-and-rollback)
 
