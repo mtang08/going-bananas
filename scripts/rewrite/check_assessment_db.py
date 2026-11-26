@@ -176,6 +176,7 @@ def spacing_check(binary, py, go):
             db.execute("UPDATE checkins_v2 SET activity_id=%s,kind='delayed_followup' WHERE id=%s",(id(22),id(192)))
     subprocess.run([sys.executable,__file__,"spacing","subjects",keys],env=dict(py,PYTHONPATH=str(BACKEND)),check=True)
     subprocess.run([binary,"-test.run","^TestPythonDatabase$"],env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,ASSESSMENT_SUBJECTS=keys,ASSESSMENT_SPACING="subjects",GORACE="atexit_sleep_ms=0"),check=True)
+    subprocess.run([binary,"-test.run","^TestPythonDatabase$"],env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,ASSESSMENT_SUBJECTS=keys,ASSESSMENT_SPACING="preview",GORACE="atexit_sleep_ms=0"),check=True)
     subject_rows=[]
     for env in (py,go):
         with conn(env) as db:
@@ -227,6 +228,34 @@ def exercise(binary,py,go):
     print("PASS assessment results, source/dependency hashes, linked and self-reported statuses, invalidation, historical restoration, caller rollback")
 
 
+def reference_scope(mode):
+    from app.db import SessionLocal
+    from app.metrics import refresh
+    from app.metrics.engine import metric_modules
+    metric_modules()
+    with SessionLocal.begin() as session:
+        session.info["metrics_now"]=datetime.fromisoformat(NOW)
+        scopes=({"plan":["date:2026-11-22"], "manual":["manual_completion:"+id(1)]}.get(mode) or mode.split(";"))
+        targets=refresh.scope_targets(session,scopes)
+        refresh.refresh_targets(session,targets,[])
+
+
+def scope_check(binary,py,go):
+    for env in [py,go]:
+        with conn(env) as db:
+            db.execute("INSERT INTO checkins_v2(id,idempotency_key,kind,observed_at) VALUES(%s,'scope','exception','2026-11-20T23:30Z')",(id(250),))
+    for mode in ["plan","manual","recovery_dates:2026-11-20","checkin:"+id(250),"since:2026-11-19;coverage_date:2026-11-20"]:
+        subprocess.run([sys.executable,__file__,"scope",mode],env=dict(py,PYTHONPATH=str(BACKEND)),check=True)
+        subprocess.run([binary,"-test.run","^TestScopeDatabase$"],env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,ASSESSMENT_SCOPE=mode,GORACE="atexit_sleep_ms=0"),check=True)
+        snapshots=[]
+        for env in [py,go]:
+            with conn(env) as db:
+                snapshots.append(db.execute("SELECT to_jsonb(m)-'id' FROM metric_results m ORDER BY metric_id,subject_key,dependency_hash").fetchall())
+        for (a,), (b,) in zip(*snapshots,strict=True):
+            if a!=b: raise AssertionError((mode,a["metric_id"],a["subject_key"],{k:(a[k],b[k]) for k in a if a[k]!=b[k]}))
+    print("PASS full metric window fan-out and histories for plan, manual, check-in, recovery, coverage and since scopes")
+
+
 def main():
     url=make_url(os.environ["TEST_DATABASE_URL"])
     if (os.environ.get("APP_MODE")!="test" or url.database!="garmin_test" or url.host not in {"localhost","127.0.0.1"}
@@ -238,9 +267,14 @@ def main():
         subprocess.run(["go","test","-race","-c","-o",binary,"./internal/metrics/assessment"],cwd=MODULE,check=True)
         with migrated_schema(db,url,directory/"reference","5173") as py,migrated_schema(db,url,directory/"go","5173") as go:
             exercise(binary,py,go)
+        refresh=directory/"refresh.test"
+        subprocess.run(["go","test","-race","-c","-o",refresh,"./internal/metrics/refresh"],cwd=MODULE,check=True)
+        with migrated_schema(db,url,directory/"scoperef","5173") as py,migrated_schema(db,url,directory/"scopego","5173") as go:
+            scope_check(refresh,py,go)
 
 
 if __name__=="__main__":
     if sys.argv[1:2]==["python"]:python_assess(sys.argv[3:],datetime.fromisoformat(sys.argv[2]))
+    elif sys.argv[1:2]==["scope"]:reference_scope(sys.argv[2])
     elif sys.argv[1:2]==["spacing"]:python_spacing(*sys.argv[2:])
     else:main()

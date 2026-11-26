@@ -89,35 +89,34 @@ func (m *comparisonMeasure) week(value *float64) {
 	}
 }
 
-func longActivity(ctx context.Context, tx pgx.Tx, r *metrics.Run, facts []checkin, zone *time.Location, now time.Time) error {
+func longActivity(ctx context.Context, tx pgx.Tx, r *metrics.Run, facts []checkin, zone *time.Location) (*metrics.Result, error) {
 	refs := runRefs(r)
 	out := metrics.Result{MetricID: "long_run_exposure", MethodVersion: "v1", SubjectType: "activity", SubjectKey: r.ID.String(), WindowStart: &r.Start, WindowEnd: r.End, WindowLabel: r.Day, Config: longConfig, SourceRefs: refs, Timezone: zone.String()}
 	if !r.Eligible {
 		out.Status = "not_applicable"
 		out.ReasonCodes = []string{"ACTIVITY_EXCLUDED"}
-		_, err := metrics.StoreResult(ctx, tx, out, now)
-		return err
+		return &out, nil
 	}
 	day, err := time.ParseInLocation(time.DateOnly, r.Day, zone)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	start, week, end := day.AddDate(0, 0, -30), day.AddDate(0, 0, -6), day.AddDate(0, 0, 1)
 	history, err := runsBetween(ctx, tx, start, end)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	weekCoverage, err := covered(ctx, tx, week, end)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	compCoverage, err := covered(ctx, tx, start, end)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	uid, linked, recipe, err := planLink(ctx, tx, r, refs)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ids, checkins := checkinRefs(facts, false)
 	delayed := "unknown"
@@ -172,7 +171,7 @@ func longActivity(ctx context.Context, tx pgx.Tx, r *metrics.Run, facts []checki
 	refs["coverage_complete_week"], refs["coverage_complete_comparator"] = weekCoverage, compCoverage
 	hash, err := metrics.Digest(object{"history": hist, "plan": refs["plan"], "completion_association_hash": refs["completion_association_hash"], "checkins": checkins, "coverage_complete_week": weekCoverage, "coverage_complete_comparator": compCoverage})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	refs["input_hash"] = hash
 	classification, source, confidence := "not_long", "long_rule", "low"
@@ -257,8 +256,7 @@ func longActivity(ctx context.Context, tx pgx.Tx, r *metrics.Run, facts []checki
 			out.QualityStatus = "limited"
 		}
 	}
-	_, err = metrics.StoreResult(ctx, tx, out, now)
-	return err
+	return &out, nil
 }
 
 // RefreshRun loads linked check-ins and refreshes symptoms, session RPE and long-run exposure for a recording.
@@ -275,15 +273,24 @@ func RefreshRun(ctx context.Context, tx pgx.Tx, id uuid.UUID, zone string, now t
 	if err != nil {
 		return err
 	}
-	if err := symptomActivity(ctx, tx, r, facts, zone, now); err != nil {
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		return err
+	}
+	symptoms, err := symptomActivity(ctx, tx, r, facts, zone)
+	if err != nil {
+		return err
+	}
+	if _, err := metrics.StoreResult(ctx, tx, *symptoms, now); err != nil {
 		return err
 	}
 	if err := RefreshRunRPE(ctx, tx, id, zone, now); err != nil {
 		return err
 	}
-	loc, err := time.LoadLocation(zone)
+	long, err := longActivity(ctx, tx, r, facts, loc)
 	if err != nil {
 		return err
 	}
-	return longActivity(ctx, tx, r, facts, loc, now)
+	_, err = metrics.StoreResult(ctx, tx, *long, now)
+	return err
 }

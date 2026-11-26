@@ -2,8 +2,10 @@ package trainingwindows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -296,7 +298,7 @@ func RefreshRPE(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error {
 	return nil
 }
 
-func persistRPE(ctx context.Context, tx pgx.Tx, f rpeFact, zone string, now time.Time) error {
+func rpeResult(f rpeFact, zone string) metrics.Result {
 	var duration, durationMin, load any
 	var source any
 	if f.source != "" {
@@ -341,7 +343,10 @@ func persistRPE(ctx context.Context, tx pgx.Tx, f rpeFact, zone string, now time
 		flags = []string{}
 		value = nil
 	}
-	_, err := metrics.StoreResult(ctx, tx, metrics.Result{MetricID: "session_rpe_load", MethodVersion: "v1", SubjectType: "activity", SubjectKey: f.key, WindowLabel: f.day, WindowStart: f.start, WindowEnd: f.end, Config: rpeConfig, SourceRefs: f.refs, Timezone: zone, Status: status, QualityStatus: q, ReasonCodes: reasons, QualityFlags: flags, Value: value, Unit: "AU"}, now)
+	return metrics.Result{MetricID: "session_rpe_load", MethodVersion: "v1", SubjectType: "activity", SubjectKey: f.key, WindowLabel: f.day, WindowStart: f.start, WindowEnd: f.end, Config: rpeConfig, SourceRefs: f.refs, Timezone: zone, Status: status, QualityStatus: q, ReasonCodes: reasons, QualityFlags: flags, Value: value, Unit: "AU"}
+}
+func persistRPE(ctx context.Context, tx pgx.Tx, f rpeFact, zone string, now time.Time) error {
+	_, err := metrics.StoreResult(ctx, tx, rpeResult(f, zone), now)
 	return err
 }
 
@@ -381,4 +386,41 @@ func RefreshRunRPE(ctx context.Context, tx pgx.Tx, id uuid.UUID, zone string, no
 }
 func isRunning(sport string) bool {
 	return sport == "running" || sport == "trail_running" || sport == "treadmill_running"
+}
+
+func RefreshStrengthKey(ctx context.Context, tx pgx.Tx, key string, zone *time.Location, now time.Time) error {
+	prefix, id, ok := strings.Cut(key, ":")
+	if !ok || prefix != "strong" && prefix != "manual" {
+		return fmt.Errorf("invalid strength subject")
+	}
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	sql := `SELECT local_date::text FROM strong_workouts WHERE id=$1`
+	if prefix == "manual" {
+		sql = `SELECT date::text FROM manual_sessions WHERE id=$1`
+	}
+	var day string
+	err = tx.QueryRow(ctx, sql, uid).Scan(&day)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if err == nil {
+		start, err := time.ParseInLocation(time.DateOnly, day, zone)
+		if err != nil {
+			return err
+		}
+		facts, err := rpeStrength(ctx, tx, start, start.AddDate(0, 0, 1), true)
+		if err != nil {
+			return err
+		}
+		for _, f := range facts {
+			if f.key == key {
+				return persistRPE(ctx, tx, f, zone.String(), now)
+			}
+		}
+	}
+	_, err = tx.Exec(ctx, `UPDATE metric_results SET is_current=false WHERE metric_id='session_rpe_load' AND method_version='v1' AND subject_key=$1 AND is_current`, key)
+	return err
 }

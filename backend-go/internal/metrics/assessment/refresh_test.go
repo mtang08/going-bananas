@@ -2,7 +2,10 @@ package assessment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics"
 	"os"
 	"strings"
 	"testing"
@@ -39,6 +42,42 @@ func TestPythonDatabase(t *testing.T) {
 	now, err := time.Parse(time.RFC3339, os.Getenv("ASSESSMENT_NOW"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if os.Getenv("ASSESSMENT_SPACING") == "preview" {
+		err = pgx.BeginTxFunc(t.Context(), pool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+			for _, key := range strings.Split(os.Getenv("ASSESSMENT_SUBJECTS"), ",") {
+				for _, metric := range []string{"symptom_response_timeline", "session_rpe_load", "long_run_exposure"} {
+					raw, err := trainingwindows.CalculateActivity(t.Context(), tx, metric, uuid.MustParse(key), "America/New_York")
+					if err != nil {
+						return err
+					}
+					value, err := metrics.Preview(*raw, now)
+					if err != nil {
+						return err
+					}
+					if value["id"] != nil || value["is_current"] != false {
+						return errors.New("unexpected saved identity")
+					}
+					enc, err := json.Marshal(value)
+					if err != nil {
+						return err
+					}
+					var equal bool
+					err = tx.QueryRow(t.Context(), `SELECT (to_jsonb(m)-ARRAY['id','is_current','window_start','window_end','calculated_at'])=($1::jsonb-ARRAY['id','is_current','window_start','window_end','calculated_at']) FROM metric_results m WHERE metric_id=$2 AND subject_key=$3 AND is_current`, enc, metric, key).Scan(&equal)
+					if err != nil {
+						return err
+					}
+					if !equal {
+						return fmt.Errorf("preview mismatch for %s %s", metric, key)
+					}
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return
 	}
 	if mode := os.Getenv("ASSESSMENT_SPACING"); mode != "" {
 		err := pgx.BeginTxFunc(t.Context(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {

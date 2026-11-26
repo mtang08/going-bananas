@@ -105,19 +105,18 @@ func recordMax(site object, key string, value float64) {
 	}
 }
 
-func symptomActivity(ctx context.Context, tx pgx.Tx, r *metrics.Run, facts []checkin, zone string, now time.Time) error {
+func symptomActivity(ctx context.Context, tx pgx.Tx, r *metrics.Run, facts []checkin, zone string) (*metrics.Result, error) {
 	refs := runRefs(r)
 	out := metrics.Result{MetricID: "symptom_response_timeline", MethodVersion: "v1", SubjectType: "activity", SubjectKey: r.ID.String(), WindowStart: &r.Start, WindowEnd: r.End, Config: symptomConfig, SourceRefs: refs, Timezone: zone}
 	if !r.Eligible {
 		out.Status = "not_applicable"
 		out.ReasonCodes = []string{"ACTIVITY_EXCLUDED"}
-		_, err := metrics.StoreResult(ctx, tx, out, now)
-		return err
+		return &out, nil
 	}
 	ids, rows := checkinRefs(facts, true)
 	hash, err := metrics.Digest(rows)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	refs["checkin_ids"], refs["checkins"], refs["input_hash"] = ids, rows, hash
 	if r.End == nil {
@@ -126,13 +125,12 @@ func symptomActivity(ctx context.Context, tx pgx.Tx, r *metrics.Run, facts []che
 	if len(facts) == 0 {
 		out.Status = "missing"
 		out.ReasonCodes = []string{"NO_LINKED_CHECKIN"}
-		_, err := metrics.StoreResult(ctx, tx, out, now)
-		return err
+		return &out, nil
 	}
 	var endStamp *string
 	err = tx.QueryRow(ctx, `SELECT to_char(end_at,'YYYY-MM-DD"T"HH24:MI:SS')||CASE WHEN extract(microseconds FROM end_at)::integer%1000000<>0 THEN to_char(end_at,'.US') ELSE '' END||to_char(end_at,'TZH:TZM') FROM activities WHERE id=$1`, r.ID).Scan(&endStamp)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	delayed := false
 	gaits := map[string]bool{}
@@ -197,6 +195,5 @@ func symptomActivity(ctx context.Context, tx pgx.Tx, r *metrics.Run, facts []che
 		out.QualityStatus = "limited"
 	}
 	out.Value = object{"activity_end_at": endStamp, "delayed_followup_answered": delayed, "reports": reports, "sites": ordered, "gait_change": gait}
-	_, err = metrics.StoreResult(ctx, tx, out, now)
-	return err
+	return &out, nil
 }
