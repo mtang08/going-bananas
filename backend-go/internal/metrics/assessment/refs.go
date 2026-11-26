@@ -1,177 +1,27 @@
 package assessment
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/mtang08/going-bananas/backend-go/internal/canonicaljson"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics"
 )
 
 type object = map[string]any
 
-func digest(value any) (string, error) {
-	b, err := canonicaljson.Metric(value)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", sha256.Sum256(b)), nil
-}
-func jsonValue(raw []byte) (any, error) {
-	if raw == nil {
-		return nil, nil
-	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	var value any
-	err := dec.Decode(&value)
-	return value, err
-}
-
-// PostgreSQL JSON loses the distinction between integer-valued float columns
-// and integers. Restore schema-declared floats before computing Python's hash.
-func floats(value any) any {
-	switch v := value.(type) {
-	case json.Number:
-		f, _ := v.Float64()
-		return f
-	case []any:
-		for i, child := range v {
-			v[i] = floats(child)
-		}
-		return v
-	default:
-		return value
-	}
-}
-func jsonRows(ctx context.Context, tx pgx.Tx, query string, id uuid.UUID, floatFields ...string) ([]object, error) {
-	rows, err := tx.Query(ctx, query, id)
-	if err != nil {
-		return nil, err
-	}
-	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (object, error) {
-		var b []byte
-		if err := r.Scan(&b); err != nil {
-			return nil, err
-		}
-		value, err := jsonValue(b)
-		if err != nil {
-			return nil, err
-		}
-		obj := value.(map[string]any)
-		for _, key := range floatFields {
-			obj[key] = floats(obj[key])
-		}
-		return obj, nil
-	})
-}
-
-const utcStart = `to_char(start_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
-const utcEnd = `to_char(end_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
-
-func fitReferences(ctx context.Context, tx pgx.Tx, id uuid.UUID) (object, error) {
-	// psycopg receives the PostgreSQL text representation of real[] values.
-	// Preserve that spelling before converting to Python-style floats.
-	streams, err := jsonRows(ctx, tx, `SELECT to_jsonb(s)-'activity_id' FROM activity_streams s WHERE activity_id=$1`, id, "speed_mps", "distance_m", "altitude_m", "cadence")
-	if err != nil {
-		return nil, err
-	}
-	var stream object
-	var flags any = []string{}
-	if len(streams) > 0 {
-		stream = streams[0]
-		flags = stream["quality_flags"]
-	}
-	laps, err := jsonRows(ctx, tx, `SELECT (to_jsonb(l)-'id'-'activity_id')||jsonb_build_object('start_at',`+utcStart+`,'end_at',`+utcEnd+`)
-		FROM activity_laps l WHERE activity_id=$1 ORDER BY lap_index`, id, "timer_s", "elapsed_s", "distance_m", "avg_speed_mps", "avg_hr_bpm", "max_hr_bpm")
-	if err != nil {
-		return nil, err
-	}
-	steps, err := jsonRows(ctx, tx, `SELECT to_jsonb(w)-'id'-'activity_id' FROM activity_workout_steps w WHERE activity_id=$1 ORDER BY message_index`, id, "duration_value", "target_low", "target_high")
-	if err != nil {
-		return nil, err
-	}
-	hash, err := digest(object{"stream": stream, "laps": laps, "steps": steps})
-	if err != nil {
-		return nil, err
-	}
-	fit, err := jsonRows(ctx, tx, `SELECT jsonb_build_object('id',id,'fit_sha256',fit_sha256,'zip_sha256',zip_sha256,'raw_object_id',raw_object_id,
-		'sdk_version',sdk_version,'profile_version',profile_version) FROM fit_files WHERE activity_id=$1`, id)
-	if err != nil {
-		return nil, err
-	}
-	result := object{}
-	if len(fit) > 0 {
-		result = fit[0]
-	}
-	result["normalized_hash"] = hash
-	result["quality_flags"] = flags
-	return result, nil
-}
-
 func runActivity(ctx context.Context, tx pgx.Tx, id uuid.UUID, zone string, planRef object, association any) (*Activity, object, string, error) {
-	var a Activity
-	a.Kind = "run"
-	var raw []byte
-	var start time.Time
-	var end *time.Time
-	var label, annotationLabel *string
-	var revision int
-	var fitStatus, state, day string
-	var elapsed *float64
-	var excluded *bool
-	var version *int
-	err := tx.QueryRow(ctx, `SELECT a.start_at,a.end_at,a.sport,a.timer_s,a.elapsed_s,a.distance_m,a.source_workout_label,
-		a.resolution_state,a.canonical_revision,a.fit_status,a.field_provenance,(a.start_at AT TIME ZONE $2)::date::text,
-		an.excluded,an.workout_label,an.version FROM activities a LEFT JOIN LATERAL
-		(SELECT * FROM activity_annotations WHERE activity_id=a.id ORDER BY version DESC LIMIT 1) an ON true WHERE a.id=$1`, id, zone).Scan(
-		&start, &end, &a.Sport, &a.Timer, &elapsed, &a.Distance, &label, &state, &revision, &fitStatus, &raw, &day, &excluded, &annotationLabel, &version)
-	if errors.Is(err, pgx.ErrNoRows) {
+	run, err := metrics.LoadRun(ctx, tx, id, zone)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if run == nil {
 		return nil, object{"activity_id": id.String(), "resolution_state": nil}, "", nil
 	}
-	if err != nil {
-		return nil, nil, "", err
-	}
-	provenance, err := jsonValue(raw)
-	if err != nil {
-		return nil, nil, "", err
-	}
-	fit, err := fitReferences(ctx, tx, id)
-	if err != nil {
-		return nil, nil, "", err
-	}
-	sources, err := jsonRows(ctx, tx, `SELECT json_build_object('source_record_id',s.id,'payload_hash',s.payload_hash,'source_modified_at',
-		CASE WHEN s.source_modified_at IS NOT NULL THEN to_char(s.source_modified_at,'YYYY-MM-DD"T"HH24:MI:SS') ||
-		CASE WHEN extract(microseconds FROM s.source_modified_at)::integer%1000000<>0 THEN to_char(s.source_modified_at,'.US') ELSE '' END ||
-		to_char(s.source_modified_at,'TZH:TZM') END,
-		'parser_version',s.parser_version,'raw_sha256',r.sha256,'selected_fields',l.selected_fields)
-		FROM activity_sources l JOIN source_records s ON s.id=l.source_record_id LEFT JOIN raw_objects r ON r.id=s.raw_object_id
-		WHERE l.activity_id=$1 ORDER BY s.id`, id)
-	if err != nil {
-		return nil, nil, "", err
-	}
-	var annotation object
-	if version != nil {
-		annotation = object{"excluded": excluded, "workout_label": annotationLabel}
-	}
-	refs := object{"id": id, "canonical_revision": revision, "fit_status": fitStatus,
-		"facts":      object{"start_at": start, "end_at": end, "sport": a.Sport, "timer_s": a.Timer, "elapsed_s": elapsed, "distance_m": a.Distance, "source_workout_label": label, "resolution_state": state},
-		"annotation": annotation, "annotation_version": version, "source_records": sources, "field_provenance": provenance, "fit": fit}
-	hash, err := digest(refs)
-	if err != nil {
-		return nil, nil, "", err
-	}
-	out := object{"activity": object{"id": id, "source_revision": hash, "source_refs": refs}, "fit": fit, "plan": planRef, "completion_association_hash": association}
-	if state != "resolved" || (a.Sport != "running" && a.Sport != "trail_running" && a.Sport != "treadmill_running") || (excluded != nil && *excluded) {
+	out := object{"activity": object{"id": id, "source_revision": run.SourceRevision, "source_refs": run.Refs}, "fit": run.FIT, "plan": planRef, "completion_association_hash": association}
+	if !run.Eligible {
 		out["activity_id"] = id
-		out["resolution_state"] = state
-		return nil, out, day, nil
+		out["resolution_state"] = run.State
+		return nil, out, run.Day, nil
 	}
-	return &a, out, day, nil
+	return &Activity{Kind: "run", Sport: run.Sport, Timer: run.Timer, Distance: run.Distance}, out, run.Day, nil
 }

@@ -106,6 +106,54 @@ def compare(py, go):
             raise AssertionError(f"{key} differs: {left[key]} vs {right[key]}")
 
 
+def python_spacing(mode, uid):
+    from datetime import date
+    from app.db import SessionLocal
+    from app.metrics.refresh import _manual_completion_spacing, compute_subjects
+    with SessionLocal.begin() as session:
+        now = datetime.fromisoformat(NOW)
+        session.info["metrics_now"] = now
+        if mode == "date":
+            compute_subjects(session, "hard_session_spacing", ["w14:2026-11-11"])
+        else:
+            _manual_completion_spacing(session, {UUID(uid)}, now.date(), associations_changed=mode=="association")
+
+
+def spacing_check(binary, py, go):
+    for env in [py, go]:
+        with conn(env) as db:
+            db.execute("INSERT INTO strength_routine_slots(id,label,default_weekday,lower_body_cost) VALUES(%s,'Fixture',1,'high')", (id(190),))
+            db.execute("UPDATE calendar_session_revisions SET strength_slot_id=%s WHERE kind='strength'", (id(190),))
+            db.execute("UPDATE calendar_session_revisions SET recipe_id='REC003' WHERE session_uid IN (%s,%s)",(id(1),id(4)))
+            db.execute("UPDATE activities SET source_workout_label='long' WHERE id=%s",(id(22),))
+            db.execute("""INSERT INTO metric_results(id,metric_id,method_version,subject_type,subject_key,status,value,source_refs,config_hash,calculated_at,dependency_hash,timezone)
+                VALUES(%s,'long_run_exposure','v1','activity',%s,'available',%s,'{}',%s,now(),%s,'America/New_York')""",
+                (id(191), id(21), Jsonb({"classification":"long"}), "3"*64,"4"*64))
+    def snapshots():
+        values = []
+        for env in [py,go]:
+            with conn(env) as db:
+                values.append(db.execute("SELECT to_jsonb(m)-'id' FROM metric_results m WHERE metric_id='hard_session_spacing' ORDER BY subject_key,dependency_hash").fetchall())
+        return values
+    for mode, n in [("date",1),("manual",5),("manual",1),("association",5)]:
+        if mode=="association":
+            for env in [py,go]:
+                with conn(env) as db:
+                    db.execute("UPDATE strength_routine_slots SET lower_body_cost='low',version=2 WHERE id=%s",(id(190),))
+        subprocess.run([sys.executable,__file__,"spacing",mode,id(n)],env=dict(py,PYTHONPATH=str(BACKEND)),check=True)
+        env=dict(go,ASSESSMENT_TEST_DATABASE_URL=go["PROPOSAL_TEST_DATABASE_URL"],ASSESSMENT_NOW=NOW,
+                 ASSESSMENT_SUBJECTS=id(n),ASSESSMENT_SPACING=mode,GORACE="atexit_sleep_ms=0")
+        subprocess.run([binary,"-test.run","^TestPythonDatabase$"],env=env,check=True)
+        left,right=snapshots()
+        if left!=right:
+            for (a,), (b,) in zip(left,right):
+                if a!=b:
+                    raise AssertionError({k:(a[k],b[k]) for k in a if a[k]!=b[k]})
+            raise AssertionError("spacing row count")
+    assert len(left)==4
+    print("PASS spacing windows, exposure and provenance payloads, manual selection and association refresh")
+
+
 def exercise(binary,py,go):
     for env in [py,go]:seed(env)
     def golang(keys,inject=False,now=NOW):
@@ -142,6 +190,7 @@ def exercise(binary,py,go):
     for env in [py,go]:
         with conn(env) as db:db.execute("UPDATE calendar_session_revisions SET deleted=true WHERE session_uid=%s",(id(6),))
     both([id(6)])
+    spacing_check(binary,py,go)
     print("PASS assessment results, source/dependency hashes, linked and self-reported statuses, invalidation, historical restoration, caller rollback")
 
 
@@ -160,4 +209,5 @@ def main():
 
 if __name__=="__main__":
     if sys.argv[1:2]==["python"]:python_assess(sys.argv[3:],datetime.fromisoformat(sys.argv[2]))
+    elif sys.argv[1:2]==["spacing"]:python_spacing(*sys.argv[2:])
     else:main()

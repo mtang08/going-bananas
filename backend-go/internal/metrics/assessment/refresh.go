@@ -64,11 +64,11 @@ func load(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time) (subject
 				return s, err
 			}
 		}
-		value, err := jsonValue(raw)
+		value, err := metrics.JSONValue(raw)
 		if err != nil {
 			return s, err
 		}
-		hash, err := digest(value)
+		hash, err := metrics.Digest(value)
 		if err != nil {
 			return s, err
 		}
@@ -173,7 +173,7 @@ func (s *subject) loadActivity(ctx context.Context, tx pgx.Tx) error {
 			return err
 		}
 		if err == nil {
-			hash, err := digest(object{"version": version, "date": day, "time": clock, "duration_s": actual.Timer, "kind": actual.Kind})
+			hash, err := metrics.Digest(object{"version": version, "date": day, "time": clock, "duration_s": actual.Timer, "kind": actual.Kind})
 			if err != nil {
 				return err
 			}
@@ -243,12 +243,12 @@ func Refresh(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time) (Resu
 	s.refs["candidate_activity_ids"] = out.Value.CandidateIDs
 	s.refs["coverage_complete"] = s.Coverage
 	s.refs["as_of"] = s.AsOf
-	h, err := digest(s.refs)
+	h, err := metrics.Digest(s.refs)
 	if err != nil {
 		return Result{}, err
 	}
 	s.refs["input_hash"] = h
-	cfg, err := digest(config)
+	cfg, err := metrics.Digest(config)
 	if err != nil {
 		return Result{}, err
 	}
@@ -257,7 +257,7 @@ func Refresh(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time) (Resu
 		metricID, methodVersion, config, cfg); err != nil {
 		return Result{}, err
 	}
-	dep, err := digest(object{"source_refs": s.refs, "config_hash": cfg, "anchor_set_hash": nil, "timezone": s.zone, "calculator_dependency_hash": ""})
+	dep, err := metrics.Digest(object{"source_refs": s.refs, "config_hash": cfg, "anchor_set_hash": nil, "timezone": s.zone, "calculator_dependency_hash": ""})
 	if err != nil {
 		return Result{}, err
 	}
