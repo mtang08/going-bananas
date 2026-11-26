@@ -29,7 +29,7 @@ type Record struct {
 	ContentHash                            string
 }
 
-var errInvalidEvent = errors.New("gcal_invalid_response")
+var ErrInvalidResponse = errors.New("gcal_invalid_response")
 
 func optionalText(value any, max int) (*string, error) {
 	if value == nil {
@@ -37,7 +37,7 @@ func optionalText(value any, max int) (*string, error) {
 	}
 	s, ok := value.(string)
 	if !ok || (max > 0 && utf8.RuneCountInString(s) > max) {
-		return nil, errInvalidEvent
+		return nil, ErrInvalidResponse
 	}
 	return &s, nil
 }
@@ -55,12 +55,12 @@ func truncateText(s string, limit int) string {
 func instant(value any) (*time.Time, error) {
 	s, ok := value.(string)
 	if !ok {
-		return nil, errInvalidEvent
+		return nil, ErrInvalidResponse
 	}
 	t, err := time.Parse(time.RFC3339Nano, s)
 	_, offset := t.Zone()
 	if err != nil || offset <= -24*3600 || offset >= 24*3600 || t.Year() < 1 || t.UTC().Year() < 1 || t.UTC().Year() > 9999 {
-		return nil, errInvalidEvent
+		return nil, ErrInvalidResponse
 	}
 	t = t.UTC().Truncate(time.Microsecond)
 	return &t, nil
@@ -69,7 +69,7 @@ func instant(value any) (*time.Time, error) {
 func eventDate(value any) (*string, error) {
 	s, ok := value.(string)
 	if !ok {
-		return nil, errInvalidEvent
+		return nil, ErrInvalidResponse
 	}
 	for _, layout := range []string{time.DateOnly, "20060102"} {
 		t, err := time.Parse(layout, s)
@@ -78,7 +78,7 @@ func eventDate(value any) (*string, error) {
 			return &date, nil
 		}
 	}
-	return nil, errInvalidEvent
+	return nil, ErrInvalidResponse
 }
 
 func selfResponse(value any) (*string, error) {
@@ -87,13 +87,13 @@ func selfResponse(value any) (*string, error) {
 	}
 	attendees, ok := value.([]any)
 	if !ok {
-		return nil, errInvalidEvent
+		return nil, ErrInvalidResponse
 	}
 	var first map[string]any
 	for _, entry := range attendees {
 		a, ok := entry.(map[string]any)
 		if !ok {
-			return nil, errInvalidEvent
+			return nil, ErrInvalidResponse
 		}
 		if first == nil && a["self"] == true {
 			first = a
@@ -137,7 +137,7 @@ func locationCodes(value any) []string {
 func NormalizeEvent(raw map[string]any) (*Record, error) {
 	id, ok := raw["id"].(string)
 	if !ok || id == "" {
-		return nil, errInvalidEvent
+		return nil, ErrInvalidResponse
 	}
 	if raw["status"] == "cancelled" || raw["start"] == nil || raw["end"] == nil {
 		return nil, nil
@@ -145,7 +145,7 @@ func NormalizeEvent(raw map[string]any) (*Record, error) {
 	start, ok := raw["start"].(map[string]any)
 	end, okEnd := raw["end"].(map[string]any)
 	if !ok || !okEnd {
-		return nil, errInvalidEvent
+		return nil, ErrInvalidResponse
 	}
 	r := Record{GoogleEventID: id, GoogleStatus: "confirmed", EventType: "default", Transparency: "opaque"}
 	var err error
@@ -211,7 +211,7 @@ func NormalizeEvent(raw map[string]any) (*Record, error) {
 	r.Busy = r.Transparency != "transparent" && (r.ResponseStatus == nil || *r.ResponseStatus != "declined")
 	body, err := canonicaljson.Coaching(r.hashFields())
 	if err != nil {
-		return nil, errInvalidEvent
+		return nil, ErrInvalidResponse
 	}
 	sum := sha256.Sum256(body)
 	r.ContentHash = hex.EncodeToString(sum[:])

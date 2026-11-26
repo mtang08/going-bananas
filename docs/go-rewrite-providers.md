@@ -106,3 +106,23 @@ python3 scripts/test-db.py strong
 ```
 
 The database comparison exercises read-only preview, first import, duplicate and changed exports, manual associations, rollback after the workouts were written, restart, competing import processes, and mixed-account rejection. [Scanner](../backend-go/internal/strong/scan.go) · [Transaction](../backend-go/internal/strong/import.go) · [Database comparison](../scripts/rewrite/check_strong_import.py)
+
+## Google Calendar replay and trip reconciliation
+
+`travel.Apply(ctx, pool, delivery)` accepts a fetch timestamp and the complete sequence of Google Calendar list responses. On every page after the first, include the request token as `page_token`. The final page has no next token. The decoder verifies the chain before treating absent events in the fetch window as removed. The window runs from 30 days before to 180 days after the fetch date in the athlete's timezone.
+
+Replay commits event versions, detected trips, ordered flight legs, the data revision and the import batch together under the shared writer lock. A repeated window preserves event versions and trip identities. Changed or cancelled flights flag trips the athlete edited and preserve their dates, destination and availability. A failed fetch records a failed batch. A database failure rolls the reconciliation back. [Transaction](../backend-go/internal/travel/replay.go) · [Trip reconciliation](../backend-go/internal/travel/reconcile.go)
+
+From the repository root with Go on PATH, run the comparison against Python or replay a local synthetic manifest.
+
+```sh
+python3 scripts/test-db.py gcal
+(cd backend-go && go build -o ../private/gcal-replay ./cmd/gcal-replay)
+./scripts/with-mode test private/gcal-replay -input private/fixtures/calendar-window.json
+```
+
+The manifest has the following form. An empty terminal page completes a window, so replay it only when the captured fetch is complete.
+
+```json
+{"now":"2026-11-22T15:00:00Z","pages":[{"items":[],"nextPageToken":"p2"},{"page_token":"p2","items":[]}]}
+```

@@ -137,6 +137,7 @@ def main():
         'proposal': 'test_proposal_slice.py',
         'provider': 'check_provider_replay.py',
         'strong': 'check_strong_import.py',
+        'gcal': 'check_gcal_replay.py',
         'calendar': 'check_self_reports.py',
     }
     actions = ['start', 'stop', 'test', 'test-external', *checks, *(name + '-external' for name in checks)]
