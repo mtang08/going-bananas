@@ -54,7 +54,7 @@ func TestParityServer(t *testing.T) {
 	config, err := pgxpool.ParseConfig(os.Getenv("PROPOSAL_TEST_DATABASE_URL"))
 	if err != nil || config.ConnConfig.Database != "garmin_test" || config.ConnConfig.Host != "127.0.0.1" && config.ConnConfig.Host != "localhost" ||
 		fmt.Sprint(config.ConnConfig.Port) != os.Getenv("TEST_DATABASE_PORT") ||
-		!regexp.MustCompile(`^-csearch_path=go_parity_[0-9a-f]{32} -cTimeZone=Asia/Kathmandu$`).MatchString(os.Getenv("PGOPTIONS")) {
+		!regexp.MustCompile(`^-csearch_path=go_parity_[0-9a-f]{32} -cTimeZone=Asia/Kathmandu -cdefault_transaction_read_only=on$`).MatchString(os.Getenv("PGOPTIONS")) {
 		t.Fatal("expected a disposable local comparison schema")
 	}
 	pool, err := pgxpool.NewWithConfig(t.Context(), config)

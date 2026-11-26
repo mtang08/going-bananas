@@ -37,7 +37,7 @@ func (h Handler) edit(w http.ResponseWriter, r *http.Request, operation string) 
 	ctx := r.Context()
 	var data any
 	var revision int32
-	err := pgx.BeginTxFunc(ctx, h.Pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
+	err := pgx.BeginTxFunc(ctx, h.Pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		q := db.New(tx)
 		if err := q.LockGlobalWriter(ctx); err != nil {
 			return err
