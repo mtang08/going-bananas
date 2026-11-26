@@ -61,8 +61,9 @@ func (a Adapter) Validate(ctx context.Context, tx pgx.Tx, raw json.RawMessage, n
 	}
 	in := map[string]any{"snapshot": exported, "now": now, "document": v.Payload, "knowledge": kb, "index": idx}
 	var response struct {
+		Context drafts.RuleContext     `json:"rule_context"`
+		Groups  drafts.ReferenceGroups `json:"groups"`
 		Current drafts.CurrentEvidence `json:"current"`
-		Issues  []drafts.Issue         `json:"issues"`
 		Changes []drafts.Change        `json:"changes"`
 	}
 	if err := a.run(ctx, "rules", in, &response); err != nil {
@@ -70,8 +71,11 @@ func (a Adapter) Validate(ctx context.Context, tx pgx.Tx, raw json.RawMessage, n
 	}
 	v.Changes = response.Changes
 	v.Status, v.Issues, err = drafts.Freshness(s, d, response.Current, kb, now)
-	if err == nil && v.Status == "pending" && len(response.Issues) > 0 {
-		v.Status, v.Issues = "invalid", response.Issues
+	if err == nil && v.Status == "pending" {
+		v.Issues, err = drafts.ValidateRules(v.Document, response.Context, idx, response.Groups)
+		if len(v.Issues) > 0 {
+			v.Status = "invalid"
+		}
 	}
 	return v, err
 }

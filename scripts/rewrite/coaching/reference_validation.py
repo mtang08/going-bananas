@@ -11,12 +11,41 @@ from uuid import UUID
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "backend"))
 
 
+def rule_inputs(doc, ctx):
+    from app.services.proposals import validation as v
+
+    start, end = v.scope(doc.operation, ctx.today, v._horizon_review_date(doc, ctx))
+    state = v._resulting(doc, ctx)
+    change_issues = v._change_rules(doc, ctx, start=start, end=end, state=state)
+    omissions, deletions, calendar_issues = v._strength_omission_rules(doc, ctx, state)
+    calendar_issues += v._calendar_shape_rules(
+        state,
+        start=start,
+        end=end,
+        head_sessions=ctx.head_sessions,
+        omissions=omissions,
+        marked_deletions=deletions,
+    )
+    return {
+        "rule_context": {
+            "today": ctx.today,
+            "timezone": str(ctx.tz),
+            "block_uid": str(ctx.active_block.block_uid) if ctx.active_block else "",
+            "head_sessions": {str(uid): True for uid in ctx.head_sessions},
+        },
+        "groups": {
+            "changes": [x.to_json() for x in change_issues],
+            "calendar": [x.to_json() for x in calendar_issues],
+            "exceptions": [x.to_json() for x in v._exception_rules(doc, ctx)],
+        },
+    }
+
+
 def rules(data):
     from app.db import SessionLocal
     from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
     from app.services.proposals.context import load_context
     from app.services.proposals.schema import ProposalDoc
-    from app.services.proposals.validation import _rules
     from sqlalchemy import text
 
     export = data["snapshot"]
@@ -42,7 +71,6 @@ def rules(data):
         facts = collect_decision_inputs(
             session, ctx.snapshot.operation, ctx.snapshot.as_of, now=now, kb=kb
         )
-        issues = _rules(doc, ctx)
         changes = []
         for c in doc.changes:
             before = ctx.head_sessions.get(c.session_uid)
@@ -72,7 +100,7 @@ def rules(data):
                 "block_id": ctx.active_block.version_id if ctx.active_block else None,
                 "sources": facts["source_versions"],
             },
-            "issues": [x.to_json() for x in issues],
+            **rule_inputs(doc, ctx),
             "changes": changes,
         }
 
