@@ -74,7 +74,7 @@ func hashObject(obj map[string]any) (string, error) {
 
 func (s Store) Submit(ctx context.Context, raw json.RawMessage, now time.Time, validate Validator) (EditResult, error) {
 	var result EditResult
-	err := pgx.BeginTxFunc(ctx, s.Pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		if err := LockPlanning(ctx, tx); err != nil {
 			return err
 		}
@@ -154,7 +154,7 @@ func differences(before, after map[string]any, exclude string) []string {
 
 func (s Store) Revise(ctx context.Context, id uuid.UUID, req RevisionRequest, now time.Time, validate Validator) (EditResult, error) {
 	var result EditResult
-	err := pgx.BeginTxFunc(ctx, s.Pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		if err := LockPlanning(ctx, tx); err != nil {
 			return err
 		}

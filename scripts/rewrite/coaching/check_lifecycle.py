@@ -82,14 +82,14 @@ def main():
             targets.append((dest, conn))
         (ref, refdb), (go, godb) = targets
 
-        def python(env, op, **kw):
+        def python(env, op, *, at=NOW, **kw):
             return execute(
                 [
                     sys.executable,
                     ROOT / "scripts/rewrite/coaching/lifecycle_reference.py",
                 ],
                 env,
-                dict(op=op, now=NOW, **kw),
+                dict(op=op, now=at, **kw),
             )
 
         def native(op, id=None, body=None, failure=False, revision=None):
@@ -100,11 +100,11 @@ def main():
                 args += ["-revision", str(revision)]
             return execute(args, go, body, failure)
 
-        def document(env):
-            seed = python(env, "seed")
+        def document(env, operation="proceed_or_modify_today", at=NOW):
+            seed = python(env, "seed", operation=operation, at=at)
             return {
                 "schema_version": "coach_proposal.v2",
-                "operation": "proceed_or_modify_today",
+                "operation": operation,
                 "snapshot_id": seed["snapshot_id"],
                 "base_calendar_version": 0,
                 "base_block_version_id": None,
@@ -392,6 +392,263 @@ def main():
                 state(refdb, pid),
                 state(godb, gid),
             )
+        from runpy import run_path
+
+        block_fields = run_path(
+            str(ROOT / "backend/tests/integration/test_proposals.py")
+        )["_block_fields"]("2026-12-28", "2026-12-20")
+        for conn in (refdb, godb):
+            for day in ("2026-11-17", "2026-11-20"):
+                conn.execute(
+                    "INSERT INTO calendar_session_revisions(id,session_uid,revision,calendar_version_number,local_date,kind,intent,certainty) VALUES (%s,%s,1,2,%s,'strength','Synthetic lift','committed')",
+                    (uuid4(), uuid4(), day),
+                )
+        for kind in ["anchor", "block", "continue", "reorder"]:
+            if kind == "block":
+                for conn in (refdb, godb):
+                    conn.execute(
+                        "INSERT INTO exception_findings(id,rule_code,rule_version,category,severity,entity_key,status,summary,evidence,evidence_at,first_seen_at,last_seen_at) VALUES(%s,'FATIGUE_HIGH','exceptions.v1','accumulated_fatigue','observe','synthetic','open','Synthetic finding','[]',%s,%s,%s)",
+                        (uuid4(), NOW, NOW, NOW),
+                    )
+            case_req = dict(
+                expected_head=2,
+                expected_revision=1,
+                idempotency_key=f"planning-{kind}",
+                accept_change_ids=[],
+                reject_change_ids=[],
+            )
+
+            def planning_proposal(env, conn):
+                doc = document(
+                    env,
+                    "recalibrate_intensity"
+                    if kind == "anchor"
+                    else "review_training_block",
+                )
+                doc.update(base_calendar_version=2, changes=[])
+                if kind == "anchor":
+                    doc["anchor_changes"] = [
+                        dict(
+                            kind="hr_threshold_lower",
+                            value_low=165,
+                            unit="bpm",
+                            protocol="manual",
+                            confidence="moderate",
+                            calibrated_at=NOW,
+                        )
+                    ]
+                    case_req["accept_anchor_changes"] = [
+                        "hr_threshold_lower-2026-11-16"
+                    ]
+                else:
+                    active = conn.execute(
+                        "SELECT block_uid,id FROM block_versions ORDER BY version DESC LIMIT 1"
+                    ).fetchone()
+                    if active:
+                        doc["base_block_version_id"] = str(active[1])
+                    doc["block_change"] = dict(
+                        decision="continue" if active else "start",
+                        block_uid=str(active[0]) if active else None,
+                        version_fields={
+                            **block_fields,
+                            "eligible_recipe_ids": list(
+                                reversed(block_fields["eligible_recipe_ids"])
+                            ),
+                        }
+                        if kind == "reorder"
+                        else block_fields,
+                    )
+                    case_req["accept_block_change"] = True
+                prop = python(env, "submit", document=doc)
+                assert prop["status"] == "pending", prop
+                return prop["proposal_id"]
+
+            pid, gid = planning_proposal(ref, refdb), planning_proposal(go, godb)
+            expected = python(ref, "decide", id=pid, request=case_req)
+            assert expected.get("status") == "accepted", expected
+            subprocess.run(
+                [
+                    "go",
+                    "test",
+                    "-count=1",
+                    "-run",
+                    "^TestAcceptDecisionLedger$",
+                    "./internal/coaching/drafts",
+                ],
+                cwd=ROOT / "backend-go",
+                check=True,
+                env={
+                    **go,
+                    "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
+                        "postgresql+psycopg://", "postgresql://"
+                    ),
+                    "COACHING_DECISION_TEST_ID": gid,
+                    "COACHING_DECISION_TEST_NOW": NOW,
+                    "COACHING_DECISION_TEST_REQUEST": json.dumps(case_req),
+                },
+            )
+            for query in [
+                "SELECT data_revision,calendar_head_version FROM app_state",
+                "SELECT anchor_key,value_low,calibrated_at,review_after,status FROM intensity_anchors ORDER BY anchor_key",
+                "SELECT version,why,benchmark,objective,build_outline FROM block_versions ORDER BY version",
+                "SELECT decision,from_version,to_version,rationale FROM block_decisions ORDER BY to_version",
+                "SELECT status, version, reviewed_by_proposal_id IS NOT NULL FROM exception_findings ORDER BY rule_code",
+            ]:
+                assert (
+                    refdb.execute(query).fetchall() == godb.execute(query).fetchall()
+                ), query
+        from datetime import datetime, UTC
+
+        live_doc = document(go, at=datetime.now(UTC).isoformat())
+        live_doc["base_calendar_version"] = 2
+        live_doc["base_block_version_id"] = str(
+            godb.execute(
+                "SELECT id FROM block_versions ORDER BY version DESC LIMIT 1"
+            ).fetchone()[0]
+        )
+        draft_file = Path(scratch) / "skill-draft.json"
+        draft_file.write_text(json.dumps(live_doc))
+        helper = [
+            sys.executable,
+            ROOT / ".codex/skills/going-bananas-coach/scripts/coach_app.py",
+            "--repo",
+            ROOT,
+            "--mode",
+            "test",
+        ]
+        skill_env = {**go, "UV_PROJECT_ENVIRONMENT": sys.prefix}
+        published = execute([*helper, "submit", "--file", draft_file], skill_env)
+        assert published["status"] == "pending" and published["revision"] == 1, (
+            published
+        )
+        live_doc["headline"] = "Synthetic skill revision"
+        draft_file.write_text(json.dumps(live_doc))
+        revised = execute(
+            [
+                *helper,
+                "revise",
+                published["proposal_id"],
+                "--expected-revision",
+                "1",
+                "--reason",
+                "Synthetic request",
+                "--file",
+                draft_file,
+            ],
+            skill_env,
+        )
+        assert (
+            revised["proposal_id"] == published["proposal_id"]
+            and revised["revision"] == 2
+        ), revised
+        assert godb.execute(
+            "SELECT calendar_head_version FROM app_state"
+        ).fetchone() == (2,)
+        godb.execute(
+            "UPDATE coach_proposals SET submitted_at='2026-11-16T15:33:22.493820Z' WHERE id=%s",
+            (published["proposal_id"],),
+        )
+        godb.execute(
+            "UPDATE coach_proposal_revisions SET saved_at='2026-11-16T15:33:22.493820Z' WHERE proposal_id=%s AND revision=1",
+            (published["proposal_id"],),
+        )
+        for zone in ["America/New_York", "UTC"]:
+            zoned = {**go, "PGOPTIONS": go["PGOPTIONS"] + " -cTimeZone=" + zone}
+            views = Path(scratch) / "http-views.json"
+            with views.open("w") as f:
+                subprocess.run(
+                    [
+                        sys.executable,
+                        ROOT / "scripts/rewrite/coaching/http_reference.py",
+                    ],
+                    env=zoned,
+                    cwd=ROOT,
+                    stdout=f,
+                    check=True,
+                )
+            subprocess.run(
+                [
+                    "go",
+                    "test",
+                    "-count=1",
+                    "-run",
+                    "^TestReferenceViews$",
+                    "./internal/proposalhttp",
+                ],
+                cwd=ROOT / "backend-go",
+                env={
+                    **zoned,
+                    "COACHING_HTTP_REFERENCE": str(views),
+                    "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
+                        "postgresql+psycopg://", "postgresql://"
+                    ),
+                },
+                check=True,
+            )
+        subprocess.run(
+            [
+                "go",
+                "test",
+                "-count=1",
+                "-run",
+                "^TestDashboardBoundDraft$",
+                "./internal/coaching/drafts",
+            ],
+            cwd=ROOT / "backend-go",
+            env={
+                **go,
+                "COACHING_TX_TEST_URL": go["DATABASE_URL"].replace(
+                    "postgresql+psycopg://", "postgresql://"
+                ),
+            },
+            check=True,
+        )
+        native("discard", published["proposal_id"], revision=2)
+
+        def http_doc(env, db):
+            doc = document(env, at=datetime.now(UTC).isoformat())
+            doc.update(
+                base_calendar_version=2,
+                base_block_version_id=str(
+                    db.execute(
+                        "SELECT id FROM block_versions ORDER BY version DESC LIMIT 1"
+                    ).fetchone()[0]
+                ),
+                headline="HTTP proposal",
+            )
+            return doc
+
+        http_input = dict(document=http_doc(ref, refdb), candidate=http_doc(go, godb))
+        commands = Path(scratch) / "http-commands.json"
+        with commands.open("w") as f:
+            subprocess.run(
+                [sys.executable, ROOT / "scripts/rewrite/coaching/http_commands.py"],
+                env=ref,
+                cwd=ROOT,
+                input=json.dumps(http_input),
+                text=True,
+                stdout=f,
+                check=True,
+            )
+        subprocess.run(
+            [
+                "go",
+                "test",
+                "-count=1",
+                "-run",
+                "^TestReferenceCommands$",
+                "./internal/proposalhttp",
+            ],
+            cwd=ROOT / "backend-go",
+            env={
+                **go,
+                "COACHING_HTTP_COMMANDS": str(commands),
+                "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
+                    "postgresql+psycopg://", "postgresql://"
+                ),
+            },
+            check=True,
+        )
     print(
         "Passed Python-created draft revision, no-duplicate retry, drift, rollback, concurrent edits, discard and native submit."
     )
