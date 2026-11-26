@@ -11,6 +11,36 @@ root = Path(__file__).resolve().parents[1]
 private = root / 'private'
 private.mkdir(exist_ok=True, mode=0o700)
 cluster = private / 'postgres'
+
+def exe(name):
+    path = shutil.which(name)
+    if path:
+        return path
+    candidate = Path('/opt/homebrew/opt/postgresql@17/bin') / name
+    if candidate.exists():
+        return str(candidate)
+    raise SystemExit(f'{name} not found: install PostgreSQL 17 or use Compose.')
+
+def run(name, *args, **kwargs):
+    return subprocess.run([exe(name), *map(str,args)], check=True, **kwargs)
+
+def start_cluster():
+    status = subprocess.run([exe('pg_ctl'), '-D', str(cluster), 'status'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if status.returncode:
+        run('pg_ctl', '-D', cluster, '-l', private/'postgres.log', 'start')
+
+action = sys.argv[1] if len(sys.argv) > 1 else 'start'
+if action == 'stop':
+    run('pg_ctl', '-D', cluster, '-m', 'fast', 'stop')
+    raise SystemExit(0)
+if action == 'start-existing':
+    if not (cluster / 'PG_VERSION').is_file():
+        raise SystemExit('Project PostgreSQL is not initialized. Run make db-start during setup.')
+    start_cluster()
+    raise SystemExit(0)
+if action != 'start':
+    raise SystemExit('Use start, start-existing, or stop.')
+
 env_file = root / '.env'
 content = env_file.read_text() if env_file.exists() else ''
 existing = {}
@@ -33,21 +63,6 @@ with env_file.open('a') as f:
             f.write(f'{key}={value}\n')
 env_file.chmod(0o600)
 
-def exe(name):
-    path = shutil.which(name)
-    if path:
-        return path
-    candidate = Path('/opt/homebrew/opt/postgresql@17/bin') / name
-    if candidate.exists():
-        return str(candidate)
-    raise SystemExit(f'{name} not found: install PostgreSQL 17 or use Compose.')
-
-def run(name, *args, **kwargs):
-    return subprocess.run([exe(name), *map(str,args)], check=True, **kwargs)
-
-if len(sys.argv)>1 and sys.argv[1]=='stop':
-    run('pg_ctl', '-D', cluster, '-m', 'fast', 'stop')
-    raise SystemExit(0)
 if not (cluster/'PG_VERSION').exists():
     pwfile = private/'initdb-password'
     pwfile.write_text(password)
@@ -58,9 +73,7 @@ if not (cluster/'PG_VERSION').exists():
         pwfile.unlink(missing_ok=True)
     with (cluster/'postgresql.conf').open('a') as f:
         f.write("\nlisten_addresses = '127.0.0.1'\nport = 55432\nunix_socket_directories = '"+str(private).replace("'","''")+"'\n")
-status = subprocess.run([exe('pg_ctl'), '-D', str(cluster), 'status'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-if status.returncode:
-    run('pg_ctl', '-D', cluster, '-l', private/'postgres.log', 'start')
+start_cluster()
 for name in ('garmin_demo','garmin_test','garmin_real'):
     result=run('psql','-h',private,'-p','55432','-U','garmin','-d','postgres','-Atc',f"SELECT 1 FROM pg_database WHERE datname = '{name}'",capture_output=True,text=True)
     if not result.stdout.strip():

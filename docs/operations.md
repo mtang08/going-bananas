@@ -15,6 +15,38 @@ Use `make db-start` / `make db-stop` for the project-local cluster. This does no
 stop other PostgreSQL installations. Application shutdown signals only the
 processes its launcher created. The database is intentionally independent.
 
+## Open Going Bananas on macOS
+
+After completing the local setup and building the app, double-click
+**Going Bananas.command** in Finder. Choose **Open** to launch the configured
+dashboard at `http://127.0.0.1:8000`. The launcher opens an already healthy
+dashboard or starts the local service and waits for readiness. The Finder
+menu identifies an already running demo or test dashboard before opening it.
+After a software update, stop the dashboard from the session that originally
+launched it, then open it again from Finder.
+
+Choose **Enable at Login** to register the dashboard with macOS for your user
+account. The login agent uses this checkout's `.env` and starts the existing
+project-local PostgreSQL cluster when the configured database uses it. Keep the
+checkout at the same path while the login agent is enabled. Each login uses the
+current built frontend. Build and migrate during setup or an update, before the
+next startup. Startup diagnostics are recorded in
+`private/dashboard-launch.log`. If another process owns port 8000, the agent
+leaves it running and exits.
+
+Choose **Disable at Login** to remove the login agent and stop any app process
+it supervises. PostgreSQL and separately launched app processes keep running.
+The Finder menu shows whether login startup is enabled. The equivalent terminal
+status command is `./'Going Bananas.command' status`.
+
+The Coach page uses the local Codex CLI and offers a ChatGPT sign-in button.
+Complete sign-in in the OpenAI browser window, then return to the dashboard.
+Codex keeps its dashboard credentials and thread state under
+`private/coach-codex/`, a user-private directory ignored by Git. Personalized
+coaching requires an account and workspace with access to Astra Medium. The
+login agent only starts local services. An athlete message is required to start
+a coaching turn.
+
 ## Backup / restore
 
 ```sh
@@ -22,6 +54,8 @@ make backup
 ```
 
 In real mode, `make migrate` backs up to `$PRIVATE_DIR/backups/` and stops if the backup fails. Demo and test migrations run directly.
+
+Training backups include saved proposals and accepted history. Dashboard chat transcripts, Codex threads, and credentials stay in their private local directories.
 
 Before applying `0022_race_goals` to the real database, check its current revision and retain a pre-migration backup. This migration deletes existing events, clears their links on retained benchmark and anchor records, and expires outstanding post-race review findings. Restoring the backup recovers the old events. After migrating, enter upcoming races under **Settings → Events**, choose their purposes, and put the goal race first. The next block review can link the accepted block to that race.
 

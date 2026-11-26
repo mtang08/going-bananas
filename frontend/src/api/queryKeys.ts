@@ -45,6 +45,8 @@ export const qk = {
   activities: ['v2', 'activities'] as const,
   activityRuns: (start: string, end: string) => ['v2', 'activities', start, end, 'runs'] as const,
   activityLatest: (day: string) => ['v2', 'activities', 'latest', day] as const,
+  coachChat: ['v2', 'coach', 'chat'] as const,
+  coachAuth: ['v2', 'coach', 'auth'] as const,
   proposals: ['v2', 'proposals'] as const,
   proposalsOpen: ['v2', 'proposals', 'open'] as const,
   proposal: (id: string) => ['v2', 'proposals', id] as const,

@@ -16,20 +16,21 @@ imports, metrics, and validation run locally without model calls.
 
 Frontend implementation conventions are in [the UI system guide](docs/ui-system.md).
 
-Open **User guide** in the app for copyable coaching prompts and the Sunday,
-exception, race, and training-block workflows. The same guide is maintained in
+Open **User guide** in the app for the Sunday, exception, race, and training-block
+workflows and example coaching prompts. The same guide is maintained in
 [docs/user-guide.md](docs/user-guide.md) and can be downloaded from the app.
 
 1. Open **http://127.0.0.1:8000**. Home shows sync status, what needs attention,
    today's plan, projected weekly mileage, planned vs done, recorded sessions this week, and the training
    block. Record check-ins and actual effort there.
-2. Ask Codex to use **`$going-bananas-coach`** for a weekly review, an
-   exception review, a block review, a post-race review, calibration, or a goal
-   change. If there is no training block yet, start with a block review.
-3. On Home, open **Needs attention → Review**. Valid session changes start checked. Uncheck any you want to skip,
+2. On Home, choose **Talk to coach**, **Start Sunday review**, or **Discuss today’s run**.
+   Enter what changed and send your message. Use **Continue review** to return to
+   the conversation and **New Sunday review** on the coach page when you are ready
+   to start a fresh one.
+3. Open **Review proposal** in the coach conversation or **Needs attention → Review** on Home. Valid session changes start checked. Uncheck any you want to skip,
    select any block or anchor changes, then choose **Accept selected**. Unselected session
-   changes are rejected. Nothing applies when you open the page or submit a
-   proposal from Codex.
+   changes are rejected. Saving a draft leaves the accepted plan intact until you
+   apply it from the proposal page.
 4. Inspect accepted sessions and **Plan versions** in Calendar. Completed,
    historical, and locked sessions remain protected when undoing a change.
    A check-in or new import can make a proposal stale; request a fresh review.
@@ -43,7 +44,7 @@ targets or median observed speed from the last 28 days and are marked as
 estimates. Missing data or incomplete plan coverage is labeled; past unrecorded
 runs are not added to the forecast. Pending proposals do not affect the total.
 
-Use Sunday evening as the normal weekly coaching review; initiate it in Codex.
+Use Sunday evening as the normal weekly coaching review and start it from Home.
 Extra reviews are for material changes, symptoms, or new goals. Discuss adjustments in the same chat. The coach reuses the review context and
 publishes once you agree or ask to save. Updates to an open draft keep its link and revision history.
 Refresh and review the latest revision before accepting; selections reset when
@@ -214,14 +215,16 @@ supports the inspected Strong format, not arbitrary CSVs.
 
 ## Feedback and planning
 
-The reviewed skill source is `.codex/skills/going-bananas-coach`. Install it
-using the manifest and backup procedure in [operations](docs/operations.md).
-Start a new Codex session after installation if skill discovery needs refreshing.
+Dashboard chat needs a compatible Codex installation on the Mac running Going
+Bananas and internet access for model replies. On **Coach**, choose **Sign in with
+ChatGPT**, open the sign-in link, and return to the conversation. You can read the
+saved conversation and use the calendar, check-ins, and proposals while the local
+app and database are running, even if the coach connection is unavailable.
 
-Invoke `$going-bananas-coach` and describe the review you want. The invoking
-Codex model supplies the reasoning; the app does not need a separate model key
-or runner. Select real mode for your training. Proposal payloads remain in
-private local storage, and submission always stops at pending review.
+The reviewed skill source is `.codex/skills/going-bananas-coach`. For a separate
+Codex session, install it using the manifest and backup procedure in
+[operations](docs/operations.md), then invoke `$going-bananas-coach` and describe
+the review you want. Select real mode for your training.
 
 The helper also provides explicit read commands:
 
@@ -294,6 +297,17 @@ check-ins, proposals, findings, patches, and a block benchmark in the demo
 database. `scripts/verify-demo.py`
 provides additional API acceptance checks; `scripts/smoke.py --mode real` is
 read-only except for an intentionally rejected foreign-origin request.
+
+The coach browser test uses the same demo app and PostgreSQL with a scripted
+Codex protocol fixture. For that test, start a fresh seeded demo with the
+fixture server in place of the ordinary demo server.
+
+```sh
+GB_COACH_BROWSER_TEST=1 APP_PORT=18000 ./scripts/with-mode demo bash -c 'cd backend && PYTHONPATH=. uv run python ../e2e/coach_browser_server.py'
+# In another terminal:
+cd frontend
+GB_COACH_BROWSER_TEST=1 NODE_PATH="$PWD/node_modules" PLAYWRIGHT_BASE_URL=http://127.0.0.1:18000 npx playwright test coach-chat.spec.ts
+```
 
 Release outcomes and limitations are in [the release checklist](docs/release-checklist.md).
 Never run tests with real data substituted for synthetic fixtures.

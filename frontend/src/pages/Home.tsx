@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { MessageCircle } from 'lucide-react'
 import type { ExceptionsView, Finding, Patch } from '../api/types/exceptions'
+import type { CoachChat } from '../api/types/coachChat'
 import { CopyPrompt } from '../components/CopyPrompt'
 import { SyncCard } from '../components/SyncCard'
 import { relativeTime } from '../components/shared'
@@ -41,6 +43,11 @@ export function Home({
   onCheckin: (req: CheckinRequest) => void
 }) {
   const qc = useQueryClient()
+  const chat = useQuery({
+    queryKey: qk.coachChat,
+    queryFn: ({ signal }) => api<CoachChat>('/coach/chat', { signal }),
+    retry: false,
+  })
   const pending = useQuery({
     queryKey: qk.proposalsOpen,
     queryFn: () => listProposals({ status: 'open' }),
@@ -159,6 +166,7 @@ export function Home({
   const activeDraft = openProposals.find(
     (proposal) => proposal.status === 'pending' || proposal.status === 'stale',
   )
+  const hasConversation = Boolean(chat.data?.data?.messages?.length)
   const attentionCount =
     openProposals.length + recommended.length + flagged.length + due.length + open.length
   const showAttention =
@@ -178,6 +186,30 @@ export function Home({
           <p>Planned training and open prompts.</p>
         </div>
       </div>
+      <Card className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+            <MessageCircle size={20} aria-hidden="true" />
+          </div>
+          <div>
+            <h2 className="mb-1 text-base">Running coach</h2>
+            <p className="m-0 text-sm text-muted-foreground">
+              Talk through today’s run or plan the next week of training.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <a href={pageHref.coach}>{hasConversation ? 'Continue review' : 'Talk to coach'}</a>
+          </Button>
+          <Button variant="outline" asChild>
+            <a href={pageHref.coachStart('sunday_review')}>Start Sunday review</a>
+          </Button>
+          <Button variant="outline" asChild>
+            <a href={pageHref.coachStart('today_run')}>Discuss today’s run</a>
+          </Button>
+        </div>
+      </Card>
       <QueryState
         loading={calendar.isPending}
         error={calendar.error}
@@ -237,9 +269,9 @@ export function Home({
             </Card>
             {(!last || last <= addDays(today, 6)) && (
               <div className="notice warning" role="status" data-testid="plan-end-banner">
-                {last
-                  ? `Plan ends on ${dateLabel(last)} — run the weekly review`
-                  : 'No planned sessions — run the weekly review'}
+                {last ? `Plan ends on ${dateLabel(last)}` : 'No planned sessions'}
+                {' — '}
+                <a href={pageHref.coachStart('sunday_review')}>run the weekly review</a>
               </div>
             )}
           </>

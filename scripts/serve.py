@@ -1,13 +1,29 @@
 #!/usr/bin/env python3
 """Supervise local API/worker and optional Vite; clean up only owned processes."""
-from pathlib import Path
+import fcntl
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
+# Finder, launchd, and make share this hold for the life of the supervisor.
+private = root / 'private'
+private.mkdir(mode=0o700, exist_ok=True)
+lock = (private / 'dashboard-serve.lock').open('a')
+try:
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    raise SystemExit('Going Bananas is already starting or running from this checkout.')
+with socket.socket() as listener:
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        listener.bind(('127.0.0.1', 8000))
+    except OSError:
+        raise SystemExit('Port 8000 is already occupied. Stop the other service before starting Going Bananas.')
 os.environ.setdefault('FRONTEND_DIST', str(root/'frontend/dist'))
 commands = [(['uv', 'run', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000'], root/'backend')]
 if os.environ.get('APP_MODE', 'demo') == 'real':

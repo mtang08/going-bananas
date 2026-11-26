@@ -20,6 +20,7 @@ import { ReturnPlanImpact } from './proposal/ReturnPlanImpact'
 import { ScheduleImpact } from './proposal/ScheduleImpact'
 import type { Unit } from '../lib/format'
 import { DecisionActions } from './proposal/DecisionActions'
+import { pageHref } from '../lib/routes'
 
 export function ProposalReview({ proposalId, unit }: { proposalId: string; unit: Unit }) {
   return <ReviewForm key={proposalId} proposalId={proposalId} unit={unit} />
@@ -189,7 +190,10 @@ function ReviewForm({ proposalId, unit }: { proposalId: string; unit: Unit }) {
           <h1>Review proposal</h1>
           <p>Choose the changes you want to apply.</p>
         </div>
-        <a href="#calendar">Calendar</a>
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <a href={pageHref.coach}>Back to coach</a>
+          <a href={pageHref.calendar}>Calendar</a>
+        </div>
       </div>
       <QueryState
         loading={detail.isPending}

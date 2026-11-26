@@ -24,7 +24,7 @@ frontend/src (React, React Query, hash routing)
 - API data responses use `{schema_version, data_revision, mode, data}`. Error responses use `{error: {code, message, retryable, request_id, fields}}`.
 - Writes require `X-Local-Request: 1`. The server rejects non-local origins when an `Origin` is supplied and binds to loopback only.
 - `backend/tests/unit/test_layering.py` enforces the one-way rules: services, metrics, domain, and adapters may depend only on layers below the API. Domain code is framework independent and the default timezone literal has one home.
-- Ordinary requests, metrics, imports, and calendar expansion never call a model. Coaching reasoning happens in the repo-local Codex skill, which reads a filtered snapshot and submits a pending proposal that the athlete accepts in the app.
+- Ordinary requests, metrics, imports, and calendar expansion run locally. An explicit send on Coach starts a Codex turn, and the dashboard reads the saved conversation and partial reply as they update. Coach tools read filtered snapshots and save pending proposals using the same services as the repo-local Codex skill. The athlete accepts changes on the proposal page.
 
 ## Write → refresh lifecycle
 

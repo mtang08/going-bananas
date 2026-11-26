@@ -328,8 +328,13 @@ describe('authority shell', () => {
   })
 
   it('parses current routes and sends removed pages home', () => {
-    for (const page of ['calendar', 'trends', 'block', 'settings', 'guide'])
+    for (const page of ['coach', 'calendar', 'trends', 'block', 'settings', 'guide'])
       expect(parseHash(`#${page}`)).toEqual({ page, id: null })
+    expect(parseHash(pageHref.coachStart('sunday_review'))).toEqual({
+      page: 'coach',
+      id: 'sunday_review',
+    })
+    expect(parseHash(pageHref.coachStart('today_run'))).toEqual({ page: 'coach', id: 'today_run' })
     const calendar = { page: 'calendar', id: '2026-11-16' }
     expect(parseHash('#calendar/2026-11-16')).toEqual(calendar)
     expect(parseHash(pageHref.calendarWeek('2026-11-16'))).toEqual(calendar)
@@ -341,7 +346,15 @@ describe('authority shell', () => {
     expect(parseHash(`#proposal/${proposalId}`)).toEqual({ page: 'proposal', id: proposalId })
     for (const hash of ['#proposal/%ZZ', '#proposal/no-id', `#proposal/${proposalId}/extra`])
       expect(parseHash(hash)).toEqual({ page: 'home', id: null })
-    for (const hash of ['#history', '#strength', '#coach', '#overview', '#cycle', '#unknown', ''])
+    for (const hash of [
+      '#history',
+      '#strength',
+      '#coach/unknown',
+      '#overview',
+      '#cycle',
+      '#unknown',
+      '',
+    ])
       expect(parseHash(hash)).toEqual({ page: 'home', id: null })
   })
   it('includes calendar week queries in calendar invalidation', () => {
@@ -388,7 +401,7 @@ describe('authority shell', () => {
     ).toBeInTheDocument()
     expect(window.location.hash).toBe('#block')
   })
-  it('shows only the five lean navigation items and a Guide link', async () => {
+  it('shows the coach beside the training navigation and a Guide link', async () => {
     mount()
     await screen.findByTestId('today-card')
     const primary = screen.getByRole('navigation', { name: 'Primary navigation' })
@@ -396,7 +409,7 @@ describe('authority shell', () => {
       within(primary)
         .getAllByRole('button')
         .map((button) => button.textContent),
-    ).toEqual(['Home', 'Calendar', 'Trends', 'Training block', 'Settings'])
+    ).toEqual(['Home', 'Coach', 'Calendar', 'Trends', 'Training block', 'Settings'])
     expect(screen.getByRole('link', { name: 'Guide' })).toHaveAttribute('href', '#guide')
     for (const name of ['History', 'Strength', 'Coaching history'])
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()

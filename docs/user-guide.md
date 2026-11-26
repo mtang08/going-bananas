@@ -1,4 +1,4 @@
-Going Bananas is your local training journal and accepted running plan. Open [Home](#home) to find today’s workout, record what happened, and see what needs a decision. Bring ordinary planning questions to the Codex coach on Sunday. Use the app to review and apply any changes you agree to.
+Going Bananas is your local training journal and accepted running plan. Open [Home](#home) to find today’s workout, record what happened, and see what needs a decision. Bring planning questions to the running coach, then review and apply any changes you agree to.
 
 ## Start here
 
@@ -11,10 +11,10 @@ On an ordinary day, check Today, train and record, then respond if there is a us
 - **Before training** → [Home](#home) → **Today’s plan**. Read the accepted purpose, dose, effort and adjustment cues. Open the workout in [Calendar](#calendar) if you need its full structure. If a material change affects what you can do, report it before treating the plan as settled.
 - **During training** → Record the run on Garmin and the lift in Strong. Follow the accepted prescription on your watch or from Calendar. **Download week** gives you text for reference, and you can set up a Garmin workout separately if you want watch prompts. Check off rehab separately in Calendar.
 - **After training** → If a match looks unclear, check it in Calendar. Open the recording if you want to compare execution, add effort the watch missed, or record a relevant delayed response. Log completion manually only when you know you completed the workout.
-- **Sunday evening** → Check **Planned vs done** and **Needs attention** on Home, then start the Sunday review in Codex. Discuss the changes before asking the coach to save a draft. Finish on the proposal page by accepting the changes you want.
+- **Sunday evening** → Check **Planned vs done** and **Needs attention** on Home, then choose **Start Sunday review**. Discuss the changes before asking the coach to save a draft. Finish on the proposal page by accepting the changes you want.
 - **When something changes midweek** → Follow the matching workflow below. Leave the accepted calendar as it is until you edit it directly or accept a coach proposal.
 
-The app imports records, matches activities and evaluates evidence using local rules. The coach in Codex interprets the evidence, answers questions, and drafts changes when you ask. Garmin and Strong remain your recording tools. Google Calendar supplies travel context through a read-only connection.
+The app imports records, matches activities and evaluates evidence using local rules. The running coach interprets the evidence, answers questions, and drafts changes when you ask. Garmin and Strong remain your recording tools. Google Calendar supplies travel context through a read-only connection.
 
 ### Open the right workspace
 
@@ -29,13 +29,13 @@ Enter your goals and races if you have them. Check which dates Garmin and Strong
 ### Where to go when something happens
 
 - **I have today’s workout and can do it** → [Home](#home) → **Today’s plan**. Follow the accepted prescription and record the workout at its source.
-- **Something affects today’s run** → Use **Record check-in** in the top bar for symptoms or material context. Use [Home](#home) → **Needs attention** or ask Codex for an exception review if the plan needs adapting.
+- **Something affects today’s run** → Use **Record check-in** in the top bar for symptoms or material context. Choose **Discuss today’s run** on Home if the plan needs adapting.
 - **The recording is absent, delayed, or on the wrong day** → [Settings](#settings) → **Sync** to check imports, then [Calendar](#calendar) → **Record outcome** or **Mark complete** as appropriate.
 - **I need to record effort or delayed response** → From [Home](#home) or [Calendar](#calendar), open the run. Supply only the observations you know.
 - **I need to move, remove, or shorten an upcoming workout** → [Calendar](#calendar) for a direct edit if you already know what you want. Ask the coach if you want the tradeoff assessed.
 - **I have a temporary break or a clinician’s instruction** → Use [Home](#home) for a running interruption or [Settings](#settings) → **Running limits** for a confirmed restriction. These record different facts and can coexist.
 - **I have travel, a new goal, or a race** → Record it in [Settings](#settings), then tell the coach when it materially changes the plan. Use the race prompt on Home when a post-race review is due.
-- **It’s my regular review, or my block needs a decision** → Start with “Sunday review” in Codex. The coach routes it to a rolling plan or a block review.
+- **It’s my regular review, or my block needs a decision** → Choose **Start Sunday review** on Home. The coach routes it to a rolling plan or a block review.
 - **I have a new calibration result or want to choose a quality workout** → Describe the new evidence or the quality slot to the coach. Review the targeted proposal in the app.
 - **I have a proposal or want to change my mind** → [Home](#home) → **Needs attention** → **Review**. Revise the open draft in chat, select the changes you want, reject, or discard. For an already accepted change, use Calendar’s **Plan versions** if a restore is available.
 
@@ -45,7 +45,7 @@ On Monday, open an accepted easy run on Home, run it with Garmin, and check the 
 
 On Thursday, a schedule conflict means the weekend long run needs a different day. If you want the coach to weigh the tradeoff, tell it what changed and which days are available. It can compare the move with nearby demanding sessions. When the draft looks right, open it from Home, inspect **Two-week schedule impact**, and accept the changes you want. Check the resulting day in Calendar.
 
-On Sunday, open **Planned vs done**. Compare the agreed change with the actual run and your response. If there is still no recording or response, say what you know and leave the rest unknown. Ask Codex for your Sunday review, agree on any changes in chat, and finish the decision in the app.
+On Sunday, open **Planned vs done**. Compare the agreed change with the actual run and your response. If there is still no recording or response, say what you know and leave the rest unknown. Start your Sunday review on Home, agree on any changes in chat, and finish the decision on the proposal page.
 
 > Use $going-bananas-coach for my Sunday review in real mode. Review my current block. The long run moved to Saturday, and I recorded my response in the app. Talk through what to keep or change and what to check next.
 
@@ -81,7 +81,9 @@ After your first run back is recorded, Home links to its feedback. Review how th
 
 ## Sunday review
 
-Start one manual coaching review on Sunday evening. The coach chooses the scope.
+Choose **Start Sunday review** on Home. Add schedule changes or feedback to the starting message and send it. Use **Continue review** to pick up the same conversation after checking Calendar or reloading the app. When you are ready for a fresh conversation, choose **New Sunday review** and confirm. Saved proposals remain available.
+
+If you are starting a review from a separate Codex session, use this prompt.
 
 > Use $going-bananas-coach for my Sunday review in real mode. Review my current block and talk through the plan with me. My schedule changes and feedback are: …
 
@@ -91,7 +93,7 @@ In **Planned vs done**, the follow-up on an accepted run shows the original dose
 
 While reviewing a pending proposal, **Two-week schedule impact** recalculates when you change the checked rows. It shows changes in planned running time and distance and the dates of affected sessions. For a moved run, look for nearby demanding work before deciding whether to accept. **Block → Goal progress** brings the latest reported benchmark, the block indicators, and the next scheduled check together.
 
-Start a fresh Codex conversation for a new review. If there is already a draft for this decision, continue in its conversation or ask a fresh chat to open the existing draft. A question such as “Does this workout serve my goal?” can end with an answer and no draft.
+If there is already a draft for this decision, ask the coach to review it before saving changes. Use **Review proposal** beside the conversation to see the current draft or open it from Home. A question such as “Does this workout serve my goal?” can end with an answer and no draft.
 
 You start each review yourself. **Weekly review day** in Settings records your preferred day. It creates no schedule or automatic proposals. Review earlier when a material change, symptoms, or a new goal changes the decision.
 
@@ -234,6 +236,7 @@ On treadmill runs, the overall planned-versus-done assessment omits pace targets
 ## Find your way around
 
 - [Home](#home) shows sync status, **Needs attention** (open proposals, coach recommendations, findings, patch reassessments, and check-in prompts), weekly mileage and **Planned vs done**, today's plan, this week's sessions, the block line, and **Logged for Sunday review**.
+- [Coach](#coach) opens your running conversation, the current proposal, and today’s run context.
 - [Calendar](#calendar) shows one week at a time, with arrows to browse accepted sessions, workout details, the coach’s brief, and your notes, patch, benchmark, and trip badges, and **Plan versions** with a link to the proposal behind each coach change. Completed, historical, and locked sessions are protected during undo.
 - [Trends](#trends) covers volume, effort load, long runs, intensity, aerobic efficiency on steady runs, workout progression, recovery, and benchmark history. Panels without enough data wait under **Not yet assessable**.
 - [Training block](#block) shows the current objective, timeline, review indicators, and block benchmark.
@@ -262,9 +265,9 @@ To enter a known anchor yourself, use **Settings → Intensity anchors**. Choose
 
 ## Coaching model and research
 
-Use **Astra Medium** as the head coach for personalized decisions and final proposals. Select it in Codex when available. The choice belongs to your Codex session. If another model invokes the skill and delegation is supported, it can hand coaching to a fresh Astra Medium agent.
+Dashboard chat uses **Astra Medium** for personalized decisions and proposals. The first time you use it, choose **Sign in with ChatGPT**, open the browser link, and complete sign-in. If access expires, return to Coach to sign in and retry your message. New replies require internet access. Your saved conversation, accepted plan, and pending proposals remain available while the local app is running.
 
-The coach first reuses the verified running research already returned with your training snapshot. For a genuine unanswered research question, it may ask a cheaper helper to retrieve a short source-linked brief. Astra checks decisive claims and owns the coaching decision. You apply the plan in the app.
+Dashboard coaching draws on the local verified running research returned with your training snapshot. For a question that needs additional research, use the coaching skill in a separate Codex session. Select **Astra Medium** when available. That session can delegate narrowly scoped retrieval when supported, and Astra verifies decisive claims before using them. You apply the plan in the app.
 
 ## Sync, imports and workout feedback
 
@@ -290,4 +293,4 @@ Use [README.md → Fresh setup](../README.md#fresh-setup) for setup and [docs/op
 - **A provider is unavailable or a sync is partial.** Keep using the accepted plan and saved feedback. Inspect the dataset status in Settings. Retry the failed sync after access recovers or a rate limit clears. Follow the owner documentation for Garmin credential renewal and Google reconnection. Keep secrets out of chat. If the model is unavailable, Calendar, local feedback, and direct edits still work while the local app and database are up.
 - **A source is missing.** Check Garmin coverage, pending treadmill review, Strong export dates, or Google Calendar connection separately. Record an outcome from what you actually know. Preserve unknown observations when requesting a review.
 - **You are updating or recovering the workspace.** Follow the real-mode backup and migration procedure in [docs/operations.md](operations.md). Restore to a separate database and private directory, verify before switching, and retain the original until you are satisfied. Keep backup archives private. Manage provider credentials and token files separately.
-- **Coach access or protocol fails.** Work in the project checkout and refer to the repo-local skill. Follow the skill update instructions in [docs/operations.md](operations.md) if your installed copy is older or the app reports an incompatible protocol. Start a fresh Codex session after an update as needed. Use the accepted calendar while you resolve it.
+- **Coach access fails.** Follow the connection message on Coach. Use **Sign in with ChatGPT** when asked, then **Use last message again** to recover the message. If the Mac is offline, use the accepted calendar and retry coaching when you are connected.

@@ -6,6 +6,7 @@ import {
   ChartNoAxesColumn,
   Footprints,
   Menu,
+  MessageCircle,
   Moon,
   Plus,
   Settings2,
@@ -18,6 +19,7 @@ import { useServer } from './components/shared'
 import type { Unit } from './lib/format'
 import { CheckinModalV2 } from './pages/CheckinModalV2'
 import { Home } from './pages/Home'
+import { Coach } from './pages/Coach'
 import { Calendar } from './pages/Calendar'
 import { Trends } from './pages/Trends'
 import { Activity } from './pages/Activity'
@@ -28,12 +30,21 @@ import { Guide } from './pages/Guide'
 import { Badge, Button, Dialog, DialogContent, DialogTitle, DialogTrigger } from './components/ui'
 
 type Page =
-  'home' | 'calendar' | 'trends' | 'block' | 'settings' | 'activity' | 'proposal' | 'guide'
+  | 'home'
+  | 'coach'
+  | 'calendar'
+  | 'trends'
+  | 'block'
+  | 'settings'
+  | 'activity'
+  | 'proposal'
+  | 'guide'
 type Route = { page: Page; id: string | null }
 type NavItem = { id: Page; label: string; icon: typeof ChartNoAxesColumn }
 
 const nav: NavItem[] = [
   { id: 'home', label: 'Home', icon: Footprints },
+  { id: 'coach', label: 'Coach', icon: MessageCircle },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'trends', label: 'Trends', icon: ChartNoAxesColumn },
   { id: 'block', label: 'Training block', icon: CalendarDays },
@@ -44,8 +55,11 @@ export function parseHash(hash: string): Route {
   const fallback: Route = { page: 'home', id: null }
   if (!hash.startsWith('#')) return fallback
   const path = hash.slice(1)
-  const allowed = new Set(['home', 'calendar', 'trends', 'block', 'settings', 'guide'])
+  const allowed = new Set(['home', 'coach', 'calendar', 'trends', 'block', 'settings', 'guide'])
   if (allowed.has(path)) return { page: path as Page, id: null }
+  if (path === 'coach/sunday_review' || path === 'coach/today_run') {
+    return { page: 'coach', id: path.slice('coach/'.length) }
+  }
   if (/^proposal\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path)) {
     return { page: 'proposal', id: path.slice('proposal/'.length) }
   }
@@ -70,7 +84,7 @@ function modeLabel(mode?: string) {
 }
 
 export function App() {
-  const [route, setRoute] = useState<Route>({ page: 'home', id: null })
+  const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash))
   const [checkinOpen, setCheckinOpen] = useState(false)
   const [checkinRequest, setCheckinRequest] = useState<CheckinRequest | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -265,6 +279,15 @@ export function App() {
         {profile.data && (
           <>
             {page === 'home' && <Home unit={unit} onCheckin={openCheckin} />}
+            {page === 'coach' && (
+              <Coach
+                key={route.id ?? 'coach'}
+                mode={profile.data.mode}
+                starter={
+                  route.id === 'sunday_review' || route.id === 'today_run' ? route.id : undefined
+                }
+              />
+            )}
             {page === 'calendar' && <Calendar unit={unit} weekStart={route.id} />}
             {page === 'trends' && <Trends unit={unit} />}
             {page === 'block' && <Block unit={unit} />}

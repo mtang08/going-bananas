@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import secrets
+from contextlib import asynccontextmanager
+from ipaddress import ip_address
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -15,6 +17,8 @@ from app.api.anchors import router as anchors_router
 from app.api.calendar import router as calendar_router
 from app.api.checkins import router as checkins_router
 from app.api.coach import router as coach_router
+from app.api.coach_chat import get_chat_gateway
+from app.api.coach_chat import router as coach_chat_router
 from app.api.core import router as core_router
 from app.api.exceptions import router as exceptions_router
 from app.api.metrics import router as metrics_router
@@ -29,8 +33,19 @@ from app.migrations_head import EXPECTED_HEAD
 from app.services import derived
 
 configure(settings.private_dir)
-app = FastAPI(title="Going Bananas Analytics", docs_url=None, redoc_url=None)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        yield
+    finally:
+        await get_chat_gateway().shutdown()
+
+
+app = FastAPI(title="Going Bananas Analytics", docs_url=None, redoc_url=None, lifespan=lifespan)
 STATUS_CODES = {404: "not_found", 405: "method_not_allowed"}
+COACH_CHAT_PATH = "/api/v1/coach/chat"
 
 
 def error_response(request: Request, code: str, message: str, status: int, fields=None) -> JSONResponse:
@@ -48,6 +63,16 @@ def error_response(request: Request, code: str, message: str, status: int, field
     )
 
 
+def local_peer(request: Request) -> bool:
+    peer = request.client.host if request.client else ""
+    if settings.app_mode == "test" and peer == "testclient":
+        return True
+    try:
+        return ip_address(peer).is_loopback
+    except ValueError:
+        return False
+
+
 @app.middleware("http")
 async def local_security(request: Request, call_next):
     request.state.request_id = secrets.token_hex(8)
@@ -63,6 +88,9 @@ async def local_security(request: Request, call_next):
     }
     if host not in allowed_hosts:
         return error_response(request, "invalid_host", "Local host required", 403)
+    if request.url.path == COACH_CHAT_PATH or request.url.path.startswith(f"{COACH_CHAT_PATH}/"):
+        if not local_peer(request) or request.headers.get("sec-fetch-site") == "cross-site":
+            return error_response(request, "local_coach_required", "Local coach request required", 403)
     origin = request.headers.get("origin")
     allowed_origins = {f"http://{host}"}
     if host in {f"127.0.0.1:{settings.port}", f"localhost:{settings.port}"}:
@@ -114,7 +142,12 @@ async def handle_validation(request: Request, exc: RequestValidationError):
 
 @app.get("/api/v1/health/live")
 def live():
-    return {"schema_version": "v1", "mode": settings.app_mode, "data_revision": 0, "data": {"status": "ok"}}
+    return {
+        "schema_version": "v1",
+        "mode": settings.app_mode,
+        "data_revision": 0,
+        "data": {"status": "ok", "dashboard_coach": True},
+    }
 
 
 @app.get("/api/v1/health/ready")
@@ -160,6 +193,7 @@ app.include_router(metrics_router, prefix="/api/v1")
 app.include_router(sync_router, prefix="/api/v1")
 app.include_router(travel_router, prefix="/api/v1")
 app.include_router(coach_router, prefix="/api/v1")
+app.include_router(coach_chat_router, prefix="/api/v1")
 
 
 @app.get("/{path:path}", include_in_schema=False)

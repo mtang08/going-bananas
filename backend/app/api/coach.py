@@ -164,13 +164,17 @@ def get_proposals(
     return response_envelope(session, ProposalList(items=[proposal_summary(row) for row in session.scalars(query)]))
 
 
-@router.get("/proposals/active")
-def get_active_proposal(session: Session = Depends(get_session)) -> dict:
-    proposal = session.scalar(
+def active_proposal(session: Session) -> CoachProposal | None:
+    return session.scalar(
         select(CoachProposal)
         .where(CoachProposal.status.in_(("pending", "stale", "invalid")))
         .order_by(CoachProposal.submitted_at.desc(), CoachProposal.id.desc())
     )
+
+
+@router.get("/proposals/active")
+def get_active_proposal(session: Session = Depends(get_session)) -> dict:
+    proposal = active_proposal(session)
     return envelope(session, {"proposal": proposal_summary(proposal) if proposal else None})
 
 

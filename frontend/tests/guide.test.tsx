@@ -73,6 +73,7 @@ it('repeats every coach prompt and drops removed pages', () => {
     expect(guide.includes('> ' + prompt)).toBe(true)
   for (const heading of ['## Exception review', '## After a race', '## Block-ending benchmark'])
     expect(guide).toContain(heading)
-  for (const removed of ['(#history)', '(#strength)', '(#coach)', 'Data & settings'])
+  expect(guide).toContain('[Coach](#coach)')
+  for (const removed of ['(#history)', '(#strength)', 'Data & settings'])
     expect(guide).not.toContain(removed)
 })
