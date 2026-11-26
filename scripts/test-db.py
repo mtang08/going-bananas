@@ -138,6 +138,8 @@ def main():
         'provider': 'check_provider_replay.py',
         'strong': 'check_strong_import.py',
         'assessment': 'check_assessment_db.py',
+        'gcal': 'check_gcal_replay.py',
+        'travel-http': 'check_travel_http.py',
         'calendar': 'check_self_reports.py',
         'rematch': 'check_rematch.py',
         'dashboard': 'check_dashboard.py',

@@ -2,6 +2,7 @@ package travel
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"reflect"
 	"testing"
@@ -94,7 +95,7 @@ func TestInvalidEvent(t *testing.T) {
 		for k, v := range bad {
 			raw[k] = v
 		}
-		if r, err := NormalizeEvent(raw); r != nil || err != errInvalidEvent {
+		if r, err := NormalizeEvent(raw); r != nil || !errors.Is(err, ErrInvalidResponse) {
 			t.Fatal("malformed item must return gcal_invalid_response")
 		}
 	}
