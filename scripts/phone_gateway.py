@@ -70,9 +70,17 @@ class PhoneHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.authorized():
             return
-        filename = "index.html" if self.path == "/phone/" else self.path.removeprefix("/phone/")
-        if not self.path.startswith("/phone/") or filename not in ASSET_TYPES:
-            self.reply(404)
+        path = self.path.partition("?")[0]
+        if path in {"/", "/phone"}:
+            self.send_response(302)
+            self.send_header("Location", "/phone/")
+            self.send_header("Content-Length", "0")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+        filename = "index.html" if path == "/phone/" else path.removeprefix("/phone/")
+        if not path.startswith("/phone/") or filename not in ASSET_TYPES:
+            self.reply(404, b"Page not found. Open /phone/ for your morning check-in.")
             return
         try:
             content = (PHONE_ASSETS / filename).read_bytes()

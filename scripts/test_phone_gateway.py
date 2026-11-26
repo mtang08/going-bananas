@@ -64,7 +64,18 @@ class GatewayTest(unittest.TestCase):
         status, body = self.request("GET", "/phone/", self.headers)
         self.assertEqual(status, 200)
         self.assertIn(b"manifest", body)
-        for path in ("/", "/api/v1/profile", "/phone/../.env", "/phone/%2e%2e/index.html"):
+        for path in ("/phone/?from=safari", "/phone/index.html?launch=1"):
+            self.assertEqual(self.request("GET", path, self.headers), (status, body))
+        for path in ("/", "/phone", "/?from=safari"):
+            with self.subTest(path=path):
+                conn = HTTPConnection(*self.server.server_address, timeout=2)
+                try:
+                    conn.request("GET", path, headers=self.headers)
+                    response = conn.getresponse()
+                    self.assertEqual((response.status, response.getheader("Location")), (302, "/phone/"))
+                finally:
+                    conn.close()
+        for path in ("/api/v1/profile", "/phone/../.env", "/phone/%2e%2e/index.html"):
             with self.subTest(path=path):
                 self.assertEqual(self.request("GET", path, self.headers)[0], 404)
         for headers in ({"Host": self.access.host}, {**self.headers, "Host": "localhost"},
