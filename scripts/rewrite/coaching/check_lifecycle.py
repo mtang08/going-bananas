@@ -310,6 +310,88 @@ def main():
             assert conn.execute(
                 "SELECT calendar_head_version FROM app_state WHERE id=1"
             ).fetchone() == (0,)
+        for head, accept, reject in [(0, ["c1"], ["c2"]), (1, ["c1", "c2"], [])]:
+
+            def make_pending(env):
+                doc = document(env)
+                c = doc["changes"][0]
+                doc.update(
+                    base_calendar_version=head,
+                    headline=f"Decision {head}",
+                    changes=[
+                        c,
+                        {
+                            **c,
+                            "change_id": "c2",
+                            "after": {
+                                **c["after"],
+                                "slot": 1,
+                                "intent": "Optional rest",
+                            },
+                        },
+                    ],
+                )
+                res = python(env, "submit", document=doc)
+                assert res["status"] == "pending", res
+                return res["proposal_id"]
+
+            pid, gid = make_pending(ref), make_pending(go)
+            request = dict(
+                expected_head=head,
+                expected_revision=1,
+                idempotency_key=f"accept-{head}-test",
+                accept_change_ids=accept,
+                reject_change_ids=reject,
+            )
+            expected = python(ref, "decide", id=pid, request=request)
+            assert expected.get("calendar_version") == head + 1, expected
+            subprocess.run(
+                [
+                    "go",
+                    "test",
+                    "-count=1",
+                    "-run",
+                    "^TestAcceptDecisionLedger$",
+                    "./internal/coaching/drafts",
+                ],
+                cwd=ROOT / "backend-go",
+                check=True,
+                env={
+                    **go,
+                    "COACHING_DECISION_TEST_URL": go["DATABASE_URL"].replace(
+                        "postgresql+psycopg://", "postgresql://"
+                    ),
+                    "COACHING_DECISION_TEST_ID": gid,
+                    "COACHING_DECISION_TEST_NOW": NOW,
+                    "COACHING_DECISION_TEST_REQUEST": json.dumps(request),
+                },
+            )
+
+            def state(conn, id):
+                return (
+                    conn.execute(
+                        "SELECT calendar_head_version,data_revision FROM app_state"
+                    ).fetchall(),
+                    conn.execute(
+                        "SELECT number,parent_number,kind,actor,reason FROM calendar_versions ORDER BY number"
+                    ).fetchall(),
+                    conn.execute(
+                        "SELECT revision,calendar_version_number,deleted,slot,local_date,kind,intent,certainty FROM calendar_session_revisions ORDER BY calendar_version_number,slot"
+                    ).fetchall(),
+                    conn.execute(
+                        "SELECT change_id,decision,session_uid IS NOT NULL FROM coach_proposal_changes WHERE proposal_id=%s ORDER BY change_id",
+                        (id,),
+                    ).fetchall(),
+                    conn.execute(
+                        "SELECT status,decision_result - 'stale_proposals',jsonb_array_length(decision_result->'stale_proposals') FROM coach_proposals WHERE id=%s",
+                        (id,),
+                    ).fetchall(),
+                )
+
+            assert state(refdb, pid) == state(godb, gid), (
+                state(refdb, pid),
+                state(godb, gid),
+            )
     print(
         "Passed Python-created draft revision, no-duplicate retry, drift, rollback, concurrent edits, discard and native submit."
     )
