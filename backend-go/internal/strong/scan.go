@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/mtang08/going-bananas/backend-go/internal/canonicaljson"
@@ -94,6 +95,32 @@ func csvRow(data []byte) (row []string, consumed int, err error) {
 	return nil, 0, io.EOF
 }
 
+// Python's numeric conversions accept Unicode decimal digits. Preserve source
+// strings for hashing and translate only the spelling used for validation.
+func pythonNumberText(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 128 {
+			return r
+		}
+		if unicode.IsSpace(r) {
+			return ' '
+		}
+		if unicode.IsDigit(r) {
+			for _, span := range unicode.Digit.R16 {
+				if r >= rune(span.Lo) && r <= rune(span.Hi) {
+					return '0' + ((r-rune(span.Lo))/rune(span.Stride))%10
+				}
+			}
+			for _, span := range unicode.Digit.R32 {
+				if r >= rune(span.Lo) && r <= rune(span.Hi) {
+					return '0' + ((r-rune(span.Lo))/rune(span.Stride))%10
+				}
+			}
+		}
+		return r
+	}, s)
+}
+
 var durationPattern = regexp.MustCompile(`^(?:([0-9]+)h\s*)?(?:([0-9]+)m\s*)?(?:([0-9]+)s)?$`)
 
 func duration(text string) (*int, error) {
@@ -101,7 +128,7 @@ func duration(text string) (*int, error) {
 	if text == "" {
 		return nil, nil
 	}
-	parts := durationPattern.FindStringSubmatch(text)
+	parts := durationPattern.FindStringSubmatch(pythonNumberText(text))
 	if parts == nil {
 		return nil, Error("invalid_duration")
 	}
@@ -123,7 +150,7 @@ func duration(text string) (*int, error) {
 	return &total, nil
 }
 
-var stampPattern = regexp.MustCompile(`^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})\s+([0-9]{1,2}):([0-9]{1,2}):([0-9]{1,2})$`)
+var stampPattern = regexp.MustCompile(`^(\p{Nd}{4})-(1[0-2]|0[1-9]|[1-9])-(3[0-1]|[1-2]\p{Nd}|0[1-9]|[1-9]| [1-9])[\s\p{Z}\x{85}]+(2[0-3]|[0-1]\p{Nd}|\p{Nd}):([0-5]\p{Nd}|\p{Nd}):(6[0-1]|[0-5]\p{Nd}|\p{Nd})$`)
 
 func stamp(text string) (string, error) {
 	p := stampPattern.FindStringSubmatch(text)
@@ -132,7 +159,7 @@ func stamp(text string) (string, error) {
 	}
 	var n [6]int
 	for i := range n {
-		n[i], _ = strconv.Atoi(p[i+1])
+		n[i], _ = strconv.Atoi(strings.TrimSpace(pythonNumberText(p[i+1])))
 	}
 	t := time.Date(n[0], time.Month(n[1]), n[2], n[3], n[4], n[5], 0, time.UTC)
 	if n[0] == 0 || t.Year() != n[0] || int(t.Month()) != n[1] || t.Day() != n[2] || t.Hour() != n[3] || t.Minute() != n[4] || t.Second() != n[5] {
@@ -155,7 +182,7 @@ func newSet(row []string) (string, *int, error) {
 		return "", nil, Error("missing_name")
 	}
 	for _, raw := range row[5:] {
-		v := strings.TrimSpace(raw)
+		v := pythonNumberText(strings.TrimSpace(raw))
 		if v == "" {
 			continue
 		}

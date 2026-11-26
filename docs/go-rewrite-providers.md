@@ -85,3 +85,24 @@ Build once, then run the manifest in the selected synthetic workspace. The CLI a
 The worker integration entry point is `replay.Apply(ctx, pool, privateDir, page)`. It takes previously fetched inputs, including API records or `ScanExport` results and optional FIT bytes keyed by Garmin activity ID. It returns cumulative counters, next page, offset, and the changed activity IDs and dates for this delivery. A local-date move includes both dates. The checkpoint also retains the job-wide union of affected dates. The terminal status is `partial` when the job has rejected records or failed FIT attempts. A duplicate committed page returns its checkpoint with empty change sets. A changed redelivery or skipped page index fails.
 
 Python continues to schedule downloads, hold unconfirmed treadmill runs for review, maintain coverage, and refresh dependent metrics. The standalone command uses its own replay job dataset. It imports the activity portion of an account export. [Replay transaction](../backend-go/internal/garmin/replay/page.go) · [Synthetic comparison](../scripts/rewrite/check_provider_replay.py)
+
+## Strong workout CSV import
+
+Preview a Strong export in a synthetic workspace, then apply the same file. Preview validates every row and compares source identities against PostgreSQL without creating a batch, a raw file, or a workout. The command emits a JSON summary and the IDs and local dates of changed workouts.
+
+```sh
+(cd backend-go && go build -o ../private/strong-import ./cmd/strong-import)
+./scripts/with-mode demo private/strong-import private/fixtures/strong.csv
+./scripts/with-mode demo private/strong-import -apply private/fixtures/strong.csv
+```
+
+`strong.Import(ctx, pool, privateDir, csvPath, apply)` preserves the exact source strings and set order. Apply retains the immutable CSV before committing its SHA-256, a source record for each distinct workout revision, and the batch outcome in one database transaction. A changed workout stays linked to its original canonical sets and enters revision conflict for review. Manual completions and recorded RPE keep their workout IDs. Repeated files create an import batch while preserving the existing workout and source identities. Timezone, weight units and the dumbbell-weight convention remain unknown. A rollback can leave an unreferenced immutable file, which a retry verifies and reuses.
+
+Run the Python parser reference and the isolated PostgreSQL workflow comparison from the repository root.
+
+```sh
+uv run --project backend python scripts/rewrite/check_strong_csv.py
+python3 scripts/test-db.py strong
+```
+
+The database comparison exercises read-only preview, first import, duplicate and changed exports, manual associations, rollback after the workouts were written, restart, competing import processes, and mixed-account rejection. [Scanner](../backend-go/internal/strong/scan.go) · [Transaction](../backend-go/internal/strong/import.go) · [Database comparison](../scripts/rewrite/check_strong_import.py)

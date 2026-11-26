@@ -33,6 +33,7 @@ def cases():
             result[COLUMNS.index(field)] = value
         return result
     yield "bom-grouped-sets", "\ufeff" + csv_text([row, change(**{"Date": "2026-11-8 1:2:3", "Duration": "120h 41m", "Set Order": "W"}), change(**{"Set Order": "F", "Weight": "0_5.0", "RPE": "1e0"})])
+    yield "unicode-source-spellings", csv_text([change(Date="２０２６-1- 1 ١:١:٢", Duration="１h\u2009５m", Weight="４５.０")])
     yield "unknown-and-boundary-duration", csv_text([change(Duration=""),change(Date="2026-11-10 00:00:00", Duration="24h")])
     yield "empty", csv_text([])
     yield "wrong-columns", "Date,Workout\n"

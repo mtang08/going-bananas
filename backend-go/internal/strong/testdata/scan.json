@@ -65,6 +65,36 @@
     "digest": "cca5c4714ad9ed7f3a75672143f95e156cf79c73952704f52071d0c0ebbbe8e4"
   },
   {
+    "name": "unicode-source-spellings",
+    "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n２０２６-1- 1 ١:١:٢,\"Upper \"\"A\"\" <左右> & café\",１h ５m,\"Press, dumbbell\r\nbench\",1,４５.０,8,0,0,\r\n",
+    "workouts": [
+      {
+        "source_identity": "1db09384828577926d8565ca8599447d530f23fe19af3d0f276d80ab6e6f7543",
+        "payload_hash": "f12bc9cf23da3ee98e0a6472839c5e24903044f9984ffa865b8d5593973d288b",
+        "local_start": "2026-01-01 01:01:02",
+        "local_date": "2026-01-01",
+        "workout_name": "Upper \"A\" <左右> & café",
+        "duration_s": 3900,
+        "sets": [
+          {
+            "Date": "２０２６-1- 1 ١:١:٢",
+            "Workout Name": "Upper \"A\" <左右> & café",
+            "Duration": "１h ５m",
+            "Exercise Name": "Press, dumbbell\r\nbench",
+            "Set Order": "1",
+            "Weight": "４５.０",
+            "Reps": "8",
+            "Distance": "0",
+            "Seconds": "0",
+            "RPE": ""
+          }
+        ],
+        "row_count": 1
+      }
+    ],
+    "digest": "55ebf789f9a6477d751b91c169912c82cc3993a162540bffa720c0ccbdcad4ec"
+  },
+  {
     "name": "unknown-and-boundary-duration",
     "csv": "Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,RPE\r\n2026-11-09 21:13:58,\"Upper \"\"A\"\" <左右> & café\",,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0,\r\n2026-11-10 00:00:00,\"Upper \"\"A\"\" <左右> & café\",24h,\"Press, dumbbell\r\nbench\",1,45.0,8,0,0,\r\n",
     "workouts": [
