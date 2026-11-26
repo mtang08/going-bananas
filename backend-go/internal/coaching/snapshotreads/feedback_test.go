@@ -38,12 +38,12 @@ func TestFeedbackPythonParity(t *testing.T) {
 	if err != nil {
 		t.Fatal("connect to feedback fixture")
 	}
-	defer conn.Close(context.Background())
+	defer func() { _ = conn.Close(context.Background()) }()
 	tx, err := conn.BeginTx(t.Context(), pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback(context.Background())
+	defer func() { _ = tx.Rollback(context.Background()) }()
 	zone, err := time.LoadLocation("America/New_York")
 	if err != nil {
 		t.Fatal(err)
