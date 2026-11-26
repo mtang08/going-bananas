@@ -144,3 +144,11 @@ python3 scripts/test-db.py provider-jobs
 ```
 
 For worker cutover, supply core's transaction-bound metric and matching refresh functions to `Runner.RefreshPage` and `Runner.RefreshCoverage`. A page callback receives the changed dates and activity IDs. A coverage callback receives the inserted interval ID and status. Downloaded FITs use separate best-effort transactions after eligible activity pages commit. Pass a FIT refresh function to `replay.RunFIT` to refresh the activity ID and local date inside its write transaction. Production scheduling and cutover stay with core. [Synthetic CLI](../backend-go/cmd/provider-jobs/main.go) · [Database and retry comparison](../scripts/rewrite/check_provider_jobs.py)
+
+### Google Calendar provider and travel contracts
+
+Pass `googlecalendar.New(privateDir)` to the travel HTTP service. The client reads the existing calendar-connect token, checks permissions, refreshes credentials, and follows event pages until it has a complete window. Use `NewWithConfig` for a synthetic HTTP endpoint and clock. The Go-owned seven-route contract is in [travel.openapi.json](../backend-go/api/travel.openapi.json), with [generated TypeScript](../frontend/src/api/generated/travel.ts). [Client and tests](../backend-go/internal/googlecalendar)
+
+### Workspace backup and restore
+
+From `backend-go`, run `go run ./cmd/workspace-backup backup OUTPUT.tar.gz` with the intended `DATABASE_URL` and `PRIVATE_DIR`. Restore with `go run ./cmd/workspace-backup restore OUTPUT.tar.gz --target-database-name NEW_DATABASE --target-private-dir NEW_DIRECTORY`. Both targets must be new. The version-one archive contains a PostgreSQL custom-format dump, an allowlisted private file tree and SHA-256 checksums. The command uses the installed PostgreSQL client tools. Run `python3 scripts/test-db.py backup` to cross-restore synthetic archives with the Python implementation. [Backup package](../backend-go/internal/backup) · [Cross-restore scenario](../scripts/rewrite/check_workspace_backup.py)
