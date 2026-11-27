@@ -11,8 +11,10 @@ BACKUP := cd backend && uv run python -m app.cli backup "$$PRIVATE_DIR/backups/b
 TESTS ?= tests/integration tests/test_ingestion_integration.py
 .PHONY: doctor setup db-start db-stop migrate seed-demo dev build start check test-db-start test-db-stop test-integration test-integration-external test-e2e sync backup check-backend check-frontend check-docs complexity
 
+doctor: PATH := /opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/postgresql@17/bin:/opt/homebrew/bin:$(PATH)
 doctor:
-	$(RUN) python3 scripts/doctor.py
+	@command -v go >/dev/null || { echo 'go: missing'; exit 1; }
+	@cd backend-go && go run ./cmd/doctor -repo ..
 setup: setup-go
 	$(RUN) bash -c 'cd backend && uv sync --locked --python 3.12'
 	$(RUN) bash -c 'cd frontend && npm ci'
