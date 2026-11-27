@@ -5,7 +5,6 @@ import tempfile
 from pathlib import Path
 
 import psycopg
-
 from check_gcal_replay import test_url
 from test_proposal_slice import MODULE, ROOT, migrated_schema
 

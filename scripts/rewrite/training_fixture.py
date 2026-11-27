@@ -1,6 +1,5 @@
 """Synthetic SQL fixtures for native training and activity checks."""
 
-import os
 import re
 import subprocess
 import tempfile
@@ -8,28 +7,9 @@ from pathlib import Path
 from uuid import UUID
 
 import psycopg
+from check_gcal_replay import test_url
 from psycopg.types.json import Jsonb
-from sqlalchemy.engine import make_url
 from test_proposal_slice import MODULE, ROOT, migrated_schema
-
-
-def test_url():
-    raw = os.environ.get("TEST_DATABASE_URL")
-    if (
-        not raw
-        or raw != os.environ.get("DATABASE_URL")
-        or os.environ.get("APP_MODE") != "test"
-    ):
-        raise SystemExit("use scripts/test-db.py with the isolated test database")
-    url = make_url(raw)
-    if (
-        url.database != "garmin_test"
-        or url.host not in {"localhost", "127.0.0.1"}
-        or str(url.port) != os.environ.get("TEST_DATABASE_PORT")
-        or url.query
-    ):
-        raise SystemExit("expected the dedicated local garmin_test database")
-    return url
 
 
 def check_cases(package, fixture, env_key, test, populate):
