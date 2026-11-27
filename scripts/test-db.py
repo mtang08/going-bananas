@@ -156,6 +156,7 @@ def main():
         'feedback-http': 'check_feedback_http.py',
         'health-startup': 'check_health_startup.py',
         'supervisor': 'check_supervisor.py',
+        'planning-contract': 'check_planning_contract.py',
         'rematch': 'check_rematch.py',
         'dashboard': 'check_dashboard.py',
     }

@@ -1,6 +1,7 @@
+import { saveInterruption } from '../api/planning'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, api, put } from '../api/client'
+import { ApiError, api } from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
 import { RECIPE_LABELS } from '../api/types/calendar'
 import type { ProposalSummary } from '../api/types/coach'
@@ -65,7 +66,7 @@ export function RunningInterruption({
     null,
   )
   const persist = async (expectedVersion: number, interruption: Episode | null) => {
-    const saved = await put<RunningInterruptionView>(ENDPOINT, {
+    const saved = await saveInterruption({
       expected_version: expectedVersion,
       interruption,
     })

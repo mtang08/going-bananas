@@ -1,63 +1,10 @@
-export type AnchorKind =
-  | 'hr_aerobic_upper'
-  | 'hr_threshold_lower'
-  | 'speed_aerobic_upper'
-  | 'speed_threshold_lower'
-  | 'performance_5k'
-  | 'performance_1mile'
-  | 'performance_3min'
-  | 'performance_20_30min'
-export type AnchorProtocol =
-  | 'race_5k'
-  | 'time_trial_5k'
-  | 'time_trial_1mile'
-  | 'time_trial_3min'
-  | 'time_trial_20_30min'
-  | 'workout_derived'
-  | 'lab_test'
-  | 'manual'
-export type AnchorConfidence = 'high' | 'moderate' | 'low' | 'insufficient'
-export interface IntensityAnchor {
-  id: string
-  anchor_key: string
-  kind: AnchorKind
-  value_low: number
-  value_high: number | null
-  unit: 'bpm' | 'mps' | 's' | 'm'
-  protocol: AnchorProtocol
-  confidence: AnchorConfidence
-  status: 'provisional' | 'active' | 'expired' | 'invalid'
-  calibrated_at: string
-  valid_from: string
-  review_after: string
-  source_activity_id: string | null
-  source_event_id: string | null
-  proposal_id: string | null
-  conditions: string | null
-  notes: string | null
-  supersedes_key: string | null
-  content_hash: string
-}
-export interface AnchorCreate {
-  kind: AnchorKind
-  value_low: number
-  value_high?: number | null
-  unit: 'bpm' | 'mps' | 's' | 'm'
-  protocol: AnchorProtocol
-  confidence: AnchorConfidence
-  calibrated_at: string
-  valid_from: string
-  review_after?: string | null
-  source_activity_id?: string | null
-  source_event_id?: string | null
-  proposal_id?: string | null
-  conditions?: string | null
-  notes?: string | null
-  supersedes_key?: string | null
-}
-export interface AnchorList {
-  items: IntensityAnchor[]
-}
+import type { components } from '../generated/planning'
+export type IntensityAnchor = components['schemas']['IntensityAnchor']
+export type AnchorList = components['schemas']['AnchorList']
+export type AnchorCreate = components['schemas']['AnchorInput']
+export type AnchorKind = IntensityAnchor['kind']
+export type AnchorProtocol = IntensityAnchor['protocol']
+export type AnchorConfidence = IntensityAnchor['confidence']
 export const ANCHOR_KIND_LABELS: Record<AnchorKind, string> = {
   hr_aerobic_upper: 'Aerobic upper (HR)',
   hr_threshold_lower: 'Threshold lower (HR)',

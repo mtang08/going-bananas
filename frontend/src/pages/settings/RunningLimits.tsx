@@ -1,6 +1,6 @@
+import { saveProfile } from '../../api/planning'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { put } from '../../api/client'
 import { qk, invalidateKeys } from '../../api/queryKeys'
 import type { Profile, RunningRestriction } from '../../api/types/profile'
 import { Button, Card, Input, Textarea } from '../../components/ui'
@@ -40,7 +40,7 @@ export function RunningLimits({ profile, today }: { profile: Profile; today: str
   const [source, setSource] = useState(current?.source ?? '')
   const [wording, setWording] = useState(current?.wording ?? '')
   const save = useMutation({
-    mutationFn: (facts: Profile['facts']) => put('/profile', { ...profileBody(profile), facts }),
+    mutationFn: (facts: Profile['facts']) => saveProfile({ ...profileBody(profile), facts }),
     onSuccess: () => invalidateKeys(qc, [qk.profile, qk.calendar, qk.proposals]),
   })
   const maxDistance = distance === '' ? null : Math.floor(Number(distance) * metersPerUnit[unit])

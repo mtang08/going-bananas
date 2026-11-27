@@ -63,6 +63,12 @@ beforeEach(() => {
     created_at: '2026-11-01T12:00:00Z',
     proposal_id: 'p1',
     legacy_text: null,
+    benchmark: null,
+    benchmark_status: status({}),
+    target_event_id: null,
+    target_event: null,
+    target_event_status: 'none',
+    build_outline: [],
     sources: [],
   }
   vi.stubGlobal(

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { BlockVersion, EventBlock, RaceEvent, TargetEvent } from '../src/api/types/blocks'
+import type { ActiveBlock, EventBlock, RaceEvent, TargetEvent } from '../src/api/types/blocks'
 import { GoalRaceTimeline } from '../src/components/GoalRaceTimeline'
 
 const half: TargetEvent = {
@@ -13,7 +13,7 @@ const half: TargetEvent = {
   goal_time_s: 6300,
   rank: 1,
 }
-const block: BlockVersion = {
+const block: ActiveBlock = {
   id: 'v1',
   block_uid: 'b1',
   version: 1,
@@ -33,6 +33,21 @@ const block: BlockVersion = {
   created_at: '2026-11-19T12:00:00Z',
   proposal_id: 'p1',
   legacy_text: null,
+  sources: [],
+  benchmark: null,
+  target_event_id: half.id,
+  benchmark_status: {
+    status: 'not_set',
+    match_method: null,
+    activity_id: null,
+    event_id: null,
+    local_date: null,
+    distance_m: null,
+    result_s: null,
+    rpe: null,
+    scheduled_date: null,
+    evidence_at: null,
+  },
   build_outline: [
     { emphasis: 'threshold durability', weeks: 4 },
     { emphasis: 'half-marathon-specific endurance', weeks: 5 },
@@ -82,7 +97,7 @@ const events: RaceEvent[] = [
 ]
 
 const clients: QueryClient[] = []
-function mount(update: Partial<BlockVersion> = {}, today = '2026-11-19', relatedBlocks = blocks) {
+function mount(update: Partial<ActiveBlock> = {}, today = '2026-11-19', relatedBlocks = blocks) {
   const fetcher = vi.fn(async (input: string) => ({
     ok: true,
     json: async () => ({

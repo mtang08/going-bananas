@@ -1,108 +1,26 @@
-import type { components } from '../generated/backend'
-import type { CitedSource, Why } from './coachText'
-import type { BenchmarkOutcome } from './exceptions'
-export type Goal = components['schemas']['Goal']
+import type { components as Backend } from '../generated/backend'
+import type { components } from '../generated/planning'
+export type Goal = Backend['schemas']['Goal']
+export type GoalCreate = Backend['schemas']['GoalCreate']
 export type GoalHorizon = Goal['horizon']
-export type GoalCreate = Omit<Goal, 'id' | 'version' | 'status'>
-export type EventPurpose = 'pr' | 'benchmark' | 'training'
-export type EventStatus = 'planned' | 'registered' | 'completed' | 'cancelled'
-export interface RaceEvent {
-  id: string
-  name: string
-  event_date: string
-  distance_m: number | null
-  purpose: EventPurpose
-  goal_time_s: number | null
-  rank: number | null
-  status: EventStatus
-  result_s: number | null
-  version: number
-}
-export type RaceEventCreate = Omit<RaceEvent, 'id' | 'version' | 'rank'>
-export interface OutlineStep {
-  emphasis: string
-  weeks: number
-}
-export type TargetEventStatus = 'current' | 'changed' | 'unset' | 'none'
-export type TargetEvent = Pick<
-  RaceEvent,
-  'id' | 'name' | 'event_date' | 'distance_m' | 'purpose' | 'goal_time_s' | 'rank'
->
-export interface EventBlock {
-  block_uid: string
-  version: number
-  status: BlockVersion['status']
-  objective: string
-  start_date: string
-  review_date: string
-  benchmark: BlockBenchmark | null
-  build_outline: OutlineStep[]
-}
-export interface StrengthRoutineSlot {
-  id: string | null
-  label: string
-  default_weekday: number
-  lower_body_cost: 'low' | 'moderate' | 'high'
-  typical_duration_s: number | null
-  main_lower_body_lifts: string[]
-  active: boolean
-  version: number
-}
-export interface ConfirmedSchedule {
-  strength_days_confirmed: boolean
-  strength_schedule_mode: 'weekly' | 'alternating'
-  scheduled_strength_days: number[]
-  strength_week_a_start: string | null
-  strength_week_a_days: number[]
-  strength_week_b_days: number[]
-  mobility_week_a_days: number[]
-  mobility_week_b_days: number[]
-  mobility_optional_days: number[]
-}
-export interface StrengthRoutine {
-  version: number
-  slots: StrengthRoutineSlot[]
-  suggested: boolean
-  schedule: ConfirmedSchedule
-} // [DTO fixed here] version 0 + suggested=true: nothing saved, slots pre-filled from Strong (D13)
-export type IndicatorSource =
-  'quality_progression' | 'aerobic_efficiency' | 'key_sessions' | 'rpe_vs_intent' | 'other'
-export interface Indicator {
-  source: IndicatorSource
-  label: string
-  progress_when: string
-}
-
-export interface BlockVersion {
-  id: string
-  block_uid: string
-  version: number
-  status: 'draft' | 'active' | 'consolidating' | 'completed' | 'replaced' | 'ended'
-  objective: string
-  why: Why[]
-  maintained_qualities: string[]
-  non_goals: string[]
-  eligible_recipe_ids: string[]
-  progression_dimension: string
-  constraints: { kind: string; text: string }[]
-  start_date: string
-  review_date: string
-  indicators: Indicator[]
-  early_review_triggers: string[]
-  legacy_text: string | null
-  objective_status: string
-  created_at: string
-  proposal_id: string | null
-  benchmark?: BlockBenchmark | null
-  benchmark_status?: BenchmarkStatus | null
-  target_event_id?: string | null
-  build_outline?: OutlineStep[]
-  target_event?: TargetEvent | null
-  target_event_status?: TargetEventStatus
-}
-export interface ActiveBlock extends BlockVersion {
-  sources: CitedSource[]
-}
+export type EventPurpose = RaceEvent['purpose']
+export type EventStatus = RaceEvent['status']
+export type RaceEventCreate = components['schemas']['EventInput']
+export type TargetEventStatus = ActiveBlock['target_event_status']
+export type IndicatorSource = Indicator['source']
+export type RaceEvent = components['schemas']['RaceEvent']
+export type OutlineStep = components['schemas']['OutlineStep']
+export type TargetEvent = components['schemas']['TargetEvent']
+export type EventBlock = components['schemas']['EventBlock']
+export type StrengthRoutineSlot = components['schemas']['StrengthRoutineSlot']
+export type ConfirmedSchedule = components['schemas']['ConfirmedSchedule']
+export type StrengthRoutine = components['schemas']['StrengthRoutine']
+export type Indicator = components['schemas']['Indicator']
+export type BlockVersion = components['schemas']['BlockVersion']
+export type ActiveBlock = components['schemas']['ActiveBlock']
+export type BlockBenchmark = components['schemas']['BlockBenchmark']
+export type BenchmarkStatus = components['schemas']['BenchmarkStatus']
+export type BenchmarkRecord = components['schemas']['BenchmarkRecord']
 
 export const HORIZON_LABELS: Record<GoalHorizon, string> = {
   '3_6_months': '3–6 months',
@@ -125,39 +43,3 @@ export const WEEKDAY_LABELS = [
 ] as const // index 0 = Monday
 
 export const RUN_SPORTS: readonly string[] = ['running', 'trail_running', 'treadmill_running'] // mirrors backend RUN_SPORTS
-export interface BlockBenchmark {
-  kind: 'time_trial' | 'event'
-  event_id: string | null
-  protocol: string
-  distance_m: number | null
-  planned_date: string
-  progress_if: string
-  consolidate_if: string
-}
-export interface BenchmarkStatus {
-  status: 'not_set' | 'pending' | 'completed' | 'missed'
-  match_method: 'auto' | 'manual' | null
-  activity_id: string | null
-  event_id: string | null
-  local_date: string | null
-  distance_m: number | null
-  result_s: number | null
-  rpe: number | null
-  scheduled_date: string | null
-  evidence_at: string | null
-}
-export interface BenchmarkRecord {
-  id: string
-  block_uid: string
-  block_version: number
-  objective: string
-  protocol: string
-  distance_m: number | null
-  local_date: string | null
-  result_s: number | null
-  outcome: BenchmarkOutcome | null
-  compared_with: string | null
-  match_method: 'auto' | 'manual'
-  activity_id: string | null
-  event_id: string | null
-}

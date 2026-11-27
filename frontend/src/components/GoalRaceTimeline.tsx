@@ -3,7 +3,7 @@ import { api } from '../api/client'
 import { qk } from '../api/queryKeys'
 import {
   EVENT_PURPOSE_LABELS,
-  type BlockVersion,
+  type ActiveBlock,
   type EventBlock,
   type RaceEvent,
 } from '../api/types/blocks'
@@ -27,7 +27,7 @@ export function GoalRaceTimeline({
   today,
   unit,
 }: {
-  block: BlockVersion
+  block: ActiveBlock
   today: string | undefined
   unit: Unit
 }) {
