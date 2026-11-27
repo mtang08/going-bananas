@@ -52,6 +52,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/calendar/weekly-digest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getWeeklyDigest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/weekly-projection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getWeeklyProjection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["bootstrapCalendar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["editCalendar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["rollbackCalendar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -129,7 +209,6 @@ export interface components {
             /** Format: uuid */
             strength_slot_id: string | null;
             notes: string | null;
-            brief: components["schemas"]["SessionBrief"];
         };
         SessionRevision: components["schemas"]["SessionFields"] & {
             /** Format: uuid */
@@ -293,6 +372,351 @@ export interface components {
             mode: "real" | "demo" | "test";
             data_revision: number;
             data: components["schemas"]["CalendarDiff"];
+        };
+        DigestCounts: {
+            planned: number;
+            planned_to_date: number;
+            done: number;
+        };
+        DigestActual: {
+            /** @enum {string} */
+            subject: "activity" | "strong_workout" | "manual_session";
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            local_date: string;
+            /** Format: double */
+            duration_s: number | null;
+            /** Format: double */
+            distance_m: number | null;
+            /** Format: double */
+            rpe: number | null;
+            sport: string | null;
+            /** Format: double */
+            avg_hr_bpm: number | null;
+            /** Format: double */
+            moving_pace_s_per_km: number | null;
+            /** @enum {string|null} */
+            rpe_source: "manual" | "garmin_fit" | null;
+        } | null;
+        DigestExecution: {
+            /** @enum {string|null} */
+            assessment_status: "available" | "partial" | "missing" | null;
+            reason_codes: string[];
+            quality_flags: string[];
+            components: {
+                /** @enum {string} */
+                name: "duration_ratio" | "distance_ratio" | "step_completion_ratio" | "target_coverage";
+                /** @enum {string} */
+                status: "met" | "partially_met" | "not_met" | "not_assessable";
+                /** Format: double */
+                value: number | null;
+            }[];
+            reps_planned: number | null;
+            reps_completed: number | null;
+        } | null;
+        DigestRow: {
+            /** Format: uuid */
+            session_uid: string;
+            /** Format: date */
+            local_date: string;
+            slot: number;
+            /** @enum {string} */
+            kind: "run" | "strength" | "cross" | "rest" | "mobility" | "rehab";
+            class: string;
+            recipe_id: string | null;
+            custom: boolean;
+            intent: string | null;
+            key: boolean;
+            changed: boolean;
+            /** @enum {string} */
+            outcome: "planned" | "completed" | "modified" | "partial" | "moved" | "missed" | "recorded" | "not_recorded";
+            /** @enum {string|null} */
+            modification_reason: "symptom_onset" | "fatigue" | "illness" | "schedule" | "weather" | "equipment" | "other" | null;
+            /** Format: double */
+            planned_duration_s: number | null;
+            /** Format: double */
+            planned_distance_m: number | null;
+            planned_distance_estimated: boolean;
+            actual: components["schemas"]["DigestActual"];
+            execution: components["schemas"]["DigestExecution"];
+        };
+        DigestUnplanned: {
+            /** @enum {string} */
+            subject: "activity" | "strong_workout" | "manual_session";
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            local_date: string;
+            /** Format: double */
+            duration_s: number | null;
+            /** Format: double */
+            distance_m: number | null;
+            kind: string;
+        };
+        FollowUpActual: {
+            /** @enum {string} */
+            subject: "activity" | "strong_workout" | "manual_session";
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            local_date: string;
+            /** Format: double */
+            duration_s: number | null;
+            /** Format: double */
+            distance_m: number | null;
+            /** Format: double */
+            rpe: number | null;
+        } | null;
+        DecisionResponse: {
+            /** Format: date-time */
+            observed_at: string | null;
+            /** Format: double */
+            hours_after_end: number | null;
+            pain_reported: boolean | null;
+            /** @enum {string|null} */
+            gait_change: "yes" | "no" | "unsure" | null;
+            symptoms: {
+                site: string;
+                /** @enum {string} */
+                side: "left" | "right" | "both" | "na";
+                severity: number;
+                /** @enum {string} */
+                timing: "during" | "immediately_after" | "next_morning" | "hours_24_48" | "later" | "unknown";
+            }[];
+        } | null;
+        ReviewFollowUp: {
+            /** Format: uuid */
+            proposal_id: string;
+            /** Format: uuid */
+            session_uid: string;
+            /** @enum {string} */
+            op: "add" | "move" | "modify";
+            reason: string;
+            accepted: {
+                /** Format: date */
+                local_date: string;
+                intent: string;
+                /** Format: double */
+                duration_s: number | null;
+                /** Format: double */
+                distance_m: number | null;
+                effort: {
+                    rpe_low: number;
+                    rpe_high: number;
+                    feel: string;
+                } | null;
+            };
+            edited_since: boolean;
+            /** @enum {string} */
+            outcome: "planned" | "completed" | "modified" | "partial" | "moved" | "missed" | "recorded" | "not_recorded";
+            /** @enum {string|null} */
+            modification_reason: "symptom_onset" | "fatigue" | "illness" | "schedule" | "weather" | "equipment" | "other" | null;
+            actual: components["schemas"]["FollowUpActual"];
+            response: components["schemas"]["DecisionResponse"];
+            next_check: {
+                /** Format: date */
+                on: string;
+                check: string;
+            } | null;
+        } | null;
+        WeeklyDigest: {
+            /** @enum {string} */
+            schema: "weekly_digest.v1";
+            /** Format: date */
+            week_start: string;
+            /** Format: date */
+            week_end: string;
+            /** Format: date */
+            today: string;
+            days_elapsed: number;
+            timezone: string;
+            calendar_version: number;
+            plan_available: boolean;
+            activity_coverage_complete: boolean;
+            totals: {
+                sessions: {
+                    planned: number;
+                    planned_to_date: number;
+                    done: number;
+                    by_outcome: {
+                        planned: number;
+                        completed: number;
+                        modified: number;
+                        partial: number;
+                        moved: number;
+                        missed: number;
+                        recorded: number;
+                        not_recorded: number;
+                    };
+                    removed: number;
+                    unplanned: number;
+                };
+                by_kind: {
+                    run: components["schemas"]["DigestCounts"];
+                    strength: components["schemas"]["DigestCounts"];
+                    cross: components["schemas"]["DigestCounts"];
+                    mobility: components["schemas"]["DigestCounts"];
+                    rehab: components["schemas"]["DigestCounts"];
+                };
+                time: {
+                    /** Format: double */
+                    planned_s: number;
+                    /** Format: double */
+                    planned_to_date_s: number;
+                    /** Format: double */
+                    actual_s: number;
+                    /** Format: double */
+                    unplanned_s: number;
+                    planned_unknown: number;
+                    actual_unknown: number;
+                };
+                run_distance: {
+                    /** Format: double */
+                    planned_m: number;
+                    /** Format: double */
+                    planned_to_date_m: number;
+                    /** Format: double */
+                    actual_m: number;
+                    planned_estimated: number;
+                    planned_unknown: number;
+                    actual_unknown: number;
+                };
+                key_sessions: {
+                    planned: number;
+                    planned_to_date: number;
+                    done: number;
+                    by_outcome: {
+                        planned: number;
+                        completed: number;
+                        modified: number;
+                        partial: number;
+                        moved: number;
+                        missed: number;
+                        recorded: number;
+                        not_recorded: number;
+                    };
+                };
+            };
+            sessions: components["schemas"]["DigestRow"][];
+            unplanned: components["schemas"]["DigestUnplanned"][];
+            removed: {
+                /** Format: uuid */
+                session_uid: string;
+                /** Format: date */
+                local_date: string;
+                /** @enum {string} */
+                kind: "run" | "strength" | "cross" | "rest" | "mobility" | "rehab";
+            }[];
+            decision_follow_up: components["schemas"]["ReviewFollowUp"];
+        };
+        WeeklyProjection: {
+            /** Format: date */
+            week_start: string;
+            /** Format: date */
+            week_end: string;
+            /** Format: date */
+            today: string;
+            timezone: string;
+            calendar_version: number;
+            /** Format: double */
+            actual_distance_m: number;
+            /** Format: double */
+            remaining_distance_m: number;
+            /** Format: double */
+            projected_distance_m: number;
+            actual_runs: number;
+            remaining_runs: number;
+            estimated_runs: number;
+            missing_actual_runs: number;
+            missing_planned_runs: number;
+            unrecorded_past_runs: number;
+            pace_sample_count: number;
+            /** Format: double */
+            pace_mps: number | null;
+            plan_available: boolean;
+            /** Format: date */
+            plan_through: string | null;
+            activity_coverage_complete: boolean;
+        };
+        CalendarWriteResult: {
+            version: number;
+            /** @enum {string} */
+            kind: "bootstrap" | "manual_edit" | "proposal_accept" | "rollback" | "legacy_import";
+            stale_proposals: string[];
+            preserved_session_uids: string[];
+        };
+        BootstrapInput: {
+            /** Format: date */
+            anchor_date: string;
+            /** Format: date */
+            start_date: string;
+            pattern: {
+                /** @enum {integer} */
+                quality: 1;
+                /** @enum {integer} */
+                long: 1;
+            };
+        };
+        EditFields: {
+            /** Format: date */
+            local_date?: string;
+            slot?: number;
+            /** @enum {string} */
+            kind?: "run" | "strength" | "cross" | "rest" | "mobility" | "rehab";
+            recipe_id?: string | null;
+            custom?: boolean;
+            locked?: boolean;
+            placeholder?: boolean;
+            intent?: string;
+            planned_duration_s?: number | null;
+            planned_distance_m?: number | null;
+            structure?: components["schemas"]["StructureItem"][] | null;
+            /** Format: uuid */
+            strength_slot_id?: string | null;
+            notes?: string | null;
+        } | null;
+        /** @description Add assigns the session ID on the server. Modify, move, and delete require a session UID. Add and modify require fields, move requires a local date, and delete accepts omitted, null, or empty fields. */
+        CalendarEdit: {
+            /** @enum {string} */
+            op: "add" | "modify" | "move" | "delete";
+            /** Format: uuid */
+            session_uid?: string | null;
+            fields?: components["schemas"]["EditFields"];
+        };
+        CalendarEditsRequest: {
+            expected_head: number;
+            edits: components["schemas"]["CalendarEdit"][];
+            reason?: string | null;
+        };
+        CalendarRollbackRequest: {
+            expected_head: number;
+            to_version: number;
+            reason?: string | null;
+        };
+        WeeklyDigestEnvelope: {
+            /** @enum {string} */
+            schema_version: "v1";
+            /** @enum {string} */
+            mode: "real" | "demo" | "test";
+            data_revision: number;
+            data: components["schemas"]["WeeklyDigest"];
+        };
+        WeeklyProjectionEnvelope: {
+            /** @enum {string} */
+            schema_version: "v1";
+            /** @enum {string} */
+            mode: "real" | "demo" | "test";
+            data_revision: number;
+            data: components["schemas"]["WeeklyProjection"];
+        };
+        CalendarWriteResultEnvelope: {
+            /** @enum {string} */
+            schema_version: "v1";
+            /** @enum {string} */
+            mode: "real" | "demo" | "test";
+            data_revision: number;
+            data: components["schemas"]["CalendarWriteResult"];
         };
     };
     responses: never;
@@ -462,6 +886,315 @@ export interface operations {
                 };
             };
             /** @description Invalid query */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getWeeklyDigest: {
+        parameters: {
+            query?: {
+                week_start?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description WeeklyDigest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyDigestEnvelope"];
+                };
+            };
+            /** @description Local guard rejection */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getWeeklyProjection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description WeeklyProjection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyProjectionEnvelope"];
+                };
+            };
+            /** @description Local guard rejection */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    bootstrapCalendar: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Local-Request": "1";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BootstrapInput"];
+            };
+        };
+        responses: {
+            /** @description CalendarWriteResult */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarWriteResultEnvelope"];
+                };
+            };
+            /** @description Local guard rejection */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Calendar version or session missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Calendar conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    editCalendar: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Local-Request": "1";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalendarEditsRequest"];
+            };
+        };
+        responses: {
+            /** @description CalendarWriteResult */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarWriteResultEnvelope"];
+                };
+            };
+            /** @description Local guard rejection */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Calendar version or session missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Calendar conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    rollbackCalendar: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Local-Request": "1";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalendarRollbackRequest"];
+            };
+        };
+        responses: {
+            /** @description CalendarWriteResult */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarWriteResultEnvelope"];
+                };
+            };
+            /** @description Local guard rejection */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Calendar version or session missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Calendar conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid request */
             422: {
                 headers: {
                     [name: string]: unknown;

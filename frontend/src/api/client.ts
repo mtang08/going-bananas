@@ -106,6 +106,44 @@ export function getCalendarDiff(params: CalendarDiffRead['parameters']['query'])
   )
 }
 
+export function getWeeklyProjection() {
+  return requestEnvelope<
+    CalendarOperations['getWeeklyProjection']['responses'][200]['content']['application/json']
+  >(BASE + '/calendar/weekly-projection')
+}
+
+export function getWeeklyDigest(
+  params: NonNullable<CalendarOperations['getWeeklyDigest']['parameters']['query']> = {},
+) {
+  return requestEnvelope<
+    CalendarOperations['getWeeklyDigest']['responses'][200]['content']['application/json']
+  >(BASE + '/calendar/weekly-digest' + query(params))
+}
+
+export function bootstrapCalendar(
+  body: CalendarOperations['bootstrapCalendar']['requestBody']['content']['application/json'],
+) {
+  return requestEnvelope<
+    CalendarOperations['bootstrapCalendar']['responses'][201]['content']['application/json']
+  >(BASE + '/calendar/bootstrap', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function editCalendar(
+  body: CalendarOperations['editCalendar']['requestBody']['content']['application/json'],
+) {
+  return requestEnvelope<
+    CalendarOperations['editCalendar']['responses'][201]['content']['application/json']
+  >(BASE + '/calendar/edits', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function rollbackCalendar(
+  body: CalendarOperations['rollbackCalendar']['requestBody']['content']['application/json'],
+) {
+  return requestEnvelope<
+    CalendarOperations['rollbackCalendar']['responses'][201]['content']['application/json']
+  >(BASE + '/calendar/rollback', { method: 'POST', body: JSON.stringify(body) })
+}
+
 const proposalListPath = `${BASE}/coach/proposals`
 type ProposalListGet = paths[typeof proposalListPath]['get']
 export type ProposalListResponse = ProposalListGet['responses'][200]['content']['application/json']
