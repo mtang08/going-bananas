@@ -1,9 +1,9 @@
 """Run the normal built and Vite supervisors in an isolated PostgreSQL schema."""
+
 import os
 import signal
 import socket
 import subprocess
-import sys
 import tempfile
 import time
 from http.client import HTTPConnection
@@ -11,7 +11,6 @@ from pathlib import Path
 
 import psycopg
 from sqlalchemy.engine import make_url
-
 from test_proposal_slice import ROOT, migrated_schema
 
 
@@ -27,7 +26,9 @@ def exercise(env, target):
     while ui == api:
         ui = free_port()
     env = dict(env, APP_PORT=str(api), VITE_PORT=str(ui), GB_MODE_ROOT=str(ROOT))
-    with subprocess.Popen(["make", target], cwd=ROOT, env=env, start_new_session=True) as proc:
+    with subprocess.Popen(
+        ["make", target], cwd=ROOT, env=env, start_new_session=True
+    ) as proc:
         try:
             ui_port = ui if target == "dev" else api
             for _ in range(300):
@@ -43,11 +44,16 @@ def exercise(env, target):
                     pass
                 finally:
                     client.close()
-                time.sleep(.1)
+                time.sleep(0.1)
             else:
                 raise TimeoutError(f"make {target} did not become ready")
-            subprocess.run(["node", ROOT/"scripts/rewrite/supervisor-smoke.mjs", str(ui_port)],
-                           cwd=ROOT, env=env, check=True, timeout=60)
+            subprocess.run(
+                ["node", ROOT / "scripts/rewrite/supervisor-smoke.mjs", str(ui_port)],
+                cwd=ROOT,
+                env=env,
+                check=True,
+                timeout=60,
+            )
         finally:
             if proc.poll() is None:
                 os.killpg(proc.pid, signal.SIGTERM)
@@ -57,7 +63,7 @@ def exercise(env, target):
             with socket.socket() as s:
                 if s.connect_ex(("127.0.0.1", api)) != 0:
                     break
-            time.sleep(.1)
+            time.sleep(0.1)
         else:
             raise RuntimeError("supervisor left the API listening")
 
@@ -86,7 +92,10 @@ def main():
             subprocess.run(["make", "build"], cwd=ROOT, env=env, check=True)
             for target in ("start", "dev"):
                 exercise(env, target)
-    print("PASS make build/start/dev, loopback health, Chrome goal creation and persistence")
+    print(
+        "PASS make build/start/dev, loopback health and goals: "
+        + os.getenv("SUPERVISOR_ENGINE", "chrome")
+    )
 
 
 if __name__ == "__main__":
