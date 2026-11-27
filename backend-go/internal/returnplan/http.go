@@ -24,8 +24,11 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	id := uuid.NewString()
-	w.Header().Set("X-Request-ID", id)
+	id := w.Header().Get("X-Request-ID")
+	if id == "" {
+		id = uuid.NewString()
+		w.Header().Set("X-Request-ID", id)
+	}
 	fail := func(status int, code, msg string) {
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(object{"error": object{"code": code, "message": msg, "retryable": status >= 500, "request_id": id, "fields": []object{}}})

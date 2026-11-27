@@ -12,7 +12,7 @@ import (
 )
 
 func TestWeeklyHTTPValidationAndGuards(t *testing.T) {
-	h := NewWeekly(nil, api.AppMode("test"), "8000", "5173")
+	h := New(nil, nil, nil, api.Test, "8000", "5173", Weekly{Mode: api.Test}.Register)
 	for _, tc := range []struct {
 		path, method, host, origin string
 		code                       int
@@ -64,7 +64,7 @@ func TestWeeklyHTTPPostgres(t *testing.T) {
 	}
 	defer pool.Close()
 	now := time.Date(2050, 1, 23, 17, 0, 0, 0, time.UTC)
-	h := &weeklyHandler{pool, api.AppMode("test"), newGuard("8000", "5173"), func() time.Time { return now }}
+	h := New(nil, nil, nil, api.Test, "8000", "5173", Weekly{Pool: pool, Mode: api.Test, Now: func() time.Time { return now }}.Register)
 	revision := func() int {
 		t.Helper()
 		var v int

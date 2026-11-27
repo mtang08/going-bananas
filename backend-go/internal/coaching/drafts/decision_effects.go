@@ -99,31 +99,8 @@ func applyDecision(ctx context.Context, tx pgx.Tx, p PreparedDecision, receipt *
 		return err
 	}
 	if len(edits) > 0 {
-		checker := func(before, after json.RawMessage, legacy bool) error {
-			var old, next sessionFields
-			if err := json.Unmarshal(after, &next); err != nil {
-				return err
-			}
-			hasHead := string(before) != "null"
-			if hasHead {
-				if err := json.Unmarshal(before, &old); err != nil {
-					return err
-				}
-			}
-			if has(next.Structure) {
-				if _, ok := expand(next.Structure); !ok {
-					return &Error{"invalid_structure", "Invalid session structure", 422}
-				}
-			}
-			if msg := restrictionConflict(p.rules.Restriction, next, old, hasHead); msg != "" {
-				return &Error{"running_restriction", msg, 422}
-			}
-			if x := p.rules.Interruption; x != nil && next.Kind == "run" && next.LocalDate >= p.rules.Today && next.LocalDate >= x.Start && (x.Return == "" || next.LocalDate < x.Return) && (!hasHead || old.Kind != "run" || old.LocalDate != next.LocalDate || raisesDose(next, old)) {
-				return &Error{"running_interruption", "Running is unavailable on " + next.LocalDate + ". Remove the run or move it outside the confirmed interruption.", 422}
-			}
-			return nil
-		}
-		batch := calendar.EditBatch{Head: p.Selection.Head, Kind: "proposal_accept", Actor: "coach", Reason: doc.Headline, Today: p.rules.Today, ProposalID: &p.ProposalID, BlockVersionID: block, Edits: edits}
+		checker := prescriptionCheck(p.rules, false)
+		batch := calendar.EditBatch{Head: p.Selection.Head, Kind: "proposal_accept", Actor: "coach", Reason: &doc.Headline, Today: p.rules.Today, ProposalID: &p.ProposalID, BlockVersionID: block, Edits: edits}
 		result, err := calendar.ApplyEdits(ctx, tx, batch, checker)
 		if err != nil {
 			var prob *calendar.Problem

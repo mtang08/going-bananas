@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"github.com/mtang08/going-bananas/backend-go/internal/httpinput"
 	"net/http"
 	"strings"
 
@@ -100,7 +101,7 @@ func (s server) serveGoal(w http.ResponseWriter, r *http.Request, rawID string) 
 	input, fields := decodeGoalInput(r.Body, false)
 	invalidWrapper := len(rawID) == 38 && (!strings.HasPrefix(rawID, "{") || !strings.HasSuffix(rawID, "}")) || len(rawID) == 45 && !strings.HasPrefix(rawID, "urn:uuid:")
 	if (idErr != nil || invalidWrapper) && (len(fields) == 0 || fields[0].Message != "JSON decode error") {
-		fields = append([]api.ValidationField{{Field: "path.goal_id", Message: uuidMessage(rawID)}}, fields...)
+		fields = append([]api.ValidationField{{Field: "path.goal_id", Message: httpinput.UUIDMessage(rawID)}}, fields...)
 	}
 	if len(fields) > 0 {
 		resp := api.PatchGoal422JSONResponse{Error: api.ErrorDetail{Code: "validation_error", Message: "Invalid request fields", RequestId: requestID(r.Context()), Fields: fields}}

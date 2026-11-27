@@ -1,0 +1,444 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Going Bananas calendar completion API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/calendar/completions/{session_uid}": {
+      "put": {
+        "operationId": "putCompletion",
+        "parameters": [
+          {
+            "name": "session_uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Local-Request",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved completion or null after undo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recording not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Completion version or recording conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON body required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid completion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CompletionInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strong_workout_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manual_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "skipped",
+                  "unknown",
+                  "completed_as_planned"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "modification_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "symptom_onset",
+                  "fatigue",
+                  "illness",
+                  "schedule",
+                  "weather",
+                  "equipment",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Completion": {
+        "type": "object",
+        "required": [
+          "id",
+          "session_uid",
+          "activity_id",
+          "strong_workout_id",
+          "manual_session_id",
+          "status",
+          "match_method",
+          "modification_reason",
+          "reason_note",
+          "version",
+          "input_version",
+          "updated_at",
+          "local_date"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "session_uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strong_workout_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manual_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed_as_planned",
+              "completed_modified",
+              "partial",
+              "moved",
+              "skipped",
+              "extra",
+              "unknown"
+            ]
+          },
+          "match_method": {
+            "type": "string",
+            "enum": [
+              "explicit",
+              "auto_same_day",
+              "confirmed_move",
+              "user_marked",
+              "none"
+            ]
+          },
+          "modification_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "symptom_onset",
+                  "fatigue",
+                  "illness",
+                  "schedule",
+                  "weather",
+                  "equipment",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "input_version": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "local_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "CompletionEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Completion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ValidationField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "ValidationField"
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationField"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id",
+          "fields"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      }
+    }
+  }
+}

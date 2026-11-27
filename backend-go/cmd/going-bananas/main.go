@@ -10,20 +10,14 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/api"
-	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
-	"github.com/mtang08/going-bananas/backend-go/internal/goals"
-	"github.com/mtang08/going-bananas/backend-go/internal/googlecalendar"
-	"github.com/mtang08/going-bananas/backend-go/internal/httpapi"
-	"github.com/mtang08/going-bananas/backend-go/internal/planning"
-	"github.com/mtang08/going-bananas/backend-go/internal/proposalhttp"
-	"github.com/mtang08/going-bananas/backend-go/internal/proposals"
-	"github.com/mtang08/going-bananas/backend-go/internal/travelhttp"
 	"github.com/oapi-codegen/runtime"
 )
 
@@ -98,12 +92,27 @@ func serve(args []string) error {
 		}
 	}
 	privateDir := os.Getenv("PRIVATE_DIR")
-	travel := travelhttp.Handler{Pool: pool, Mode: string(mode), PrivateDir: privateDir, Provider: googlecalendar.New(privateDir)}
-	review := proposalhttp.Handler{Store: drafts.Store{Pool: pool}, KBRoot: filepath.Join(root, "running_coach_kb"), Mode: string(mode)}
-	h := httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort, travel.Register, review.Register)
+	dashboard, err := nativeDashboard(ctx, pool, mode, port, vitePort, root, privateDir)
+	if err != nil {
+		return fmt.Errorf("initialize coaching dashboard: %w", err)
+	}
+	h := applicationHandler(pool, mode, port, vitePort, root, privateDir, dashboard)
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Println(l.Addr())
-	return srv.Serve(l)
+	shutdown, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	done := make(chan error, 1)
+	go func() { done <- srv.Serve(l) }()
+	select {
+	case err = <-done:
+	case <-shutdown.Done():
+		closing, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err = srv.Shutdown(closing)
+		cancel()
+	}
+	drain, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return errors.Join(err, dashboard.Shutdown(drain))
 }
 
 // Match the compact FastAPI JSON body for generated responses.

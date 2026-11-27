@@ -17,6 +17,8 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/providerjobs"
 )
 
+var errCredentialMissing = errors.New("garmin_credential_missing")
+
 type Config struct {
 	Pool       *pgxpool.Pool
 	PrivateDir string
@@ -48,7 +50,7 @@ func Open(ctx context.Context, mode string, cfg Config) (*Worker, error) {
 	if os.Getenv("GARMIN_API_KEY") == "" && os.Getenv("GARMIN_PERSONAL_API_KEY") == "" {
 		info, err := os.Stat(key)
 		if err != nil || !info.Mode().IsRegular() {
-			return nil, errors.New("garmin_credential_missing")
+			return nil, errCredentialMissing
 		}
 	}
 	return New(cfg, &clientSource{cfg: garmin.Config{KeyFile: key, CacheFile: filepath.Join(cfg.PrivateDir, "garmin-token.json")}})
