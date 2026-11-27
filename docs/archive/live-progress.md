@@ -32,7 +32,7 @@ returned the same revision. The behavior-preserving frontend split now lives
 on main too: current recurrence controls, saved prescriptions, rest handling,
 and revision history were preserved, with two additional shared-Modal tests.
 
-The current user-facing contract is [running-coach-workflow.md](running-coach-workflow.md).
+The current user-facing contract is [running-coach-workflow.md](../running-coach-workflow.md).
 The v0.9 redesign remains a separate, partially supplied specification; its
 missing task packets and Garmin inventory gates have not been implemented here.
 
@@ -46,7 +46,7 @@ recipe, and race-transition reference material, with 72 sources and 23 candidate
 policies. The local knowledge helper can explicitly retrieve block research,
 P019–P023, and selected recipe records. Daily/weekly default selection and saved
 training remain unchanged; new product behavior awaits the user's implementation
-plan. See [research integration](research-integration.md) for provenance and
+plan. See [research integration](../research-integration.md) for provenance and
 retrieval limits.
 
 Import verification passed 17 focused backend tests, 13 helper tests, Ruff, and
@@ -65,7 +65,7 @@ older routine proposal-acceptance/no-auto-mutation requirements are retired.
 The installed Codex skill is sufficient as the AI entry point. Focus on weekly
 persisted 14-day plans and daily persisted confirmations/adjustments; detailed
 FIT analytics and further KB refinements remain P1. See
-[running-coach-workflow.md](running-coach-workflow.md) and
+[running-coach-workflow.md](../running-coach-workflow.md) and
 [p0-implementation.md](p0-implementation.md) for the revised contract and scoped
 verification record.
 
@@ -96,7 +96,7 @@ requested coaching product. The required next task was an integrated, useful run
 recommendation workflow. The context-clear pause applied to that earlier
 handoff; active work has resumed as recorded above.
 
-Read [running-coach-workflow.md](running-coach-workflow.md) first on resume. It
+Read [running-coach-workflow.md](../running-coach-workflow.md) first on resume. It
 defines the user journey, actual gaps, implementation order, and acceptance
 criteria. It supersedes older statements that the coaching MVP is complete or
 that model coaching is merely optional future work.
@@ -152,8 +152,8 @@ build weekly manual plans or copy conversational advice into dated sessions.
 ## Historical release evidence (foundation only)
 
 Updated for the recurring schedule and historical run-label release on November 11, 2026. The prior in-progress checkpoint
-has been consolidated into [handoff.md](handoff.md), [release-checklist.md](release-checklist.md),
-and [research-integration.md](research-integration.md). Preserve the current
+has been consolidated into [handoff.md](../handoff.md), [release-checklist.md](../release-checklist.md),
+and [research-integration.md](../research-integration.md). Preserve the current
 local real database and ignored private files. No remote or deployment exists.
 
 ## Delivered
@@ -198,5 +198,5 @@ confirmed as recorded above. The 15 supplied
 behavioral examples have not all been executed end to end. Exact personalized
 progression, delayed multi-day response analysis, and full event chronology in
 weekly review remain gaps. The active next phase is in
-[running-coach-workflow.md](running-coach-workflow.md), with other ideas retained
-in [backlog.md](backlog.md).
+[running-coach-workflow.md](../running-coach-workflow.md), with other ideas retained
+in [backlog.md](../backlog.md).

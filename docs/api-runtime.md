@@ -1,4 +1,8 @@
-# Runtime API contract (analytics MVP)
+# Historical runtime API contract (analytics MVP)
+
+This page records the analytics and calendar coaching MVP contracts. See the
+[Go OpenAPI schemas](../backend-go/api) and [architecture guide](architecture.md)
+for the current API.
 
 All browser routes begin `/api/v1`. Every response uses `{schema_version:"v1",data_revision:number,mode:"demo"|"real"|"test",data:...}`. Error responses use `{error:{code,message,retryable,request_id,fields?}}`. Dates are `YYYY-MM-DD`, instants are ISO 8601 with offset, distances meters, durations seconds. Mutations require `Content-Type: application/json` and `X-Local-Request: 1`; same-origin Origin/Host checks apply. Query dates are inclusive local dates in profile timezone, maximum 366 days. Unspecified summary/history window is the last 28 local dates.
 
