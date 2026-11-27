@@ -57,7 +57,7 @@ make backup
 
 In real mode, `make migrate` backs up to `$PRIVATE_DIR/backups/` and stops if the backup fails. Demo and test migrations run directly.
 
-Training backups include saved proposals and accepted history. Dashboard chat transcripts, Codex threads, and credentials stay in their private local directories.
+Training backups include saved proposals and accepted calendar history. After the native dashboard imports a review, the PostgreSQL backup also contains its conversation, thread reference and message receipts. Before that first import, the Python review files live under `$PRIVATE_DIR/coach-chat/`. Preserve those files at cutover. The separate Codex profile under `private/coach-codex/` holds local provider state and credentials and is excluded from the training backup.
 
 Before applying `0022_race_goals` to the real database, check its current revision and retain a pre-migration backup. This migration deletes existing events, clears their links on retained benchmark and anchor records, and expires outstanding post-race review findings. Restoring the backup recovers the old events. After migrating, enter upcoming races under **Settings → Events**, choose their purposes, and put the goal race first. The next block review can link the accepted block to that race.
 
@@ -157,9 +157,9 @@ original tables (`plan_versions`, `planned_sessions`, `completion_links`,
 `checkins`, `weekly_snapshots`, and `coach_*`) as a read-only archive. The app
 no longer reads that history. Back up before any real schema change.
 
-Home/Calendar/Trends/Block use the calendar workflow. The coach
-CLI provides `coach schema`, `coach snapshot --operation OP`, `coach query NAME`,
-and `coach submit --file PATH`. Submit creates a pending changeset. Accept or
+Real coaching uses Python until the owner selects Go. At the scheduled switch, stop the running dashboard, keep a backup, and run the migrations for the selected workspace. Set `GOING_BANANAS_BACKEND=go` in the checkout’s private `.env` and run `make build` before reopening **Going Bananas.command**. The supervisor and helper both read this selection. A temporary shell override applies only to processes that inherit it. The first native launch imports the prior review and receipts for that mode. Open **Coach** and check the existing conversation and pending draft before sending a new message. [Native coaching rehearsal](go-rewrite-coaching.md#native-dashboard-handoff)
+
+Home, Calendar, Trends and Block use the calendar workflow. From the repository root, `python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode demo schema` shows the current contract in demo mode. Use the same prefix with `snapshot --operation OP`, `query NAME`, or `submit --file PATH`. Submit creates a pending changeset. Accept or
 reject it in the app; there is no CLI acceptance command. A partial selection is
 validated again, including strength scheduling and anchor-dependent targets.
 Identical decision retries return the stored result, including its version.
