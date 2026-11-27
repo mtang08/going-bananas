@@ -25,9 +25,10 @@ var schema []byte
 var models = jsonmodel.Load(schema, nil)
 
 type Handler struct {
-	Pool *pgxpool.Pool
-	Mode string
-	Now  func() time.Time
+	Pool   *pgxpool.Pool
+	KBRoot string
+	Mode   string
+	Now    func() time.Time
 }
 type result struct {
 	data    any
@@ -49,6 +50,7 @@ func (h Handler) Register(m *http.ServeMux) {
 		return
 	}
 	for _, r := range []route{
+		{"GET /api/v1/blocks/active", "", 200, h.activeBlock}, {"GET /api/v1/blocks/benchmarks", "", 200, benchmarks}, {"GET /api/v1/blocks/{block_uid}/history", "", 200, blockHistory}, {"GET /api/v1/events/{event_id}/blocks", "", 200, eventBlocks}, {"PUT /api/v1/blocks/{block_uid}/benchmark-activity", "BenchmarkActivityInput", 200, setBenchmark},
 		{"GET /api/v1/events", "", 200, listEvents}, {"POST /api/v1/events", "EventInput", 201, saveEvent}, {"PATCH /api/v1/events/{event_id}", "EventPatch", 200, saveEvent}, {"PUT /api/v1/events/order", "EventOrder", 200, orderEvents},
 	} {
 		m.HandleFunc(r.pattern, func(w http.ResponseWriter, req *http.Request) { h.serve(w, req, r) })
@@ -75,10 +77,14 @@ func problem(w http.ResponseWriter, status int, code, msg string, fields []field
 func parse(r *http.Request, model string) (command, []field) {
 	c := command{}
 	var issues []field
-	if key := r.PathValue("event_id"); key != "" {
+	keyName := "event_id"
+	if r.PathValue("block_uid") != "" {
+		keyName = "block_uid"
+	}
+	if key := r.PathValue(keyName); key != "" {
 		id, err := uuid.Parse(key)
 		if err != nil {
-			issues = append(issues, field{"path.event_id", "Input should be a valid UUID"})
+			issues = append(issues, field{"path." + keyName, "Input should be a valid UUID"})
 		}
 		c.id = &id
 	}
@@ -196,4 +202,31 @@ func orderEvents(ctx context.Context, tx pgx.Tx, today string, c command) (resul
 	}
 	items, changed, err := planning.OrderEvents(ctx, tx, today, body.Items)
 	return result{map[string]any{"items": items}, changed}, err
+}
+
+func (h Handler) activeBlock(ctx context.Context, tx pgx.Tx, today string, c command) (result, error) {
+	d, e := planning.ActiveBlock(ctx, tx, today, h.KBRoot)
+	return result{data: d}, e
+}
+func benchmarks(ctx context.Context, tx pgx.Tx, today string, c command) (result, error) {
+	d, e := planning.BenchmarkHistory(ctx, tx)
+	return result{data: map[string]any{"items": d}}, e
+}
+func blockHistory(ctx context.Context, tx pgx.Tx, today string, c command) (result, error) {
+	d, e := planning.BlockHistory(ctx, tx, *c.id)
+	return result{data: map[string]any{"items": d}}, e
+}
+func eventBlocks(ctx context.Context, tx pgx.Tx, today string, c command) (result, error) {
+	d, e := planning.EventBlocks(ctx, tx, *c.id)
+	return result{data: map[string]any{"items": d}}, e
+}
+func setBenchmark(ctx context.Context, tx pgx.Tx, today string, c command) (result, error) {
+	var input struct {
+		Activity *uuid.UUID `json:"activity_id"`
+	}
+	if err := json.Unmarshal(c.full, &input); err != nil {
+		return result{}, err
+	}
+	d, e := planning.SetBenchmark(ctx, tx, *c.id, input.Activity, today)
+	return result{d, true}, e
 }

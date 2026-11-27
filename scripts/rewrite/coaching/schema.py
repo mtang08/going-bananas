@@ -28,13 +28,20 @@ def schema(calendar=False, planning=False):
         commands = (BootstrapInput, EditsInput, RollbackInput, AnchorInput)
         if planning:
             from app.api.planning import (
+                BenchmarkActivityInput,
                 EventInput,
                 EventPatch,
                 EventOrder,
                 RoutineInput,
             )
 
-            commands = (EventInput, EventPatch, EventOrder, RoutineInput)
+            commands = (
+                EventInput,
+                EventPatch,
+                EventOrder,
+                RoutineInput,
+                BenchmarkActivityInput,
+            )
         models = {}
         for command in commands:
             shape = command.model_json_schema()
