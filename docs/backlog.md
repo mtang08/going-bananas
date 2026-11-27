@@ -306,6 +306,7 @@ already materialized. Request-to-completion time fell from 1.612 s to 0.166 s.
 Metric calculations fell from 480 to 18 (nine recovery nights and nine summaries).
 The fixture uses synthetic Garmin responses and immediate worker pickup. The
 74.7 s measurement above is the original live observation.
+[Historical benchmark and regression cases](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/tests/integration/test_incremental_sync_refresh.py)
 
 ### IDEA-012 — Manual pace overrides for treadmill runs
 
