@@ -1,4 +1,4 @@
-// Command going-bananas-coach serves the skill's local synthetic coaching protocol.
+// Command going-bananas-coach serves the skill's local coaching protocol.
 package main
 
 import (
@@ -155,6 +155,19 @@ func invalid(id *uuid.UUID, code string, issues []drafts.Issue) object {
 	return o
 }
 
+func selectedDatabase(mode, backend, database string) bool {
+	switch mode {
+	case "test", "demo":
+	case "real":
+		if backend != "go" {
+			return false
+		}
+	default:
+		return false
+	}
+	return strings.HasSuffix(database, "_"+mode)
+}
+
 func (c command) run(ctx context.Context, out, stderr io.Writer) int {
 	if c.name == "schema" {
 		return emit(out, 0, protocol.Schema())
@@ -174,8 +187,8 @@ func (c command) run(ctx context.Context, out, stderr io.Writer) int {
 	mode := os.Getenv("APP_MODE")
 	dsn := strings.Replace(os.Getenv("DATABASE_URL"), "postgresql+psycopg://", "postgresql://", 1)
 	cfg, err := pgxpool.ParseConfig(dsn)
-	if dsn == "" || err != nil || (mode != "test" && mode != "demo") || !strings.HasSuffix(cfg.ConnConfig.Database, "_"+mode) {
-		return emit(stderr, 1, object{"error": "invalid_synthetic_database"})
+	if dsn == "" || err != nil || !selectedDatabase(mode, os.Getenv("GOING_BANANAS_BACKEND"), cfg.ConnConfig.Database) {
+		return emit(stderr, 1, object{"error": "invalid_database_target"})
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

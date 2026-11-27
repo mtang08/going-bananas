@@ -14,10 +14,14 @@ import (
 type Frontend struct{ Dist string }
 
 func (f Frontend) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /", f.serve)
+	mux.HandleFunc("/", f.serve)
 }
 
 func (f Frontend) serve(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		fail(w, r, 405, "method_not_allowed", "Request failed")
+		return
+	}
 	root, err := os.OpenRoot(f.Dist)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {

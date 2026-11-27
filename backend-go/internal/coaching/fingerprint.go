@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 )
 
 // SourceVersions is the open-ended snapshot evidence object. All supplied keys,
@@ -37,9 +38,50 @@ func decodeEvidenceObject(data []byte, target *map[string]any) error {
 // SelectionEntry identifies either sections or record IDs in their supplied
 // order. The unused slice is nil in a verified selection.
 type SelectionEntry struct {
-	Path      string   `json:"path"`
-	Sections  []string `json:"sections,omitempty"`
-	RecordIDs []string `json:"record_ids,omitempty"`
+	Path         string   `json:"path"`
+	Sections     []string `json:"sections,omitempty"`
+	RecordIDs    []string `json:"record_ids,omitempty"`
+	invalidShape bool
+}
+
+// Keep malformed retained selection entries readable for proposal views, which
+// display unavailable evidence as stale. Verification rejects the entry before
+// it can authorize a pending draft.
+func (s *SelectionEntry) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	*s = SelectionEntry{}
+	if err := json.Unmarshal(data, &fields); err != nil {
+		s.invalidShape = true
+		return nil
+	}
+	path, hasPath := fields["path"]
+	sections, hasSections := fields["sections"]
+	ids, hasIDs := fields["record_ids"]
+	if len(fields) != 2 || !hasPath || hasSections == hasIDs {
+		s.invalidShape = true
+		return nil
+	}
+	if err := json.Unmarshal(path, &s.Path); err != nil {
+		s.invalidShape = true
+		return nil
+	}
+	values, dest := sections, &s.Sections
+	if hasIDs {
+		values, dest = ids, &s.RecordIDs
+	}
+	var items []*string
+	if json.Unmarshal(values, &items) != nil || len(items) == 0 {
+		s.invalidShape = true
+		return nil
+	}
+	for _, value := range items {
+		if value == nil {
+			s.invalidShape = true
+			return nil
+		}
+		*dest = append(*dest, *value)
+	}
+	return nil
 }
 
 type SelectedRecord struct {
@@ -59,6 +101,9 @@ type VerifiedKnowledge struct {
 func Fingerprint(sources SourceVersions, kb VerifiedKnowledge) ([]byte, string, error) {
 	selection := make([]any, len(kb.Selection))
 	for i, entry := range kb.Selection {
+		if entry.invalidShape {
+			return nil, "", errors.New("invalid saved knowledge selection")
+		}
 		item := map[string]any{"path": entry.Path}
 		if entry.Sections != nil {
 			item["sections"] = entry.Sections
