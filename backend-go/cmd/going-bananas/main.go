@@ -21,6 +21,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/backupcli"
 	"github.com/mtang08/going-bananas/backend-go/internal/calendarcli"
 	"github.com/mtang08/going-bananas/backend-go/internal/coachcli"
+	"github.com/mtang08/going-bananas/backend-go/internal/demoseed"
 	"github.com/mtang08/going-bananas/backend-go/internal/exportcommand"
 	"github.com/mtang08/going-bananas/backend-go/internal/fitcommand"
 	"github.com/mtang08/going-bananas/backend-go/internal/health"
@@ -151,6 +152,11 @@ func main() {
 	case "serve":
 		if err := serve(args[1:]); err != nil {
 			log.Fatal(err)
+		}
+	case "seed-demo":
+		if err := demoseed.Run(context.Background(), args[1:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
 	case "worker", "sync":
 		os.Exit(workercommand.Main(args))

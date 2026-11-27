@@ -25,7 +25,7 @@ db-stop:
 migrate:
 	$(RUN) bash -c 'if [ "$$APP_MODE" = real ]; then ( $(BACKUP) ) || { echo "Backup failed; migration aborted." >&2; exit 1; }; fi; ./scripts/backend-cli migrate'
 seed-demo:
-	./scripts/with-mode demo bash -c 'cd backend && uv run alembic upgrade head && uv run python -m app.cli seed-demo'
+	./scripts/with-mode demo bash -c './scripts/backend-cli migrate && ./scripts/backend-cli seed-demo'
 dev:
 	$(RUN) python3 scripts/serve.py --dev
 build:

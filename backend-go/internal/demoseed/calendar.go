@@ -197,7 +197,7 @@ func seedCalendar(ctx context.Context, tx pgx.Tx, today, _ time.Time, slots map[
 			}
 			return nil
 		}
-		out, err := calendar.ApplyEdits(ctx, tx, calendar.EditBatch{Head: head, Today: today.Format(time.DateOnly), Kind: "manual_edit", Actor: actor, Reason: reason, Edits: edits}, check)
+		out, err := calendar.ApplyEdits(ctx, tx, calendar.EditBatch{Head: head, Today: today.Format(time.DateOnly), Kind: "manual_edit", Actor: actor, Reason: &reason, Edits: edits}, check)
 		head = out.Version
 		return err
 	}

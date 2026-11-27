@@ -305,9 +305,9 @@ Browser acceptance uses an isolated demo database and built frontend on port
 18000. Use a disposable demo environment, never real credentials or data:
 
 ```sh
-./scripts/with-mode demo bash -c 'cd backend && uv run alembic upgrade head && uv run python -m app.cli seed-demo'
-make build
-APP_PORT=18000 ./scripts/with-mode demo bash -c 'cd backend && uv run uvicorn app.main:app --host 127.0.0.1 --port 18000'
+make seed-demo
+./scripts/with-mode demo make build
+APP_PORT=18000 ./scripts/with-mode demo make start
 # In another terminal:
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:18000 make test-e2e
 ```
