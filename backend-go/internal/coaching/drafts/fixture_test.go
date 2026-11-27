@@ -83,8 +83,19 @@ func draftTestPool(t *testing.T) *pgxpool.Pool {
 
 func pendingTestDraft(t *testing.T, pool *pgxpool.Pool, changes int) Receipt {
 	t.Helper()
+	day := testNow.Format(time.DateOnly)
+	edits := []map[string]any{
+		{"change_id": "c1", "op": "add", "reason": "Recovery day",
+			"after": map[string]any{"local_date": day, "kind": "rest", "intent": "Recovery"}},
+		{"change_id": "c2", "op": "add", "reason": "Optional rest",
+			"after": map[string]any{"local_date": day, "kind": "rest", "intent": "Optional rest", "slot": 1}},
+	}
+	return submitTestDraft(t, pool, "proceed_or_modify_today", map[string]any{"changes": edits[:changes]})
+}
+
+func submitTestDraft(t *testing.T, pool *pgxpool.Pool, operation string, fields map[string]any) Receipt {
+	t.Helper()
 	ctx := t.Context()
-	const operation = "proceed_or_modify_today"
 	day := testNow.Format(time.DateOnly)
 	var snapshot map[string]any
 	err := pgx.BeginTxFunc(ctx, pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
@@ -95,13 +106,7 @@ func pendingTestDraft(t *testing.T, pool *pgxpool.Pool, changes int) Receipt {
 	if err != nil {
 		t.Fatal(err)
 	}
-	edits := []map[string]any{
-		{"change_id": "c1", "op": "add", "reason": "Recovery day",
-			"after": map[string]any{"local_date": day, "kind": "rest", "intent": "Recovery"}},
-		{"change_id": "c2", "op": "add", "reason": "Optional rest",
-			"after": map[string]any{"local_date": day, "kind": "rest", "intent": "Optional rest", "slot": 1}},
-	}
-	document, err := json.Marshal(map[string]any{
+	documentFields := map[string]any{
 		"schema_version": "coach_proposal.v2", "operation": operation, "snapshot_id": snapshot["snapshot_id"],
 		"base_calendar_version": 0, "base_block_version_id": nil, "headline": "Synthetic recovery",
 		"why":             []map[string]string{{"kind": "observation", "text": "Synthetic session"}},
@@ -109,10 +114,14 @@ func pendingTestDraft(t *testing.T, pool *pgxpool.Pool, changes int) Receipt {
 		"change_triggers": []map[string]string{{"when": "Energy drops", "then": "Rest"}},
 		"next_check":      map[string]string{"on": day, "check": "Review response"},
 		"confidence":      map[string]string{"decision": "moderate", "evidence": "moderate", "data": "moderate"},
-		"changes":         edits[:changes],
+		"changes":         []any{},
 		"evidence_ids":    []string{}, "policy_ids": []string{}, "recipe_ids": []string{},
 		"skill_version": "running-coach.v1",
-	})
+	}
+	for key, value := range fields {
+		documentFields[key] = value
+	}
+	document, err := json.Marshal(documentFields)
 	if err != nil {
 		t.Fatal(err)
 	}

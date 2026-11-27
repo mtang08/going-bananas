@@ -150,3 +150,96 @@ func TestAcceptDecisionLedger(t *testing.T) {
 		})
 	}
 }
+
+func TestAcceptPlanningDecisionLedger(t *testing.T) {
+	t.Run("anchor", func(t *testing.T) {
+		pool := draftTestPool(t)
+		ctx := t.Context()
+		const key = "hr_threshold_lower-2026-11-16"
+		pending := submitTestDraft(t, pool, "recalibrate_intensity", map[string]any{
+			"anchor_changes": []map[string]any{{
+				"kind": "hr_threshold_lower", "value_low": 165, "unit": "bpm",
+				"calibrated_at": testNow, "protocol": "manual", "confidence": "moderate",
+			}},
+		})
+		store := Store{Pool: pool}
+		req := DecisionRequest{Revision: pending.Revision, Key: "accept-anchor", Anchors: []string{key}}
+		calls := 0
+		refresh := func(_ context.Context, _ pgx.Tx, scope calendar.PlanScope, _ []uuid.UUID) error {
+			calls++
+			if scope.Since != "2026-11-16" || len(scope.PlanUIDs) != 0 {
+				t.Errorf("anchor refresh scope: %+v", scope)
+			}
+			return nil
+		}
+		for range 2 {
+			result, err := store.Decide(ctx, pending.ID, req, testNow, testKBRoot, refresh)
+			if err != nil || result.Status != "accepted" || result.CalendarVersion != nil ||
+				!reflect.DeepEqual(result.AnchorKeys, []string{key}) {
+				t.Fatalf("anchor receipt: %+v, %v", result, err)
+			}
+		}
+		var found int
+		err := pool.QueryRow(ctx, "SELECT count(*) FROM intensity_anchors WHERE anchor_key=$1 AND value_low=165", key).Scan(&found)
+		if err != nil || found != 1 || calls != 1 {
+			t.Fatalf("anchor applies and refreshes once: rows=%d refreshes=%d err=%v", found, calls, err)
+		}
+	})
+
+	t.Run("block", func(t *testing.T) {
+		pool := draftTestPool(t)
+		ctx := t.Context()
+		fields := map[string]any{
+			"status": "active", "objective": "Build",
+			"why":                  []map[string]string{{"kind": "inference", "text": "Ready"}},
+			"maintained_qualities": []any{}, "non_goals": []any{}, "eligible_recipe_ids": []string{"REC001", "REC009"},
+			"progression_dimension": "duration", "constraints": []any{},
+			"start_date": "2026-11-16", "review_date": "2026-12-28", "indicators": []any{},
+			"early_review_triggers": []any{}, "objective_status": "unresolved",
+			"benchmark": map[string]string{"kind": "time_trial", "protocol": "5 km solo time trial",
+				"planned_date": "2026-12-20", "progress_if": "Under 22:00", "consolidate_if": "Over 22:30"},
+		}
+		blockChange := map[string]any{"decision": "start", "block_uid": nil, "version_fields": fields}
+		pending := submitTestDraft(t, pool, "review_training_block", map[string]any{"block_change": blockChange})
+		store := Store{Pool: pool}
+		req := DecisionRequest{Revision: pending.Revision, Key: "accept-block", Block: true}
+		first, err := store.Decide(ctx, pending.ID, req, testNow, testKBRoot, nil)
+		if err != nil || first.Status != "accepted" || first.BlockVersionID == nil || first.CalendarVersion != nil {
+			t.Fatalf("block receipt: %+v, %v", first, err)
+		}
+		got, err := store.Decide(ctx, pending.ID, req, testNow, testKBRoot, nil)
+		if err != nil || !reflect.DeepEqual(got, first) {
+			t.Fatalf("block replay: %+v, %v; want %+v", got, err, first)
+		}
+		var blockID uuid.UUID
+		if err := pool.QueryRow(ctx, "SELECT block_uid FROM block_versions WHERE proposal_id=$1 AND id=$2 AND version=1", pending.ID, first.BlockVersionID).Scan(&blockID); err != nil {
+			t.Fatal(err)
+		}
+		blockChange["decision"], blockChange["block_uid"] = "continue", blockID
+		continuation := map[string]any{"base_block_version_id": first.BlockVersionID, "block_change": blockChange}
+		pending = submitTestDraft(t, pool, "review_training_block", continuation)
+		req.Key, req.Revision = "continue-block", pending.Revision
+		same, err := store.Decide(ctx, pending.ID, req, testNow, testKBRoot, nil)
+		if err != nil || same.Status != "accepted" || same.BlockVersionID == nil || *same.BlockVersionID != *first.BlockVersionID {
+			t.Fatalf("unchanged block continues the existing version: %+v, %v", same, err)
+		}
+		fields["eligible_recipe_ids"] = []string{"REC009", "REC001"}
+		pending = submitTestDraft(t, pool, "review_training_block", continuation)
+		req.Key, req.Revision = "reorder-block", pending.Revision
+		reordered, err := store.Decide(ctx, pending.ID, req, testNow, testKBRoot, nil)
+		if err != nil || reordered.Status != "accepted" || reordered.BlockVersionID == nil || *reordered.BlockVersionID == *first.BlockVersionID {
+			t.Fatalf("reordered recipes create another block version: %+v, %v", reordered, err)
+		}
+		var recipes []string
+		err = pool.QueryRow(ctx, "SELECT eligible_recipe_ids FROM block_versions WHERE id=$1 AND block_uid=$2 AND version=2", reordered.BlockVersionID, blockID).Scan(&recipes)
+		if err != nil || !reflect.DeepEqual(recipes, []string{"REC009", "REC001"}) {
+			t.Fatalf("expected authored recipe order: %v, %v", recipes, err)
+		}
+		var versions, decisions int
+		err = pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM block_versions WHERE block_uid=$1),
+			(SELECT count(*) FROM block_decisions WHERE block_uid=$1)`, blockID).Scan(&versions, &decisions)
+		if err != nil || versions != 2 || decisions != 2 {
+			t.Fatalf("expected one start and one changed continuation: versions=%d decisions=%d err=%v", versions, decisions, err)
+		}
+	})
+}
