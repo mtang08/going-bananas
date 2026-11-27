@@ -53,7 +53,7 @@ func TestLocalHTTPExecutablePostgres(t *testing.T) {
 	for file, content := range map[string]string{"SKILL.md": "fixture skill\n", "references/coaching-workflows.md": "fixture workflow\n", "references/proposal-format.md": "fixture format\n"} {
 		write(filepath.Join(skill, file), []byte(content), 0600)
 	}
-	python := os.Getenv("DASHBOARD_REFERENCE_PYTHON")
+	python := os.Getenv("DASHBOARD_FIXTURE_PYTHON")
 	if !filepath.IsAbs(python) {
 		t.Fatal("fixture Python must be absolute")
 	}
