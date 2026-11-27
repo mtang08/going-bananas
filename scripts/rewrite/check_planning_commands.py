@@ -63,6 +63,23 @@ def seed(env):
             """insert into block_benchmarks(id,block_uid,block_version,match_method,protocol,outcome) values(%s,%s,1,'auto','Test trial','progress')""",
             (RUN, BLOCK),
         )
+        conn.execute(
+            "insert into source_accounts(id,provider,account_scope) values(%s,'synthetic','fixture')",
+            (BLOCK,),
+        )
+        conn.execute(
+            "insert into raw_objects(id,sha256,relative_path,byte_size,media_type) values(%s,%s,'fixture',1,'application/json')",
+            (BLOCK, "a" * 64),
+        )
+        conn.execute(
+            """insert into source_records(id,source_account_id,raw_object_id,source_identity,payload_hash,fetched_at,parser_version,source_kind,fields) values(%s,%s,%s,'fixture',%s,now(),'1','synthetic','{}')""",
+            (BLOCK, BLOCK, BLOCK, "b" * 64),
+        )
+        conn.execute(
+            """insert into strong_workouts(id,source_account_id,source_identity,source_record_id,raw_object_id,payload_hash,local_date,local_start,workout_name,duration_s,sets,row_count)
+        values(%s,%s,'fixture',%s,%s,%s,'2026-11-11','2026-11-11 10:00:00',' Week A ',1950,'[{"Exercise Name":"Deadlift"},{"Exercise Name":"deadlift"},{"Exercise Name":"Curl"}]',3)""",
+            (BLOCK, BLOCK, BLOCK, BLOCK, "c" * 64),
+        )
 
 
 def main():
@@ -119,6 +136,7 @@ def main():
                         for query in [
                             "select name,event_date,distance_m,purpose,status,goal_time_s,result_s,rank,version from events order by name",
                             "select data_revision,calendar_head_version from app_state",
+                            "select label,version,default_weekday,active,main_lower_body_lifts from strength_routine_slots order by version,label",
                             "select block_uid,block_version,activity_id,event_id,outcome,protocol,distance_m,result_s,local_date,match_method from block_benchmarks",
                         ]
                     ]
@@ -133,6 +151,7 @@ def reference(path):
     from fastapi.testclient import TestClient
     from app.main import app
     from app.api import planning
+    from app.services import strength_routine
 
     cases = []
     client = TestClient(app)
@@ -155,7 +174,10 @@ def reference(path):
         )
         return data.get("data", {})
 
-    with patch.object(planning, "athlete_today", return_value=NOW.date()):
+    with (
+        patch.object(planning, "athlete_today", return_value=NOW.date()),
+        patch.object(strength_routine, "date_in_zone", return_value=NOW.date()),
+    ):
         call("GET", "/events")
         call("PUT", "/events/order", {"items": []})
         payload = dict(
@@ -195,6 +217,24 @@ def reference(path):
             )
             call("GET", "/blocks/active")
         call("GET", "/blocks/benchmarks")
+        call("GET", "/strength-routine")
+        slot = dict(
+            label="  Main ",
+            default_weekday=1,
+            lower_body_cost="moderate",
+            main_lower_body_lifts=[" Squat "],
+        )
+        for expected, slots in [
+            (0, []),
+            (2, [slot]),
+            (0, [dict(slot, default_weekday=8)]),
+            (0, [slot]),
+            (1, [dict(slot, active=False)]),
+        ]:
+            call(
+                "PUT", "/strength-routine", dict(expected_version=expected, slots=slots)
+            )
+        call("GET", "/strength-routine")
     path.write_text(json.dumps(cases))
 
 
