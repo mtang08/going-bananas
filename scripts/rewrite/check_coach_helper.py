@@ -15,6 +15,7 @@ from urllib.request import ProxyHandler, Request, build_opener
 from zoneinfo import ZoneInfo
 
 import psycopg
+from check_finder_launcher import exercise_finder
 from coach_dashboard_process import exercise_chat, install_fake
 from coach_recovery_process import capture, recover, recovery_source
 from sqlalchemy import create_engine
@@ -286,6 +287,7 @@ def main():
             env["PGOPTIONS"] += " -cdefault_transaction_read_only=on"
             install_fake(root, env)
             with native_server(binary, root, env) as base:
+                exercise_finder(base, root)
                 uid = exercise(root, env, base)
                 agreement = exercise_chat(base)
                 proof = capture(base, uid, agreement)

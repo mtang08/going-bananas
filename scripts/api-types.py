@@ -54,7 +54,9 @@ def main() -> None:
     sources = [(CONTRACT, 'backend.ts')]
     for fragment in sorted((MODULE / 'api').glob('*.openapi.json')):
         name = fragment.name.removesuffix('.openapi.json')
-        sources.append((fragment.relative_to(MODULE), name + '.ts'))
+        first, *rest = name.split('-')
+        target = first + ''.join(word.title() for word in rest) + '.ts'
+        sources.append((fragment.relative_to(MODULE), target))
     for source, target in sources:
         command = ['node_modules/.bin/openapi-typescript', str(MODULE / source),
                    '-o', f'src/api/generated/{target}']
