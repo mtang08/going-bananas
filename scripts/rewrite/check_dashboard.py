@@ -31,7 +31,7 @@ def main():
                 env["DASHBOARD_REFERENCE_PYTHON"] = sys.executable
                 subprocess.run(["go", "test", "-p", "1", "-race", "-count=1", "-v", "./internal/coachdashboard", "./internal/coachdashboardhttp", "./internal/coaching/snapshotreads",
                                 "./internal/weeklydigest", "./internal/weeklyprojection", "./internal/httpapi",
-                                "./internal/returnplan", "./internal/coaching/snapshots", "./internal/coaching/drilldowns", "./cmd/going-bananas-coach"],
+                                "./internal/returnplan", "./internal/coaching/snapshots", "./internal/coaching/drilldowns", "./internal/coachcli"],
                                cwd=MODULE, env=env, check=True)
                 subprocess.run([sys.executable, str(ROOT / "scripts/rewrite/check_coach_helper.py")],
                                cwd=ROOT, env=env, check=True)

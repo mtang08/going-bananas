@@ -15,6 +15,8 @@ from urllib.request import ProxyHandler, Request, build_opener
 from zoneinfo import ZoneInfo
 
 import psycopg
+from coach_browser_process import available_port, exercise_browser
+from check_finder_launcher import exercise_finder
 from coach_dashboard_process import exercise_chat, install_fake
 from coach_recovery_process import capture, recover, recovery_source
 from sqlalchemy import create_engine
@@ -32,7 +34,7 @@ def fixture_repo(scratch):
     )
     shutil.copytree(ROOT / "running_coach_kb", root / "running_coach_kb")
     (root / "scripts").mkdir()
-    for name in ("with-mode", "env.sh", "coach-cli"):
+    for name in ("with-mode", "env.sh", "coach-cli", "backend-cli"):
         shutil.copy2(ROOT / "scripts" / name, root / "scripts" / name)
     (root / "backend-go").symlink_to(ROOT / "backend-go", target_is_directory=True)
     return root
@@ -264,7 +266,7 @@ def main():
             check=True,
         )
         with migrated_schema(
-            db, url.set(drivername="postgresql+psycopg"), scratch / "app", "5173"
+            db, url.set(drivername="postgresql+psycopg"), scratch / "app", available_port()
         ) as env:
             engine = create_engine(
                 url.set(drivername="postgresql+psycopg"),
@@ -286,6 +288,10 @@ def main():
             env["PGOPTIONS"] += " -cdefault_transaction_read_only=on"
             install_fake(root, env)
             with native_server(binary, root, env) as base:
+                if os.environ.get("GB_NATIVE_COACH_BROWSER") == "1":
+                    exercise_browser(base, env)
+                    return
+                exercise_finder(base, root)
                 uid = exercise(root, env, base)
                 agreement = exercise_chat(base)
                 proof = capture(base, uid, agreement)

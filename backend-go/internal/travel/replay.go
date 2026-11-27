@@ -107,6 +107,16 @@ func pageToken(raw json.RawMessage) (string, bool) {
 	return token, err == nil
 }
 
+// ReconcileWindow applies a complete calendar window inside the caller's writer transaction.
+func ReconcileWindow(ctx context.Context, tx pgx.Tx, records map[string]*Record, home *time.Location, window Window, now time.Time) (EventCounts, TripCounts, error) {
+	events, err := upsertEvents(ctx, tx, records, home, window, now)
+	if err != nil {
+		return events, TripCounts{}, err
+	}
+	trips, err := reconcileTrips(ctx, tx, home)
+	return events, trips, err
+}
+
 // Apply reconciles previously fetched pages. A complete receipt, all event and
 // leg writes, and the source revision commit together under the app writer lock.
 func Apply(ctx context.Context, pool *pgxpool.Pool, delivery Delivery) (Result, error) {
@@ -142,11 +152,7 @@ func applyWindow(ctx context.Context, pool *pgxpool.Pool, delivery Delivery, hom
 			}
 		}
 		window := SyncWindow(now, home)
-		events, err := upsertEvents(ctx, tx, records, home, window, now)
-		if err != nil {
-			return err
-		}
-		trips, err := reconcileTrips(ctx, tx, home)
+		events, trips, err := ReconcileWindow(ctx, tx, records, home, window, now)
 		if err != nil {
 			return err
 		}

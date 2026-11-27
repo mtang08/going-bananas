@@ -108,7 +108,9 @@ result(
     },
 )
 req = request("turn/start")
-msg = req["params"]["input"][0]["text"]
+msg = req["params"]["input"][0]["text"].removeprefix(
+    "The athlete selected Sunday Review.\n\n"
+)
 result(req, {"turn": {"id": "turn"}})
 active = tool("active_proposal")
 assert active == {"proposal": None}, active

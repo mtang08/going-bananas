@@ -3,6 +3,7 @@ package rawobject
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"os"
 	"path/filepath"
@@ -13,18 +14,26 @@ func Write(root, path string, b []byte) error {
 	if !filepath.IsLocal(path) {
 		return errors.New("invalid_raw_path")
 	}
-	target := filepath.Join(root, path)
-	dir := filepath.Dir(target)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := os.MkdirAll(root, 0700); err != nil {
 		return err
 	}
-	existing, err := os.ReadFile(target)
+	fs, err := os.OpenRoot(root)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = fs.Close() }()
+	dir := filepath.Dir(path)
+	if err := fs.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	existing, err := fs.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		tmp, err := os.CreateTemp(dir, ".raw-*")
+		tmpPath := filepath.Join(dir, ".raw-"+rand.Text())
+		tmp, err := fs.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = os.Remove(tmp.Name()) }()
+		defer func() { _ = fs.Remove(tmpPath) }()
 		if _, err = tmp.Write(b); err == nil {
 			err = tmp.Sync()
 		}
@@ -35,10 +44,10 @@ func Write(root, path string, b []byte) error {
 		if closeErr != nil {
 			return closeErr
 		}
-		if err = os.Link(tmp.Name(), target); err != nil && !errors.Is(err, os.ErrExist) {
+		if err = fs.Link(tmpPath, path); err != nil && !errors.Is(err, os.ErrExist) {
 			return err
 		}
-		existing, err = os.ReadFile(target)
+		existing, err = fs.ReadFile(path)
 		if err != nil {
 			return err
 		}

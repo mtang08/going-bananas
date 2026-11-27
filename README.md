@@ -227,12 +227,9 @@ ChatGPT**, open the sign-in link, and return to the conversation. You can read t
 saved conversation and use the calendar, check-ins, and proposals while the local
 app and database are running, even if the coach connection is unavailable.
 
-The reviewed skill source is `.codex/skills/going-bananas-coach`. For a separate
-Codex session, install it using the manifest and backup procedure in
-[operations](docs/operations.md), then invoke `$going-bananas-coach` and describe
-the review you want. Select real mode for your training.
+In a Codex session opened in this checkout, invoke `$going-bananas-coach` and describe the review you want. The reviewed skill lives in `.codex/skills/going-bananas-coach`. Select real mode for your own training and demo or test for rehearsal. [Coaching setup and backend selection](docs/operations.md#reviewed-coaching-mvp)
 
-The helper also provides explicit read commands:
+The helper can show its schema, create a filtered evidence snapshot, and read calendar history. Creating a snapshot saves its evidence in the selected database.
 
 ```sh
 python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode real schema
@@ -270,6 +267,12 @@ sqlc output and works with PostgreSQL stopped. To exercise both compilers, run
 `python3 scripts/rewrite/check_contract_rename.py`. It renames a proposal field
 in a temporary copy and checks that both consumers fail to build.
 [Migrated HTTP operations](backend-go/api/openapi.json)
+
+The normal API, worker, coach commands, imports and metric commands share the
+`going-bananas` executable. From an explicit workspace, the CLI wrapper builds
+and runs it while preserving command exit codes, for example
+`./scripts/with-mode demo ./scripts/backend-cli metrics-refresh-today`.
+The phone gateway runs on its separate listener.
 
 The development proxy sends every API request to one local backend. For a
 demo with a migrated database, run `./scripts/with-mode demo make dev`.

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { ApiError, api, post } from '../api/client'
 import { qk } from '../api/queryKeys'
-import type { TreadmillReview } from '../api/types/sync'
+import type { ActivityReceipt, TreadmillConfirmation, TreadmillReview } from '../api/types/sync'
 import {
   clockToSeconds,
   dateLabel,
@@ -38,10 +38,7 @@ export function TreadmillReviewDialog({
     gcTime: 0,
   })
   const confirm = useMutation({
-    mutationFn: (body: {
-      preview_token: string
-      paces: { lap_index: number; pace_seconds_per_mile: number }[]
-    }) => post<{ activity_id: string }>(endpoint, body),
+    mutationFn: (body: TreadmillConfirmation) => post<ActivityReceipt>(endpoint, body),
     onSuccess: onImported,
   })
   const run = preview.data?.data

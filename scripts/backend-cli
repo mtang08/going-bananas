@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Run inside scripts/run or scripts/with-mode so the mode, DB and private files agree.
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+case "${APP_MODE:-}" in
+  test|demo) default_backend=go ;;
+  real) default_backend=python ;;
+  *) echo 'Choose a workspace with scripts/with-mode.' >&2; exit 2 ;;
+esac
+case "${GOING_BANANAS_BACKEND:-$default_backend}" in
+  python)
+    if [[ "${1:-}" == migrate ]]; then
+      exec uv run --directory "$root/backend" alembic upgrade head
+    fi
+    exec uv run --directory "$root/backend" python -m app.cli "$@"
+    ;;
+  go) ;;
+  *) echo 'Unknown GOING_BANANAS_BACKEND.' >&2; exit 2 ;;
+esac
+export GB_REPO="$root"
+bin="$root/private/bin"
+mkdir -p "$bin"
+export PATH="$root/private/go-tools/bin:$PATH"
+go build -C "$root/backend-go" -o "$bin/going-bananas" ./cmd/going-bananas
+exec "$bin/going-bananas" "$@"

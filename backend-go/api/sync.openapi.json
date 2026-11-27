@@ -1,0 +1,934 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Going Bananas provider sync API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/sync/status": {
+      "get": {
+        "operationId": "getSyncStatus",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatusEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the host, origin or write header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sync/jobs/{job_id}": {
+      "get": {
+        "operationId": "getSyncJob",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncJobEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the host, origin or write header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/sync": {
+      "post": {
+        "operationId": "queueSync",
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueuedJobsEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the host, origin or write header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Mode or state conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "A JSON request body is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestedSyncRange"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/sync/treadmill-review/{remote_id}": {
+      "get": {
+        "operationId": "getTreadmillReview",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreadmillReviewEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the host, origin or write header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Mode or state conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "remote_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "confirmTreadmillReview",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityReceiptEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the host, origin or write header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Mode or state conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "A JSON request body is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TreadmillConfirmation"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "remote_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AppMode": {
+        "type": "string",
+        "enum": [
+          "demo",
+          "real",
+          "test"
+        ],
+        "title": "AppMode"
+      },
+      "SchemaVersion": {
+        "type": "string",
+        "const": "v1"
+      },
+      "ValidationField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "ValidationField"
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationField"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id",
+          "fields"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "SyncDataset": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_attempt_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_success_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "newest_observation_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "requested_start": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "requested_end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "fully_enumerated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dataset",
+          "status",
+          "reason",
+          "last_attempt_at",
+          "last_success_at",
+          "newest_observation_at",
+          "requested_start",
+          "requested_end",
+          "fully_enumerated"
+        ]
+      },
+      "SyncCheckpoint": {
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "integer"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "next_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "page": {
+            "type": "integer"
+          }
+        }
+      },
+      "SyncJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dataset": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "retry_wait",
+              "complete",
+              "partial",
+              "failed"
+            ]
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "checkpoint": {
+            "$ref": "#/components/schemas/SyncCheckpoint"
+          },
+          "counters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "next_attempt_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "dataset",
+          "status",
+          "start_date",
+          "end_date",
+          "checkpoint",
+          "counters",
+          "next_attempt_at",
+          "error_code"
+        ]
+      },
+      "PendingTreadmillRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "local_date"
+        ]
+      },
+      "SyncStatus": {
+        "type": "object",
+        "properties": {
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncDataset"
+            }
+          },
+          "active_jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncJob"
+            }
+          },
+          "pending_treadmill_runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingTreadmillRun"
+            }
+          }
+        },
+        "required": [
+          "datasets",
+          "active_jobs",
+          "pending_treadmill_runs"
+        ]
+      },
+      "RequestedSyncRange": {
+        "type": "object",
+        "properties": {
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        }
+      },
+      "QueuedJobs": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncJob"
+            }
+          }
+        },
+        "required": [
+          "jobs"
+        ]
+      },
+      "TreadmillLap": {
+        "type": "object",
+        "properties": {
+          "lap_index": {
+            "type": "integer"
+          },
+          "timer_s": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "intensity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recorded_pace_seconds_per_mile": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "lap_index",
+          "timer_s",
+          "intensity",
+          "recorded_pace_seconds_per_mile"
+        ]
+      },
+      "TreadmillReview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "preview_token": {
+            "type": "string"
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "distance_m": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "timer_s": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "intervals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreadmillLap"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "preview_token",
+          "local_date",
+          "title",
+          "distance_m",
+          "timer_s",
+          "intervals"
+        ]
+      },
+      "TreadmillPace": {
+        "type": "object",
+        "properties": {
+          "lap_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pace_seconds_per_mile": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "lap_index",
+          "pace_seconds_per_mile"
+        ]
+      },
+      "TreadmillConfirmation": {
+        "type": "object",
+        "properties": {
+          "preview_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "paces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreadmillPace"
+            }
+          }
+        },
+        "required": [
+          "preview_token",
+          "paces"
+        ]
+      },
+      "ActivityReceipt": {
+        "type": "object",
+        "properties": {
+          "activity_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "activity_id"
+        ]
+      },
+      "SyncStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SyncStatus"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "SyncJobEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SyncJob"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "QueuedJobsEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/QueuedJobs"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "TreadmillReviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TreadmillReview"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "ActivityReceiptEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ActivityReceipt"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      }
+    }
+  }
+}

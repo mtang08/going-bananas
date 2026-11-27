@@ -3,7 +3,10 @@ package loginstartup
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -57,5 +60,50 @@ func TestPythonDashboardHTTP(t *testing.T) {
 		if c.Status >= 400 && c.Status != 409 && c.Status != 503 && calls != 0 {
 			t.Fatal("rejected request touched launcher")
 		}
+	}
+}
+
+// Exercise the HTTP response with a real-mode fixture and no installed agent.
+// Both the home and launchctl are isolated from the host session.
+func TestRealPreferenceOff(t *testing.T) {
+	a := agent{root: t.TempDir(), home: t.TempDir(), domain: "gui/4321"}
+	mkdir(t, filepath.Join(a.root, "frontend/dist"))
+	writeFile(t, filepath.Join(a.root, "frontend/dist/index.html"), nil)
+	writeFile(t, filepath.Join(a.root, ".env"), nil)
+	var calls []string
+	a.command = func(_ context.Context, action, target string) (string, bool, error) {
+		calls = append(calls, action)
+		switch action {
+		case "print-disabled":
+			if target == a.domain {
+				return "", true, nil
+			}
+		case "print":
+			if target == a.domain+"/"+label {
+				return "", false, nil
+			}
+		}
+		t.Fatalf("unexpected desktop command %s %s", action, target)
+		return "", false, nil
+	}
+	h := Handler{Mode: "real", Run: a.run}
+	mux := http.NewServeMux()
+	h.Register(mux)
+	r := httptest.NewRequest(http.MethodGet, Path, nil)
+	r.RemoteAddr = "127.0.0.1:48123"
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, r)
+	var result struct {
+		Mode string
+		Data State
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != 200 || result.Mode != "real" || result.Data.Status != "disabled" || result.Data.Enabled == nil || *result.Data.Enabled || !reflect.DeepEqual(calls, []string{"print-disabled", "print"}) {
+		t.Fatalf("response %d %+v, calls %v", response.Code, result, calls)
+	}
+	if _, err := os.Stat(filepath.Dir(a.path())); !os.IsNotExist(err) {
+		t.Fatalf("preference read created launch directory: %v", err)
 	}
 }

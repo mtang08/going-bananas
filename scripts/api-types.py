@@ -51,10 +51,13 @@ def main() -> None:
         check_generated_go()
     else:
         generate_go(MODULE)
-    for source, target in ((CONTRACT, 'backend.ts'), (Path('api/travel.openapi.json'), 'travel.ts'),
-                           (Path('api/feedback.openapi.json'), 'feedback.ts'),
-                           (Path('api/completion.openapi.json'), 'completion.ts'),
-                           (Path('api/activity.openapi.json'), 'activity.ts')):
+    sources = [(CONTRACT, 'backend.ts')]
+    for fragment in sorted((MODULE / 'api').glob('*.openapi.json')):
+        name = fragment.name.removesuffix('.openapi.json')
+        first, *rest = name.split('-')
+        target = first + ''.join(word.title() for word in rest) + '.ts'
+        sources.append((fragment.relative_to(MODULE), target))
+    for source, target in sources:
         command = ['node_modules/.bin/openapi-typescript', str(MODULE / source),
                    '-o', f'src/api/generated/{target}']
         if args.check:
