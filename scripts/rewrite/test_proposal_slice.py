@@ -162,6 +162,7 @@ def migrated_schema(db, url, directory, vite_port):
 
 
 def exercise(db, url, scratch):
+    from compare_calendar_views import compare_calendar_views
     app_binary = scratch / 'going-bananas'
     subprocess.run(['go', 'build', '-o', app_binary, './cmd/going-bananas'], cwd=MODULE, check=True)
     with socket.socket() as reservation:
@@ -179,6 +180,7 @@ def exercise(db, url, scratch):
                 check_planning_lists(env, ports)
                 reservation.close()
                 subprocess.run(['node', ROOT / 'scripts/rewrite/proposal-home.mjs', *ports], cwd=ROOT, env=env, check=True)
+                compare_calendar_views(env, ports)
 
     # Each implementation must apply the same command against its own starting state.
     with migrated_schema(db, url, scratch / 'reference', vite_port) as reference, \

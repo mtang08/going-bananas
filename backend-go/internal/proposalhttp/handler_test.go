@@ -122,7 +122,7 @@ func TestReferenceCommands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			id = res.Receipt.ID.String()
+			id = res.ID.String()
 			continue
 		}
 		w := httptest.NewRecorder()

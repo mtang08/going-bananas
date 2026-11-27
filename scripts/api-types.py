@@ -52,6 +52,8 @@ def main() -> None:
     else:
         generate_go(MODULE)
     for source, target in ((CONTRACT, 'backend.ts'), (Path('api/travel.openapi.json'), 'travel.ts'),
+                           (Path('api/feedback.openapi.json'), 'feedback.ts'),
+                           (Path('api/completion.openapi.json'), 'completion.ts'),
                            (Path('api/activity.openapi.json'), 'activity.ts')):
         command = ['node_modules/.bin/openapi-typescript', str(MODULE / source),
                    '-o', f'src/api/generated/{target}']
