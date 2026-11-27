@@ -153,6 +153,7 @@ def main():
         'phone-checkins': 'check_phone_checkins.py',
         'calendar': 'check_self_reports.py',
         'completion-http': 'check_completion_http.py',
+        'feedback-http': 'check_feedback_http.py',
         'rematch': 'check_rematch.py',
         'dashboard': 'check_dashboard.py',
     }
