@@ -163,6 +163,16 @@ def migrated_schema(db, url, directory, vite_port):
 
 def exercise(db, url, scratch):
     from compare_calendar_views import compare_calendar_views
+    sys.path.insert(0, str(BACKEND))
+    from app.main import app
+    import json
+    routes_file = scratch / "routes.json"
+    routes_file.write_text(json.dumps([
+        [method.upper(), path] for path, methods in app.openapi()["paths"].items()
+        for method in methods if method in {"get", "post", "patch", "put", "delete"}
+    ]))
+    subprocess.run(["go", "test", "-count=1", "./cmd/going-bananas", "-run", "TestApplicationRoutes"],
+                   cwd=MODULE, env={**os.environ, "REFERENCE_HTTP_ROUTES": str(routes_file)}, check=True)
     app_binary = scratch / 'going-bananas'
     subprocess.run(['go', 'build', '-o', app_binary, './cmd/going-bananas'], cwd=MODULE, check=True)
     with socket.socket() as reservation:
