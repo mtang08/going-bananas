@@ -33,7 +33,7 @@ build:
 	$(RUN) bash -c 'cd frontend && npm run build'
 start:
 	$(RUN) python3 scripts/serve.py
-.PHONY: setup-go check-go check-go-vuln demo-go-proposals test-proposal-go test-proposal-go-external
+.PHONY: test-go-integration test-go-integration-external setup-go check-go check-go-vuln demo-go-proposals test-proposal-go test-proposal-go-external
 setup-go:
 	mkdir -p "$(GO_TOOLS)"
 	GOBIN="$(GO_TOOLS)" go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.9.0
@@ -45,6 +45,10 @@ check-go-vuln:
 	cd backend-go && go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
 demo-go-proposals:
 	./scripts/with-mode demo bash -c 'cd backend-go && go run ./cmd/going-bananas serve'
+test-go-integration:
+	python3 scripts/test-db.py native
+test-go-integration-external:
+	python3 scripts/test-db.py native-external
 test-proposal-go:
 	python3 scripts/test-db.py proposal
 test-proposal-go-external:
