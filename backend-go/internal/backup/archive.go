@@ -93,6 +93,10 @@ func writeArchive(dst io.Writer, private, dump string) (Manifest, error) {
 	if err := add(dump, "database.pgdump"); err != nil {
 		return m, err
 	}
+	stage, err := os.Stat(filepath.Dir(dump))
+	if err != nil {
+		return m, err
+	}
 	for _, r := range roots {
 		root := filepath.Join(private, r)
 		err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
@@ -106,6 +110,13 @@ func writeArchive(dst io.Writer, private, dump string) (Manifest, error) {
 				return errors.New("private_symlink")
 			}
 			if d.IsDir() {
+				info, err := d.Info()
+				if err != nil {
+					return err
+				}
+				if os.SameFile(info, stage) {
+					return fs.SkipDir
+				}
 				return nil
 			}
 			rel, err := filepath.Rel(private, p)

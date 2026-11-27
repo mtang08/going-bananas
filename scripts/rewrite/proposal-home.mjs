@@ -116,9 +116,9 @@ async function renderState(state) {
   }
 }
 
-function isTravel(requestPath) {
+function isGoRead(requestPath) {
   const path = requestPath.split('?')[0]
-  return path === '/api/v1/trips' || path.startsWith('/api/v1/google-calendar/')
+  return ['/api/v1/trips', '/api/v1/calendar/weekly-digest', '/api/v1/calendar/weekly-projection', '/api/v1/running-interruption'].includes(path) || path.startsWith('/api/v1/google-calendar/')
 }
 
 async function checkState(state) {
@@ -134,7 +134,7 @@ async function checkState(state) {
     'Home did not request calendar',
   )
   for (const { path, target } of upstreams) {
-    assert.equal(target, [list, '/api/v1/goals'].includes(path) || isTravel(path) ? candidate : python, 'Wrong upstream for ' + path)
+    assert.equal(target, [list, '/api/v1/goals'].includes(path) || isGoRead(path) ? candidate : python, 'Wrong upstream for ' + path)
   }
 }
 
@@ -168,7 +168,7 @@ async function checkGoalEdit() {
   for (const request of upstreams) {
     assert.equal(
       request.target,
-      request === writes[0] || request.path === goalsPath || isTravel(request.path) ? candidate : python,
+      request === writes[0] || request.path === goalsPath || isGoRead(request.path) ? candidate : python,
       'Wrong upstream for ' + request.path,
     )
   }

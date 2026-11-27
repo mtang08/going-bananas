@@ -32,6 +32,9 @@ const goProxy: Plugin = {
                 [
                   '/api/v1/coach/proposals',
                   '/api/v1/calendar/versions',
+                  '/api/v1/calendar/weekly-digest',
+                  '/api/v1/calendar/weekly-projection',
+                  '/api/v1/running-interruption',
                   '/api/v1/goals',
                   '/api/v1/google-calendar/status',
                   '/api/v1/google-calendar/events',

@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/mtang08/going-bananas/backend-go/internal/canonicaljson"
+
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics"
 )
@@ -247,6 +247,37 @@ func RefreshBatch(ctx context.Context, tx pgx.Tx, uids []uuid.UUID, now time.Tim
 	return nil
 }
 
+// Calculate returns a planned-versus-actual result without selecting or persisting it.
+func Calculate(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time) (*metrics.Result, error) {
+	s, err := load(ctx, tx, uid, now)
+	if err != nil {
+		return nil, err
+	}
+	if s.Plan == nil && s.Completion == nil {
+		return nil, nil
+	}
+	r, _, err := resultFor(s, uid)
+	return r, err
+}
+func resultFor(s subject, uid uuid.UUID) (*metrics.Result, *string, error) {
+	out, err := Assess(s.Input)
+	if err != nil {
+		return nil, nil, err
+	}
+	s.refs["candidate_activity_ids"] = out.Value.CandidateIDs
+	s.refs["coverage_complete"] = s.Coverage
+	s.refs["as_of"] = s.AsOf
+	h, err := metrics.Digest(s.refs)
+	if err != nil {
+		return nil, nil, err
+	}
+	s.refs["input_hash"] = h
+	quality := ""
+	if out.Quality != nil {
+		quality = *out.Quality
+	}
+	return &metrics.Result{MetricID: metricID, MethodVersion: methodVersion, SubjectType: "session", SubjectKey: uid.String(), WindowLabel: s.day, Status: out.Status, QualityStatus: quality, Value: out.Value, ReasonCodes: out.Reasons, QualityFlags: out.Flags, SourceRefs: s.refs, Config: Config, Timezone: s.zone}, out.Derived, nil
+}
 func refresh(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time, bump bool) (Result, error) {
 	s, err := load(ctx, tx, uid, now)
 	if err != nil {
@@ -256,55 +287,17 @@ func refresh(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time, bump 
 		_, err = tx.Exec(ctx, `UPDATE metric_results SET is_current=false WHERE metric_id=$1 AND method_version=$2 AND subject_key=$3 AND is_current`, metricID, methodVersion, uid.String())
 		return Result{}, err
 	}
-	out, err := Assess(s.Input)
+	row, derived, err := resultFor(s, uid)
 	if err != nil {
 		return Result{}, err
 	}
-	s.refs["candidate_activity_ids"] = out.Value.CandidateIDs
-	s.refs["coverage_complete"] = s.Coverage
-	s.refs["as_of"] = s.AsOf
-	h, err := metrics.Digest(s.refs)
-	if err != nil {
-		return Result{}, err
-	}
-	s.refs["input_hash"] = h
-	cfg, err := metrics.Digest(Config)
-	if err != nil {
-		return Result{}, err
-	}
-	if _, err := tx.Exec(ctx, `INSERT INTO metric_configs(id,metric_id,method_version,config,config_hash)
-		VALUES(gen_random_uuid(),$1,$2,$3,$4) ON CONFLICT(metric_id,method_version,config_hash) DO NOTHING`,
-		metricID, methodVersion, Config, cfg); err != nil {
-		return Result{}, err
-	}
-	dep, err := metrics.Digest(object{"source_refs": s.refs, "config_hash": cfg, "anchor_set_hash": nil, "timezone": s.zone, "calculator_dependency_hash": ""})
-	if err != nil {
-		return Result{}, err
-	}
-	raw, err := canonicaljson.Metric(s.refs)
-	if err != nil {
-		return Result{}, err
-	}
-	_, err = tx.Exec(ctx, `UPDATE metric_results SET is_current=false WHERE metric_id=$1 AND method_version=$2 AND subject_key=$3 AND is_current AND
-		(config_hash<>$4 OR coalesce(anchor_set_hash,'')<>'' OR dependency_hash<>$5)`, metricID, methodVersion, uid.String(), cfg, dep)
-	if err != nil {
-		return Result{}, err
-	}
-	var id uuid.UUID
-	err = tx.QueryRow(ctx, `UPDATE metric_results SET is_current=true WHERE metric_id=$1 AND method_version=$2 AND subject_key=$3 AND
-		config_hash=$4 AND coalesce(anchor_set_hash,'')='' AND dependency_hash=$5 RETURNING id`, metricID, methodVersion, uid.String(), cfg, dep).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		err = tx.QueryRow(ctx, `INSERT INTO metric_results(id,metric_id,method_version,subject_type,subject_key,window_label,status,quality_status,value,
-			reason_codes,quality_flags,source_refs,config_hash,calculated_at,dependency_hash,timezone,is_current)
-			VALUES(gen_random_uuid(),$1,$2,'session',$3,nullif($4,''),$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,true) RETURNING id`,
-			metricID, methodVersion, uid.String(), s.day, out.Status, out.Quality, out.Value, out.Reasons, out.Flags, raw, cfg, now, dep, s.zone).Scan(&id)
-	}
+	id, err := metrics.StoreResult(ctx, tx, *row, now)
 	if err != nil {
 		return Result{}, err
 	}
 	result := Result{MetricResultID: &id}
-	if out.Derived != nil && s.Completion != nil && s.Completion.Status != *out.Derived {
-		_, err = tx.Exec(ctx, `UPDATE session_completions SET status=$2,version=version+1,updated_at=$3 WHERE session_uid=$1`, uid, *out.Derived, now)
+	if derived != nil && s.Completion != nil && s.Completion.Status != *derived {
+		_, err = tx.Exec(ctx, `UPDATE session_completions SET status=$2,version=version+1,updated_at=$3 WHERE session_uid=$1`, uid, *derived, now)
 		if err != nil {
 			return Result{}, err
 		}

@@ -58,7 +58,7 @@ func (r Runner) wait(ctx context.Context, d time.Duration) error {
 
 func (r Runner) claim(ctx context.Context, conn *pgxpool.Conn) (Job, error) {
 	var j Job
-	err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+	err := pgx.BeginTxFunc(ctx, conn, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		var err error
 		now := r.now()
 		// Standalone import replay uses a private dataset and checkpoint format.
@@ -232,8 +232,11 @@ func (r Runner) fetch(ctx context.Context, conn *pgxpool.Conn, j *Job, fn func()
 			return nil, false, err
 		}
 		if delay > 30*time.Second {
-			_, err = conn.Exec(ctx, `UPDATE sync_jobs SET status='retry_wait',next_attempt_at=$2,error_code='remote_retry',
+			err = pgx.BeginTxFunc(ctx, conn, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+				_, err := tx.Exec(ctx, `UPDATE sync_jobs SET status='retry_wait',next_attempt_at=$2,error_code='remote_retry',
 				checkpoint=checkpoint||jsonb_build_object('attempts',$3::int) WHERE id=$1`, j.ID, now.Add(delay), attempt)
+				return err
+			})
 			return nil, err == nil, err
 		}
 		if err := r.wait(ctx, delay); err != nil {

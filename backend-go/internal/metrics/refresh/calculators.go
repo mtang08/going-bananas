@@ -122,6 +122,8 @@ func ReadResult(ctx context.Context, tx pgx.Tx, metric, key string, now time.Tim
 			return nil, parseErr
 		}
 		switch metric {
+		case "planned_actual_session":
+			r, err = assessment.Calculate(ctx, tx, id, now)
 		case intervals.ID:
 			r, err = intervals.Calculate(ctx, tx, id)
 		case intensity.ID:

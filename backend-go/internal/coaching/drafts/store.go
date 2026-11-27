@@ -23,7 +23,20 @@ type Error struct {
 
 func (e *Error) Error() string { return e.Code + ": " + e.Message }
 
-type Store struct{ Pool *pgxpool.Pool }
+type Store struct {
+	Pool *pgxpool.Pool
+	tx   pgx.Tx
+}
+
+// InTransaction binds every draft read and write to an existing transaction.
+// A failed command rolls back its savepoint. Its caller owns the outer commit.
+func InTransaction(tx pgx.Tx) Store { return Store{tx: tx} }
+func (s Store) withTx(ctx context.Context, options pgx.TxOptions, fn func(pgx.Tx) error) error {
+	if s.tx != nil {
+		return pgx.BeginFunc(ctx, s.tx, fn)
+	}
+	return pgx.BeginTxFunc(ctx, s.Pool, options, fn)
+}
 
 type Change struct {
 	ID         string          `json:"change_id"`
@@ -94,7 +107,7 @@ func loadDraft(ctx context.Context, tx pgx.Tx, id uuid.UUID, d *Draft) error {
 
 func (s Store) Load(ctx context.Context, id uuid.UUID) (Draft, error) {
 	var d Draft
-	err := pgx.BeginTxFunc(ctx, s.Pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		return loadDraft(ctx, tx, id, &d)
 	})
 	if err != nil {
@@ -105,7 +118,7 @@ func (s Store) Load(ctx context.Context, id uuid.UUID) (Draft, error) {
 
 func (s Store) Discard(ctx context.Context, id uuid.UUID, expected int, now time.Time) (Receipt, error) {
 	var r Receipt
-	err := pgx.BeginTxFunc(ctx, s.Pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		if err := LockPlanning(ctx, tx); err != nil {
 			return err
 		}

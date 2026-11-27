@@ -109,7 +109,8 @@ def listeners(py, go, binary, mode):
         proc = stack.enter_context(
             listener(
                 [binary, "-test.run=^TestParityServer$", "-test.timeout=5m"],
-                env=dict(go, TRAVEL_HTTP_FIXTURE_MODE=mode),
+                env=dict(go, TRAVEL_HTTP_FIXTURE_MODE=mode,
+                         PGOPTIONS=go["PGOPTIONS"] + " -cdefault_transaction_read_only=on"),
                 stdout=subprocess.PIPE,
                 text=True,
             )

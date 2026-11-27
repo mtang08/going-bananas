@@ -26,7 +26,6 @@ func TestInputsPythonComposition(t *testing.T) {
 	var reference struct {
 		Expected             map[string]any
 		Weeks                []map[string]any
-		ReturnView           map[string]any `json:"return_view"`
 		Confirmed, Omissions []map[string]any
 	}
 	if err := json.Unmarshal(raw, &reference); err != nil {
@@ -56,12 +55,6 @@ func TestInputsPythonComposition(t *testing.T) {
 				}
 			}
 			return nil, errors.New("incorrect Monday requested")
-		},
-		ReturnView: func(_ context.Context, transaction pgx.Tx, asOf string) (map[string]any, error) {
-			if tx != transaction || asOf != date {
-				return nil, errors.New("wrong return read context")
-			}
-			return reference.ReturnView, nil
 		},
 		Strength: func(_ context.Context, transaction pgx.Tx, op, asOf string, instant time.Time) (StrengthInputs, error) {
 			if tx != transaction || asOf != date || op != operation || !instant.Equal(now) {
