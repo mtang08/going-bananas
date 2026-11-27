@@ -20,7 +20,7 @@ import (
 func TestReferencePlanningCommands(t *testing.T) {
 	path := os.Getenv("PLANNING_COMMAND_CASES")
 	if path == "" {
-		t.Skip("check_planning_commands.py supplies oracle")
+		t.Skip("check_planning_commands.py supplies a synthetic database and fixture")
 	}
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, os.Getenv("PROPOSAL_TEST_DATABASE_URL"))
@@ -39,22 +39,26 @@ func TestReferencePlanningCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var cases []struct {
-		Method, Path string
-		Body         json.RawMessage
-		Status       int
-		Expected     map[string]any
-		Undo         map[string]any
+	var fixture struct {
+		Cases []struct {
+			Method, Path string
+			Body         json.RawMessage
+			Status       int
+			Expected     map[string]any
+		}
 	}
-	if err := json.Unmarshal(raw, &cases); err != nil {
+	if err := json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
+	}
+	if len(fixture.Cases) == 0 {
+		t.Fatal("missing command cases")
 	}
 	now := time.Date(2026, 11, 16, 15, 0, 0, 0, time.UTC)
 	h := Handler{Metrics: refresh.PlanMetrics(now, refresh.Runs), Pool: pool, Mode: "test", Now: func() time.Time { return now }}
 	mux := http.NewServeMux()
 	h.Register(mux)
 	ids := map[string]string{}
-	for i, c := range cases {
+	for i, c := range fixture.Cases {
 		body := string(c.Body)
 		path := c.Path
 		for ref, native := range ids {
