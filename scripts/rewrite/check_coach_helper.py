@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 from coach_dashboard_process import exercise_chat, install_fake
+from coach_recovery_process import capture, recover, recovery_source
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from test_proposal_slice import ROOT, migrated_schema
@@ -31,7 +32,7 @@ def fixture_repo(scratch):
     )
     shutil.copytree(ROOT / "running_coach_kb", root / "running_coach_kb")
     (root / "scripts").mkdir()
-    for name in ("with-mode", "env.sh", "coach-native"):
+    for name in ("with-mode", "env.sh", "coach-cli"):
         shutil.copy2(ROOT / "scripts" / name, root / "scripts" / name)
     (root / "backend-go").symlink_to(ROOT / "backend-go", target_is_directory=True)
     return root
@@ -226,6 +227,7 @@ def exercise(root, env, base):
         == 1800
     )
     assert run("history", read_only=True)["data"]["items"][0]["number"] == head + 2
+    return uid
 
 
 def main():
@@ -248,6 +250,7 @@ def main():
         tempfile.TemporaryDirectory(
             dir=ROOT / "private", prefix="native-helper-"
         ) as tmp,
+        recovery_source(url) as url,
         psycopg.connect(
             url.render_as_string(hide_password=False), autocommit=True
         ) as db,
@@ -283,8 +286,10 @@ def main():
             env["PGOPTIONS"] += " -cdefault_transaction_read_only=on"
             install_fake(root, env)
             with native_server(binary, root, env) as base:
-                exercise(root, env, base)
-                exercise_chat(base)
+                uid = exercise(root, env, base)
+                agreement = exercise_chat(base)
+                proof = capture(base, uid, agreement)
+            recover(scratch, root, binary, env, proof, native_server)
     print("Native skill helper lifecycle passed against synthetic PostgreSQL.")
 
 
