@@ -1,0 +1,326 @@
+[
+  {
+    "path": "/api/v1/calendar/completions/bad",
+    "body": "{\"status\":\"invalid\",\"new\":1,\"expected_version\":-1}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "path.session_uid",
+            "message": "Input should be a valid UUID, invalid length: found 3"
+          },
+          {
+            "field": "body.expected_version",
+            "message": "Input should be greater than or equal to 0"
+          },
+          {
+            "field": "body.status",
+            "message": "Input should be 'skipped', 'unknown' or 'completed_as_planned'"
+          },
+          {
+            "field": "body.new",
+            "message": "Extra inputs are not permitted"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/bad",
+    "body": "{",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.1",
+            "message": "JSON decode error"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "null",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body",
+            "message": "Input should be a valid dictionary or object to extract fields from"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "[]",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body",
+            "message": "Input should be a valid dictionary or object to extract fields from"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"expected_version\":1.5,\"manual_session_id\":4,\"reason_note\":0}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.expected_version",
+            "message": "Input should be a valid integer, got a number with a fractional part"
+          },
+          {
+            "field": "body.manual_session_id",
+            "message": "UUID input should be a string, bytes or UUID object"
+          },
+          {
+            "field": "body.reason_note",
+            "message": "Input should be a valid string"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"status\":null}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "invalid_completion",
+        "message": "Invalid self-reported outcome",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "invalid_completion",
+        "message": "Invalid self-reported outcome",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"reason_note\":\"ignored\",\"activity_id\":null}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "invalid_completion",
+        "message": "Invalid self-reported outcome",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"activity_id\": \"00000000-0000-0000-0000-000000000019\", \"status\": null}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "invalid_completion",
+        "message": "Linked completion status is assessed",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"activity_id\": \"00000000-0000-0000-0000-000000000019\", \"strong_workout_id\": \"00000000-0000-0000-0000-00000000001e\"}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "invalid_completion",
+        "message": "At most one subject is allowed",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"activity_id\": \"00000000-0000-0000-0000-0000000003e7\"}",
+    "status": 404,
+    "response": {
+      "error": {
+        "code": "completion_subject_not_found",
+        "message": "Completion subject not found",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"expected_version\":\"0\",\"status\":\"completed_as_planned\",\"reason_note\":\"  noted  \"}",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 1,
+      "mode": "test",
+      "data": {
+        "id": "verified-database-id",
+        "session_uid": "00000000-0000-0000-0000-000000000001",
+        "activity_id": null,
+        "strong_workout_id": null,
+        "manual_session_id": null,
+        "status": "completed_as_planned",
+        "match_method": "user_marked",
+        "modification_reason": null,
+        "reason_note": "  noted  ",
+        "version": 1,
+        "input_version": 1,
+        "updated_at": "2026-11-22T12:00:00.123400Z",
+        "local_date": "2026-11-18"
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"expected_version\":0,\"status\":\"unknown\"}",
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "version_conflict",
+        "message": "Completion changed; reload before editing",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"expected_version\":true,\"status\":\"unknown\"}",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 2,
+      "mode": "test",
+      "data": null
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"status\":\"skipped\",\"modification_reason\":\"weather\"}",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 3,
+      "mode": "test",
+      "data": {
+        "id": "verified-database-id",
+        "session_uid": "00000000-0000-0000-0000-000000000001",
+        "activity_id": null,
+        "strong_workout_id": null,
+        "manual_session_id": null,
+        "status": "skipped",
+        "match_method": "user_marked",
+        "modification_reason": "weather",
+        "reason_note": null,
+        "version": 1,
+        "input_version": 1,
+        "updated_at": "2026-11-22T12:00:00.123400Z",
+        "local_date": "2026-11-18"
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"expected_version\":\"1.0\",\"status\":\"unknown\"}",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 4,
+      "mode": "test",
+      "data": null
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"activity_id\": \"00000000000000000000000000000019\", \"reason_note\": \"across local midnight\"}",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 5,
+      "mode": "test",
+      "data": {
+        "id": "verified-database-id",
+        "session_uid": "00000000-0000-0000-0000-000000000001",
+        "activity_id": "00000000-0000-0000-0000-000000000019",
+        "strong_workout_id": null,
+        "manual_session_id": null,
+        "status": "moved",
+        "match_method": "confirmed_move",
+        "modification_reason": null,
+        "reason_note": "across local midnight",
+        "version": 1,
+        "input_version": 1,
+        "updated_at": "2026-11-22T12:00:00.123400Z",
+        "local_date": "2026-11-20"
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000002",
+    "body": "{\"activity_id\": \"00000000-0000-0000-0000-000000000019\"}",
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "subject_already_linked",
+        "message": "Subject already linked",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "path": "/api/v1/calendar/completions/00000000-0000-0000-0000-000000000001",
+    "body": "{\"expected_version\":null,\"status\":\"unknown\"}",
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "version_conflict",
+        "message": "Completion changed; reload before editing",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  }
+]

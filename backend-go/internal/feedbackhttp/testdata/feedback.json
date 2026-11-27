@@ -1,0 +1,454 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/prompts",
+    "body": "",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 0,
+      "mode": "test",
+      "data": {
+        "items": [
+          {
+            "id": "00000000-0000-0000-0000-000000000192",
+            "kind": "unmatched_session",
+            "activity_id": null,
+            "session_uid": "00000000-0000-0000-0000-0000000001a6",
+            "opens_at": "2026-11-21T17:45:00.123400+05:45",
+            "closes_at": "2026-11-23T17:45:00.123400+05:45",
+            "status": "open"
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000191",
+            "kind": "unmatched_session",
+            "activity_id": null,
+            "session_uid": "00000000-0000-0000-0000-0000000001a5",
+            "opens_at": "2026-11-21T17:45:00.123400+05:45",
+            "closes_at": "2026-11-23T17:45:00.123400+05:45",
+            "status": "open"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/prompts/bad/dismiss",
+    "body": "",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "path.prompt_id",
+            "message": "Input should be a valid UUID, invalid length: found 3"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/prompts/00000000-0000-0000-0000-000000000320/dismiss",
+    "body": "",
+    "status": 404,
+    "response": {
+      "error": {
+        "code": "prompt_not_found",
+        "message": "Prompt not found",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/prompts/00000000-0000-0000-0000-000000000195/dismiss",
+    "body": "",
+    "status": 409,
+    "response": {
+      "error": {
+        "code": "prompt_already_answered",
+        "message": "Answered prompt cannot be dismissed",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/prompts/00000000-0000-0000-0000-000000000192/dismiss",
+    "body": "",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 0,
+      "mode": "test",
+      "data": {
+        "id": "00000000-0000-0000-0000-000000000192",
+        "kind": "unmatched_session",
+        "activity_id": null,
+        "session_uid": "00000000-0000-0000-0000-0000000001a6",
+        "opens_at": "2026-11-21T17:45:00.123400+05:45",
+        "closes_at": "2026-11-23T17:45:00.123400+05:45",
+        "status": "dismissed"
+      }
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/prompts/00000000-0000-0000-0000-000000000192/dismiss",
+    "body": "",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 0,
+      "mode": "test",
+      "data": {
+        "id": "00000000-0000-0000-0000-000000000192",
+        "kind": "unmatched_session",
+        "activity_id": null,
+        "session_uid": "00000000-0000-0000-0000-0000000001a6",
+        "opens_at": "2026-11-21T17:45:00.123400+05:45",
+        "closes_at": "2026-11-23T17:45:00.123400+05:45",
+        "status": "dismissed"
+      }
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/prompts/00000000-0000-0000-0000-000000000196/dismiss",
+    "body": "",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 0,
+      "mode": "test",
+      "data": {
+        "id": "00000000-0000-0000-0000-000000000196",
+        "kind": "unmatched_session",
+        "activity_id": null,
+        "session_uid": "00000000-0000-0000-0000-0000000001aa",
+        "opens_at": "2026-11-20T17:45:00.123400+05:45",
+        "closes_at": "2026-11-21T17:45:00.123400+05:45",
+        "status": "dismissed"
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/prompts",
+    "body": "",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 0,
+      "mode": "test",
+      "data": {
+        "items": [
+          {
+            "id": "00000000-0000-0000-0000-000000000191",
+            "kind": "unmatched_session",
+            "activity_id": null,
+            "session_uid": "00000000-0000-0000-0000-0000000001a5",
+            "opens_at": "2026-11-21T17:45:00.123400+05:45",
+            "closes_at": "2026-11-23T17:45:00.123400+05:45",
+            "status": "open"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/bad/rpe",
+    "body": "{\"rpe\":true,\"extra\":1}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "path.activity_id",
+            "message": "Input should be a valid UUID, invalid length: found 3"
+          },
+          {
+            "field": "body.rpe",
+            "message": "Value error, measurement must be numeric"
+          },
+          {
+            "field": "body.extra",
+            "message": "Extra inputs are not permitted"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-000000000015/rpe",
+    "body": "{",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.1",
+            "message": "JSON decode error"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-000000000015/rpe",
+    "body": "null",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body",
+            "message": "Input should be a valid dictionary or object to extract fields from"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-000000000015/rpe",
+    "body": "{}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.rpe",
+            "message": "Field required"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-000000000015/rpe",
+    "body": "{\"rpe\":null}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.rpe",
+            "message": "Value error, measurement must be numeric"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-000000000015/rpe",
+    "body": "{\"rpe\":\"5.00\"}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.rpe",
+            "message": "Value error, measurement must be 0\u201310 with at most one decimal place"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-000000000015/rpe",
+    "body": "{\"rpe\":10.1}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.rpe",
+            "message": "Value error, measurement must be 0\u201310 with at most one decimal place"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-000000000015/rpe",
+    "body": "{\"rpe\":\"NaN\"}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.rpe",
+            "message": "Value error, measurement must be 0\u201310 with at most one decimal place"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-0000000001f2/rpe",
+    "body": "{\"rpe\":4}",
+    "status": 422,
+    "response": {
+      "error": {
+        "code": "rpe_subject_not_run",
+        "message": "Activity is not a run",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/strength/history/00000000-0000-0000-0000-0000000001f3/rpe",
+    "body": "{\"rpe\":3}",
+    "status": 404,
+    "response": {
+      "error": {
+        "code": "rpe_subject_not_found",
+        "message": "RPE subject not found",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-000000000015/rpe",
+    "body": "{\"rpe\":\"45e-1\"}",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 1,
+      "mode": "test",
+      "data": {
+        "activity_id": "00000000-0000-0000-0000-000000000015",
+        "strong_workout_id": null,
+        "manual_session_id": null,
+        "rpe": 4.5,
+        "source": "manual",
+        "collected_at": "2026-11-22T12:00:00.123400Z",
+        "collection_delay_s": 1045700
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-000000000015/rpe",
+    "body": "{\"rpe\":4.50}",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 1,
+      "mode": "test",
+      "data": {
+        "activity_id": "00000000-0000-0000-0000-000000000015",
+        "strong_workout_id": null,
+        "manual_session_id": null,
+        "rpe": 4.5,
+        "source": "manual",
+        "collected_at": "2026-11-22T17:45:00.123400+05:45",
+        "collection_delay_s": 1045700
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/activities/00000000-0000-0000-0000-000000000015/rpe",
+    "body": "{\"rpe\":0}",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 2,
+      "mode": "test",
+      "data": {
+        "activity_id": "00000000-0000-0000-0000-000000000015",
+        "strong_workout_id": null,
+        "manual_session_id": null,
+        "rpe": 0.0,
+        "source": "manual",
+        "collected_at": "2026-11-22T12:00:00.123400Z",
+        "collection_delay_s": 1045700
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/strength/history/00000000-0000-0000-0000-00000000001e/rpe",
+    "body": "{\"rpe\":8}",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 3,
+      "mode": "test",
+      "data": {
+        "activity_id": null,
+        "strong_workout_id": "00000000-0000-0000-0000-00000000001e",
+        "manual_session_id": null,
+        "rpe": 8.0,
+        "source": "manual",
+        "collected_at": "2026-11-22T12:00:00.123400Z",
+        "collection_delay_s": 933900
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/strength/history/00000000-0000-0000-0000-00000000001e/rpe",
+    "body": "{\"rpe\":\"8\"}",
+    "status": 200,
+    "response": {
+      "schema_version": "v1",
+      "data_revision": 3,
+      "mode": "test",
+      "data": {
+        "activity_id": null,
+        "strong_workout_id": "00000000-0000-0000-0000-00000000001e",
+        "manual_session_id": null,
+        "rpe": 8.0,
+        "source": "manual",
+        "collected_at": "2026-11-22T17:45:00.123400+05:45",
+        "collection_delay_s": 933900
+      }
+    }
+  }
+]

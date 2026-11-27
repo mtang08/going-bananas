@@ -1,0 +1,1691 @@
+[
+  [
+    [
+      "00000000-0000-0000-0000-000000000015",
+      null,
+      "0.0",
+      "2026-11-22 17:45:00.123400+05:45",
+      1045700
+    ],
+    [
+      null,
+      "00000000-0000-0000-0000-00000000001e",
+      "8.0",
+      "2026-11-22 17:45:00.123400+05:45",
+      933900
+    ]
+  ],
+  [
+    [
+      "unmatched_session",
+      null,
+      "00000000-0000-0000-0000-000000000005",
+      "open",
+      "2026-11-22 17:45:00.123400+05:45",
+      null
+    ],
+    [
+      "unmatched_session",
+      null,
+      "00000000-0000-0000-0000-0000000001a5",
+      "expired",
+      "2026-11-21 17:45:00.123400+05:45",
+      "2026-11-23 17:45:00.123400+05:45"
+    ],
+    [
+      "unmatched_session",
+      null,
+      "00000000-0000-0000-0000-0000000001a6",
+      "dismissed",
+      "2026-11-21 17:45:00.123400+05:45",
+      "2026-11-23 17:45:00.123400+05:45"
+    ],
+    [
+      "unmatched_session",
+      null,
+      "00000000-0000-0000-0000-0000000001a7",
+      "expired",
+      "2026-11-23 17:45:00.123400+05:45",
+      "2026-11-24 17:45:00.123400+05:45"
+    ],
+    [
+      "unmatched_session",
+      null,
+      "00000000-0000-0000-0000-0000000001a8",
+      "expired",
+      "2026-11-20 17:45:00.123400+05:45",
+      "2026-11-22 17:45:00.123400+05:45"
+    ],
+    [
+      "unmatched_session",
+      null,
+      "00000000-0000-0000-0000-0000000001a9",
+      "answered",
+      "2026-11-21 17:45:00.123400+05:45",
+      null
+    ],
+    [
+      "unmatched_session",
+      null,
+      "00000000-0000-0000-0000-0000000001aa",
+      "dismissed",
+      "2026-11-20 17:45:00.123400+05:45",
+      "2026-11-21 17:45:00.123400+05:45"
+    ]
+  ],
+  [
+    [
+      "ILLNESS_PRESENT",
+      "open",
+      "hold"
+    ]
+  ],
+  [
+    3
+  ],
+  [
+    [
+      "aerobic_efficiency",
+      "00000000-0000-0000-0000-000000000015",
+      "not_applicable",
+      null
+    ],
+    [
+      "aerobic_efficiency",
+      "00000000-0000-0000-0000-000000000016",
+      "not_assessable",
+      null
+    ],
+    [
+      "aerobic_efficiency",
+      "00000000-0000-0000-0000-000000000017",
+      "not_assessable",
+      null
+    ],
+    [
+      "aerobic_efficiency",
+      "00000000-0000-0000-0000-000000000018",
+      "not_assessable",
+      null
+    ],
+    [
+      "aerobic_efficiency",
+      "w28:2026-11-22",
+      "not_assessable",
+      {
+        "decoupling_median_pct": null,
+        "decoupling_runs_counted": 0,
+        "ef_change_pct": null,
+        "ef_early_median_m_per_beat": null,
+        "ef_late_median_m_per_beat": null,
+        "ef_median_m_per_beat": null,
+        "not_counted": {
+          "NO_STREAM": 3,
+          "STRUCTURED_SESSION": 1
+        },
+        "points": [],
+        "runs_counted": 0,
+        "runs_total": 4,
+        "runs_without_result": 0,
+        "window_days": 28
+      }
+    ],
+    [
+      "aerobic_efficiency",
+      "w84:2026-11-22",
+      "not_assessable",
+      {
+        "decoupling_median_pct": null,
+        "decoupling_runs_counted": 0,
+        "ef_change_pct": null,
+        "ef_early_median_m_per_beat": null,
+        "ef_late_median_m_per_beat": null,
+        "ef_median_m_per_beat": null,
+        "not_counted": {
+          "NO_STREAM": 3,
+          "STRUCTURED_SESSION": 1
+        },
+        "points": [],
+        "runs_counted": 0,
+        "runs_total": 4,
+        "runs_without_result": 0,
+        "window_days": 84
+      }
+    ],
+    [
+      "hard_session_spacing",
+      "w14:2026-11-22",
+      "available",
+      {
+        "gaps": [],
+        "sequence": [],
+        "sessions": []
+      }
+    ],
+    [
+      "intensity_time_distribution",
+      "00000000-0000-0000-0000-000000000015",
+      "not_assessable",
+      {
+        "hr": {
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "ANCHOR_MISSING"
+          ],
+          "status": "not_assessable",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        },
+        "session_timer_s": 1800.0,
+        "speed": {
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "ANCHOR_MISSING"
+          ],
+          "status": "not_assessable",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        }
+      }
+    ],
+    [
+      "intensity_time_distribution",
+      "00000000-0000-0000-0000-000000000016",
+      "missing",
+      {
+        "hr": {
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_STREAM"
+          ],
+          "status": "missing",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        },
+        "session_timer_s": 1798.0,
+        "speed": {
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_STREAM"
+          ],
+          "status": "missing",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        }
+      }
+    ],
+    [
+      "intensity_time_distribution",
+      "00000000-0000-0000-0000-000000000017",
+      "missing",
+      {
+        "hr": {
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_STREAM"
+          ],
+          "status": "missing",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        },
+        "session_timer_s": 1801.0,
+        "speed": {
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_STREAM"
+          ],
+          "status": "missing",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        }
+      }
+    ],
+    [
+      "intensity_time_distribution",
+      "00000000-0000-0000-0000-000000000018",
+      "missing",
+      {
+        "hr": {
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_STREAM"
+          ],
+          "status": "missing",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        },
+        "session_timer_s": 2400.0,
+        "speed": {
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_STREAM"
+          ],
+          "status": "missing",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        }
+      }
+    ],
+    [
+      "intensity_time_distribution",
+      "w14:2026-11-22",
+      "not_assessable",
+      {
+        "anchor_set_hashes": [],
+        "hr": {
+          "activities_counted": 0,
+          "activities_total": 4,
+          "activities_without_result": 0,
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_ACTIVITY_COUNTED",
+            "SYNC_COVERAGE_INCOMPLETE"
+          ],
+          "status": "not_assessable",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        },
+        "speed": {
+          "activities_counted": 0,
+          "activities_total": 4,
+          "activities_without_result": 0,
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_ACTIVITY_COUNTED",
+            "SYNC_COVERAGE_INCOMPLETE"
+          ],
+          "status": "not_assessable",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        }
+      }
+    ],
+    [
+      "intensity_time_distribution",
+      "w28:2026-11-22",
+      "not_assessable",
+      {
+        "anchor_set_hashes": [],
+        "hr": {
+          "activities_counted": 0,
+          "activities_total": 4,
+          "activities_without_result": 0,
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_ACTIVITY_COUNTED",
+            "SYNC_COVERAGE_INCOMPLETE"
+          ],
+          "status": "not_assessable",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        },
+        "speed": {
+          "activities_counted": 0,
+          "activities_total": 4,
+          "activities_without_result": 0,
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_ACTIVITY_COUNTED",
+            "SYNC_COVERAGE_INCOMPLETE"
+          ],
+          "status": "not_assessable",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        }
+      }
+    ],
+    [
+      "intensity_time_distribution",
+      "w56:2026-11-22",
+      "not_assessable",
+      {
+        "anchor_set_hashes": [],
+        "hr": {
+          "activities_counted": 0,
+          "activities_total": 4,
+          "activities_without_result": 0,
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_ACTIVITY_COUNTED",
+            "SYNC_COVERAGE_INCOMPLETE"
+          ],
+          "status": "not_assessable",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        },
+        "speed": {
+          "activities_counted": 0,
+          "activities_total": 4,
+          "activities_without_result": 0,
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_ACTIVITY_COUNTED",
+            "SYNC_COVERAGE_INCOMPLETE"
+          ],
+          "status": "not_assessable",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        }
+      }
+    ],
+    [
+      "intensity_time_distribution",
+      "w7:2026-11-22",
+      "missing",
+      {
+        "anchor_set_hashes": [],
+        "hr": {
+          "activities_counted": 0,
+          "activities_total": 1,
+          "activities_without_result": 0,
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_ACTIVITY_COUNTED",
+            "SYNC_COVERAGE_INCOMPLETE"
+          ],
+          "status": "missing",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        },
+        "speed": {
+          "activities_counted": 0,
+          "activities_total": 1,
+          "activities_without_result": 0,
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_ACTIVITY_COUNTED",
+            "SYNC_COVERAGE_INCOMPLETE"
+          ],
+          "status": "missing",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        }
+      }
+    ],
+    [
+      "intensity_time_distribution",
+      "w84:2026-11-22",
+      "not_assessable",
+      {
+        "anchor_set_hashes": [],
+        "hr": {
+          "activities_counted": 0,
+          "activities_total": 4,
+          "activities_without_result": 0,
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_ACTIVITY_COUNTED",
+            "SYNC_COVERAGE_INCOMPLETE"
+          ],
+          "status": "not_assessable",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        },
+        "speed": {
+          "activities_counted": 0,
+          "activities_total": 4,
+          "activities_without_result": 0,
+          "confidence": null,
+          "coverage": null,
+          "easy_s": null,
+          "eligible_timer_s": null,
+          "fraction_timer": null,
+          "fraction_valid": null,
+          "high_s": null,
+          "moderate_s": null,
+          "reason_codes": [
+            "NO_ACTIVITY_COUNTED",
+            "SYNC_COVERAGE_INCOMPLETE"
+          ],
+          "status": "not_assessable",
+          "unclassified_s": null,
+          "unknown_s": null,
+          "valid_s": null
+        }
+      }
+    ],
+    [
+      "long_run_exposure",
+      "00000000-0000-0000-0000-000000000015",
+      "not_applicable",
+      {
+        "activity_id": "00000000-0000-0000-0000-000000000015",
+        "classification": "not_long",
+        "classification_confidence": "high",
+        "classification_source": "plan_link",
+        "delayed_symptom_status": "unknown",
+        "distance_m": 5000.0,
+        "linked_checkin_ids": [],
+        "local_date": "2026-11-10",
+        "timer_s": 1800.0
+      }
+    ],
+    [
+      "long_run_exposure",
+      "00000000-0000-0000-0000-000000000016",
+      "not_assessable",
+      {
+        "activity_id": "00000000-0000-0000-0000-000000000016",
+        "classification": "unknown",
+        "classification_confidence": "low",
+        "classification_source": "long_rule",
+        "delayed_symptom_status": "unknown",
+        "distance_m": 5000.0,
+        "linked_checkin_ids": [],
+        "local_date": "2026-11-15",
+        "timer_s": 1798.0
+      }
+    ],
+    [
+      "long_run_exposure",
+      "00000000-0000-0000-0000-000000000017",
+      "not_assessable",
+      {
+        "activity_id": "00000000-0000-0000-0000-000000000017",
+        "classification": "unknown",
+        "classification_confidence": "low",
+        "classification_source": "long_rule",
+        "delayed_symptom_status": "unknown",
+        "distance_m": 5000.0,
+        "linked_checkin_ids": [],
+        "local_date": "2026-11-15",
+        "timer_s": 1801.0
+      }
+    ],
+    [
+      "long_run_exposure",
+      "00000000-0000-0000-0000-000000000018",
+      "not_assessable",
+      {
+        "activity_id": "00000000-0000-0000-0000-000000000018",
+        "classification": "unknown",
+        "classification_confidence": "low",
+        "classification_source": "long_rule",
+        "delayed_symptom_status": "unknown",
+        "distance_m": 5000.0,
+        "linked_checkin_ids": [],
+        "local_date": "2026-11-20",
+        "timer_s": 2400.0
+      }
+    ],
+    [
+      "long_run_exposure",
+      "w14:2026-11-22",
+      "partial",
+      {
+        "latest": null,
+        "long_run_count": 0
+      }
+    ],
+    [
+      "long_run_exposure",
+      "w28:2026-11-22",
+      "partial",
+      {
+        "latest": null,
+        "long_run_count": 0
+      }
+    ],
+    [
+      "long_run_exposure",
+      "w56:2026-11-22",
+      "partial",
+      {
+        "latest": null,
+        "long_run_count": 0
+      }
+    ],
+    [
+      "long_run_exposure",
+      "w7:2026-11-22",
+      "partial",
+      {
+        "latest": null,
+        "long_run_count": 0
+      }
+    ],
+    [
+      "long_run_exposure",
+      "w84:2026-11-22",
+      "partial",
+      {
+        "latest": null,
+        "long_run_count": 0
+      }
+    ],
+    [
+      "planned_actual_session",
+      "00000000-0000-0000-0000-000000000001",
+      "partial",
+      {
+        "calendar_version": 1,
+        "candidate_activity_ids": [],
+        "certainty": "committed",
+        "components": [
+          {
+            "name": "duration_ratio",
+            "status": "met",
+            "value": 1.0
+          },
+          {
+            "name": "step_completion_ratio",
+            "status": "not_assessable",
+            "value": null
+          },
+          {
+            "name": "target_coverage",
+            "status": "not_assessable",
+            "value": null
+          }
+        ],
+        "kind": "run",
+        "match_method": "explicit",
+        "overall_status": "unknown"
+      }
+    ],
+    [
+      "planned_actual_session",
+      "00000000-0000-0000-0000-000000000002",
+      "available",
+      {
+        "calendar_version": 1,
+        "candidate_activity_ids": [],
+        "certainty": "committed",
+        "components": [
+          {
+            "name": "duration_ratio",
+            "status": "partially_met",
+            "value": 0.778
+          }
+        ],
+        "kind": "strength",
+        "match_method": "explicit",
+        "overall_status": "completed_modified"
+      }
+    ],
+    [
+      "planned_actual_session",
+      "00000000-0000-0000-0000-000000000003",
+      "available",
+      {
+        "calendar_version": 1,
+        "candidate_activity_ids": [],
+        "certainty": "committed",
+        "components": [
+          {
+            "name": "duration_ratio",
+            "status": "met",
+            "value": 1.0
+          }
+        ],
+        "kind": "strength",
+        "match_method": "explicit",
+        "overall_status": "completed_as_planned"
+      }
+    ],
+    [
+      "planned_actual_session",
+      "00000000-0000-0000-0000-000000000004",
+      "missing",
+      {
+        "calendar_version": 1,
+        "candidate_activity_ids": [],
+        "certainty": "committed",
+        "components": [],
+        "kind": "run",
+        "match_method": "user_marked",
+        "overall_status": "unknown"
+      }
+    ],
+    [
+      "planned_actual_session",
+      "00000000-0000-0000-0000-000000000005",
+      "missing",
+      {
+        "calendar_version": 1,
+        "candidate_activity_ids": [
+          "00000000-0000-0000-0000-000000000017",
+          "00000000-0000-0000-0000-000000000016"
+        ],
+        "certainty": "committed",
+        "components": [],
+        "kind": "run",
+        "match_method": "none",
+        "overall_status": "unknown"
+      }
+    ],
+    [
+      "planned_actual_session",
+      "00000000-0000-0000-0000-000000000006",
+      "missing",
+      {
+        "calendar_version": 1,
+        "candidate_activity_ids": [],
+        "certainty": "committed",
+        "components": [],
+        "kind": "run",
+        "match_method": "none",
+        "overall_status": "unknown"
+      }
+    ],
+    [
+      "planned_actual_session",
+      "00000000-0000-0000-0000-000000000007",
+      "available",
+      {
+        "calendar_version": null,
+        "candidate_activity_ids": [],
+        "certainty": null,
+        "components": [],
+        "kind": "run",
+        "match_method": "explicit",
+        "overall_status": "extra"
+      }
+    ],
+    [
+      "recovery_multisignal_summary",
+      "night:2026-11-16",
+      "missing",
+      {
+        "discordance": null,
+        "fatigue": null,
+        "hrv": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "illness": null,
+        "local_date": "2026-11-16",
+        "resting_hr": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "sleep": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "subjective_poor": null
+      }
+    ],
+    [
+      "recovery_multisignal_summary",
+      "night:2026-11-17",
+      "missing",
+      {
+        "discordance": null,
+        "fatigue": null,
+        "hrv": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "illness": null,
+        "local_date": "2026-11-17",
+        "resting_hr": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "sleep": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "subjective_poor": null
+      }
+    ],
+    [
+      "recovery_multisignal_summary",
+      "night:2026-11-18",
+      "missing",
+      {
+        "discordance": null,
+        "fatigue": null,
+        "hrv": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "illness": null,
+        "local_date": "2026-11-18",
+        "resting_hr": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "sleep": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "subjective_poor": null
+      }
+    ],
+    [
+      "recovery_multisignal_summary",
+      "night:2026-11-19",
+      "missing",
+      {
+        "discordance": null,
+        "fatigue": null,
+        "hrv": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "illness": null,
+        "local_date": "2026-11-19",
+        "resting_hr": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "sleep": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "subjective_poor": null
+      }
+    ],
+    [
+      "recovery_multisignal_summary",
+      "night:2026-11-20",
+      "missing",
+      {
+        "discordance": null,
+        "fatigue": null,
+        "hrv": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "illness": null,
+        "local_date": "2026-11-20",
+        "resting_hr": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "sleep": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "subjective_poor": null
+      }
+    ],
+    [
+      "recovery_multisignal_summary",
+      "night:2026-11-21",
+      "missing",
+      {
+        "discordance": null,
+        "fatigue": null,
+        "hrv": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "illness": null,
+        "local_date": "2026-11-21",
+        "resting_hr": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "sleep": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "subjective_poor": null
+      }
+    ],
+    [
+      "recovery_multisignal_summary",
+      "night:2026-11-22",
+      "partial",
+      {
+        "discordance": null,
+        "fatigue": null,
+        "hrv": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "illness": "present",
+        "local_date": "2026-11-22",
+        "resting_hr": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "sleep": {
+          "adverse": null,
+          "baseline_mad": null,
+          "baseline_median": null,
+          "baseline_state": "none",
+          "deviation": null,
+          "invalid_history_nights": 0,
+          "partition": null,
+          "quality_flags": [],
+          "reason_codes": [
+            "RECOVERY_MISSING"
+          ],
+          "status": "missing",
+          "valid_nights": 0,
+          "value": null,
+          "z": null
+        },
+        "subjective_poor": true
+      }
+    ],
+    [
+      "recovery_multisignal_summary",
+      "w7:2026-11-22",
+      "missing",
+      {
+        "coverage": 0.0,
+        "missing_dates": [
+          "2026-11-16",
+          "2026-11-17",
+          "2026-11-18",
+          "2026-11-19",
+          "2026-11-20",
+          "2026-11-21",
+          "2026-11-22"
+        ],
+        "nights_total": 7,
+        "nights_with_data": 0
+      }
+    ],
+    [
+      "run_volume_frequency",
+      "w14:2026-11-22",
+      "partial",
+      {
+        "distance_m": 20000.0,
+        "end_date": "2026-11-22",
+        "previous": {
+          "coverage_complete": false,
+          "distance_m": null,
+          "end_date": "2026-11-08",
+          "run_count": 0,
+          "runs_missing_distance": 0,
+          "runs_missing_timer": 0,
+          "start_date": "2026-10-26",
+          "timer_duration_s": null
+        },
+        "run_count": 4,
+        "runs_missing_distance": 0,
+        "runs_missing_timer": 0,
+        "start_date": "2026-11-09",
+        "timer_duration_s": 7799.0
+      }
+    ],
+    [
+      "run_volume_frequency",
+      "w28:2026-11-22",
+      "partial",
+      {
+        "distance_m": 20000.0,
+        "end_date": "2026-11-22",
+        "previous": {
+          "coverage_complete": false,
+          "distance_m": null,
+          "end_date": "2026-10-25",
+          "run_count": 0,
+          "runs_missing_distance": 0,
+          "runs_missing_timer": 0,
+          "start_date": "2026-09-28",
+          "timer_duration_s": null
+        },
+        "run_count": 4,
+        "runs_missing_distance": 0,
+        "runs_missing_timer": 0,
+        "start_date": "2026-10-26",
+        "timer_duration_s": 7799.0
+      }
+    ],
+    [
+      "run_volume_frequency",
+      "w56:2026-11-22",
+      "partial",
+      {
+        "distance_m": 20000.0,
+        "end_date": "2026-11-22",
+        "previous": {
+          "coverage_complete": false,
+          "distance_m": null,
+          "end_date": "2026-09-27",
+          "run_count": 0,
+          "runs_missing_distance": 0,
+          "runs_missing_timer": 0,
+          "start_date": "2026-08-03",
+          "timer_duration_s": null
+        },
+        "run_count": 4,
+        "runs_missing_distance": 0,
+        "runs_missing_timer": 0,
+        "start_date": "2026-09-28",
+        "timer_duration_s": 7799.0
+      }
+    ],
+    [
+      "run_volume_frequency",
+      "w7:2026-11-22",
+      "partial",
+      {
+        "distance_m": 5000.0,
+        "end_date": "2026-11-22",
+        "previous": {
+          "coverage_complete": false,
+          "distance_m": 15000.0,
+          "end_date": "2026-11-15",
+          "run_count": 3,
+          "runs_missing_distance": 0,
+          "runs_missing_timer": 0,
+          "start_date": "2026-11-09",
+          "timer_duration_s": 5399.0
+        },
+        "run_count": 1,
+        "runs_missing_distance": 0,
+        "runs_missing_timer": 0,
+        "start_date": "2026-11-16",
+        "timer_duration_s": 2400.0
+      }
+    ],
+    [
+      "run_volume_frequency",
+      "w84:2026-11-22",
+      "partial",
+      {
+        "distance_m": 20000.0,
+        "end_date": "2026-11-22",
+        "previous": {
+          "coverage_complete": false,
+          "distance_m": null,
+          "end_date": "2026-08-30",
+          "run_count": 0,
+          "runs_missing_distance": 0,
+          "runs_missing_timer": 0,
+          "start_date": "2026-06-08",
+          "timer_duration_s": null
+        },
+        "run_count": 4,
+        "runs_missing_distance": 0,
+        "runs_missing_timer": 0,
+        "start_date": "2026-08-31",
+        "timer_duration_s": 7799.0
+      }
+    ],
+    [
+      "session_rpe_load",
+      "00000000-0000-0000-0000-000000000015",
+      "available",
+      {
+        "collection_delay_s": 1045700,
+        "duration_min": 30.0,
+        "duration_s": 1800.0,
+        "kind": "run",
+        "load_au": 0.0,
+        "other_source_rpe": null,
+        "rpe": 0.0,
+        "rpe_source": "manual"
+      }
+    ],
+    [
+      "session_rpe_load",
+      "00000000-0000-0000-0000-000000000016",
+      "missing",
+      {
+        "collection_delay_s": null,
+        "duration_min": 30.0,
+        "duration_s": 1798.0,
+        "kind": "run",
+        "load_au": null,
+        "other_source_rpe": null,
+        "rpe": null,
+        "rpe_source": null
+      }
+    ],
+    [
+      "session_rpe_load",
+      "00000000-0000-0000-0000-000000000017",
+      "missing",
+      {
+        "collection_delay_s": null,
+        "duration_min": 30.0,
+        "duration_s": 1801.0,
+        "kind": "run",
+        "load_au": null,
+        "other_source_rpe": null,
+        "rpe": null,
+        "rpe_source": null
+      }
+    ],
+    [
+      "session_rpe_load",
+      "00000000-0000-0000-0000-000000000018",
+      "missing",
+      {
+        "collection_delay_s": null,
+        "duration_min": 40.0,
+        "duration_s": 2400.0,
+        "kind": "run",
+        "load_au": null,
+        "other_source_rpe": null,
+        "rpe": null,
+        "rpe_source": null
+      }
+    ],
+    [
+      "session_rpe_load",
+      "manual:00000000-0000-0000-0000-00000000001f",
+      "invalid",
+      null
+    ],
+    [
+      "session_rpe_load",
+      "strong:00000000-0000-0000-0000-00000000001e",
+      "invalid",
+      null
+    ],
+    [
+      "session_rpe_load",
+      "w14:2026-11-22:run",
+      "partial",
+      {
+        "coverage_duration": 0.231,
+        "coverage_sessions": 0.25,
+        "duration_total_s": 7799.0,
+        "duration_with_rpe_s": 1800.0,
+        "load_au": 0.0,
+        "sessions_missing_duration": 0,
+        "sessions_total": 4,
+        "sessions_with_rpe": 1,
+        "sessions_without_load": 3
+      }
+    ],
+    [
+      "session_rpe_load",
+      "w14:2026-11-22:strength",
+      "partial",
+      {
+        "coverage_duration": 0.467,
+        "coverage_sessions": 0.5,
+        "duration_total_s": 4500.0,
+        "duration_with_rpe_s": 2100.0,
+        "load_au": 280.0,
+        "sessions_missing_duration": 0,
+        "sessions_total": 2,
+        "sessions_with_rpe": 1,
+        "sessions_without_load": 1
+      }
+    ],
+    [
+      "session_rpe_load",
+      "w28:2026-11-22:run",
+      "partial",
+      {
+        "coverage_duration": 0.231,
+        "coverage_sessions": 0.25,
+        "duration_total_s": 7799.0,
+        "duration_with_rpe_s": 1800.0,
+        "load_au": 0.0,
+        "sessions_missing_duration": 0,
+        "sessions_total": 4,
+        "sessions_with_rpe": 1,
+        "sessions_without_load": 3
+      }
+    ],
+    [
+      "session_rpe_load",
+      "w28:2026-11-22:strength",
+      "partial",
+      {
+        "coverage_duration": 0.467,
+        "coverage_sessions": 0.5,
+        "duration_total_s": 4500.0,
+        "duration_with_rpe_s": 2100.0,
+        "load_au": 280.0,
+        "sessions_missing_duration": 0,
+        "sessions_total": 2,
+        "sessions_with_rpe": 1,
+        "sessions_without_load": 1
+      }
+    ],
+    [
+      "session_rpe_load",
+      "w56:2026-11-22:run",
+      "partial",
+      {
+        "coverage_duration": 0.231,
+        "coverage_sessions": 0.25,
+        "duration_total_s": 7799.0,
+        "duration_with_rpe_s": 1800.0,
+        "load_au": 0.0,
+        "sessions_missing_duration": 0,
+        "sessions_total": 4,
+        "sessions_with_rpe": 1,
+        "sessions_without_load": 3
+      }
+    ],
+    [
+      "session_rpe_load",
+      "w56:2026-11-22:strength",
+      "partial",
+      {
+        "coverage_duration": 0.467,
+        "coverage_sessions": 0.5,
+        "duration_total_s": 4500.0,
+        "duration_with_rpe_s": 2100.0,
+        "load_au": 280.0,
+        "sessions_missing_duration": 0,
+        "sessions_total": 2,
+        "sessions_with_rpe": 1,
+        "sessions_without_load": 1
+      }
+    ],
+    [
+      "session_rpe_load",
+      "w7:2026-11-22:run",
+      "partial",
+      {
+        "coverage_duration": 0.0,
+        "coverage_sessions": 0.0,
+        "duration_total_s": 2400.0,
+        "duration_with_rpe_s": 0,
+        "load_au": null,
+        "sessions_missing_duration": 0,
+        "sessions_total": 1,
+        "sessions_with_rpe": 0,
+        "sessions_without_load": 1
+      }
+    ],
+    [
+      "session_rpe_load",
+      "w7:2026-11-22:strength",
+      "missing",
+      {
+        "coverage_duration": null,
+        "coverage_sessions": null,
+        "duration_total_s": null,
+        "duration_with_rpe_s": null,
+        "load_au": null,
+        "sessions_missing_duration": 0,
+        "sessions_total": 0,
+        "sessions_with_rpe": 0,
+        "sessions_without_load": 0
+      }
+    ],
+    [
+      "session_rpe_load",
+      "w84:2026-11-22:run",
+      "partial",
+      {
+        "coverage_duration": 0.231,
+        "coverage_sessions": 0.25,
+        "duration_total_s": 7799.0,
+        "duration_with_rpe_s": 1800.0,
+        "load_au": 0.0,
+        "sessions_missing_duration": 0,
+        "sessions_total": 4,
+        "sessions_with_rpe": 1,
+        "sessions_without_load": 3
+      }
+    ],
+    [
+      "session_rpe_load",
+      "w84:2026-11-22:strength",
+      "partial",
+      {
+        "coverage_duration": 0.467,
+        "coverage_sessions": 0.5,
+        "duration_total_s": 4500.0,
+        "duration_with_rpe_s": 2100.0,
+        "load_au": 280.0,
+        "sessions_missing_duration": 0,
+        "sessions_total": 2,
+        "sessions_with_rpe": 1,
+        "sessions_without_load": 1
+      }
+    ],
+    [
+      "symptom_response_timeline",
+      "00000000-0000-0000-0000-000000000015",
+      "missing",
+      null
+    ],
+    [
+      "symptom_response_timeline",
+      "00000000-0000-0000-0000-000000000016",
+      "missing",
+      null
+    ],
+    [
+      "symptom_response_timeline",
+      "00000000-0000-0000-0000-000000000017",
+      "missing",
+      null
+    ],
+    [
+      "symptom_response_timeline",
+      "00000000-0000-0000-0000-000000000018",
+      "missing",
+      null
+    ],
+    [
+      "symptom_response_timeline",
+      "w28:2026-11-22",
+      "available",
+      {
+        "checkin_count": 1,
+        "sites": []
+      }
+    ],
+    [
+      "work_interval_execution",
+      "00000000-0000-0000-0000-000000000015",
+      "not_assessable",
+      null
+    ],
+    [
+      "work_interval_execution",
+      "00000000-0000-0000-0000-000000000016",
+      "not_applicable",
+      null
+    ],
+    [
+      "work_interval_execution",
+      "00000000-0000-0000-0000-000000000017",
+      "not_applicable",
+      null
+    ],
+    [
+      "work_interval_execution",
+      "00000000-0000-0000-0000-000000000018",
+      "not_applicable",
+      null
+    ]
+  ]
+]

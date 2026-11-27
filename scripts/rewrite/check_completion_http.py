@@ -1,22 +1,19 @@
-"""Compare PUT completion responses and stored findings on separate migrated schemas."""
+"""Check native completion responses and stored findings against synthetic contract fixtures."""
 
 import json
 import os
 import subprocess
-import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import patch
 
 import psycopg
 from sqlalchemy.engine import make_url
 
 from check_assessment_db import conn, id
-from test_proposal_slice import BACKEND, MODULE, ROOT, migrated_schema
+from test_proposal_slice import MODULE, ROOT, migrated_schema
 
 NOW = datetime(2026, 11, 22, 12, 0, 0, 123400, tzinfo=UTC)
-PREFIX = "/api/v1/calendar/completions/"
 
 
 def seed(env):
@@ -47,85 +44,6 @@ def seed(env):
         )
 
 
-def reference():
-    from fastapi.testclient import TestClient
-    from app.api import calendar as route
-    from app.main import app
-    from app.metrics import refresh
-    from app.services import calendar
-
-    class Clock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return NOW.astimezone(tz)
-
-    cases = [
-        ("bad", '{"status":"invalid","new":1,"expected_version":-1}'),
-        ("bad", "{"),
-        (id(1), "null"),
-        (id(1), "[]"),
-        (id(1), '{"expected_version":1.5,"manual_session_id":4,"reason_note":0}'),
-        (id(1), '{"status":null}'),
-        (id(1), "{}"),
-        (id(1), '{"reason_note":"ignored","activity_id":null}'),
-        (id(1), json.dumps({"activity_id": id(25), "status": None})),
-        (id(1), json.dumps({"activity_id": id(25), "strong_workout_id": id(30)})),
-        (id(1), json.dumps({"activity_id": id(999)})),
-        (
-            id(1),
-            '{"expected_version":"0","status":"completed_as_planned","reason_note":"  noted  "}',
-        ),
-        (id(1), '{"expected_version":0,"status":"unknown"}'),
-        (id(1), '{"expected_version":true,"status":"unknown"}'),
-        (id(1), '{"status":"skipped","modification_reason":"weather"}'),
-        (id(1), '{"expected_version":"1.0","status":"unknown"}'),
-        (
-            id(1),
-            json.dumps(
-                {
-                    "activity_id": id(25).replace("-", ""),
-                    "reason_note": "across local midnight",
-                }
-            ),
-        ),
-        (id(2), json.dumps({"activity_id": id(25)})),
-        (id(1), '{"expected_version":null,"status":"unknown"}'),
-    ]
-    out = []
-    with (
-        patch.object(calendar, "datetime", Clock),
-        patch.object(route, "datetime", Clock),
-        patch.object(refresh, "clock", lambda _: NOW),
-        TestClient(app) as client,
-    ):
-        for uid, body in cases:
-            path = PREFIX + uid
-            result = client.put(
-                path,
-                content=body,
-                headers={"X-Local-Request": "1", "Content-Type": "application/json"},
-            )
-            value = result.json()
-            if "error" in value:
-                value["error"].pop("request_id", None)
-            if isinstance(value.get("data"), dict):
-                with conn(os.environ) as db:
-                    assert (
-                        str(
-                            db.execute(
-                                "SELECT id FROM session_completions WHERE session_uid=%s",
-                                (uid,),
-                            ).fetchone()[0]
-                        )
-                        == value["data"]["id"]
-                    )
-                value["data"]["id"] = "verified-database-id"
-            out.append(
-                dict(path=path, body=body, status=result.status_code, response=value)
-            )
-    return out
-
-
 def main():
     url = make_url(os.environ["TEST_DATABASE_URL"])
     if (
@@ -146,20 +64,10 @@ def main():
     ):
         directory = Path(temp)
         for suffix, zone in [("offset", "Asia/Kathmandu"), ("utc", "UTC")]:
-            with (
-                migrated_schema(admin, url, directory / f"ref-{suffix}", "5173") as py,
-                migrated_schema(admin, url, directory / f"go-{suffix}", "5173") as go,
-            ):
-                for env in (py, go):
-                    env["PGOPTIONS"] = env["PGOPTIONS"].replace("Asia/Kathmandu", zone)
-                    seed(env)
-                corpus = directory / "cases.json"
-                subprocess.run(
-                    [sys.executable, __file__, "reference", str(corpus)],
-                    env=dict(py, PYTHONPATH=str(BACKEND)),
-                    cwd=BACKEND,
-                    check=True,
-                )
+            with migrated_schema(admin, url, directory / suffix, "5173") as go:
+                go["PGOPTIONS"] = go["PGOPTIONS"].replace("Asia/Kathmandu", zone)
+                seed(go)
+                corpus = MODULE / "internal/completionhttp/testdata" / f"completion-{suffix}.json"
                 subprocess.run(
                     ["go", "test", "-race", "-count=1", "./internal/completionhttp"],
                     cwd=MODULE,
@@ -195,22 +103,15 @@ def main():
                     )
                     with conn(go) as control:
                         control.execute(f"DROP TRIGGER fail_http ON {table}")
-                result = []
-                for env in (py, go):
-                    with conn(env) as db:
-                        result.append(
-                            db.execute(
-                                "SELECT rule_code,severity,status FROM exception_findings ORDER BY rule_code,severity,status"
-                            ).fetchall()
-                        )
-                assert result[0] and result[0] == result[1], result
+                with conn(go) as db:
+                    findings = db.execute(
+                        "SELECT rule_code,severity,status FROM exception_findings ORDER BY rule_code,severity,status"
+                    ).fetchall()
+                assert findings == [("GAIT_CHANGE", "hold", "open"), ("SYM_NEW_SITE", "observe", "open")]
                 print(
                     "PASS completion HTTP validation, local-date responses, post-write exception findings and concurrent version conflict"
                 )
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["reference"]:
-        Path(sys.argv[2]).write_text(json.dumps(reference()))
-    else:
-        main()
+    main()
