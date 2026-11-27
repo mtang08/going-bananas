@@ -153,6 +153,7 @@ def main():
         'demo-seed': 'check_demo_seed.py',
         'import-export': 'check_import_export.py',
         'backup': 'check_workspace_backup.py',
+        'operator-cli': 'check_operator_cli.py',
         'phone-checkins': 'check_phone_checkins.py',
         'calendar': 'check_self_reports.py',
         'rematch': 'check_rematch.py',
