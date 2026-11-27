@@ -7,7 +7,7 @@ import { expect, test, type APIRequestContext, type APIResponse, type Page } fro
 // This suite runs against the manager's disposable demo database and port 18000.
 test.describe.configure({ mode: 'serial' })
 const repoRoot = resolve(__dirname, '..')
-const backend = join(repoRoot, 'backend')
+const coachCLI = join(repoRoot, 'scripts', 'coach-cli')
 const coachScript = join(repoRoot, 'scripts', 'with-mode')
 const demoFiles = process.env.APP_MODE === 'demo' && process.env.PRIVATE_DIR
   ? process.env.PRIVATE_DIR : join(repoRoot, 'private', 'demo')
@@ -25,7 +25,7 @@ const data = async (response:APIResponse) => {
 
 type CoachCall = {code:number; output:any; stderr:string}
 function coach(...args:string[]):CoachCall {
-  const argv = ['demo','uv','run','--directory',backend,'python','-m','app.cli','coach',...args]
+  const argv = ['demo',coachCLI,...args]
   try {
     const stdout = execFileSync(coachScript,argv,{cwd:repoRoot,encoding:'utf8',timeout:120_000})
     return {code:0,output:JSON.parse(stdout),stderr:''}

@@ -7,7 +7,6 @@ import (
 )
 
 func TestModeAndDatabaseMustMatch(t *testing.T) {
-	t.Setenv("GOING_BANANAS_BACKEND", "")
 	for _, tc := range []struct {
 		mode    api.AppMode
 		dsn     string
@@ -15,7 +14,9 @@ func TestModeAndDatabaseMustMatch(t *testing.T) {
 	}{
 		{api.Test, "postgresql+psycopg://localhost/gb_fixture_test", true},
 		{api.Demo, "postgresql://localhost/garmin_demo", true},
-		{api.Real, "postgresql://localhost/garmin_real", false},
+		{api.Real, "postgresql://localhost/garmin_real", true},
+		{api.Real, "postgresql://localhost/garmin_demo", false},
+		{"bogus", "postgresql://localhost/garmin_bogus", false},
 		{api.Test, "postgresql://localhost/garmin_real", false},
 		{api.Demo, "postgresql://localhost/garmin_test", false},
 		{api.Test, "", false},
@@ -27,16 +28,6 @@ func TestModeAndDatabaseMustMatch(t *testing.T) {
 		if err == nil && cfg.ConnConfig.RuntimeParams["default_transaction_read_only"] != "on" {
 			t.Error("database default must be read-only")
 		}
-	}
-}
-
-func TestRealServerRequiresAnExplicitSwitch(t *testing.T) {
-	t.Setenv("GOING_BANANAS_BACKEND", "go")
-	if _, err := runtimeConfig(api.Real, "postgresql://localhost/fixture_real"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := runtimeConfig(api.Real, "postgresql://localhost/fixture_demo"); err == nil {
-		t.Fatal("accepted mismatched database")
 	}
 }
 

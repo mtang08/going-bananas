@@ -34,9 +34,6 @@ import (
 )
 
 func runtimeConfig(mode api.AppMode, dsn string) (*pgxpool.Config, error) {
-	if mode == api.Real && os.Getenv("GOING_BANANAS_BACKEND") != "go" {
-		return nil, errors.New("real mode requires the configured Go backend")
-	}
 	if mode != api.Test && mode != api.Demo && mode != api.Real {
 		return nil, errors.New("APP_MODE must select test, demo or real")
 	}

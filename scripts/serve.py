@@ -14,35 +14,30 @@ private = root / "private"
 mode = os.environ.get("APP_MODE", "demo")
 if mode not in {"test", "demo", "real"}:
     raise SystemExit("APP_MODE must be test, demo or real.")
-backend = os.environ.get("GOING_BANANAS_BACKEND") or ("python" if mode == "real" else "go")
-if backend not in {"go", "python"}:
-    raise SystemExit("Unknown GOING_BANANAS_BACKEND.")
-native = backend == "go"
 os.environ.setdefault("APP_MODE", mode)
 bin_dir = private / "bin"
 
 
 def build_backend():
-    if native:
-        bin_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-        env = os.environ.copy()
-        env["PATH"] = (
-            str(private / "go-tools" / "bin") + os.pathsep + env.get("PATH", "")
-        )
-        env.setdefault("GOPATH", str(private / "cache" / "go"))
-        env.setdefault("GOCACHE", str(private / "cache" / "go-build"))
-        subprocess.run(
-            [
-                "go",
-                "build",
-                "-o",
-                str(bin_dir / "going-bananas"),
-                "./cmd/going-bananas",
-            ],
-            cwd=root / "backend-go",
-            env=env,
-            check=True,
-        )
+    bin_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env["PATH"] = (
+        str(private / "go-tools" / "bin") + os.pathsep + env.get("PATH", "")
+    )
+    env.setdefault("GOPATH", str(private / "cache" / "go"))
+    env.setdefault("GOCACHE", str(private / "cache" / "go-build"))
+    subprocess.run(
+        [
+            "go",
+            "build",
+            "-o",
+            str(bin_dir / "going-bananas"),
+            "./cmd/going-bananas",
+        ],
+        cwd=root / "backend-go",
+        env=env,
+        check=True,
+    )
 
 
 if sys.argv[1:] == ["--build"]:
@@ -82,52 +77,23 @@ for requested in [api_port, vite_port] if dev else [api_port]:
             )
 
 os.environ.setdefault("FRONTEND_DIST", str(root / "frontend/dist"))
-if native:
-    build_backend()
-    commands = [
-        (
-            [
-                str(bin_dir / "going-bananas"),
-                "serve",
-                "-startup",
-                "-repo",
-                str(root),
-                "-listen",
-                f"127.0.0.1:{api_port}",
-            ],
-            root,
-        )
-    ]
-    if mode == "real":
-        commands.append(([str(bin_dir / "going-bananas"), "worker"], root))
-else:
-    commands = [
-        (
-            [
-                "uv",
-                "run",
-                "uvicorn",
-                "app.main:app",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(api_port),
-            ],
-            root / "backend",
-        ),
-    ]
-    if mode == "real":
-        commands.append((["uv", "run", "python", "-m", "app.cli", "worker"], root / "backend"))
-    startup = subprocess.run(
-        ["uv", "run", "python", "-m", "app.cli", "metrics-refresh-today"],
-        cwd=root / "backend",
-        check=False,
+build_backend()
+commands = [
+    (
+        [
+            str(bin_dir / "going-bananas"),
+            "serve",
+            "-startup",
+            "-repo",
+            str(root),
+            "-listen",
+            f"127.0.0.1:{api_port}",
+        ],
+        root,
     )
-    if startup.returncode != 0:
-        print(
-            "Startup metric refresh failed; metric pages compute on view until the next write.",
-            flush=True,
-        )
+]
+if mode == "real":
+    commands.append(([str(bin_dir / "going-bananas"), "worker"], root))
 if dev:
     commands.append(
         (
