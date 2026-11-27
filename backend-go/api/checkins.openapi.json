@@ -1,0 +1,1387 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Going Bananas check-in API",
+    "version": "1.0.0",
+    "description": "Local peer, host and origin guards apply to every operation. Writes require X-Local-Request: 1."
+  },
+  "paths": {
+    "/api/v1/phone/checkins/{entry_id}": {
+      "put": {
+        "operationId": "putMorningCheckin",
+        "summary": "Record or replay a morning ankle observation.",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Local-Request",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            },
+            "description": "Required for local writes."
+          },
+          {
+            "name": "X-Phone-Mode",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AppMode"
+            },
+            "description": "When supplied, this must match the serving workspace."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entry accepted or replayed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MorningCheckinReceiptEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The local peer, host, origin or write-header guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Workspace mismatch or the entry ID was reused for a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Write requests require an application/json content type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields or an invalid combination of check-in facts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MorningCheckinInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/v2/checkins": {
+      "get": {
+        "operationId": "listCheckins",
+        "summary": "List check-ins in descending observation order, filtered by inclusive athlete-local dates.",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Check-ins in the requested range.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckinListEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The local peer, host, origin or write-header guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields or an invalid combination of check-in facts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCheckin",
+        "summary": "Create a check-in or replay the original idempotent request.",
+        "parameters": [
+          {
+            "name": "X-Local-Request",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            },
+            "description": "Required for local writes."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Existing check-in returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckinWriteEnvelope"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Check-in created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckinWriteEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The local peer, host, origin or write-header guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A referenced activity was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The key belongs to a different request or the activity already has a delayed response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Write requests require an application/json content type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields or an invalid combination of check-in facts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/v2/checkins/{checkin_id}": {
+      "patch": {
+        "operationId": "patchCheckin",
+        "summary": "Revise a check-in at the expected version.",
+        "parameters": [
+          {
+            "name": "checkin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Local-Request",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            },
+            "description": "Required for local writes."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated check-in and detection results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckinWriteEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The local peer, host, origin or write-header guard rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Check-in or referenced activity was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict, immutable morning check-in or existing delayed response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Write requests require an application/json content type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields or an invalid combination of check-in facts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinPatch"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SchemaVersion": {
+        "type": "string",
+        "const": "v1"
+      },
+      "AppMode": {
+        "type": "string",
+        "enum": [
+          "demo",
+          "real",
+          "test"
+        ],
+        "title": "AppMode"
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationField"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id",
+          "fields"
+        ]
+      },
+      "ValidationField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "ValidationField"
+      },
+      "CheckinKind": {
+        "type": "string",
+        "enum": [
+          "exception",
+          "post_run",
+          "delayed_followup"
+        ]
+      },
+      "CheckinContextTag": {
+        "type": "string",
+        "enum": [
+          "heat",
+          "travel",
+          "poor_sleep",
+          "unusual_surface",
+          "equipment"
+        ]
+      },
+      "WalkingResponse": {
+        "type": "string",
+        "enum": [
+          "gone",
+          "eased",
+          "same",
+          "worse",
+          "too_early"
+        ]
+      },
+      "CheckinMeasurement": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 10,
+        "multipleOf": 0.1
+      },
+      "CheckinSymptomInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "site": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Site name after trimming surrounding whitespace."
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "both",
+              "na"
+            ]
+          },
+          "severity": {
+            "$ref": "#/components/schemas/CheckinMeasurement"
+          },
+          "timing": {
+            "type": "string",
+            "enum": [
+              "during",
+              "immediately_after",
+              "next_morning",
+              "hours_24_48",
+              "later",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "site",
+          "side",
+          "severity",
+          "timing"
+        ]
+      },
+      "CheckinSymptom": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "site": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Site name after trimming surrounding whitespace."
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "both",
+              "na"
+            ]
+          },
+          "severity": {
+            "$ref": "#/components/schemas/CheckinMeasurement"
+          },
+          "timing": {
+            "type": "string",
+            "enum": [
+              "during",
+              "immediately_after",
+              "next_morning",
+              "hours_24_48",
+              "later",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "site",
+          "side",
+          "severity",
+          "timing"
+        ]
+      },
+      "MorningCheckinInput": {
+        "description": "A walking response is required exactly when the integer pain score is above zero.",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "observed_at",
+              "pain",
+              "walking_response"
+            ],
+            "properties": {
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "pain": {
+                "type": "integer",
+                "const": 0
+              },
+              "walking_response": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "observed_at",
+              "pain",
+              "walking_response"
+            ],
+            "properties": {
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "pain": {
+                "type": "integer",
+                "enum": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  9,
+                  10
+                ]
+              },
+              "walking_response": {
+                "$ref": "#/components/schemas/WalkingResponse"
+              }
+            }
+          }
+        ]
+      },
+      "CheckinCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "A caller-generated key. The phone-first-steps: prefix is reserved for the morning form."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CheckinKind"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp with an explicit UTC offset."
+          },
+          "fatigue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckinMeasurement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "illness": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "possible",
+                  "present"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gait_change": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unsure"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pain_reported": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context_tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckinContextTag"
+            },
+            "uniqueItems": true
+          },
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "symptoms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckinSymptomInput"
+            },
+            "maxItems": 65534
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "kind",
+          "observed_at"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "post_run",
+                    "delayed_followup"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "activity_id"
+              ],
+              "properties": {
+                "activity_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "pain_reported"
+              ],
+              "properties": {
+                "pain_reported": {
+                  "const": false
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "symptoms": {
+                  "maxItems": 0
+                }
+              }
+            }
+          }
+        ]
+      },
+      "CheckinPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CheckinKind"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp with an explicit UTC offset."
+          },
+          "fatigue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckinMeasurement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "illness": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "possible",
+                  "present"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gait_change": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unsure"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pain_reported": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context_tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckinContextTag"
+            },
+            "uniqueItems": true
+          },
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "symptoms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckinSymptomInput"
+            },
+            "maxItems": 65534
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "description": "Omitted properties retain their stored values. Morning entries are read-only. The expected version must match the stored version."
+      },
+      "CheckinView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CheckinKind"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp with an explicit UTC offset."
+          },
+          "fatigue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckinMeasurement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "illness": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "possible",
+                  "present"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gait_change": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unsure"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pain_reported": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context_tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckinContextTag"
+            },
+            "uniqueItems": true
+          },
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "symptoms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckinSymptom"
+            }
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp with an explicit UTC offset."
+          },
+          "schema_version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "idempotency_key",
+          "version",
+          "kind",
+          "observed_at",
+          "fatigue",
+          "illness",
+          "gait_change",
+          "pain_reported",
+          "context_tags",
+          "activity_id",
+          "prompt_id",
+          "note",
+          "symptoms",
+          "recorded_at",
+          "schema_version"
+        ]
+      },
+      "ReviewRecommendation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "exception_review",
+              "review_training_block",
+              "post_event_review"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "finding_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "reason",
+          "finding_ids",
+          "prompt"
+        ]
+      },
+      "CheckinDetection": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "new_finding_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "review_recommended": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewRecommendation"
+            }
+          }
+        },
+        "required": [
+          "new_finding_ids",
+          "review_recommended"
+        ]
+      },
+      "DetectedCheckin": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CheckinKind"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp with an explicit UTC offset."
+          },
+          "fatigue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckinMeasurement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "illness": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "possible",
+                  "present"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gait_change": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unsure"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pain_reported": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context_tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckinContextTag"
+            },
+            "uniqueItems": true
+          },
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "symptoms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckinSymptom"
+            }
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp with an explicit UTC offset."
+          },
+          "schema_version": {
+            "type": "integer"
+          },
+          "exceptions": {
+            "$ref": "#/components/schemas/CheckinDetection"
+          }
+        },
+        "required": [
+          "id",
+          "idempotency_key",
+          "version",
+          "kind",
+          "observed_at",
+          "fatigue",
+          "illness",
+          "gait_change",
+          "pain_reported",
+          "context_tags",
+          "activity_id",
+          "prompt_id",
+          "note",
+          "symptoms",
+          "recorded_at",
+          "schema_version",
+          "exceptions"
+        ]
+      },
+      "MorningCheckinReceiptEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "CheckinListEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CheckinView"
+                }
+              }
+            },
+            "required": [
+              "items"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "CheckinWriteEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DetectedCheckin"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      }
+    }
+  }
+}
