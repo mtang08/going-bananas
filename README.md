@@ -265,6 +265,8 @@ make check-go              # generated code, build, lint, and race-enabled tests
 make check-go-vuln         # check the Go module against the current vulnerability database
 make generate-api-types    # regenerate Go and React HTTP types and sqlc queries
 make api-schema            # print the bundled OpenAPI contract
+make test-go-integration   # run native integration tests with managed PostgreSQL
+make test-go-integration-external  # run native integration tests on a dedicated cluster
 make test-proposal-go      # smoke-test native proposal contracts, goals, and dashboard
 make test-integration      # run retained Python reference tests against isolated PostgreSQL
 python3 scripts/test_coach_skill_v2.py  # reviewed helper contract tests; no live writes
@@ -299,8 +301,9 @@ use separate ports and data directories.
 
 For an existing dedicated integration cluster, export `TEST_DATABASE_URL` and
 `MIGRATION_TEST_DATABASE_URL` as `postgresql+psycopg://` URLs for the two databases,
-then run `make test-integration-external`. The runner verifies the loopback port
-and database names before testing. Use only disposable synthetic data.
+then run `make test-go-integration-external` for the Go suite or
+`make test-integration-external` for the retained Python tests. The runner
+verifies the loopback port and database names before testing. Use only disposable synthetic data.
 
 Browser acceptance uses an isolated demo database and built frontend on port
 18000. Use a disposable demo environment, never real credentials or data:

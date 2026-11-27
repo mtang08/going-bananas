@@ -7,9 +7,14 @@ Freeze time where relevant and use independent expected values rather than
 calculating expectations with the implementation being tested.
 
 `make check` runs documentation and API type checks, the Go build, lint and race
-tests, and frontend lint, type checks, component tests and production build. Separate integration/E2E commands
-start or require disposable test databases and fail clearly if unavailable.
-No real credentials or private fixtures in tests, screenshots, traces, or CI.
+tests, and frontend lint, type checks, component tests and production build.
+No real credentials or private fixtures belong in tests, screenshots, traces, or CI.
+
+Run native integration tests with `make test-go-integration` to use the
+checkout’s managed PostgreSQL cluster. Use `make test-go-integration-external`
+with an existing dedicated loopback cluster. Both require disposable test
+databases. See [Verification setup](../README.md#verification) for the database
+names and environment variables.
 
 ## Required cases
 
