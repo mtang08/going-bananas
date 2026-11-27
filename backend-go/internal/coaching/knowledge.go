@@ -273,7 +273,7 @@ func verifyLoadedSelection(manifest map[string]any, files map[string]verifiedFil
 	chars := 0
 	for _, item := range selection {
 		f, ok := files[item.Path]
-		if !ok || f.raw == nil || (item.RecordIDs == nil) == (item.Sections == nil) {
+		if item.invalidShape || !ok || f.raw == nil || (item.RecordIDs == nil) == (item.Sections == nil) {
 			return VerifiedKnowledge{}, index, errors.New("invalid saved knowledge selection")
 		}
 		values := item.Sections
