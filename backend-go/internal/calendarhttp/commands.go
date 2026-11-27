@@ -15,6 +15,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
 	"github.com/mtang08/going-bananas/backend-go/internal/jsonmodel"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 	"io"
 	"net/http"
 	"time"
@@ -188,7 +189,11 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, name string) {
 		if err != nil {
 			return err
 		}
-		return calendar.RefreshPlans(ctx, tx, scope, now, h.Metrics)
+		metrics := h.Metrics
+		if metrics == nil {
+			metrics = refresh.PlanMetrics(now, refresh.Runs)
+		}
+		return calendar.RefreshPlans(ctx, tx, scope, now, metrics)
 	})
 	if err != nil {
 		domainError(w, err)

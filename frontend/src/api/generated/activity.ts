@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/activities/{activity_id}/workout-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getActivityWorkoutHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -211,6 +227,52 @@ export interface components {
             mode: "real" | "demo" | "test";
             data_revision: number;
             data: components["schemas"]["ActivityDetail"];
+        };
+        ProgressionPoint: {
+            /** Format: uuid */
+            session_uid: string;
+            activity_id: string | null;
+            /** Format: date */
+            local_date: string;
+            /** Format: date */
+            planned_date: string;
+            recipe_id: string | null;
+            intent: string;
+            signature: string;
+            recovery_s: number | null;
+            target_modalities: string[];
+            sport: string | null;
+            completion_status: string | null;
+            status: string;
+            reason_codes: string[];
+            quality_flags: string[];
+            interval_result_id: string | null;
+            n_planned: number | null;
+            n_completed: number | null;
+            step_completion_ratio: number | null;
+            reps_used: number | null;
+            reps_used_hr: number | null;
+            work_speed_mps: number | null;
+            work_hr_bpm: number | null;
+            work_m_per_beat: number | null;
+            cv_speed: number | null;
+            last_first_change_pct: number | null;
+            target_coverage: number | null;
+        };
+        WorkoutHistory: {
+            /** Format: uuid */
+            activity_id: string;
+            signature: string | null;
+            reason: string | null;
+            points: components["schemas"]["ProgressionPoint"][];
+        };
+        WorkoutHistoryEnvelope: {
+            /** @enum {string} */
+            schema_version: "v1";
+            /** @enum {string} */
+            mode: "real" | "demo" | "test";
+            data_revision: number;
+            data: components["schemas"]["WorkoutHistory"];
         };
         /** ValidationField */
         ValidationField: {
@@ -377,6 +439,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivityDetailEnvelope"];
+                };
+            };
+            /** @description Local guard rejection */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unknown activity */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getActivityWorkoutHistory: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                activity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description WorkoutHistory */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkoutHistoryEnvelope"];
                 };
             };
             /** @description Local guard rejection */
