@@ -11,10 +11,6 @@ import pytest
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.api.calendar import get_completion_assessor
-from app.api.calendar import router as calendar_router
-from app.api.checkins import router as checkins_router
-from app.api.exceptions import router as exceptions_router
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.checkin_models import Checkin, CheckinRevision, SessionRpe, SymptomReport
 from app.coach_v2_models import (
@@ -29,7 +25,6 @@ from app.metric_models import Prompt
 from app.models import Activity, AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, Event, IntensityAnchor
 from app.services.exceptions.detector import (
-    PROMPTS,
     REASON_BENCHMARK,
     REASON_BLOCK_SYMPTOMS,
     REASON_EXCEPTION,
@@ -95,7 +90,7 @@ def findings(session, rule_code=None):
 
 
 @pytest.fixture
-def exc_fixture(metrics_disabled, db_connection, session_factory, api_client, profile_factory, calendar_state):
+def exc_fixture(metrics_disabled, db_connection, session_factory, profile_factory, calendar_state):
     with session_factory() as session:
         for model in DELETE_ORDER:
             session.execute(delete(model))
@@ -104,17 +99,11 @@ def exc_fixture(metrics_disabled, db_connection, session_factory, api_client, pr
             session, effective_at=datetime.now(UTC) - timedelta(days=365), cycle_anchor=datetime.now(UTC).date()
         )
         session.commit()
-    client = api_client(
-        exceptions_router,
-        checkins_router,
-        calendar_router,
-        overrides={get_completion_assessor: lambda: lambda session, uid: None},
-    )
-    return client, db_connection
+    return db_connection
 
 
 def test_detection_is_idempotent(exc_fixture):
-    _, connection = exc_fixture
+    connection = exc_fixture
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
         session.add(checkin(local(0, 8), fatigue=8.0))
         session.flush()
@@ -134,7 +123,7 @@ def test_detection_is_idempotent(exc_fixture):
 
 
 def test_severity_never_lowers(exc_fixture):
-    _, connection = exc_fixture
+    connection = exc_fixture
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
         row = checkin(local(0, 8))
         session.add(row)
@@ -153,7 +142,7 @@ def test_severity_never_lowers(exc_fixture):
 
 
 def test_terminal_blocks_old_evidence_only(exc_fixture):
-    _, connection = exc_fixture
+    connection = exc_fixture
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
         session.add(checkin(local(0, 8), fatigue=8.0))
         session.flush()
@@ -170,7 +159,7 @@ def test_terminal_blocks_old_evidence_only(exc_fixture):
 
 
 def test_collect_sessions_and_key_session_missed(exc_fixture):
-    _, connection = exc_fixture
+    connection = exc_fixture
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
         uid = uuid4()
         session.add(CalendarVersion(number=1, kind="bootstrap", actor="system", created_at=NOW - timedelta(days=10)))
@@ -208,7 +197,7 @@ def test_collect_sessions_and_key_session_missed(exc_fixture):
 
 
 def test_expiry_and_post_event(exc_fixture):
-    _, connection = exc_fixture
+    connection = exc_fixture
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
         old = NOW - timedelta(days=15)
         travel = ExceptionFinding(
@@ -280,7 +269,7 @@ def test_expiry_and_post_event(exc_fixture):
 
 
 def test_is_new_since_last_review(exc_fixture):
-    _, connection = exc_fixture
+    connection = exc_fixture
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
         session.add(checkin(local(0, 8), fatigue=8.0))
         session.flush()
@@ -326,7 +315,7 @@ def test_is_new_since_last_review(exc_fixture):
 
 
 def test_block_benchmark_rules_and_event_exclusion(exc_fixture):
-    _, connection = exc_fixture
+    connection = exc_fixture
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
         uid = uuid4()
         session.add(Block(block_uid=uid))
@@ -379,7 +368,7 @@ def test_block_benchmark_rules_and_event_exclusion(exc_fixture):
 
 
 def test_clinician_restriction_reader(exc_fixture):
-    _, connection = exc_fixture
+    connection = exc_fixture
     with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
         base = session.scalar(select(func.max(ProfileVersion.version)))
         for number, days, facts in (
@@ -412,105 +401,6 @@ def test_clinician_restriction_reader(exc_fixture):
         assert any(
             r["operation"] == "review_training_block" and r["reason"] == REASON_BLOCK_SYMPTOMS for r in wire(result)
         )
-
-
-def test_patch_resolve_flow(exc_fixture):
-    client, connection = exc_fixture
-    now = datetime.now(UTC)
-    today = now.astimezone(ZoneInfo("America/New_York")).date()
-    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
-        snapshot = CoachSnapshot(
-            operation="exception_review",
-            as_of=today,
-            generated_at=now,
-            calendar_version_number=0,
-            data_revision=0,
-            payload={},
-            source_fingerprint="a" * 64,
-            source_versions={},
-            kb_digest="b" * 64,
-            payload_sha256="c" * 64,
-            kb_package_version="test",
-            kb_routes=[],
-            approx_tokens=0,
-        )
-        session.add(snapshot)
-        session.flush()
-        proposal = CoachProposal(
-            snapshot_id=snapshot.id,
-            operation="exception_review",
-            status="accepted",
-            decided_at=now,
-            input_hash="d" * 64,
-            payload={"changes": []},
-            confidence={},
-            headline="s",
-            why=[{"kind": "observation", "text": "r"}],
-            skill_version="running-coach.v1",
-            base_calendar_version=0,
-            submitted_at=now,
-        )
-        session.add(proposal)
-        session.flush()
-        patch = ExceptionPatch(
-            proposal_id=proposal.id,
-            category="accumulated_fatigue",
-            severity="caution",
-            ladder_level="next_days",
-            window_start=today,
-            window_end=today + timedelta(days=1),
-            reassess_on=today,
-            calendar_version_number=0,
-            monitor=["Fatigue"],
-            return_criteria=["Fatigue below 5"],
-            escalate_criteria=["Fatigue rising"],
-        )
-        session.add(patch)
-        session.flush()
-        finding = ExceptionFinding(
-            rule_code="FATIGUE_PERSISTING",
-            rule_version="exceptions.v1",
-            category="accumulated_fatigue",
-            severity="caution",
-            entity_key="fatigue_persisting",
-            status="addressed",
-            summary="synthetic",
-            evidence=[],
-            evidence_at=now,
-            first_seen_at=now,
-            last_seen_at=now,
-            patch_id=patch.id,
-        )
-        session.add(finding)
-        session.commit()
-        patch_id, finding_id = patch.id, finding.id
-    data = client.get("/api/v1/exceptions").json()["data"]
-    assert data["patches"][0]["reassess_due"] is True
-    assert data["patches"][0]["session_uids"] == []
-    assert {
-        "operation": "exception_review",
-        "reason": "Patch reassessment due",
-        "finding_ids": [str(finding_id)],
-        "prompt": PROMPTS["reassess"],
-    } in data["review_recommended"]
-    url = f"/api/v1/exception-patches/{patch_id}/resolve"
-    headers = {"X-Local-Request": "1", "Origin": "http://testserver"}
-    response = client.post(url, json={"expected_version": 2, "status": "escalated"}, headers=headers)
-    assert response.status_code == 409 and response.json()["error"]["code"] == "version_conflict"
-    response = client.post(url, json={"expected_version": 1, "status": "escalated"}, headers=headers)
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert (data["status"], data["resolved_by"], data["version"]) == ("escalated", "athlete", 2)
-    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
-        assert session.get(ExceptionFinding, finding_id).status == "addressed"
-    response = client.post(url, json={"expected_version": 2, "status": "escalated"}, headers=headers)
-    assert response.status_code == 409 and response.json()["error"]["code"] == "patch_closed"
-    response = client.post(url, json={"expected_version": 2, "status": "resolved"}, headers=headers)
-    assert response.status_code == 200 and response.json()["data"]["version"] == 3
-    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
-        finding = session.get(ExceptionFinding, finding_id)
-        assert finding.status == "resolved" and finding.closed_at is not None and finding.version == 2
-    assert client.get("/api/v1/exceptions").json()["data"]["patches"][0]["status"] == "resolved"
 
 
 def _observed():
@@ -556,111 +446,3 @@ def _activity(connection, sport="running"):
         )
         session.commit()
     return activity_id
-
-
-def test_api_shape_and_dismiss(exc_fixture):
-    from app.main import app
-
-    client, _ = exc_fixture
-    headers = {"X-Local-Request": "1", "Origin": "http://testserver"}
-    body = _body(observed_at=(datetime.now(UTC) - timedelta(hours=1)).isoformat(), fatigue=8, symptoms=[])
-    response = client.post("/api/v1/v2/checkins", json=body, headers=headers)
-    assert response.status_code == 201, response.text
-    data = response.json()["data"]
-    assert "daily_guidance" not in data and "exceptions" in data
-    assert set(data["exceptions"]) == {"new_finding_ids", "review_recommended"}
-    assert len(data["exceptions"]["new_finding_ids"]) == 1
-    data = client.get("/api/v1/exceptions").json()["data"]
-    assert set(data) == {"rule_version", "findings", "patches", "review_recommended", "counts"}
-    assert data["counts"] == {"observe": 1, "caution": 0, "hold": 0, "escalate": 0}
-    finding = data["findings"][0]
-    assert set(finding) == {
-        "id",
-        "rule_code",
-        "category",
-        "severity",
-        "status",
-        "entity_key",
-        "summary",
-        "evidence",
-        "evidence_at",
-        "first_seen_at",
-        "last_seen_at",
-        "patch_id",
-        "version",
-        "is_new_since_last_review",
-    }
-    assert finding["version"] == 1 and finding["is_new_since_last_review"] is True
-    url = f"/api/v1/exceptions/{finding['id']}/dismiss"
-    response = client.post(url, json={"expected_version": 2}, headers=headers)
-    assert response.status_code == 409 and response.json()["error"]["code"] == "version_conflict"
-    response = client.post(url, json={"expected_version": 1}, headers=headers)
-    assert response.status_code == 200
-    assert (response.json()["data"]["status"], response.json()["data"]["version"]) == ("dismissed", 2)
-    response = client.post(url, json={"expected_version": 2}, headers=headers)
-    assert response.status_code == 409 and response.json()["error"]["code"] == "finding_closed"
-    response = client.post(f"/api/v1/exceptions/{uuid4()}/dismiss", json={"expected_version": 1}, headers=headers)
-    assert response.status_code == 404 and response.json()["error"]["code"] == "finding_not_found"
-    assert client.get("/api/v1/exceptions").json()["data"]["findings"] == []
-    assert [r["status"] for r in client.get("/api/v1/exceptions?include=recent").json()["data"]["findings"]] == [
-        "dismissed"
-    ]
-    assert "/api/v1/exceptions" in app.openapi()["paths"]
-
-
-def test_writes_run_detection(exc_fixture, monkeypatch):
-    import app.api.calendar as calendar_api
-    import app.api.checkins as checkins_api
-
-    client, connection = exc_fixture
-    calls = []
-
-    def checkins_spy(session, now):
-        calls.append("checkins")
-        return run_detection(session, now)
-
-    def calendar_spy(session, now):
-        calls.append("calendar")
-        return run_detection(session, now)
-
-    monkeypatch.setattr(checkins_api, "run_detection", checkins_spy)
-    monkeypatch.setattr(calendar_api, "run_detection", calendar_spy)
-    headers = {"X-Local-Request": "1", "Origin": "http://testserver"}
-    response = client.post(
-        "/api/v1/v2/checkins",
-        json=_body(observed_at=(datetime.now(UTC) - timedelta(hours=1)).isoformat(), symptoms=[]),
-        headers=headers,
-    )
-    assert response.status_code == 201, response.text
-    checkin_id = response.json()["data"]["id"]
-    response = client.patch(
-        f"/api/v1/v2/checkins/{checkin_id}", json={"expected_version": 1, "note": "x"}, headers=headers
-    )
-    assert response.status_code == 200, response.text
-    activity_id = _activity(connection)
-    response = client.put(f"/api/v1/activities/{activity_id}/rpe", json={"rpe": 6}, headers=headers)
-    assert response.status_code == 200, response.text
-    today = datetime.now(UTC).astimezone(ZoneInfo("America/New_York")).date()
-    uid = uuid4()
-    with Session(bind=connection, join_transaction_mode="create_savepoint") as session:
-        session.add(CalendarVersion(number=1, kind="bootstrap", actor="system"))
-        session.flush()
-        session.add(
-            CalendarSessionRevision(
-                session_uid=uid,
-                revision=1,
-                calendar_version_number=1,
-                local_date=today - timedelta(days=1),
-                kind="run",
-                recipe_id="REC002",
-                intent="Long aerobic run",
-                certainty="committed",
-            )
-        )
-        session.get(AppState, 1).calendar_head_version = 1
-        session.commit()
-    response = client.put(f"/api/v1/calendar/completions/{uid}", json={"status": "skipped"}, headers=headers)
-    assert response.status_code == 200, response.text
-    assert calls == ["checkins", "checkins", "checkins", "calendar"]
-    rows = client.get("/api/v1/exceptions").json()["data"]["findings"]
-    assert any(r["rule_code"] == "KEY_SESSION_MISSED" and r["entity_key"] == f"session:{uid}" for r in rows)

@@ -32,6 +32,7 @@ from app.planning_models import Event, Goal, IntensityAnchor, StrengthRoutineSlo
 from app.read.calendar import head_version
 from app.read.strength_omissions import accepted_strength_omissions
 from app.read.workout_feedback import reminder_status
+from app.services import knowledge
 from app.services.block_benchmark import active_block_version
 from app.services.profile import current_profile
 from app.services.strength_routine import routine_occurrences
@@ -47,6 +48,10 @@ class VerifiedKnowledge:
     policy_ids: frozenset[str]
     recipe_ids: frozenset[str]
     evidence_ids: frozenset[str]
+
+
+def resolve_kb(selection: tuple[dict, ...]) -> VerifiedKnowledge:
+    return VerifiedKnowledge(**knowledge.verify_selection(selection))
 
 
 KnowledgeResolver = Callable[[tuple[dict, ...]], VerifiedKnowledge]

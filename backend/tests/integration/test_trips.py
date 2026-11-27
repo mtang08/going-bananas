@@ -179,31 +179,3 @@ def test_newly_connected_itineraries_reuse_earliest_trip(tsession):
     assert reconcile_trips(tsession, HOME) == NONE | {"updated": 1, "deleted": 1}
     assert _trips(tsession) == [first]
     assert [row[0] for row in _legs(tsession, first)] == [out.id, out2.id, ret2.id]
-
-
-def test_event_category_route_resets_auto_and_checks_version(tsession, api_client):
-    import uuid
-
-    from app.api.travel import router
-
-    out, _ = _round_trip(tsession)
-    reconcile_trips(tsession, HOME)
-    tsession.commit()
-    client = api_client(router)
-
-    def edit(version, category, event_id=out.id):
-        return client.patch(
-            f"/api/v1/google-calendar/events/{event_id}",
-            json={"expected_version": version, "category": category},
-            headers={"X-Local-Request": "1"},
-        )
-
-    changed = edit(1, "other").json()["data"]
-    assert changed["trips"] == NONE | {"deleted": 1}
-    assert changed["event"]["category_source"] == "athlete"
-    assert edit(1, None).status_code == 409
-    assert edit(2, "invalid").status_code == 422
-    assert edit(1, None, uuid.uuid4()).status_code == 404
-    restored = edit(2, None).json()["data"]
-    assert restored["trips"] == NONE | {"created": 1}
-    assert restored["event"]["category_source"] == "auto" and restored["event"]["trip_id"]

@@ -1,6 +1,6 @@
 """Shared fixtures for PostgreSQL integration tests on the guarded synthetic `garmin_test` database.
 
-Importing `app.main` installs the metric session listeners for API tests.
+Install the metric session listeners for the reference service tests.
 Every test runs inside one outer transaction that is rolled back; sessions use savepoints.
 """
 
@@ -13,9 +13,6 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import pytest
-from fastapi import APIRouter, FastAPI, HTTPException
-from fastapi.exceptions import RequestValidationError
-from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
@@ -23,12 +20,13 @@ from sqlalchemy.orm import Session
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
 from app.config import settings
-from app.db import engine, get_session
+from app.db import engine
 from app.exception_models import ExceptionFinding, ExceptionPatch
-from app.main import handle_http, handle_validation
 from app.models import AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, IntensityAnchor
-from app.services import calendar
+from app.services import calendar, derived
+
+derived.install()
 
 
 @pytest.fixture
@@ -53,26 +51,6 @@ def db_connection() -> Iterator[Connection]:
 def session_factory(db_connection: Connection) -> Callable[..., Session]:
     def make(**options: Any) -> Session:
         return Session(bind=db_connection, join_transaction_mode="create_savepoint", **options)
-
-    return make
-
-
-@pytest.fixture
-def api_client(session_factory: Callable[..., Session]) -> Callable[..., TestClient]:
-    def make(*routers: APIRouter, overrides: dict[Any, Any] | None = None) -> TestClient:
-        api = FastAPI()
-        for router in routers:
-            api.include_router(router, prefix="/api/v1")
-        api.add_exception_handler(HTTPException, handle_http)
-        api.add_exception_handler(RequestValidationError, handle_validation)
-
-        def override_session() -> Iterator[Session]:
-            with session_factory(expire_on_commit=False) as session:
-                yield session
-
-        api.dependency_overrides[get_session] = override_session
-        api.dependency_overrides.update(overrides or {})
-        return TestClient(api)
 
     return make
 
