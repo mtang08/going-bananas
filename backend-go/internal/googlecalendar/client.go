@@ -26,10 +26,10 @@ const (
 )
 
 type Config struct {
-	PrivateDir          string
-	EventsURL, TokenURL string
-	HTTPClient          *http.Client
-	Now                 func() time.Time
+	PrivateDir                        string
+	EventsURL, TokenURL, CalendarsURL string
+	HTTPClient                        *http.Client
+	Now                               func() time.Time
 }
 
 type Client struct {
@@ -44,6 +44,9 @@ func New(privateDir string) *Client { return NewWithConfig(Config{PrivateDir: pr
 func NewWithConfig(cfg Config) *Client {
 	if cfg.EventsURL == "" {
 		cfg.EventsURL = eventsURL
+	}
+	if cfg.CalendarsURL == "" {
+		cfg.CalendarsURL = "https://www.googleapis.com/calendar/v3/users/me/calendarList"
 	}
 	if cfg.TokenURL == "" {
 		cfg.TokenURL = tokenURL
@@ -177,20 +180,9 @@ func (c *Client) Fetch(ctx context.Context, w travel.Window) ([]json.RawMessage,
 			}
 		}
 		u.RawQuery = q.Encode()
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-		if err != nil {
-			return nil, failure("gcal_remote_error")
-		}
-		req.Header.Set("Authorization", "Bearer "+creds.Token)
-		if creds.QuotaProjectID != "" {
-			req.Header.Set("x-goog-user-project", creds.QuotaProjectID)
-		}
-		body, headers, status, err := request(c, req)
+		body, err := c.get(ctx, u.String(), &creds)
 		if err != nil {
 			return nil, err
-		}
-		if status != 200 {
-			return nil, calendarError(body, headers, status)
 		}
 		page, err := pageBody(body, q.Get("pageToken"))
 		if err != nil {
@@ -211,4 +203,32 @@ func (c *Client) Fetch(ctx context.Context, w travel.Window) ([]json.RawMessage,
 		q.Set("pageToken", page.Next)
 	}
 	return nil, failure("gcal_invalid_response")
+}
+
+func (c *Client) get(ctx context.Context, endpoint string, creds *credentials) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, failure("gcal_remote_error")
+	}
+	for attempt := 0; ; attempt++ {
+		req.Header.Set("Authorization", "Bearer "+creds.Token)
+		if creds.QuotaProjectID != "" {
+			req.Header.Set("x-goog-user-project", creds.QuotaProjectID)
+		}
+		body, headers, status, err := request(c, req)
+		if err != nil {
+			return nil, err
+		}
+		if status == 200 {
+			return body, nil
+		}
+		if status != http.StatusUnauthorized || attempt > 0 {
+			return nil, calendarError(body, headers, status)
+		}
+		renewed, err := c.authorizeAfter(ctx, creds.Token)
+		if err != nil {
+			return nil, err
+		}
+		*creds = renewed
+	}
 }

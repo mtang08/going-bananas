@@ -1,0 +1,8 @@
+calendar name=<primary> access_role=owner primary=true
+calendar name=<X> access_role=reader primary=false
+event type=fromGmail kind=timed start_tz=America/New_York end_tz=America/Los_Angeles transparency=opaque response=accepted dur_h=6.5 title="Flight to <X> (<AA> <N>)" location="<IATA> <X> <N>"
+event type=fromGmail kind=all_day start_tz=- end_tz=- transparency=transparent response=- dur_h=96.0 title="Stay at <X>" location="<X>, <N> <X>"
+event type=default kind=timed start_tz=- end_tz=- transparency=opaque response=declined dur_h=1.0 title="<X>" location="-"
+event type=focusTime kind=timed start_tz=- end_tz=- transparency=transparent response=- dur_h=2.0 title="<X>" location="-"
+event type=outOfOffice kind=timed start_tz=- end_tz=- transparency=opaque response=- dur_h=120.0 title="Out of office" location="-"
+summary events=5 default=1 focusTime=1 fromGmail=2 outOfOffice=1 tz_differs=1 tz_missing=3

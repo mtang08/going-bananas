@@ -149,7 +149,7 @@ Preview an account export with `go run ./cmd/import-export ARCHIVE` and apply it
 
 ### Google Calendar provider and travel contracts
 
-Pass `googlecalendar.New(privateDir)` to the travel HTTP service. The client reads the existing calendar-connect token, checks permissions, refreshes credentials, and follows event pages until it has a complete window. Use `NewWithConfig` for a synthetic HTTP endpoint and clock. From `frontend`, run `npm run check:travel-types` to verify the [Go-owned seven-route contract](../backend-go/api/travel.openapi.json) against its [generated TypeScript](../frontend/src/api/generated/travel.ts). [Client and tests](../backend-go/internal/googlecalendar)
+Pass `googlecalendar.New(privateDir)` to the travel HTTP service. From `backend-go`, `go run ./cmd/calendar calendar-connect [--no-browser]` uses loopback OAuth consent with PKCE and writes a private token. `go run ./cmd/calendar calendar-probe --days 60` prints masked calendar and event diagnostics. Both commands require explicit real mode for operation. The client checks file permissions, rotates expired or rejected credentials and follows event pages until it has a complete window. Use `NewWithConfig` for a synthetic HTTP endpoint and clock. From `frontend`, run `npm run check:travel-types` to verify the [Go-owned seven-route contract](../backend-go/api/travel.openapi.json) against its [generated TypeScript](../frontend/src/api/generated/travel.ts). [Client and tests](../backend-go/internal/googlecalendar)
 
 ### Phone and check-in integration
 
@@ -158,3 +158,13 @@ Register `checkinhttp.Handler{Store: checkins.NewStore(pool, nil, refresh.Runs),
 ### Workspace backup and restore
 
 From `backend-go`, run `go run ./cmd/workspace-backup backup OUTPUT.tar.gz` with the intended `DATABASE_URL` and `PRIVATE_DIR`. Restore with `go run ./cmd/workspace-backup restore OUTPUT.tar.gz --target-database-name NEW_DATABASE --target-private-dir NEW_DIRECTORY`. Both targets must be new. The version-one archive contains a PostgreSQL custom-format dump, an allowlisted private file tree and SHA-256 checksums. The command uses the installed PostgreSQL client tools. Run `python3 scripts/test-db.py backup` to cross-restore synthetic archives with the Python implementation. [Backup package](../backend-go/internal/backup) · [Cross-restore scenario](../scripts/rewrite/check_workspace_backup.py)
+
+### Additional HTTP registrations
+
+The main server supplies the local Host, Origin and write guards to all three registries.
+
+| Registry | Routes and behavior | Synthetic verification |
+| --- | --- | --- |
+| `synchttp.New(pool, mode, privateDir).Register(mux)` | Sync status, job lookup, enqueue, treadmill preview and confirmation. Confirmation persists the reviewed summary, FIT and lap paces with its queue and metric updates. | `python3 scripts/test-db.py sync-http` |
+| `httpapi.ExceptionRoutes{Pool: pool, Mode: mode}.Register(mux)` | Reading findings runs detection. Dismissal and patch resolution validate the expected version and update linked findings in the same transaction. For a read-only projection, call `exceptions.View(ctx, tx, now, include)`. | `python3 scripts/test-db.py exception-http` and `python3 scripts/test-db.py exception-view` |
+| `loginstartup.Local(absoluteRepoRoot, mode).Register(mux)` | Read or update the macOS login-startup preference. The OS adapter checks the current checkout's launch agent and writes its plist atomically. | From `backend-go`, run `go test -race ./internal/loginstartup` for the Python HTTP and simulated launchd cases. |
