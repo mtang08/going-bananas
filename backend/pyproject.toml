@@ -6,11 +6,6 @@ dependencies = [
   "sqlalchemy>=2.0,<3",
   "psycopg[binary]>=3.2,<4",
   "alembic>=1.13,<2",
-  "pydantic>=2.8,<3",
-  "garmin-connect-personal-api-python>=1,<2",
-  "garmin-fit-sdk==21.221.0",
-  "google-auth-oauthlib>=1.2,<2",
-  "requests>=2.31,<3",
 ]
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.8,<1", "mypy>=1.13,<2"]
@@ -20,7 +15,7 @@ line-length = 120
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-markers = ["integration: needs a migrated PostgreSQL test database (auto-applied by tests/conftest.py)"]
+markers = ["integration: needs a migrated PostgreSQL test database"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
@@ -32,6 +27,4 @@ exclude = ["migrations/**"]
 "app/coach_v2_models.py" = ["E501"]
 "app/exception_models.py" = ["E501"]
 "app/planning_models.py" = ["E501"]
-"app/services/exceptions/detector.py" = ["E501"]
 "tests/integration/test_schema_upgrade.py" = ["E501"]
-"tests/unit/test_exception_prompts.py" = ["E501"]

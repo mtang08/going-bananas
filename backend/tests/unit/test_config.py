@@ -12,11 +12,7 @@ def test_mode_database_suffix_guard():
 def test_settings_read_environment_on_construction(monkeypatch, tmp_path):
     monkeypatch.setenv("APP_MODE", "test")
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@localhost/garmin_test")
-    monkeypatch.setenv("APP_PORT", "8123")
-    monkeypatch.setenv("VITE_PORT", "5999")
     monkeypatch.setenv("PRIVATE_DIR", str(tmp_path))
     s = Settings()
     assert s.app_mode == "test"
-    assert s.port == 8123
-    assert s.vite_port == 5999
     assert s.private_dir == tmp_path.resolve()
