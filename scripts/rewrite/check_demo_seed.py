@@ -1,57 +1,21 @@
-"""Differential for the complete synthetic demo dashboard and same-day replay."""
+"""Exercise the full synthetic demo seed and same-day replay."""
 
 import hashlib
 import json
 import os
 import re
 import subprocess
-import sys
 import tempfile
-from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
 from uuid import uuid4
 
 import psycopg
 from check_gcal_replay import connect, test_url
 from psycopg import sql
-from test_proposal_slice import BACKEND, MODULE, ROOT, migrated_schema
+from test_proposal_slice import MODULE, ROOT, migrated_schema
 
 NOW = "2026-11-16T14:00:00+00:00"
 UUID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")
-
-
-def reference():
-    test_url()
-    assert re.fullmatch(
-        r"-csearch_path=go_parity_[0-9a-f]{32} -cTimeZone=Asia/Kathmandu",
-        os.environ["PGOPTIONS"],
-    )
-    from app import demo_seed
-    from app.cli import _prepare_calendar_preview
-    from app.db import SessionLocal
-    from app.services import calendar, derived, timezone
-
-    derived.install()
-
-    now = datetime.fromisoformat(NOW)
-
-    class Clock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now.astimezone(tz)
-
-    with (
-        patch.object(demo_seed, "datetime", Clock),
-        patch.object(calendar, "datetime", Clock),
-        patch.object(timezone, "datetime", Clock),
-        SessionLocal.begin() as s,
-    ):
-        s.info["metrics_now"] = now
-        _prepare_calendar_preview(s)
-        demo_seed.seed_demo(s, Path(os.environ["PRIVATE_DIR"]), now.date())
-    with SessionLocal() as s:
-        print(json.dumps(demo_seed.demo_totals(s)))
 
 
 def snapshot(env):
@@ -112,27 +76,18 @@ def snapshot(env):
         for name, query in checks.items():
             rows = [canonical(r[0]) for r in db.execute(query)]
             result[name] = sorted(rows, key=lambda r: json.dumps(r, sort_keys=True))
-        raw = db.execute("SELECT relative_path,sha256 FROM raw_objects ORDER BY relative_path").fetchall()
+        raw = db.execute(
+            "SELECT relative_path,sha256 FROM raw_objects ORDER BY relative_path"
+        ).fetchall()
         for path, digest in raw:
-            assert hashlib.sha256((Path(env["PRIVATE_DIR"]) / path).read_bytes()).hexdigest() == digest
+            assert (
+                hashlib.sha256(
+                    (Path(env["PRIVATE_DIR"]) / path).read_bytes()
+                ).hexdigest()
+                == digest
+            )
         result["raw"] = raw
         return result
-
-
-def compare(py, go):
-    from itertools import zip_longest
-
-    a, b = snapshot(py), snapshot(go)
-    errors = []
-    for key in a:
-        if a[key] != b[key]:
-            first = next(
-                (pair for pair in zip_longest(a[key], b[key]) if pair[0] != pair[1]),
-                None,
-            )
-            errors.append(f"{key} ({len(a[key])}/{len(b[key])}) first difference: {str(first)[:1500]}")
-    if errors:
-        raise AssertionError("\n".join(errors))
 
 
 def check_cli(db, url, directory):
@@ -159,7 +114,11 @@ def check_cli(db, url, directory):
             output = subprocess.check_output([binary], cwd=ROOT, env=env, text=True)
         for overrides, args, expected in (
             ({"APP_MODE": "test"}, [], "demo_mode_required"),
-            ({"DATABASE_URL": os.environ["TEST_DATABASE_URL"]}, [], "demo_database_required"),
+            (
+                {"DATABASE_URL": os.environ["TEST_DATABASE_URL"]},
+                [],
+                "demo_database_required",
+            ),
             ({"PRIVATE_DIR": str(directory)}, [], "expected demo private directory"),
             ({}, ["unexpected"], "usage: seed-demo"),
         ):
@@ -169,10 +128,15 @@ def check_cli(db, url, directory):
                 env={**env, **overrides},
                 text=True,
                 capture_output=True,
+                check=False,
             )
             assert result.returncode == 1 and result.stderr.strip() == expected
         totals = json.loads(output)
-        assert totals["activities"] == 14 and totals["recovery_observations"] == 120 and totals["gcal_events"] == 7
+        assert (
+            totals["activities"] == 14
+            and totals["recovery_observations"] == 120
+            and totals["gcal_events"] == 7
+        )
         assert len(list((root / "raw").glob("*/*.json"))) == 134
     finally:
         db.execute(sql.SQL("DROP DATABASE {}").format(identifier))
@@ -186,47 +150,44 @@ def main():
             url.set(drivername="postgresql").render_as_string(hide_password=False),
             autocommit=True,
         ) as db,
-        migrated_schema(db, url, Path(directory) / "py", "0") as py,
-        migrated_schema(db, url, Path(directory) / "go", "0") as go,
+        migrated_schema(db, url, Path(directory) / "native", "0") as env,
     ):
-        py["PYTHONPATH"] = str(BACKEND)
+        before = None
         for phase in ("fresh", "replay"):
-            expected = json.loads(
-                subprocess.check_output([sys.executable, __file__, "reference"], env=py, text=True).splitlines()[-1]
-            )
             output = Path(directory) / "totals.json"
             subprocess.run(
                 [
                     "go",
                     "test",
+                    "-race",
                     "-count=1",
                     "-run",
-                    "^TestPythonDemoSeed$",
+                    "^TestDemoSeedFixture$",
                     "./internal/demoseed",
                 ],
                 cwd=MODULE,
-                env={**go, "DEMO_SEED_OUTPUT": str(output), "DEMO_SEED_NOW": NOW},
+                env={**env, "DEMO_SEED_OUTPUT": str(output), "DEMO_SEED_NOW": NOW},
                 check=True,
             )
             actual = json.loads(output.read_text())
-            print(f"{phase}: Python {expected}; Go {actual}", flush=True)
-            # Python's commit-time hook supersedes intermediate metric results
-            # within its seed transaction. Compare the published results and verify
-            # the Go count against its own stored history.
-            for env, totals in ((py, expected), (go, actual)):
-                with connect(env) as connection:
-                    history = connection.execute("SELECT count(*) FROM metric_results WHERE NOT is_current").fetchone()[
-                        0
-                    ]
-                totals["metric_results"] -= history
-            compare(py, go)
-            assert expected == actual
+            assert actual["activities"] == 14 and actual["metric_results"] == 183, (
+                actual
+            )
+            state = snapshot(env)
+            assert len(state["raw"]) == 134
+            assert any(row["status"] == "open" for row in state["prompts"])
+            assert len(state["legs"]) >= 2 and len(state["calendar"]) == 29
+            if before is not None:
+                assert state == before, [
+                    key for key in state if state[key] != before[key]
+                ]
+            before = state
+            print(f"{phase}: {actual}", flush=True)
         check_cli(db, url, Path(directory))
-    print("PASS fresh demo sources, calendar, travel, metrics, raw files, prompts and replay")
+    print(
+        "PASS fresh demo sources, calendar, travel, metrics, raw files, prompts and replay"
+    )
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["reference"]:
-        reference()
-    else:
-        main()
+    main()

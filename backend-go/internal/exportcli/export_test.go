@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mtang08/going-bananas/backend-go/internal/garmin"
 	"github.com/mtang08/going-bananas/backend-go/internal/garmin/replay"
 	"github.com/mtang08/going-bananas/backend-go/internal/garmincli"
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
@@ -42,6 +43,10 @@ func TestExportFixture(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), "SELECT current_schema()").Scan(&schema); err != nil || !regexp.MustCompile(`^go_parity_[0-9a-f]{32}$`).MatchString(schema) {
 		t.Fatal("expected a disposable schema")
 	}
+	if os.Getenv("EXPORT_SEED") == "1" {
+		seedAPIRecords(t, pool)
+		return
+	}
 	args := []string{file}
 	if os.Getenv("EXPORT_APPLY") == "1" {
 		args = append(args, "--apply")
@@ -59,6 +64,30 @@ func TestExportFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(os.Getenv("PRIVATE_DIR"), "fixture-result.json"), out.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedAPIRecords(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	inputs := map[string]garmin.Record{
+		"activities": {
+			"activityId": 1234, "ownerId": 777, "activityType": map[string]any{"typeKey": "running"},
+			"startTimeGMT": "2026-11-13T08:00:00Z", "distance": 2000, "elapsedDuration": 300,
+		},
+		"hrv": {"userProfilePk": 777, "calendarDate": "2026-11-13", "lastNightAvg": 74},
+	}
+	err := pgx.BeginTxFunc(t.Context(), pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+		for _, dataset := range []string{"activities", "hrv"} {
+			_, err := replay.ApplyJobPage(t.Context(), tx, os.Getenv("PRIVATE_DIR"), dataset,
+				"garmin-owner:777", []garmin.Record{inputs[dataset]}, time.Date(2026, 11, 13, 0, 0, 0, 0, time.UTC))
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 }

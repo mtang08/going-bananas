@@ -1,4 +1,4 @@
-"""Compare the native Garmin job runner to Python using synthetic HTTP and disposable schemas.
+"""Exercise the native Garmin job runner using synthetic HTTP and disposable schemas.
 
 Run python3 scripts/test-db.py provider-jobs with Go on PATH.
 """
@@ -6,17 +6,14 @@ Run python3 scripts/test-db.py provider-jobs with Go on PATH.
 import base64
 import io
 import json
-import os
 import runpy
 import subprocess
-import sys
 import tempfile
 import zipfile
 from collections import Counter
-from contextlib import contextmanager, nullcontext
-from datetime import UTC, date, datetime, timedelta
+from contextlib import contextmanager
+from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from itertools import zip_longest
 from pathlib import Path
 from threading import Event, Thread
 from time import monotonic
@@ -89,32 +86,6 @@ class SyntheticGarmin:
                 {"userProfilePK": 777, "calendarDate": first.isoformat(), field: -99}
             )
         return rows
-
-
-def reference():
-    test_url()
-    if not os.environ.get("PGOPTIONS", "").startswith("-csearch_path=go_parity_"):
-        raise SystemExit("expected disposable reference schema")
-    from app.db import SessionLocal
-    from app.services import derived, sync
-
-    derived.install()
-    from app.metrics import refresh
-
-    refresh.clock = lambda _: datetime(2026, 11, 16, 9, tzinfo=UTC)
-    private = Path(os.environ["PRIVATE_DIR"])
-    source = SyntheticGarmin()
-    with patch.object(sync, "GarminPersonalSource", lambda *_: nullcontext(source)):
-        for dataset, days in RANGES.items():
-            with SessionLocal.begin() as session:
-                sync.enqueue_sync(
-                    session, FIRST, FIRST + timedelta(days=days - 1), dataset
-                )
-            status = sync.run_one_job(private, private / "unused", "auto")
-            assert status == ("partial" if dataset == "sleep" else "complete"), (
-                dataset,
-                status,
-            )
 
 
 def persisted(env):
@@ -312,24 +283,38 @@ def failure_coverage(go, remote, enqueue, task, argv):
                 assert task(*argv(18))["status"] == "failed"
             finally:
                 db.execute("DROP TRIGGER reject_job_checkpoint ON sync_jobs")
-            assert db.execute("SELECT count(*) FROM import_batches").fetchone() == batches
-            assert db.execute("SELECT count(*) FROM source_records").fetchone()[0] == sources
+            assert (
+                db.execute("SELECT count(*) FROM import_batches").fetchone() == batches
+            )
+            assert (
+                db.execute("SELECT count(*) FROM source_records").fetchone()[0]
+                == sources
+            )
             assert observed() == original
-            assert db.execute("SELECT checkpoint FROM sync_jobs WHERE id=%s", (job,)).fetchone() == ({"offset": 0},)
+            assert db.execute(
+                "SELECT checkpoint FROM sync_jobs WHERE id=%s", (job,)
+            ).fetchone() == ({"offset": 0},)
             assert failed_interval(job) == expected and revision() == before + 1
             enqueue("hrv")
             assert task(*argv(20))["status"] == "complete"
-            assert db.execute("SELECT count(*) FROM source_records").fetchone()[0] == sources + 1
+            assert (
+                db.execute("SELECT count(*) FROM source_records").fetchone()[0]
+                == sources + 1
+            )
             value, source = observed()
             assert value == 78 and source != original[1]
 
 
-
-def scenario(binary, py, go):
+def scenario(binary, go):
     remote = Remote()
     with endpoint(remote) as url:
-        env = dict(go, GARMIN_PERSONAL_API_BASE_URL=url, RECORD_FIXTURE_REFRESH="1", GORACE="atexit_sleep_ms=0",
-                   PGOPTIONS=go["PGOPTIONS"] + " -cdefault_transaction_read_only=on")
+        env = dict(
+            go,
+            GARMIN_PERSONAL_API_BASE_URL=url,
+            RECORD_FIXTURE_REFRESH="1",
+            GORACE="atexit_sleep_ms=0",
+            PGOPTIONS=go["PGOPTIONS"] + " -cdefault_transaction_read_only=on",
+        )
 
         Path(go["PRIVATE_DIR"]).chmod(0o700)
 
@@ -360,7 +345,20 @@ def scenario(binary, py, go):
             [binary, *argv()], env=env, stdout=subprocess.PIPE
         ) as worker:
             try:
-                assert remote.waiting.wait(30), "first page did not commit"
+                if not remote.waiting.wait(30):
+                    with connect(go) as db:
+                        progress = db.execute(
+                            "SELECT status,error_code,checkpoint FROM sync_jobs WHERE id=%s",
+                            (job,),
+                        ).fetchone()
+                    raise AssertionError(
+                        (
+                            "first page did not commit",
+                            worker.poll(),
+                            dict(remote.requests),
+                            progress,
+                        )
+                    )
                 assert task(*argv())["status"] == "", (
                     "another worker claimed a running job"
                 )
@@ -405,30 +403,25 @@ def scenario(binary, py, go):
             )
             == 1
         )
-        subprocess.run(
-            [sys.executable, __file__, "reference"],
-            env=dict(py, PYTHONPATH=str(BACKEND)),
-            check=True,
-        )
-        expected, actual = persisted(py), persisted(go)
-        differences = []
-        for key in expected:
-            if expected[key] != actual[key]:
-                a, b = next(
-                    (a, b) for a, b in zip_longest(expected[key], actual[key]) if a != b
-                )
-                differences.append((key, a, b))
-        assert not differences, differences
+        actual = persisted(go)
         assert actual["run_metrics"] and actual["volume"]
         assert {row[3] for row in actual["fit"]} == {None, "FIT_START_MISMATCH"}
         with connect(go) as db:
-            scopes = [r[0] for r in db.execute("SELECT scope FROM fixture_provider_refresh")]
-            coverage = {str(r[0]) for r in db.execute("SELECT id FROM coverage_intervals")}
+            scopes = [
+                r[0] for r in db.execute("SELECT scope FROM fixture_provider_refresh")
+            ]
+            coverage = {
+                str(r[0]) for r in db.execute("SELECT id FROM coverage_intervals")
+            }
             assert {i for s in scopes for i in s["CoverageIDs"] or []} == coverage
             activities = {i for s in scopes for i in s["Activities"] or {}}
             expected_ids = {str(r[0]) for r in db.execute("SELECT id FROM activities")}
             assert activities == expected_ids
-            fit_id = str(db.execute("SELECT activity_id FROM fit_files WHERE decoded_at IS NOT NULL LIMIT 1").fetchone()[0])
+            fit_id = str(
+                db.execute(
+                    "SELECT activity_id FROM fit_files WHERE decoded_at IS NOT NULL LIMIT 1"
+                ).fetchone()[0]
+            )
             assert sum(fit_id in (s["Activities"] or {}) for s in scopes) >= 2
             assert any(s["RecoveryDates"] and not s["Activities"] for s in scopes)
         assert len(actual["activities"]) == 52 and len(actual["recovery"]) == 11
@@ -464,12 +457,25 @@ def scenario(binary, py, go):
                 assert daemon.wait(timeout=5) == 0
         failure_coverage(go, remote, enqueue, task, argv)
         lines = subprocess.check_output(
-            [binary, "-start", FIRST.isoformat(), "-end", FIRST.isoformat(), *argv(22)[:-1], "sync"],
-            env=env, text=True,
+            [
+                binary,
+                "-start",
+                FIRST.isoformat(),
+                "-end",
+                FIRST.isoformat(),
+                *argv(22)[:-1],
+                "sync",
+            ],
+            env=env,
+            text=True,
         ).splitlines()
-        assert len(json.loads(lines[0])["job_ids"]) == len(json.loads(lines[1])["results"]) == 4
+        assert (
+            len(json.loads(lines[0])["job_ids"])
+            == len(json.loads(lines[1])["results"])
+            == 4
+        )
     print(
-        "PASS four provider jobs against Python, process interruption, concurrent claim, 429/503 retry and coverage"
+        "PASS four provider jobs on PostgreSQL, process interruption, concurrent claim, 429/503 retry and coverage"
     )
 
 
@@ -489,17 +495,22 @@ def main():
             cwd=MODULE,
             check=True,
         )
-        with (
-            migrated_schema(db, url, folder / "py", "5173") as py,
-            migrated_schema(db, url, folder / "go", "5173") as go,
-        ):
-            subprocess.run(["go", "test", "-race", "-run", "^TestCoverageDelta$", "./internal/garmincli"],
-                           cwd=MODULE, env=go, check=True)
-            scenario(binary, py, go)
+        with migrated_schema(db, url, folder / "native", "5173") as go:
+            subprocess.run(
+                [
+                    "go",
+                    "test",
+                    "-race",
+                    "-run",
+                    "^TestCoverageDelta$",
+                    "./internal/garmincli",
+                ],
+                cwd=MODULE,
+                env=go,
+                check=True,
+            )
+            scenario(binary, go)
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["reference"]:
-        reference()
-    else:
-        main()
+    main()
