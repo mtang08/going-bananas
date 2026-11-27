@@ -33,6 +33,8 @@ def main():
                                 "./internal/weeklydigest", "./internal/weeklyprojection", "./internal/httpapi",
                                 "./internal/returnplan", "./internal/coaching/snapshots", "./internal/coaching/drilldowns", "./cmd/going-bananas-coach"],
                                cwd=MODULE, env=env, check=True)
+                subprocess.run([sys.executable, str(ROOT / "scripts/rewrite/check_coach_helper.py")],
+                               cwd=ROOT, env=env, check=True)
 
 
 if __name__ == "__main__":

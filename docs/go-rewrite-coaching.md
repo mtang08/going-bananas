@@ -65,5 +65,8 @@ Run the dashboard checks from a configured checkout with the pinned Go tools on 
 ```sh
 python3 scripts/test-db.py test tests/integration/test_coach_chat.py
 python3 scripts/test-db.py dashboard
+python3 scripts/test_coach_skill_v2.py
 make check-go
 ```
+
+In demo and test the repo-local helper invokes the native coaching CLI for schema, snapshot, query, submit and revise. Reads of proposals, history and findings use the existing HTTP routes. In the dashboard runner a synthetic athlete reviews the draft in a separate HTTP action. Acceptance advances the calendar once, and an explicit undo restores the previous run duration. The runner then drives the registered dashboard against the same database using a local scripted app-server. [Helper selector](../scripts/coach-native) · [Separate-process journey](../scripts/rewrite/check_coach_helper.py)
