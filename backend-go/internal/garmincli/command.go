@@ -11,6 +11,43 @@ import (
 	"github.com/google/uuid"
 )
 
+// Run opens a production command. A daemon started before credentials are installed
+// polls once per minute and can be cancelled while idle.
+func Run(ctx context.Context, mode string, cfg Config, args []string, stdout io.Writer) (int, error) {
+	return run(ctx, mode, cfg, args, stdout, func(ctx context.Context) error {
+		timer := time.NewTimer(time.Minute)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return nil
+		}
+	})
+}
+
+func run(ctx context.Context, mode string, cfg Config, args []string, stdout io.Writer, wait func(context.Context) error) (int, error) {
+	daemon := len(args) == 1 && args[0] == "worker"
+	for {
+		worker, err := Open(ctx, mode, cfg)
+		if err == nil {
+			return worker.Command(ctx, args, stdout)
+		}
+		if daemon && errors.Is(err, context.Canceled) {
+			return 0, nil
+		}
+		if !daemon || !errors.Is(err, errCredentialMissing) {
+			return 1, err
+		}
+		if err = wait(ctx); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return 0, nil
+			}
+			return 1, err
+		}
+	}
+}
+
 // Command runs Python-compatible sync or worker CLI arguments on the supplied worker.
 // A sync which finishes with partial, failed, waiting or idle jobs exits with code 1.
 func (w *Worker) Command(ctx context.Context, args []string, stdout io.Writer) (int, error) {

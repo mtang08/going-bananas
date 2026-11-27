@@ -37,11 +37,7 @@ func run() (int, error) {
 		return 1, errors.New("cannot_open_database")
 	}
 	defer pool.Close()
-	worker, err := garmincli.Open(ctx, mode, garmincli.Config{Pool: pool, PrivateDir: dir, Refresh: garmincli.SourceRefresh(time.Now, refresh.Runs), ReportFIT: func(error) { fmt.Fprintln(os.Stderr, "FIT import failed") }})
-	if err != nil {
-		return 1, err
-	}
-	return worker.Command(ctx, os.Args[1:], os.Stdout)
+	return garmincli.Run(ctx, mode, garmincli.Config{Pool: pool, PrivateDir: dir, Refresh: garmincli.SourceRefresh(time.Now, refresh.Runs), ReportFIT: func(error) { fmt.Fprintln(os.Stderr, "FIT import failed") }}, os.Args[1:], os.Stdout)
 }
 
 func main() {
