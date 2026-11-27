@@ -1,15 +1,33 @@
 # Local operations
 
 Never print `.env` or pass keys/database passwords in command-line arguments.
-All commands run from the repository root unless shown inside the backend CLI.
+Run commands from the repository root unless an example changes directories.
 Private files and generated reports are ignored by Git.
 
 ## Mode and services
 
-`make start` uses `.env`; `scripts/with-mode demo|real|test COMMAND` temporarily
-selects the corresponding database and private directory. Backend data modes
-cannot be switched by a browser control. Stop the current app before starting
-another mode on port 8000. Tests use PostgreSQL, never SQLite.
+`make start` and `make dev` use the workspace configured in `.env`.
+`./scripts/with-mode demo|real|test COMMAND` selects the corresponding database
+and private directory for one command. Demo and test default to native Go. Real
+mode defaults to the Python reference backend until the owner switches it. Set
+`GOING_BANANAS_BACKEND=go` or `GOING_BANANAS_BACKEND=python` in `.env` or in the
+calling environment. The supervisor, operational CLI, and coaching helper use that
+selection. Keep the API, worker, and commands that write to the workspace on the
+same selection.
+
+Use `./scripts/with-mode demo make start` to serve the built demo and
+`./scripts/with-mode demo make dev` for the demo with Vite. Replace `demo` with
+`real` for the real workspace after completing its setup. Real startup also runs
+the provider worker. Stop the running app before starting another mode from this
+checkout. The default API port is 8000. Integration tests use their own isolated
+PostgreSQL cluster.
+
+Use `./scripts/with-mode MODE ./scripts/backend-cli COMMAND` for one-off operations.
+For Go, the wrapper builds and runs `going-bananas`. For Python, it runs the
+reference command through `uv`. Use `./scripts/with-mode MODE make migrate` for
+migration so the real-mode backup gate applies. The Go migrator handles fresh and
+current databases natively and uses Alembic for a supported historical revision.
+The Python selector uses Alembic directly.
 
 Use `make db-start` / `make db-stop` for the project-local cluster. This does not
 stop other PostgreSQL installations. Application shutdown signals only the
@@ -65,16 +83,21 @@ Before applying `0025_coach_output_v2` to the real database, run `make backup` a
 
 Migrations `0026_workout_response` and `0027_rehab_sessions` preserve existing check-ins as unknown and allow a dated rehab slot. A downgrade refuses to drop an explicitly recorded pain answer or a calendar revision containing rehab.
 
-Explicit real-mode backup and restore (replace the archive path and new target):
+For a named real-mode backup and restore, replace the archive name and choose a new target database and directory.
 
 ```sh
-./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli backup "$PRIVATE_DIR/backups/my-backup.tar.gz"'
-./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli restore "$PRIVATE_DIR/backups/my-backup.tar.gz" --target-database-name garmin_restored_real --target-private-dir ../private/restored-real'
+./scripts/with-mode real bash -c './scripts/backend-cli backup "$PRIVATE_DIR/backups/my-backup.tar.gz"'
+./scripts/with-mode real bash -c './scripts/backend-cli restore "$PRIVATE_DIR/backups/my-backup.tar.gz" --target-database-name garmin_restored_real --target-private-dir "$PWD/private/restored-real"'
 ```
 
-For this release, `scripts/verify-restore.py --database NEW_NAME_test --private-dir
-NEW_PRIVATE_DIR` compares source and restored table counts, full profile/Strong/coaching row
-contents, raw checksums, and private research originals. Run it in real mode.
+For a rehearsal, restore into a new database ending in `_test` and a new private
+directory. From the real source workspace, run the Python verification utility.
+It compares database rows, raw file checksums, and private research originals.
+
+```sh
+./scripts/with-mode real uv run --directory backend python ../scripts/verify-restore.py --database garmin_restored_test --private-dir /absolute/path/to/restored-test
+```
+
 The restore refuses existing database/directory targets and verifies archive
 paths/checksums before use. It derives database connection credentials from the
 current protected environment, never arguments. Select a restored database only
@@ -89,10 +112,12 @@ Installed locally for this checkout on 2026-11-10 at 08:30.
 
 The supplied launchd template uses an explicit absolute checkout path and runs
 `scripts/launchd-sync.sh` daily at 08:30 local time. That wrapper loads protected
-configuration, enqueues bounded sync jobs, and drains them even if the web app
-is closed. Worker and standalone runs coordinate using PostgreSQL advisory locks.
-The wrapper starts the existing project-local database if necessary. Startup catch-up covers missed schedules;
-failed/partial datasets remain visible.
+configuration and uses the selected backend for sync and backup. It enqueues
+bounded sync jobs and drains them even if the web app is closed. Worker and
+standalone runs coordinate using PostgreSQL advisory locks. The wrapper starts
+the existing project-local database if necessary. Startup catch-up covers
+missed schedules, and failed or partial datasets remain visible. Native
+scheduled sync requires `go` on the PATH loaded by `scripts/env.sh`.
 
 After a successful sync the wrapper also writes one backup per local day to `$PRIVATE_DIR/backups/backup-YYYYMMDD-HHMMSS.tar.gz` (skipped if one exists for today), then runs `scripts/backup-prune.sh`. That script deletes `backup-*.tar.gz` files older than `BACKUP_RETENTION_DAYS` (default 14) and always keeps the newest `BACKUP_MIN_KEEP` (default 3). Set either variable in `.env` to change it. A failed backup makes the job exit nonzero and is recorded in `private/launchd-sync-error.log`; pruning is skipped in that case.
 
@@ -154,7 +179,7 @@ calendar authority. The installed skill must match that reviewed artifact.
 
 Keep the real database and its historical tables when changing backends. The frozen planning and coaching tables are listed in [history_models.py](../backend/app/history_models.py). Current snapshots, proposals, decisions and dashboard receipts use the tables listed in [coach_v2_models.py](../backend/app/coach_v2_models.py). Back up before any real schema change.
 
-Real coaching uses Python until the owner selects Go. At the scheduled switch, stop the running dashboard, keep a backup, and run the migrations for the selected workspace. Set `GOING_BANANAS_BACKEND=go` in the checkout’s private `.env` and run `make build` before reopening **Going Bananas.command**. The supervisor and helper both read this selection. A temporary shell override applies only to processes that inherit it. The first native launch imports the prior review and receipts for that mode. Open **Coach** and check the existing conversation and pending draft before sending a new message. [Native coaching rehearsal](go-rewrite-coaching.md#native-dashboard-handoff)
+Real coaching uses Python until the owner selects Go. At the scheduled switch, stop the running dashboard and keep a verified backup. Set `GOING_BANANAS_BACKEND=go` in the checkout’s private `.env`, then run `./scripts/with-mode real make migrate` and `./scripts/with-mode real make build` before reopening **Going Bananas.command**. A temporary shell override applies only to processes that inherit it. The first native launch imports the prior review and receipts for that mode. Open **Coach** and check the existing conversation and pending draft before sending a new message. [Native coaching rehearsal](go-rewrite-coaching.md#native-dashboard-handoff)
 
 Home, Calendar, Trends and Block use the calendar workflow. From the repository root, `python3 .codex/skills/going-bananas-coach/scripts/coach_app.py --mode demo schema` shows the current contract in demo mode. Use the same prefix with `snapshot --operation OP`, `query NAME`, or `submit --file PATH`. Submit creates a pending changeset. Accept or
 reject it in the app; there is no CLI acceptance command. A partial selection is
@@ -166,7 +191,7 @@ field errors and preserve the current checkboxes. Research integrity failure
 stops coaching without preventing training metrics from loading. Protected
 calendar undo creates a new version and retains completed/locked/history facts.
 
-Operational commands:
+Run these subcommands with `./scripts/with-mode MODE ./scripts/backend-cli`.
 
 - `metrics-assess-session --session-uid UUID` previews the reassessment of one session and its linked activity. Add `--apply` to save it. Existing matches and source data are preserved.
 - `fit-reprocess --since YYYY-MM-DD` previews re-decoding of retained FIT files after a decoder change. Add `--apply` to save. Applying refreshes metrics and same-day matching for the touched dates.
@@ -175,7 +200,7 @@ Operational commands:
 - `metrics-refresh-today` refreshes today’s windows and their source metrics and updates prompts using local data.
 - `fit-backfill --since YYYY-MM-DD` fetches available FIT evidence in real mode;
   unavailable or failed items remain explicit and can be inspected.
-- Build the native Strong importer with `(cd backend-go && go build -o ../private/strong-import ./cmd/strong-import)`. Run `./scripts/with-mode real private/strong-import PATH` to preview a CSV. Add `--apply` to save the workouts and refresh their metrics. The existing `app.cli strong-import` command uses the same importer.
+- `strong-import /absolute/path/to/strong_workouts.csv` previews a Strong export. Add `--apply` to save the workouts and refresh their metrics.
 
 Metric GET endpoints leave the database unchanged. Metric pages compute missing results and results with
 outdated methods or configs in memory. Some calculations still read stored dependencies: intensity, long-run,
@@ -195,11 +220,10 @@ calendar, metric, proposal, and migration tables plus private raw objects.
 
 ## Read-only preflight for an owner-scheduled backend switch
 
-Once the owner schedules the switch, stop the API, worker, automatic startup and other writers. Finish or reconcile in-flight jobs and verify the final backup. From the repository root, build the command and run it for the selected mode.
+Once the owner schedules the switch, stop the API, worker, automatic startup and other writers. Finish or reconcile in-flight jobs and verify the final backup. Run the native preflight explicitly against the real workspace.
 
 ```sh
-(cd backend-go && go build -o ../private/going-bananas ./cmd/going-bananas)
-./scripts/with-mode real private/going-bananas workspace-preflight -repo "$PWD"
+GOING_BANANAS_BACKEND=go ./scripts/with-mode real ./scripts/backend-cli workspace-preflight -repo "$PWD"
 ```
 
 A successful run exits zero and returns JSON with `ready: true`. It reads the profile, accepted calendar, active draft and weekly summary, verifies the migration stamp and expected columns, checks provider checkpoints and hashes the retained raw files. It reports whether provider configuration files are present and private using filesystem metadata. A pending draft that has become stale is reported for review. An absent optional provider credential is reported separately. Failures identify the check without exposing athlete records, filenames or credentials. Correct the reported failure and rerun the command before starting the normal supervisor.
