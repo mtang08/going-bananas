@@ -1,15 +1,18 @@
-"""Compare the Go activity reader with actual FastAPI responses on independent synthetic schemas."""
+"""Replay the captured activity read contract against a fresh synthetic schema."""
 
 import json
-import sys
+import os
+import subprocess
+import tempfile
 from pathlib import Path
 
 import psycopg
 from check_aerobic import seed as seed_runs
-from check_recovery import compare
 from check_recovery import seed as seed_recovery
 from check_self_reports import uid
 from psycopg.types.json import Jsonb
+from sqlalchemy.engine import make_url
+from test_proposal_slice import MODULE, ROOT, migrated_schema
 
 
 def seed(env):
@@ -74,89 +77,41 @@ def seed(env):
         )
 
 
-def reference():
-    from datetime import UTC, datetime
-
-    from app.db import SessionLocal, get_session
-    from app.main import app
-    from fastapi.testclient import TestClient
-
-    def session():
-        with SessionLocal() as s:
-            s.info["metrics_now"] = datetime(2026, 11, 26, 12, tzinfo=UTC)
-            yield s
-
-    app.dependency_overrides[get_session] = session
-    client = TestClient(app)
-    paths = [
-        "/metrics/windows",
-        "/metrics/windows?as_of=2026-03-30",
-        "/metrics/windows?as_of=bad",
-        "/metrics/long-runs?start=2026-03-01&end=2026-03-31",
-        "/metrics/long-runs?start=2026-03-31&end=2026-03-01",
-        "/metrics/long-runs",
-        "/metrics/long-runs?start=bad",
-        "/metrics/workout-progression",
-        "/metrics/workout-progression?start=2026-03-01&end=2026-03-31",
-        "/metrics/workout-progression?start=2026-03-01&end=2026-03-31&group_by=recipe",
-        "/metrics/workout-progression?start=2026-03-01&end=2027-01-01",
-        "/metrics/workout-progression?start=bad&end=bad&group_by=bad",
-        "/metrics/recovery?start=2026-03-24&end=2026-03-30",
-        "/metrics/recovery?start=2026-03-30&end=2026-03-28",
-        "/activities?start_date=2026-03-01&end_date=2026-03-30",
-        "/activities?start_date=2026-03-01&end_date=2026-03-30&limit=2",
-        "/activities?start_date=2026-03-01&end_date=2026-03-30&sport=treadmill_running",
-        "/activities?start_date=2026-03-01&end_date=2026-03-30&cursor=bad",
-        "/activities?limit=0",
-        "/activities?limit=201",
-        "/activities?limit=bad",
-        "/activities/" + uid(2000),
-        "/activities/" + uid(2999),
-    ]
-    paths.extend(
-        "/activities/" + uid(n) + "/workout-history" for n in [2000, 2001, 2003, 2999]
-    )
-    paths.extend(
-        "/activities/" + uid(n) + "/execution" for n in [2000, 2001, 2003, 2999]
-    )
-    paths.extend(
-        [
-            "/metrics/recovery?start=x&end=banana",
-            "/metrics/recovery?start=2026-15-32",
-            "/activities/abc",
-            "/activities/invalid-id",
-            "/activities/abc/workout-history",
-            "/activities?start_date=2026-03-02T00:00:00&end_date=2026-03-04",
-        ]
-    )
-    paths.extend(
-        [
-            "/activities?limit=2.0&start_date=not-a-date",
-            "/activities?start_date=bad&limit=no",
-            "/activities/bad/workout-history?limit=100",
-            "/activities?start_date=2026-03-01&end_date=2026-03-30&limit=2.0",
-        ]
-    )
-    result = []
-    for path in paths:
-        r = client.get("/api/v1" + path)
-        body = r.json()
-        if "error" in body:
-            body["error"].pop("request_id", None)
-        result.append({"path": path, "status": r.status_code, "body": body})
-        if path.endswith("&limit=2") and body["data"]["next_cursor"]:
-            import urllib.parse
-
-            paths.append(
-                path
-                + "&cursor="
-                + urllib.parse.quote(body["data"]["next_cursor"], safe="")
-            )
-    return result
+def exercise(populate, name, state=None):
+    expected = MODULE / "internal/activityhttp/testdata" / f"{name}.json"
+    url = make_url(os.environ["TEST_DATABASE_URL"])
+    if not (
+        os.environ.get("APP_MODE") == "test"
+        and os.environ.get("DATABASE_URL") == os.environ["TEST_DATABASE_URL"]
+        and url.database == "garmin_test"
+        and url.host in {"127.0.0.1", "localhost"}
+        and str(url.port) == os.environ.get("TEST_DATABASE_PORT")
+        and not url.query
+    ):
+        raise SystemExit("requires isolated test database")
+    with (
+        psycopg.connect(
+            url.set(drivername="postgresql").render_as_string(hide_password=False),
+            autocommit=True,
+        ) as db,
+        tempfile.TemporaryDirectory(dir=ROOT / "private") as tmp,
+        migrated_schema(db, url, Path(tmp) / name, "5173") as env,
+    ):
+        populate(env)
+        subprocess.run(
+            ["go", "test", "-race", "-count=1", "-v", "./internal/activityhttp"],
+            cwd=MODULE,
+            env={**env, "ACTIVITY_HTTP_FIXTURE": str(expected)},
+            check=True,
+        )
+        if state is not None:
+            want = json.loads(expected.read_text())["state"]
+            got = json.loads(json.dumps(state(env), default=str))
+            assert got.keys() == want.keys()
+            for table in want:
+                if got[table] != want[table]:
+                    raise AssertionError((table, got[table], want[table]))
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["reference"]:
-        Path(sys.argv[2]).write_text(json.dumps(reference()))
-    else:
-        compare(__file__, seed, "./internal/activityhttp", "ACTIVITY_READ_CASES")
+    exercise(seed, "activity-reads")

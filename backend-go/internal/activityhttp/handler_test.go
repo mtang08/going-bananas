@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func difference(a, b any, path string) string {
@@ -46,27 +47,28 @@ func difference(a, b any, path string) string {
 	}
 	return fmt.Sprintf("%s: %v != %v", path, a, b)
 }
-func TestActivityReads(t *testing.T) {
-	file := os.Getenv("ACTIVITY_READ_CASES")
-	write := false
+func TestActivityHTTPFixture(t *testing.T) {
+	file := os.Getenv("ACTIVITY_HTTP_FIXTURE")
 	if file == "" {
-		file = os.Getenv("ANNOTATION_CASES")
-		write = file != ""
-	}
-	if file == "" {
-		t.Skip("requires Python oracle")
+		t.Skip("requires the seeded activity HTTP fixture")
 	}
 	raw, err := os.ReadFile(file)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var cases []struct {
-		Path, Payload string
-		Status        int
-		Body          map[string]any
+	var fixture struct {
+		Method string
+		Cases  []struct {
+			Path, Payload string
+			Status        int
+			Body          map[string]any
+		}
 	}
-	if err = json.Unmarshal(raw, &cases); err != nil {
+	if err = json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
+	}
+	if len(fixture.Cases) == 0 || (fixture.Method != http.MethodGet && fixture.Method != http.MethodPatch) {
+		t.Fatal("expected a nonempty GET or PATCH fixture")
 	}
 	p, err := pgxpool.New(t.Context(), "")
 	if err != nil {
@@ -89,13 +91,13 @@ func TestActivityReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, c := range cases {
+	for _, c := range fixture.Cases {
 		t.Run(c.Path, func(t *testing.T) {
-			method := "GET"
-			if write {
-				method = "PATCH"
+			req := httptest.NewRequest(fixture.Method, "/api/v1"+c.Path, strings.NewReader(c.Payload))
+			if fixture.Method == http.MethodPatch {
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("X-Local-Request", "1")
 			}
-			req := httptest.NewRequest(method, "/api/v1"+c.Path, strings.NewReader(c.Payload))
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req)
 			var got object
@@ -114,7 +116,7 @@ func TestActivityReads(t *testing.T) {
 		})
 	}
 	after, err := counts(t.Context())
-	if err != nil || (!write && before != after) {
+	if err != nil || (fixture.Method == http.MethodGet && before != after) {
 		t.Fatal("GET mutated source or metric state", before, after, err)
 	}
 }
