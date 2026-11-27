@@ -16,7 +16,7 @@ The existing Go probe compares primitive decoder messages. Passing it alone does
 
 ### Stream 1 handoff
 
-Pass the bytes from `garmin.Client.DownloadActivity` to `fit.DecodeZIP(archive []byte) (*fit.DecodedFit, error)`. The import path is `github.com/mtang08/going-bananas/backend-go/internal/garmin/fit`. The result includes the uncompressed FIT SHA-256, the header profile version, and the native decoder version. Read a failure code with `errors.As` into a `*fit.DecodeError`. The Python worker continues to own ingestion and persistence. [Entry point](../backend-go/internal/garmin/fit/decode.go) · [Observation types](../backend-go/internal/garmin/fit/types.go)
+Pass the bytes from `garmin.Client.DownloadActivity` to `fit.DecodeZIP(archive []byte) (*fit.DecodedFit, error)`. The import path is `github.com/mtang08/going-bananas/backend-go/internal/garmin/fit`. The result includes the uncompressed FIT SHA-256, the header profile version, and the native decoder version. Read a failure code with `errors.As` into a `*fit.DecodeError`. The native worker persists decoded files through the transactional ingestion path described below. [Entry point](../backend-go/internal/garmin/fit/decode.go) · [Observation types](../backend-go/internal/garmin/fit/types.go)
 
 The normalized comparison rebuilds deterministic archives, calls Python’s `decode_fit_zip`, and compares every result field or error code with the Go decoder. The SDK version identifies each implementation. Pass `--update` to the comparison to refresh the checked-in reference after a deliberate contract change. The focused Go test can use the fixtures on its own. [Normalized comparison](../scripts/rewrite/fit/check_normalized.py) · [Go parity test](../backend-go/internal/garmin/fit/parity_test.go)
 
@@ -82,7 +82,7 @@ Build once, then run the manifest in the selected synthetic workspace. The CLI a
 ./scripts/with-mode demo private/garmin-replay -reprocess "$ACTIVITY_UUID"
 ```
 
-The worker integration entry point is `replay.Apply(ctx, pool, privateDir, page)`. It takes previously fetched inputs, including API records or `ScanExport` results and optional FIT bytes keyed by Garmin activity ID. It returns cumulative counters, next page, offset, and the changed activity IDs and dates for this delivery. A local-date move includes both dates. The checkpoint also retains the job-wide union of affected dates. The terminal status is `partial` when the job has rejected records or failed FIT attempts. A duplicate committed page returns its checkpoint with empty change sets. A changed redelivery or skipped page index fails.
+The synthetic replay entry point is `replay.Apply(ctx, pool, privateDir, page)`. It takes previously fetched inputs, including API records or `ScanExport` results and optional FIT bytes keyed by Garmin activity ID. It returns cumulative counters, next page, offset, and the changed activity IDs and dates for this delivery. A local-date move includes both dates. The checkpoint also retains the job-wide union of affected dates. The terminal status is `partial` when the job has rejected records or failed FIT attempts. A duplicate committed page returns its checkpoint with empty change sets. A changed redelivery or skipped page index fails.
 
 Python continues to schedule downloads, hold unconfirmed treadmill runs for review, maintain coverage, and refresh dependent metrics. The standalone command uses its own replay job dataset. It imports the activity portion of an account export. [Replay transaction](../backend-go/internal/garmin/replay/page.go) · [Synthetic comparison](../scripts/rewrite/check_provider_replay.py)
 
@@ -146,6 +146,19 @@ python3 scripts/test-db.py provider-jobs
 The native worker command is `go run ./cmd/garmin-worker sync [--start YYYY-MM-DD] [--end YYYY-MM-DD]` or `go run ./cmd/garmin-worker worker` from `backend-go`. The sync command reports job IDs and individual outcomes. The worker uses the existing Garmin key and private token cache and shares the PostgreSQL claim lock with Python. `garmincli.SourceRefresh(time.Now, refresh.Runs)` rematches affected days, computes metrics and regenerates prompts within the source transaction. FIT downloads get a separate best-effort transaction per run. Core owns live scheduling. [Worker and CLI](../backend-go/internal/garmincli) · [PostgreSQL comparison](../scripts/rewrite/check_provider_jobs.py)
 
 Preview an account export with `go run ./cmd/import-export ARCHIVE` and apply it with `--apply`. Import stores the original archive, canonical activities, supported recovery observations and observed coverage in one database transaction. Run `python3 scripts/test-db.py import-export` for the synthetic preflight, apply and duplicate delivery comparison. [Export importer](../backend-go/internal/garmin/replay/import_export.go)
+
+### FIT maintenance commands
+
+Run these commands from the repository root. Replace the date and optional activity ID with the desired selection. [FIT CLI](../backend-go/cmd/garmin-fit/main.go)
+
+```sh
+./scripts/with-mode real bash -c 'cd backend-go && go run ./cmd/garmin-fit fit-backfill --since 2026-01-01'
+./scripts/with-mode real bash -c 'cd backend-go && go run ./cmd/garmin-fit fit-reprocess --since 2026-01-01'
+```
+
+Backfill downloads files immediately and commits one activity at a time. It selects running activities whose stored local date meets the cutoff and whose FIT status is `not_fetched` or `decode_error`. It prints attempted, decoded, unavailable and failed counts. The command requires real mode and the existing Garmin credential configuration.
+
+Reprocessing uses retained ZIPs in the selected private directory. It selects previously decoded activities with an older or missing decoder version, using midnight in the athlete’s time zone as the inclusive start cutoff. The default dry run rolls back the batch. Append `--apply` to commit it and refresh affected metrics in one transaction. Adding `--activity-id UUID` selects that activity regardless of date, although `--since` is still required. Reprocessing also supports demo and test mode. Run `python3 scripts/test-db.py fit-cli` for synthetic PostgreSQL comparisons. [Selection and transaction logic](../backend-go/internal/garmin/replay/fit_batch.go) · [Comparison](../scripts/rewrite/check_fit_cli.py)
 
 ### Google Calendar provider and travel contracts
 
