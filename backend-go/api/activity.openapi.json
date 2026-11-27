@@ -332,6 +332,308 @@
           }
         }
       }
+    },
+    "/api/v1/activities/{activity_id}/execution": {
+      "get": {
+        "operationId": "getActivityExecution",
+        "parameters": [
+          {
+            "name": "activity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Execution",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/metrics/long-runs": {
+      "get": {
+        "operationId": "getLongRuns",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LongRuns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LongRunsEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/metrics/workout-progression": {
+      "get": {
+        "operationId": "getWorkoutProgression",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "recipe",
+                "signature"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "WorkoutProgression",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutProgressionEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/metrics/windows": {
+      "get": {
+        "operationId": "getMetricWindows",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "TrainingWindows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingWindowsEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -720,8 +1022,10 @@
                   "format": "uuid"
                 },
                 "selected_fields": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               }
             }
@@ -1457,6 +1761,791 @@
           },
           "data": {
             "$ref": "#/components/schemas/WorkoutHistory"
+          }
+        }
+      },
+      "ExecutionActivity": {
+        "type": "object",
+        "required": [
+          "id",
+          "start_at",
+          "end_at",
+          "local_date",
+          "sport",
+          "distance_m",
+          "timer_s",
+          "elapsed_s",
+          "fit_status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "start_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "sport": {
+            "type": "string"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timer_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "elapsed_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fit_status": {
+            "type": "string"
+          }
+        }
+      },
+      "MetricResult": {
+        "type": "object",
+        "required": [
+          "id",
+          "metric_id",
+          "method_version",
+          "subject_type",
+          "subject_key",
+          "window_start",
+          "window_end",
+          "window_label",
+          "status",
+          "quality_status",
+          "value",
+          "unit",
+          "reason_codes",
+          "quality_flags",
+          "anchor_keys",
+          "calculated_at",
+          "source_refs",
+          "config_hash",
+          "anchor_set_hash",
+          "dependency_hash",
+          "timezone",
+          "is_current"
+        ],
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metric_id": {
+            "type": "string"
+          },
+          "method_version": {
+            "type": "string"
+          },
+          "subject_type": {
+            "type": "string"
+          },
+          "subject_key": {
+            "type": "string"
+          },
+          "window_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "window_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "quality_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "quality_flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "anchor_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "calculated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source_refs": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "config_hash": {
+            "type": "string"
+          },
+          "anchor_set_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dependency_hash": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "is_current": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ExecutionRpe": {
+        "type": "object",
+        "required": [
+          "effective",
+          "source",
+          "manual",
+          "garmin_fit",
+          "srpe_load_au"
+        ],
+        "properties": {
+          "effective": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manual": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "garmin_fit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "srpe_load_au": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "Execution": {
+        "type": "object",
+        "required": [
+          "activity",
+          "planned",
+          "completion",
+          "laps",
+          "watch_steps",
+          "planned_actual",
+          "intervals",
+          "intensity",
+          "aerobic",
+          "rpe",
+          "delayed_response",
+          "symptoms"
+        ],
+        "properties": {
+          "activity": {
+            "$ref": "#/components/schemas/ExecutionActivity"
+          },
+          "planned": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "completion": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "laps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "watch_steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "planned_actual": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intervals": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intensity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "aerobic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rpe": {
+            "$ref": "#/components/schemas/ExecutionRpe"
+          },
+          "delayed_response": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "symptoms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "ExecutionEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Execution"
+          }
+        }
+      },
+      "LongRuns": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MetricResult"
+        }
+      },
+      "LongRunsEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LongRuns"
+          }
+        }
+      },
+      "ProgressionGroup": {
+        "type": "object",
+        "required": [
+          "group_key",
+          "group_by",
+          "signature",
+          "signatures",
+          "recipe_ids",
+          "sessions_total",
+          "sessions_assessable",
+          "latest_date",
+          "points"
+        ],
+        "properties": {
+          "group_key": {
+            "type": "string"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "recipe",
+              "signature"
+            ]
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signatures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recipe_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sessions_total": {
+            "type": "integer"
+          },
+          "sessions_assessable": {
+            "type": "integer"
+          },
+          "latest_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProgressionPoint"
+            }
+          }
+        }
+      },
+      "WorkoutProgression": {
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "group_by",
+          "groups"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date"
+          },
+          "end": {
+            "type": "string",
+            "format": "date"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "recipe",
+              "signature"
+            ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProgressionGroup"
+            }
+          }
+        }
+      },
+      "WorkoutProgressionEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkoutProgression"
+          }
+        }
+      },
+      "TrainingWindow": {
+        "type": "object",
+        "required": [
+          "days",
+          "volume",
+          "srpe",
+          "srpe_strength",
+          "intensity",
+          "long_run"
+        ],
+        "properties": {
+          "days": {
+            "type": "integer"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "srpe": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "srpe_strength": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intensity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "long_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "TrainingWindows": {
+        "type": "object",
+        "required": [
+          "as_of",
+          "windows",
+          "spacing",
+          "aerobic",
+          "symptoms"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "windows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingWindow"
+            }
+          },
+          "spacing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "aerobic": {
+            "type": "object",
+            "required": [
+              "w28",
+              "w84"
+            ],
+            "properties": {
+              "w28": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MetricResult"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "w84": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MetricResult"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "symptoms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "TrainingWindowsEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TrainingWindows"
           }
         }
       },

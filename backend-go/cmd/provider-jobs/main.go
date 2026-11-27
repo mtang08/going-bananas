@@ -10,15 +10,15 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/mtang08/going-bananas/backend-go/internal/garmin"
 	"github.com/mtang08/going-bananas/backend-go/internal/garmin/replay"
+	"github.com/mtang08/going-bananas/backend-go/internal/garmincli"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 	"github.com/mtang08/going-bananas/backend-go/internal/providerjobs"
 )
 
@@ -28,8 +28,8 @@ func run() error {
 	last := flag.String("end", "", "last requested date")
 	stamp := flag.String("now", "", "optional synthetic UTC clock")
 	flag.Parse()
-	if flag.NArg() != 1 || (flag.Arg(0) != "enqueue" && flag.Arg(0) != "run" && flag.Arg(0) != "worker") {
-		return errors.New("supply enqueue, run, or worker")
+	if flag.NArg() != 1 || (flag.Arg(0) != "enqueue" && flag.Arg(0) != "run" && flag.Arg(0) != "worker" && flag.Arg(0) != "sync") {
+		return errors.New("supply enqueue, run, worker or sync")
 	}
 	dir := os.Getenv("PRIVATE_DIR")
 	dsn := strings.Replace(os.Getenv("DATABASE_URL"), "postgresql+psycopg://", "postgresql://", 1)
@@ -69,10 +69,6 @@ func run() error {
 	if err := os.Setenv("GARMIN_API_KEY", "synthetic-provider-jobs"); err != nil {
 		return err
 	}
-	source, err := garmin.Open(ctx, garmin.Config{CacheFile: filepath.Join(dir, "fixture-auth", "bearer.json")})
-	if err != nil {
-		return err
-	}
 	now := time.Now
 	if *stamp != "" {
 		instant, err := time.Parse(time.RFC3339, *stamp)
@@ -81,12 +77,24 @@ func run() error {
 		}
 		now = func() time.Time { return instant }
 	}
-	importer := providerjobs.GarminImporter{PrivateDir: dir, AccountScope: "auto", Now: now}
-	runner := providerjobs.Runner{Pool: pool, Source: source, Importer: importer, Now: now}
-	runner.IngestFIT = func(ctx context.Context, records []garmin.Record) {
-		if err := replay.RunFIT(ctx, pool, dir, source, records, now(), nil); err != nil {
-			fmt.Fprintln(os.Stderr, "FIT import failed")
-		}
+	actual := garmincli.SourceRefresh(now, refresh.Runs)
+	runner, err := garmincli.Open(ctx, "real", garmincli.Config{Pool: pool, PrivateDir: dir, Now: now,
+		Refresh: func(ctx context.Context, tx pgx.Tx, scope replay.RefreshScope) error {
+			if os.Getenv("RECORD_FIXTURE_REFRESH") == "1" {
+				if _, err := tx.Exec(ctx, "INSERT INTO fixture_provider_refresh(scope) VALUES($1)", scope); err != nil {
+					return err
+				}
+			}
+			return actual(ctx, tx, scope)
+		},
+		ReportFIT: func(error) { fmt.Fprintln(os.Stderr, "FIT import failed") },
+	})
+	if err != nil {
+		return err
+	}
+	if flag.Arg(0) == "sync" {
+		_, err := runner.Command(ctx, []string{"sync", "--start", *first, "--end", *last}, os.Stdout)
+		return err
 	}
 	if flag.Arg(0) == "worker" {
 		err := runner.Work(ctx)

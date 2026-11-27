@@ -12,7 +12,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/garmin/replay"
 )
 
-func Run(ctx context.Context, pool *pgxpool.Pool, privateDir, mode string, args []string, stdout io.Writer) error {
+func Run(ctx context.Context, pool *pgxpool.Pool, privateDir, mode string, args []string, stdout io.Writer, refresh replay.Refresh) error {
 	if mode != "real" {
 		return errors.New("real_mode_required")
 	}
@@ -37,7 +37,11 @@ func Run(ctx context.Context, pool *pgxpool.Pool, privateDir, mode string, args 
 	if archive == "" {
 		return errors.New("usage: import-export ARCHIVE [--apply]")
 	}
-	result, err := replay.ImportExport(ctx, pool, privateDir, archive, apply)
+
+	if apply && refresh == nil {
+		return errors.New("export_refresh_required")
+	}
+	result, err := replay.ImportExport(ctx, pool, privateDir, archive, apply, refresh)
 	if err != nil {
 		return err
 	}

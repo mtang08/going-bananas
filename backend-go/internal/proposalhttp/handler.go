@@ -36,7 +36,6 @@ func (h Handler) Register(mux *http.ServeMux) {
 		"GET " + prefix + "/{id}/revisions/{revision}": "revision",
 		"DELETE " + prefix + "/{id}":                   "discard",
 		"POST " + prefix + "/{id}/revise":              "revise",
-		"POST " + prefix:                               "submit",
 	}
 	routes["POST "+prefix+"/{id}/decision"] = "decide"
 	for pattern, method := range routes {
@@ -170,22 +169,18 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, method string) {
 			return
 		}
 		data, err = h.Store.Discard(ctx, id, n, now)
-	case "submit", "revise":
-		var result drafts.EditResult
-		if method == "submit" {
-			result, err = h.Store.Submit(ctx, body, now, drafts.NewValidator(h.KBRoot))
-		} else {
-			req, fields, e := drafts.ParseRevisionRequest(body)
-			if e != nil {
-				writeError(w, e)
-				return
-			}
-			if len(fields) > 0 {
-				invalid(w, issues(fields))
-				return
-			}
-			result, err = h.Store.Revise(ctx, id, req, now, drafts.NewValidator(h.KBRoot))
+	case "revise":
+		req, fields, e := drafts.ParseRevisionRequest(body)
+		if e != nil {
+			writeError(w, e)
+			return
 		}
+		if len(fields) > 0 {
+			invalid(w, issues(fields))
+			return
+		}
+		var result drafts.EditResult
+		result, err = h.Store.Revise(ctx, id, req, now, drafts.NewValidator(h.KBRoot))
 		data = struct {
 			drafts.Receipt
 			Errors []drafts.Issue `json:"errors"`

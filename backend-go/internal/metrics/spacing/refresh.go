@@ -26,15 +26,20 @@ func location(ctx context.Context, tx pgx.Tx) (*time.Location, int, error) {
 	return zone, head, err
 }
 
+func result(in inputs, t time.Time) metrics.Result {
+	day := t.Format(time.DateOnly)
+	key := "w14:" + day
+	start, end := t.AddDate(0, 0, -7), t.AddDate(0, 0, 7)
+	return metrics.Result{MetricID: "hard_session_spacing", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Status: "available", Value: outcome(in.entries, t), SourceRefs: in.refs, Config: Config, Timezone: in.zone.String()}
+}
+
 func persist(ctx context.Context, tx pgx.Tx, in inputs, days []string, now time.Time) error {
 	for _, day := range days {
 		t, err := time.ParseInLocation(time.DateOnly, day, in.zone)
 		if err != nil {
 			return err
 		}
-		key := "w14:" + day
-		start, end := t.AddDate(0, 0, -7), t.AddDate(0, 0, 7)
-		_, err = metrics.StoreResult(ctx, tx, metrics.Result{MetricID: "hard_session_spacing", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Status: "available", Value: outcome(in.entries, t), SourceRefs: in.refs, Config: Config, Timezone: in.zone.String()}, now)
+		_, err = metrics.StoreResult(ctx, tx, result(in, t), now)
 		if err != nil {
 			return err
 		}
@@ -47,19 +52,33 @@ func RefreshDates(ctx context.Context, tx pgx.Tx, days []string, now time.Time) 
 	if len(days) == 0 {
 		return nil
 	}
-	zone, head, err := location(ctx, tx)
-	if err != nil {
-		return err
-	}
-	plans, err := readPlans(ctx, tx, head)
-	if err != nil {
-		return err
-	}
-	in, err := loadInputs(ctx, tx, zone, head, plans)
+	in, err := readInputs(ctx, tx)
 	if err != nil {
 		return err
 	}
 	return persist(ctx, tx, in, days, now)
+}
+
+func readInputs(ctx context.Context, tx pgx.Tx) (inputs, error) {
+	zone, head, err := location(ctx, tx)
+	if err != nil {
+		return inputs{}, err
+	}
+	plans, err := readPlans(ctx, tx, head)
+	if err != nil {
+		return inputs{}, err
+	}
+	return loadInputs(ctx, tx, zone, head, plans)
+}
+
+// Calculate reads one spacing window without persisting a metric result.
+func Calculate(ctx context.Context, tx pgx.Tx, asOf time.Time) (metrics.Result, error) {
+	in, err := readInputs(ctx, tx)
+	if err != nil {
+		return metrics.Result{}, err
+	}
+	local := time.Date(asOf.Year(), asOf.Month(), asOf.Day(), 0, 0, 0, 0, in.zone)
+	return result(in, local), nil
 }
 
 // RefreshCompletions recalculates existing spacing windows and local today when a hard plan or association changes.

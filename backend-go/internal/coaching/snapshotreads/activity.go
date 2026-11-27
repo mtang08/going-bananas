@@ -42,7 +42,7 @@ func activityRows(ctx context.Context, tx pgx.Tx, sql, instant string, args ...a
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (map[string]any, error) {
-		v, err := pgx.RowToMap(row)
+		v, err := snapshotRow(row)
 		if t, ok := v[instant].(time.Time); ok {
 			v[instant] = feedbackInstant(t)
 		}

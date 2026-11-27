@@ -18,6 +18,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/calendar"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
 	"github.com/mtang08/going-bananas/backend-go/internal/jsonmodel"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 	"github.com/mtang08/going-bananas/backend-go/internal/planning"
 )
 
@@ -170,7 +171,11 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, route route) {
 			return err
 		}
 		if route.model == "RoutineInput" {
-			if err := calendar.RefreshPlans(ctx, tx, calendar.PlanScope{Since: now.In(loc).Format(time.DateOnly)}, now, h.Metrics); err != nil {
+			metrics := h.Metrics
+			if metrics == nil {
+				metrics = refresh.PlanMetrics(now, refresh.Runs)
+			}
+			if err := calendar.RefreshPlans(ctx, tx, calendar.PlanScope{Since: now.In(loc).Format(time.DateOnly)}, now, metrics); err != nil {
 				return err
 			}
 		}

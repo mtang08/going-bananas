@@ -14,7 +14,7 @@ import tempfile
 import zipfile
 from collections import Counter
 from contextlib import contextmanager, nullcontext
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from itertools import zip_longest
 from pathlib import Path
@@ -99,6 +99,9 @@ def reference():
     from app.services import derived, sync
 
     derived.install()
+    from app.metrics import refresh
+
+    refresh.clock = lambda _: datetime(2026, 11, 16, 9, tzinfo=UTC)
     private = Path(os.environ["PRIVATE_DIR"])
     source = SyntheticGarmin()
     with patch.object(sync, "GarminPersonalSource", lambda *_: nullcontext(source)):
@@ -131,6 +134,12 @@ def persisted(env):
                 FROM recovery_observations o JOIN source_records s ON s.id=o.source_record_id ORDER BY 1,2""",
             "fit": """SELECT zip_sha256,fit_sha256,profile_version,decode_error,message_inventory,device,decoder_version
                 FROM fit_files ORDER BY zip_sha256""",
+            "run_metrics": """SELECT a.garmin_id,m.metric_id,m.method_version,m.status,m.quality_status,m.reason_codes,
+                CASE WHEN m.metric_id='long_run_exposure' THEN m.value-'activity_id' ELSE NULL END
+                FROM metric_results m JOIN activities a ON m.subject_key=a.id::text WHERE m.is_current
+                AND m.subject_type='activity' ORDER BY 1,2""",
+            "volume": """SELECT subject_key,status,value,quality_flags FROM metric_results WHERE is_current
+                AND metric_id='run_volume_frequency' AND subject_type='window' ORDER BY 1""",
             "revision": "SELECT data_revision FROM app_state WHERE id=1",
             "batches": "SELECT status,source_kind,adapter_version,counters FROM import_batches ORDER BY started_at,id",
         }
@@ -319,8 +328,10 @@ def failure_coverage(go, remote, enqueue, task, argv):
 def scenario(binary, py, go):
     remote = Remote()
     with endpoint(remote) as url:
-        env = dict(go, GARMIN_PERSONAL_API_BASE_URL=url, GORACE="atexit_sleep_ms=0",
+        env = dict(go, GARMIN_PERSONAL_API_BASE_URL=url, RECORD_FIXTURE_REFRESH="1", GORACE="atexit_sleep_ms=0",
                    PGOPTIONS=go["PGOPTIONS"] + " -cdefault_transaction_read_only=on")
+
+        Path(go["PRIVATE_DIR"]).chmod(0o700)
 
         def task(*args):
             return json.loads(
@@ -341,6 +352,8 @@ def scenario(binary, py, go):
         def argv(minute=0):
             return ["-now", BASE_CLOCK + f"{minute:02}:00Z", "run"]
 
+        with connect(go) as db:
+            db.execute("CREATE TABLE fixture_provider_refresh(scope jsonb NOT NULL)")
         job = enqueue("activities")
         assert enqueue("activities") == job
         with subprocess.Popen(
@@ -406,7 +419,18 @@ def scenario(binary, py, go):
                 )
                 differences.append((key, a, b))
         assert not differences, differences
+        assert actual["run_metrics"] and actual["volume"]
         assert {row[3] for row in actual["fit"]} == {None, "FIT_START_MISMATCH"}
+        with connect(go) as db:
+            scopes = [r[0] for r in db.execute("SELECT scope FROM fixture_provider_refresh")]
+            coverage = {str(r[0]) for r in db.execute("SELECT id FROM coverage_intervals")}
+            assert {i for s in scopes for i in s["CoverageIDs"] or []} == coverage
+            activities = {i for s in scopes for i in s["Activities"] or {}}
+            expected_ids = {str(r[0]) for r in db.execute("SELECT id FROM activities")}
+            assert activities == expected_ids
+            fit_id = str(db.execute("SELECT activity_id FROM fit_files WHERE decoded_at IS NOT NULL LIMIT 1").fetchone()[0])
+            assert sum(fit_id in (s["Activities"] or {}) for s in scopes) >= 2
+            assert any(s["RecoveryDates"] and not s["Activities"] for s in scopes)
         assert len(actual["activities"]) == 52 and len(actual["recovery"]) == 11
         assert sorted((row[0], row[3]) for row in actual["coverage"]) == [
             ("activities", "partial"),
@@ -439,6 +463,11 @@ def scenario(binary, py, go):
                 daemon.terminate()
                 assert daemon.wait(timeout=5) == 0
         failure_coverage(go, remote, enqueue, task, argv)
+        lines = subprocess.check_output(
+            [binary, "-start", FIRST.isoformat(), "-end", FIRST.isoformat(), *argv(22)[:-1], "sync"],
+            env=env, text=True,
+        ).splitlines()
+        assert len(json.loads(lines[0])["job_ids"]) == len(json.loads(lines[1])["results"]) == 4
     print(
         "PASS four provider jobs against Python, process interruption, concurrent claim, 429/503 retry and coverage"
     )
@@ -464,6 +493,8 @@ def main():
             migrated_schema(db, url, folder / "py", "5173") as py,
             migrated_schema(db, url, folder / "go", "5173") as go,
         ):
+            subprocess.run(["go", "test", "-race", "-run", "^TestCoverageDelta$", "./internal/garmincli"],
+                           cwd=MODULE, env=go, check=True)
             scenario(binary, py, go)
 
 

@@ -31,6 +31,7 @@ func workflowPool(t *testing.T) *pgxpool.Pool {
 	if cfg.ConnConfig.Database != "garmin_test" || (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "localhost") {
 		t.Fatal("dashboard tests require a dedicated loopback garmin_test database")
 	}
+	cfg.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
 	pool, err := pgxpool.NewWithConfig(t.Context(), cfg)
 	if err != nil {
 		t.Fatal("open dashboard test database")
@@ -239,7 +240,8 @@ func TestDashboardWorkflowPostgres(t *testing.T) {
 func TestDashboardLostTurnPostgres(t *testing.T) {
 	pool := workflowPool(t)
 	ctx := t.Context()
-	store := NewStore(pool, "test-interruption")
+	mode := "test-interruption-" + uuid.NewString()
+	store := NewStore(pool, mode)
 	clientID := uuid.NewString()
 	const text = "Review my week"
 	type result struct {
@@ -273,9 +275,21 @@ func TestDashboardLostTurnPostgres(t *testing.T) {
 	}
 	requireOK(t, store.SaveThread(ctx, active.ID, "synthetic-resume"))
 	active.Close() // Simulate the connection disappearing without finalizing the turn.
-	restored := NewStore(pool, "test-interruption")
-	review, err := restored.Review(ctx)
-	requireOK(t, err)
+	restored := NewStore(pool, mode)
+	// PostgreSQL releases the session lock when it processes the disconnect.
+	// A poll already in flight at that instant can still see a running turn.
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	var review Review
+	for {
+		var err error
+		review, err = restored.Review(waitCtx)
+		requireOK(t, err)
+		if review.Status != "running" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	if review.Status != "failed" || review.Error == nil || review.Error.Code != "interrupted" || len(review.Messages) != 1 {
 		t.Fatal("orphaned turn did not retain the athlete message and report interruption")
 	}

@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/mtang08/going-bananas/backend-go/internal/db"
 )
 
 func sortedIDs[V any](values map[string]V) []string { return slices.Sorted(maps.Keys(values)) }
@@ -26,7 +25,7 @@ type provenance struct {
 	Field any       `json:"source_field"`
 }
 
-func reconcile(ctx context.Context, tx pgx.Tx, owner uuid.UUID, identity, remoteID string, bumpImmediately bool) (uuid.UUID, string, bool, error) {
+func reconcile(ctx context.Context, tx pgx.Tx, owner uuid.UUID, identity, remoteID string, effects *Result) (uuid.UUID, string, bool, error) {
 	rows, err := tx.Query(ctx, `SELECT id,source_kind,fields FROM source_records
 		WHERE source_account_id=$1 AND source_identity=$2 AND rejected_reason IS NULL
 		ORDER BY source_modified_at DESC NULLS LAST,(source_kind='garmin_api') DESC,
@@ -77,12 +76,7 @@ func reconcile(ctx context.Context, tx pgx.Tx, owner uuid.UUID, identity, remote
 		}
 	}
 	if changed {
-		if bumpImmediately {
-			if _, err = db.New(tx).BumpDataRevision(ctx); err != nil {
-				return id, day, changed, err
-			}
-		}
-		err = detectConflicts(ctx, tx, id, bumpImmediately)
+		err = detectConflicts(ctx, tx, id, effects)
 	}
 	return id, day, changed, err
 }
@@ -112,7 +106,7 @@ IS DISTINCT FROM (EXCLUDED.start_at,EXCLUDED.original_start,EXCLUDED.source_time
 	EXCLUDED.avg_hr_bpm,EXCLUDED.cadence_spm,EXCLUDED.source_workout_label,EXCLUDED.field_provenance)
 RETURNING id,local_date::text`
 
-func detectConflicts(ctx context.Context, tx pgx.Tx, id uuid.UUID, bumpImmediately bool) error {
+func detectConflicts(ctx context.Context, tx pgx.Tx, id uuid.UUID, effects *Result) error {
 	_, err := tx.Exec(ctx, `WITH neighbors AS (
 		SELECT a.id, jsonb_build_array(least(a.id,b.id)::text,greatest(a.id,b.id)::text) ids
 		FROM activities a JOIN activities b ON a.id<>b.id AND a.local_date=b.local_date AND a.sport=b.sport
@@ -124,12 +118,11 @@ func detectConflicts(ctx context.Context, tx pgx.Tx, id uuid.UUID, bumpImmediate
 		SELECT gen_random_uuid(),'activity_overlap','open',ids,'{"reason":"close_time_and_distance","withheld_count":1}'
 		FROM neighbors n WHERE NOT EXISTS(SELECT 1 FROM conflicts c WHERE c.kind='activity_overlap' AND c.activity_ids @> n.ids)
 		RETURNING id
-	), held AS (UPDATE activities SET resolution_state='pending' WHERE id=$1 AND EXISTS(SELECT FROM added))
-	UPDATE app_state SET data_revision=data_revision+(SELECT count(*) FROM added) WHERE id=1 AND $2::bool AND EXISTS(SELECT FROM added)`, id, bumpImmediately)
+	) UPDATE activities SET resolution_state='pending' WHERE id=$1 AND EXISTS(SELECT FROM added)`, id)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `WITH added AS (
+	rows, err := tx.Query(ctx, `WITH added AS (
 		INSERT INTO conflicts(id,kind,status,activity_ids,manual_session_id,details)
 		SELECT gen_random_uuid(),'manual_import_overlap','open',jsonb_build_array(a.id::text),m.id,'{"reason":"same_date_strength"}'
 		FROM activities edited JOIN manual_sessions m ON m.date=edited.local_date AND m.kind='strength' AND m.linked_activity_id IS NULL
@@ -137,7 +130,20 @@ func detectConflicts(ctx context.Context, tx pgx.Tx, id uuid.UUID, bumpImmediate
 		WHERE edited.id=$1 AND edited.sport='strength' AND NOT EXISTS(SELECT FROM conflicts c WHERE c.manual_session_id=m.id AND
 			c.kind='manual_import_overlap' AND c.activity_ids ? a.id::text)
 		RETURNING activity_ids
-	), held AS (UPDATE activities SET resolution_state='pending' WHERE id IN(SELECT (activity_ids->>0)::uuid FROM added))
-	UPDATE app_state SET data_revision=data_revision+(SELECT count(*) FROM added) WHERE id=1 AND $2::bool AND EXISTS(SELECT FROM added)`, id, bumpImmediately)
-	return err
+	) UPDATE activities SET resolution_state='pending' WHERE id IN(SELECT (activity_ids->>0)::uuid FROM added)
+    AND resolution_state <> 'pending' RETURNING id,local_date::text`, id)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var held uuid.UUID
+		var day string
+		if err := rows.Scan(&held, &day); err != nil {
+			return err
+		}
+		effects.Activities[held] = day
+		effects.AffectedDates = append(effects.AffectedDates, day)
+	}
+	return rows.Err()
 }

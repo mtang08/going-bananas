@@ -10,6 +10,7 @@ require (
 	github.com/oapi-codegen/runtime v1.9.1
 	github.com/ulikunitz/xz v0.5.17
 	golang.org/x/text v0.42.0
+	howett.net/plist v1.0.1
 )
 
 require (

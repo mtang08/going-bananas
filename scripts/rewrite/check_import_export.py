@@ -67,6 +67,12 @@ def reference():
     from app.services.export_import import import_export
     from app.services.sync import import_activity_page, import_recovery_page
 
+    if sys.argv[1] != "seed":
+        from app.metrics import refresh
+        from app.services import derived
+
+        derived.install()
+        refresh.clock = lambda _: datetime(2026, 11, 16, 9, tzinfo=UTC)
     root = Path(os.environ["PRIVATE_DIR"])
     with SessionLocal.begin() as session:
         if sys.argv[1] == "seed":
@@ -116,6 +122,8 @@ def snapshot(env):
                 "SELECT dataset,start_date,end_date,observed_start,observed_end,fully_enumerated,status,reason FROM coverage_intervals ORDER BY 1",
                 "SELECT source_kind,status,adapter_version,counters FROM import_batches ORDER BY started_at,id",
                 "SELECT data_revision FROM app_state WHERE id=1",
+                """SELECT subject_key,status,value,quality_flags FROM metric_results WHERE is_current
+                AND metric_id='run_volume_frequency' AND subject_type='window' ORDER BY 1""",
             )
         ]
 
@@ -147,6 +155,8 @@ def run():
                     GORACE="atexit_sleep_ms=0",
                 )
                 subprocess.run([sys.executable, __file__, "seed"], env=env, check=True)
+            with connect(go) as conn:
+                conn.execute("CREATE TABLE fixture_export_refresh(scope jsonb NOT NULL)")
             for apply in (False, True, True):
                 before = snapshot(go)
                 raw = lambda env: {
@@ -174,7 +184,13 @@ def run():
                 assert raw(py) == raw(go)
                 if not apply:
                     assert before == got and files == raw(go)
-            assert a["replayed"] and a["status"] == "partial"
+            with connect(go) as conn:
+                scopes = conn.execute("SELECT scope FROM fixture_export_refresh").fetchall()
+                assert len(scopes) == 1
+                scope = scopes[0][0]
+                assert len(scope["CoverageIDs"]) == 4 and len(scope["Activities"]) == 1
+                assert scope["RecoveryDates"] == ["2026-11-13"]
+            assert a["replayed"] and a["status"] == "partial" and got[-1]
             assert a["recovery"] == {"sleep": 1, "resting_hr": 1, "hrv": 1}
     print(
         "PASS Garmin export preflight, shared API precedence, three recovery datasets and byte-identical replay"

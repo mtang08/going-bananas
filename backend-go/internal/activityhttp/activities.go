@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/httpinput"
 	"net/http"
 	"strings"
 	"time"
@@ -117,13 +118,10 @@ func dateStamp(t time.Time) string {
 	return t.Format(s)
 }
 func (h Handler) activities(ctx context.Context, tx pgx.Tx, r *http.Request, now time.Time, loc *time.Location) (any, error) {
-	first, last, err := days(r, "start_date", "end_date", now, loc, 28, 366)
-	if err != nil {
-		return nil, err
-	}
+	first, last, dateErr := days(r, "start_date", "end_date", now, loc, 28, 366)
 	q := r.URL.Query()
-	size, err := limit(q, 50, 1, 200)
-	if err != nil {
+	size, limitErr := limit(q, 50, 1, 200)
+	if err := bindingErrors(dateErr, limitErr); err != nil {
 		return nil, err
 	}
 	sport, _ := parameter(q, "sport")
@@ -159,14 +157,17 @@ func (h Handler) activities(ctx context.Context, tx pgx.Tx, r *http.Request, now
 	err = tx.QueryRow(ctx, `SELECT coalesce(jsonb_agg(jsonb_build_object('dataset',dataset,'start_date',start_date,'end_date',end_date,'status',status,
   'fully_enumerated',fully_enumerated,'completed_at',completed_at,'reason',reason) ORDER BY dataset,start_date),'[]')
  FROM coverage_intervals WHERE start_date<=$2 AND end_date>=$1`, first.Format(time.DateOnly), last.Format(time.DateOnly)).Scan(&coverage)
+	for _, c := range coverage {
+		timestamps(c, "completed_at")
+	}
 	return object{"items": items, "next_cursor": next, "timezone": loc.String(), "coverage": coverage}, err
 }
 func activityID(r *http.Request) (uuid.UUID, error) {
-	id, err := uuid.Parse(r.PathValue("activity_id"))
-	if err != nil {
-		return uuid.Nil, invalid("path.activity_id", "Input should be a valid UUID")
+	id, msg := httpinput.UUID(r.PathValue("activity_id"))
+	if msg != "" {
+		return uuid.Nil, invalid("path.activity_id", msg)
 	}
-	return id, nil
+	return *id, nil
 }
 func (h Handler) detail(ctx context.Context, tx pgx.Tx, r *http.Request, _ time.Time, loc *time.Location) (any, error) {
 	id, err := activityID(r)
@@ -192,5 +193,8 @@ func (h Handler) detail(ctx context.Context, tx pgx.Tx, r *http.Request, _ time.
 
 func wireTime(t time.Time) string {
 	v := dateStamp(t)
-	return strings.TrimSuffix(v, "+00:00") + map[bool]string{true: "Z"}[strings.HasSuffix(v, "+00:00")]
+	if strings.HasSuffix(v, "+00:00") {
+		return strings.TrimSuffix(v, "+00:00") + "Z"
+	}
+	return v
 }

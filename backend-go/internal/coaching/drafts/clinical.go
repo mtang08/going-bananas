@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/athleteprofile"
 	"github.com/mtang08/going-bananas/backend-go/internal/calendar"
 	"github.com/mtang08/going-bananas/backend-go/internal/calendarstructure"
 )
@@ -63,4 +64,23 @@ func prescriptionCheck(rules RuleContext, allowReduction bool) calendar.CheckPre
 		}
 		return nil
 	}
+}
+
+// CalendarConflict returns the same prescription conflict shown during review.
+func CalendarConflict(limit *athleteprofile.RunningRestriction, row json.RawMessage) (string, error) {
+	if limit == nil {
+		return "", nil
+	}
+	r := restriction{Start: limit.StartsOn, Pause: limit.PauseRunning, NoQuality: limit.NoQuality, MaxDistance: limit.MaxDistanceM, MaxDuration: limit.MaxDurationS}
+	if limit.EndsOn != nil {
+		r.End = *limit.EndsOn
+	}
+	if limit.ReviewOn != nil {
+		r.Review = *limit.ReviewOn
+	}
+	var session sessionFields
+	if err := json.Unmarshal(row, &session); err != nil {
+		return "", err
+	}
+	return restrictionConflict(&r, session, sessionFields{}, false), nil
 }

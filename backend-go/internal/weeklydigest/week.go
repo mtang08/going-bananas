@@ -2,6 +2,7 @@
 package weeklydigest
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -30,6 +31,11 @@ func pick(r row, keys ...string) row {
 
 func num(v any) *float64 {
 	n, ok := v.(float64)
+	if j, yes := v.(json.Number); yes {
+		var err error
+		n, err = j.Float64()
+		ok = err == nil
+	}
 	if !ok || math.IsNaN(n) || math.IsInf(n, 0) || n < 0 {
 		return nil
 	}
@@ -130,9 +136,16 @@ func LoadWeek(ctx context.Context, tx pgx.Tx, weekStart, asOf string, now time.T
 	var zone string
 	var pace *float64
 	var covered bool
-	var planned, subjects, metrics []row
-	err = tx.QueryRow(ctx, weekSQL, weekStart, asOf).Scan(&head, &zone, &pace, &covered, &planned, &subjects, &metrics)
+	var planned, subjects []row
+	var metrics []row
+	var metricJSON json.RawMessage
+	err = tx.QueryRow(ctx, weekSQL, weekStart, asOf).Scan(&head, &zone, &pace, &covered, &planned, &subjects, &metricJSON)
 	if err != nil {
+		return nil, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(metricJSON))
+	decoder.UseNumber()
+	if err := decoder.Decode(&metrics); err != nil {
 		return nil, err
 	}
 	byRef := map[subjectRef]row{}
@@ -202,6 +215,7 @@ func LoadWeek(ctx context.Context, tx pgx.Tx, weekStart, asOf string, now time.T
 
 func sessionRow(s row, today string, pace *float64, found, assessment, interval row) row {
 	r := pick(s, "session_uid", "local_date", "slot", "kind", "recipe_id", "custom", "intent", "modification_reason")
+	r["slot"] = int(s["slot"].(float64))
 	kind := s["kind"].(string)
 	cls := class(kind, s["recipe_id"], s["intent"])
 	r["class"], r["key"], r["changed"] = cls, (cls == "long" || cls == "quality" || cls == "benchmark"), s["revision"].(float64) > 1

@@ -1,11 +1,13 @@
 package snapshotreads
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/mtang08/going-bananas/backend-go/internal/blockbenchmark"
+	"github.com/mtang08/going-bananas/backend-go/internal/canonicaljson"
 )
 
 // Block groups the live block, event, intensity calibration and proposal history projections.
@@ -24,7 +26,33 @@ func LoadBlock(ctx context.Context, tx pgx.Tx, asOf string) (Block, error) {
 		return b, err
 	}
 	err := tx.QueryRow(ctx, blockHistorySQL).Scan(&b.BlockDecisions, &b.BenchmarkHistory, &b.Anchors, &b.Proposals)
+	if err == nil {
+		b.Anchors, err = typedFloatFields(b.Anchors, "value_low", "value_high")
+	}
 	return b, err
+}
+
+// PostgreSQL JSON aggregates render integral float8 values without a decimal
+// point. Restore the ORM column type before hashing the snapshot wire data.
+func typedFloatFields(raw json.RawMessage, keys ...string) (json.RawMessage, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var rows []map[string]any
+	if err := dec.Decode(&rows); err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		for _, k := range keys {
+			if n, ok := r[k].(json.Number); ok {
+				f, err := n.Float64()
+				if err != nil {
+					return nil, err
+				}
+				r[k] = f
+			}
+		}
+	}
+	return canonicaljson.Coaching(rows)
 }
 
 // Python's canonical datetime string uses six fractional digits when there are

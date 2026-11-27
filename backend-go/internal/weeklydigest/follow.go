@@ -56,6 +56,11 @@ func followUp(ctx context.Context, tx pgx.Tx, rows, planned []row, today string,
 	if !estimated {
 		accepted["distance_m"] = nullable(distance)
 	}
+	for from, to := range map[string]string{"planned_duration_s": "duration_s", "planned_distance_m": "distance_m"} {
+		if n := num(ref[from]); n != nil {
+			accepted[to] = int(*n)
+		}
+	}
 	var response, actual row
 	if a, ok := s["actual"].(map[string]any); ok {
 		actual = pick(a, "id", "subject", "local_date", "duration_s", "distance_m", "rpe")

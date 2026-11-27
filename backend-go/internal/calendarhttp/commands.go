@@ -15,6 +15,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
 	"github.com/mtang08/going-bananas/backend-go/internal/jsonmodel"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 	"io"
 	"net/http"
 	"time"
@@ -34,6 +35,9 @@ type Handler struct {
 func (h Handler) Register(mux *http.ServeMux) {
 	if h.Mode != "test" && h.Mode != "demo" {
 		return
+	}
+	for _, path := range []string{"/api/v1/calendar", "/api/v1/calendar/week", "/api/v1/calendar/diff"} {
+		mux.HandleFunc("GET "+path, h.read)
 	}
 	for path, name := range map[string]string{"POST /api/v1/calendar/bootstrap": "BootstrapInput", "POST /api/v1/calendar/edits": "EditsInput", "POST /api/v1/calendar/rollback": "RollbackInput", "POST /api/v1/anchors": "AnchorInput", "GET /api/v1/anchors": "list"} {
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) { h.serve(w, r, name) })
@@ -188,7 +192,11 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, name string) {
 		if err != nil {
 			return err
 		}
-		return calendar.RefreshPlans(ctx, tx, scope, now, h.Metrics)
+		metrics := h.Metrics
+		if metrics == nil {
+			metrics = refresh.PlanMetrics(now, refresh.Runs)
+		}
+		return calendar.RefreshPlans(ctx, tx, scope, now, metrics)
 	})
 	if err != nil {
 		domainError(w, err)

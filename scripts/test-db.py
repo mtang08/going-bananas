@@ -138,6 +138,8 @@ def main():
         'provider': 'check_provider_replay.py',
         'strong': 'check_strong_import.py',
         'exception-inputs': 'check_exception_inputs.py',
+        'exception-view': 'check_exception_view.py',
+        'exception-http': 'check_exception_http.py',
         'coaching-lifecycle': 'coaching/check_lifecycle.py',
         'recovery': 'check_recovery.py',
         'activity-reads': 'check_activity_reads.py',
@@ -150,6 +152,8 @@ def main():
         'backup': 'check_workspace_backup.py',
         'phone-checkins': 'check_phone_checkins.py',
         'calendar': 'check_self_reports.py',
+        'completion-http': 'check_completion_http.py',
+        'feedback-http': 'check_feedback_http.py',
         'rematch': 'check_rematch.py',
         'dashboard': 'check_dashboard.py',
     }

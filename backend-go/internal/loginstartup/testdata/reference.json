@@ -1,0 +1,233 @@
+[
+  {
+    "action": null,
+    "change": "",
+    "result": {
+      "status": "disabled",
+      "enabled": false,
+      "message": null
+    },
+    "calls": [
+      "print-disabled",
+      "print"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": true,
+    "change": "",
+    "result": {
+      "status": "enabled",
+      "enabled": true,
+      "message": null
+    },
+    "calls": [
+      "print-disabled",
+      "print",
+      "print-disabled",
+      "print",
+      "print-disabled"
+    ],
+    "rewritten": true
+  },
+  {
+    "action": true,
+    "change": "registered",
+    "result": {
+      "status": "enabled",
+      "enabled": true,
+      "message": null
+    },
+    "calls": [
+      "print-disabled"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": false,
+    "change": "",
+    "result": {
+      "status": "disabled",
+      "enabled": false,
+      "message": null
+    },
+    "calls": [
+      "print-disabled",
+      "print-disabled",
+      "disable",
+      "print-disabled"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": false,
+    "change": "",
+    "result": {
+      "status": "disabled",
+      "enabled": false,
+      "message": null
+    },
+    "calls": [
+      "print-disabled"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": null,
+    "change": "",
+    "result": {
+      "status": "disabled",
+      "enabled": false,
+      "message": null
+    },
+    "calls": [
+      "print-disabled"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": true,
+    "change": "",
+    "result": {
+      "status": "enabled",
+      "enabled": true,
+      "message": null
+    },
+    "calls": [
+      "print-disabled",
+      "print-disabled",
+      "enable",
+      "print-disabled"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": true,
+    "change": "ignore-enable",
+    "result": {
+      "status": "unavailable",
+      "enabled": null,
+      "message": "macOS did not confirm the login startup setting. Try again."
+    },
+    "calls": [
+      "print-disabled",
+      "print-disabled",
+      "enable",
+      "print-disabled"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": null,
+    "change": "",
+    "result": {
+      "status": "disabled",
+      "enabled": false,
+      "message": null
+    },
+    "calls": [
+      "print-disabled"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": true,
+    "change": "repair",
+    "result": {
+      "status": "enabled",
+      "enabled": true,
+      "message": null
+    },
+    "calls": [
+      "print-disabled",
+      "print-disabled",
+      "enable",
+      "print-disabled"
+    ],
+    "rewritten": true
+  },
+  {
+    "action": null,
+    "change": "binary",
+    "result": {
+      "status": "enabled",
+      "enabled": true,
+      "message": null
+    },
+    "calls": [
+      "print-disabled"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": null,
+    "change": "foreign",
+    "result": {
+      "status": "other_checkout",
+      "enabled": null,
+      "message": "A login agent already points to another Going Bananas checkout. Manage it there."
+    },
+    "calls": [],
+    "rewritten": false
+  },
+  {
+    "action": false,
+    "change": "",
+    "result": {
+      "status": "other_checkout",
+      "enabled": null,
+      "message": "A login agent already points to another Going Bananas checkout. Manage it there."
+    },
+    "calls": [],
+    "rewritten": false
+  },
+  {
+    "action": true,
+    "change": "malformed",
+    "result": {
+      "status": "unavailable",
+      "enabled": null,
+      "message": "The existing Going Bananas login agent could not be read."
+    },
+    "calls": [],
+    "rewritten": false
+  },
+  {
+    "action": null,
+    "change": "missing",
+    "result": {
+      "status": "unavailable",
+      "enabled": null,
+      "message": "A Going Bananas login agent is registered but its settings file is missing. Sign out and in to reset it."
+    },
+    "calls": [
+      "print-disabled",
+      "print"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": true,
+    "change": "offline",
+    "result": {
+      "status": "unavailable",
+      "enabled": null,
+      "message": "macOS could not read login startup. Open Going Bananas from your Mac desktop session."
+    },
+    "calls": [
+      "print-disabled"
+    ],
+    "rewritten": false
+  },
+  {
+    "action": true,
+    "change": "symlink",
+    "result": {
+      "status": "unavailable",
+      "enabled": null,
+      "message": "The existing Going Bananas login item is a symbolic link. Check it before changing startup."
+    },
+    "calls": [],
+    "rewritten": false
+  }
+]
