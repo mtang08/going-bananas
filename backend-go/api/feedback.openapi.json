@@ -1,0 +1,667 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Going Bananas prompts and session feedback API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/prompts": {
+      "get": {
+        "operationId": "listPrompts",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prompts/{prompt_id}/dismiss": {
+      "post": {
+        "operationId": "dismissPrompt",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Local-Request",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Subject not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Prompt has been answered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/activities/{activity_id}/rpe": {
+      "put": {
+        "operationId": "saveActivityRPE",
+        "parameters": [
+          {
+            "name": "activity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Local-Request",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RPEInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualRPEEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Subject not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/strength/history/{workout_id}/rpe": {
+      "put": {
+        "operationId": "saveStrengthRPE",
+        "parameters": [
+          {
+            "name": "workout_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Local-Request",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RPEInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualRPEEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Subject not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ValidationField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "ValidationField"
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationField"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id",
+          "fields"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Prompt": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "activity_id",
+          "session_uid",
+          "opens_at",
+          "closes_at",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "rpe",
+              "delayed_symptom",
+              "unmatched_session",
+              "missing_activity"
+            ]
+          },
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "session_uid": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "opens_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closes_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "answered",
+              "dismissed",
+              "expired"
+            ]
+          }
+        }
+      },
+      "Prompts": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Prompt"
+            }
+          }
+        }
+      },
+      "ManualRPE": {
+        "type": "object",
+        "required": [
+          "activity_id",
+          "strong_workout_id",
+          "manual_session_id",
+          "rpe",
+          "source",
+          "collected_at",
+          "collection_delay_s"
+        ],
+        "properties": {
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strong_workout_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manual_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rpe": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual"
+            ]
+          },
+          "collected_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "collection_delay_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "RPEInput": {
+        "type": "object",
+        "required": [
+          "rpe"
+        ],
+        "properties": {
+          "rpe": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10,
+            "multipleOf": 0.1
+          }
+        },
+        "additionalProperties": false
+      },
+      "PromptEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Prompt"
+          }
+        }
+      },
+      "PromptsEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Prompts"
+          }
+        }
+      },
+      "ManualRPEEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ManualRPE"
+          }
+        }
+      }
+    }
+  }
+}
