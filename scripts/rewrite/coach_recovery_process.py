@@ -67,7 +67,7 @@ def capture(base, uid, agreement):
     return {"agreement": agreement, "review": review, "views": views}
 
 
-def calendar_rows(url):
+def durable_rows(url):
     schema = url.query["search_path"]
     assert re.fullmatch(r"go_parity_[0-9a-f]{32}", schema)
     with connect(
@@ -80,15 +80,25 @@ def calendar_rows(url):
             "SELECT id,session_uid,revision,calendar_version_number FROM calendar_session_revisions "
             "ORDER BY session_uid,revision"
         ).fetchall()
+        receipts = db.execute(
+            "SELECT client_message_id,digest FROM coach_chat_receipts WHERE mode='test' ORDER BY client_message_id"
+        ).fetchall()
+        snapshots = db.execute(
+            "SELECT id,source_fingerprint,payload_sha256 FROM coach_snapshots ORDER BY id"
+        ).fetchall()
+    assert len(receipts) == 2 and all(digest for _, digest in receipts)
+    assert snapshots and all(
+        fingerprint and digest for _, fingerprint, digest in snapshots
+    )
     assert len(versions) >= 3 and len(sessions) >= 7
-    return versions, sessions
+    return versions, sessions, receipts, snapshots
 
 
 def recover(scratch, root, binary, env, proof, native_server):
     source = make_url(env["DATABASE_URL"])
     assert source.host in {"127.0.0.1", "localhost"}
     assert re.fullmatch(r"coach_recovery_[0-9a-f]{32}_test", source.database)
-    rows = calendar_rows(source)
+    rows = durable_rows(source)
     backup = scratch / "workspace-backup"
     subprocess.run(
         ["go", "build", "-o", backup, "./cmd/workspace-backup"], cwd=MODULE, check=True
@@ -123,7 +133,7 @@ def recover(scratch, root, binary, env, proof, native_server):
             == checksum
         )
         restored = source.set(database=target)
-        assert calendar_rows(restored) == rows
+        assert durable_rows(restored) == rows
         restarted = {
             **env,
             "PRIVATE_DIR": str(private),
@@ -138,7 +148,7 @@ def recover(scratch, root, binary, env, proof, native_server):
             )
             for route, previous in proof["views"].items():
                 assert request(base, route) == previous, route
-        assert calendar_rows(restored) == rows
+        assert durable_rows(restored) == rows
     finally:
         with connect(source, autocommit=True) as admin:
             admin.execute(sql.SQL("DROP DATABASE {}").format(sql.Identifier(target)))
