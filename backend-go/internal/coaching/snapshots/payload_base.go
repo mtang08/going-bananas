@@ -261,9 +261,10 @@ func (d displayData) metricsFor(section string, runs records) records {
 		}
 	}
 	windowSizes := []int{7, 14, 28}
-	if d.op == blockReview {
+	switch d.op {
+	case blockReview:
 		windowSizes = []int{7, 14, 28, 56, 84}
-	} else if d.op == daily || d.op == exception {
+	case daily, exception:
 		windowSizes = []int{7}
 	}
 	for _, n := range windowSizes {
