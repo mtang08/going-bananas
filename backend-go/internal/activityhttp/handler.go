@@ -35,6 +35,7 @@ func invalid(field, reason string) *problem {
 	return &problem{422, "validation_error", "Invalid request fields", []object{{"field": field, "message": reason}}}
 }
 func (h Handler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v1/metrics/windows", h.respond(h.windows, true))
 	mux.HandleFunc("GET /api/v1/metrics/workout-progression", h.respond(h.progression, true))
 	mux.HandleFunc("GET /api/v1/metrics/long-runs", h.respond(h.longRuns, true))
 	mux.HandleFunc("GET /api/v1/metrics/recovery", h.respond(h.recovery, true))

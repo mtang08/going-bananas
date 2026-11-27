@@ -566,6 +566,74 @@
           }
         }
       }
+    },
+    "/api/v1/metrics/windows": {
+      "get": {
+        "operationId": "getMetricWindows",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "TrainingWindows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingWindowsEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2310,6 +2378,174 @@
           },
           "data": {
             "$ref": "#/components/schemas/WorkoutProgression"
+          }
+        }
+      },
+      "TrainingWindow": {
+        "type": "object",
+        "required": [
+          "days",
+          "volume",
+          "srpe",
+          "srpe_strength",
+          "intensity",
+          "long_run"
+        ],
+        "properties": {
+          "days": {
+            "type": "integer"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "srpe": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "srpe_strength": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intensity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "long_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "TrainingWindows": {
+        "type": "object",
+        "required": [
+          "as_of",
+          "windows",
+          "spacing",
+          "aerobic",
+          "symptoms"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "windows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingWindow"
+            }
+          },
+          "spacing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "aerobic": {
+            "type": "object",
+            "required": [
+              "w28",
+              "w84"
+            ],
+            "properties": {
+              "w28": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MetricResult"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "w84": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MetricResult"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "symptoms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "TrainingWindowsEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TrainingWindows"
           }
         }
       },

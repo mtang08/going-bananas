@@ -80,6 +80,10 @@ func totals(runs []*metrics.Run, start, end time.Time, complete bool) (object, [
 
 // RefreshVolume stores all registered current and previous-period running totals for a local as-of date.
 func RefreshVolume(ctx context.Context, tx pgx.Tx, asOf time.Time, now time.Time) error {
+	return calculateVolume(ctx, tx, asOf, func(r metrics.Result) error { _, err := metrics.StoreResult(ctx, tx, r, now); return err })
+}
+
+func calculateVolume(ctx context.Context, tx pgx.Tx, asOf time.Time, emit func(metrics.Result) error) error {
 	asOf = time.Date(asOf.Year(), asOf.Month(), asOf.Day(), 0, 0, 0, 0, asOf.Location())
 	end := asOf.AddDate(0, 0, 1)
 	runs, err := runsBetween(ctx, tx, end.AddDate(0, 0, -168), end)
@@ -132,7 +136,7 @@ func RefreshVolume(ctx context.Context, tx pgx.Tx, asOf time.Time, now time.Time
 			status, quality = "missing", ""
 		}
 		key := fmt.Sprintf("w%d:%s", days, asOf.Format(time.DateOnly))
-		_, err = metrics.StoreResult(ctx, tx, metrics.Result{MetricID: "run_volume_frequency", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Config: volumeConfig, SourceRefs: refs, Value: value, Status: status, QualityStatus: quality, QualityFlags: flags, ReasonCodes: reasons, Timezone: asOf.Location().String()}, now)
+		err = emit(metrics.Result{MetricID: "run_volume_frequency", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Config: volumeConfig, SourceRefs: refs, Value: value, Status: status, QualityStatus: quality, QualityFlags: flags, ReasonCodes: reasons, Timezone: asOf.Location().String()})
 		if err != nil {
 			return err
 		}

@@ -27,6 +27,10 @@ type siteStats struct {
 }
 
 func RefreshSymptoms(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error {
+	return calculateSymptoms(ctx, tx, asOf, func(r metrics.Result) error { _, err := metrics.StoreResult(ctx, tx, r, now); return err })
+}
+
+func calculateSymptoms(ctx context.Context, tx pgx.Tx, asOf time.Time, emit func(metrics.Result) error) error {
 	start, end := dayStart(asOf).AddDate(0, 0, -27), dayStart(asOf).AddDate(0, 0, 1)
 	rows, err := tx.Query(ctx, `SELECT c.id,c.version,c.activity_id,c.kind,c.gait_change,
  to_char(c.observed_at,'YYYY-MM-DD"T"HH24:MI:SS')||CASE WHEN extract(microseconds FROM c.observed_at)::integer%1000000<>0 THEN to_char(c.observed_at,'.US') ELSE '' END||to_char(c.observed_at,'TZH:TZM'),
@@ -104,6 +108,6 @@ func RefreshSymptoms(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error 
 		r.Value = nil
 		r.ReasonCodes = []string{"NO_CHECKINS_IN_WINDOW"}
 	}
-	_, err = metrics.StoreResult(ctx, tx, r, now)
+	err = emit(r)
 	return err
 }
