@@ -32,3 +32,34 @@ func Revisions() []string {
 	}
 	return ids
 }
+
+// Head is the latest stamped revision from the generated Alembic lineage.
+func Head() string {
+	ids := Revisions()
+	return ids[len(ids)-1]
+}
+
+// RequiredColumns lists the table/column pairs in the generated PostgreSQL DDL.
+// It is used to detect partially provisioned, incorrectly stamped workspaces.
+func RequiredColumns() []string {
+	var cols []string
+	var table string
+	for line := range strings.SplitSeq(ddl, "\n") {
+		if name, ok := strings.CutPrefix(line, "CREATE TABLE public."); ok {
+			table = strings.TrimSuffix(name, " (")
+			continue
+		}
+		if line == ");" {
+			table = ""
+			continue
+		}
+		if table == "" || !strings.HasPrefix(line, "    ") {
+			continue
+		}
+		name, _, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if ok && name != "CONSTRAINT" {
+			cols = append(cols, table+"."+strings.Trim(name, `"`))
+		}
+	}
+	return cols
+}

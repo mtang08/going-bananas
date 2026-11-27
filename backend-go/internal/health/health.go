@@ -12,9 +12,8 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/httpresponse"
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 	"github.com/mtang08/going-bananas/backend-go/internal/prompts"
+	baseline "github.com/mtang08/going-bananas/backend-go/sql"
 )
-
-const expectedHead = "0028_coach_chat_reviews"
 
 type Handler struct {
 	Pool *pgxpool.Pool
@@ -32,7 +31,7 @@ func (h Handler) ready(w http.ResponseWriter, r *http.Request) {
 	var revision int
 	var current bool
 	err := h.Pool.QueryRow(r.Context(), `SELECT coalesce((SELECT data_revision FROM app_state WHERE id=1),0),
- (SELECT count(*)=1 AND bool_and(version_num=$1) FROM alembic_version)`, expectedHead).Scan(&revision, &current)
+ (SELECT count(*)=1 AND bool_and(version_num=$1) FROM alembic_version)`, baseline.Head()).Scan(&revision, &current)
 	if err != nil || !current {
 		httpresponse.Envelope(w, http.StatusServiceUnavailable, h.Mode, 0, map[string]any{"status": "unavailable", "database": false})
 		return
