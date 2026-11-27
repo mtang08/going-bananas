@@ -22,12 +22,12 @@ func TestRecoveryPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	fixture, err := gzip.NewReader(file)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer fixture.Close()
+	defer func() { _ = fixture.Close() }()
 	var ref struct {
 		Query string
 		Cases []struct {
