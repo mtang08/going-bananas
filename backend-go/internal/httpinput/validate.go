@@ -95,7 +95,7 @@ func Object(r io.Reader) (map[string]any, []string, []api.ValidationField) {
 		fields = append(fields, api.ValidationField{Field: field, Message: message})
 	}
 	body, err := io.ReadAll(r)
-	if err != nil || len(body) == 0 {
+	if err != nil || len(body) == 0 || bytes.Equal(bytes.TrimSpace(body), []byte("null")) {
 		add("body", "Field required")
 		return nil, nil, fields
 	}

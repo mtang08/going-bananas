@@ -14,10 +14,13 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/phonegateway"
 )
 
-func run() error {
-	demo := flag.Bool("demo", false, "use the dedicated demo origin and API")
-	assets := flag.String("assets", "frontend/public/phone", "phone asset directory")
-	flag.Parse()
+func run(args []string, listen func(string, string) (net.Listener, error)) error {
+	flags := flag.NewFlagSet("phone-gateway", flag.ContinueOnError)
+	demo := flags.Bool("demo", false, "use the dedicated demo origin and API")
+	assets := flags.String("assets", "frontend/public/phone", "phone asset directory")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	data, err := exec.CommandContext(ctx, "tailscale", "status", "--json").Output()
@@ -28,7 +31,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	l, err := net.Listen("tcp4", fmt.Sprintf("127.0.0.1:%d", access.ListenPort))
+	l, err := listen("tcp4", fmt.Sprintf("127.0.0.1:%d", access.ListenPort))
 	if err != nil {
 		return err
 	}
@@ -38,7 +41,7 @@ func run() error {
 	return s.Serve(l)
 }
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:], net.Listen); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
