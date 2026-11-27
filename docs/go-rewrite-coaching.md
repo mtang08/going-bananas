@@ -69,6 +69,8 @@ python3 scripts/test_coach_skill_v2.py
 make check-go
 ```
 
+To exercise the dashboard through Vite and installed Chrome, run `GB_NATIVE_COACH_BROWSER=1 python3 scripts/test-db.py dashboard`. The browser journey creates a fresh test database and uses a scripted local coach.
+
 The repo-local helper invokes the native coaching CLI for schema, snapshot, query, submit and revise by default in demo and test. Real mode keeps Python by default. Setting `GOING_BANANAS_BACKEND=go` selects the native CLI in the explicitly requested mode. The launcher resolves that setting inside `with-mode`, and the Go CLI verifies the database suffix before opening a connection. Reads of proposals, history and findings use the existing HTTP routes. In the dashboard runner a synthetic athlete reviews the draft in a separate HTTP action. Acceptance advances the calendar once, and an explicit undo restores the previous run duration. The runner then drives the registered dashboard against the same database using a local scripted app-server. [Helper selector](../scripts/coach-cli) · [Separate-process journey](../scripts/rewrite/check_coach_helper.py)
 
 The same rehearsal backs up an isolated source database and private directory, restores both to fresh targets, and starts the native server against the restored workspace. It checks the raw-file SHA-256, calendar and session IDs, both proposal revisions, snapshot fingerprints and message receipt digests. Replaying the original athlete message returns the original pending proposal. [Recovery rehearsal](../scripts/rewrite/coach_recovery_process.py)
