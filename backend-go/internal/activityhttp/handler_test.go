@@ -10,6 +10,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -47,6 +48,11 @@ func difference(a, b any, path string) string {
 }
 func TestActivityReads(t *testing.T) {
 	file := os.Getenv("ACTIVITY_READ_CASES")
+	write := false
+	if file == "" {
+		file = os.Getenv("ANNOTATION_CASES")
+		write = file != ""
+	}
 	if file == "" {
 		t.Skip("requires Python oracle")
 	}
@@ -55,9 +61,9 @@ func TestActivityReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	var cases []struct {
-		Path   string
-		Status int
-		Body   map[string]any
+		Path, Payload string
+		Status        int
+		Body          map[string]any
 	}
 	if err = json.Unmarshal(raw, &cases); err != nil {
 		t.Fatal(err)
@@ -85,7 +91,11 @@ func TestActivityReads(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.Path, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/api/v1"+c.Path, nil)
+			method := "GET"
+			if write {
+				method = "PATCH"
+			}
+			req := httptest.NewRequest(method, "/api/v1"+c.Path, strings.NewReader(c.Payload))
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req)
 			var got object
@@ -104,7 +114,7 @@ func TestActivityReads(t *testing.T) {
 		})
 	}
 	after, err := counts(t.Context())
-	if err != nil || before != after {
+	if err != nil || (!write && before != after) {
 		t.Fatal("GET mutated source or metric state", before, after, err)
 	}
 }
