@@ -1,3 +1,4 @@
+import type { components as Feedback } from '../generated/feedback'
 import type { CheckinExceptions } from './exceptions'
 export type CheckinKind = 'exception' | 'post_run' | 'delayed_followup'
 export type Illness = 'none' | 'possible' | 'present'
@@ -47,16 +48,8 @@ export interface CheckinV2 {
   schema_version: number
   exceptions?: CheckinExceptions
 }
-export type PromptKind = 'rpe' | 'delayed_symptom' | 'unmatched_session' | 'missing_activity'
-export interface Prompt {
-  id: string
-  kind: PromptKind
-  activity_id: string | null
-  session_uid: string | null
-  opens_at: string
-  closes_at: string | null
-  status: 'open' | 'answered' | 'dismissed' | 'expired'
-}
+export type Prompt = Feedback['schemas']['Prompt']
+export type PromptKind = Prompt['kind']
 export interface WorkoutFeedback {
   prompt: (Omit<Prompt, 'status'> & { status: Prompt['status'] | 'scheduled' }) | null
   checkin_id: string | null
@@ -67,18 +60,8 @@ export interface WorkoutFeedback {
   gait_change: GaitChange | null
   symptoms: SymptomInput[]
 }
-export interface PromptList {
-  items: Prompt[]
-}
-export interface RpeResult {
-  activity_id: string | null
-  strong_workout_id: string | null
-  manual_session_id: string | null
-  rpe: number
-  source: 'manual'
-  collected_at: string
-  collection_delay_s: number | null
-} // [DTO fixed here]
+export type PromptList = Feedback['schemas']['Prompts']
+export type RpeResult = Feedback['schemas']['ManualRPE']
 export interface CheckinRequest {
   kind: CheckinKind
   prompt: Prompt | null
