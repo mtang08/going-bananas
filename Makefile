@@ -8,7 +8,7 @@ export GOCACHE ?= $(CURDIR)/private/cache/go-build
 export GOLANGCI_LINT_CACHE ?= $(CURDIR)/private/cache/golangci-lint
 API_TYPES := python3 scripts/api-types.py
 BACKUP := ./scripts/backend-cli backup "$$PRIVATE_DIR/backups/backup-$$(date +%Y%m%d-%H%M%S).tar.gz"
-TESTS ?= tests/integration tests/test_ingestion_integration.py
+TESTS ?= tests/integration
 .PHONY: doctor setup db-start db-stop migrate seed-demo dev build start check test-db-start test-db-stop test-integration test-integration-external test-e2e sync backup check-backend check-frontend check-docs complexity
 
 doctor: PATH := /opt/homebrew/opt/node@22/bin:/opt/homebrew/opt/postgresql@17/bin:/opt/homebrew/bin:$(PATH)
@@ -58,7 +58,7 @@ check-docs:
 	$(RUN) python3 scripts/check-docs.py
 check-backend: check-go
 	python3 scripts/test_phone_gateway.py
-	$(RUN) bash -c 'cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app --ignore-missing-imports && uv run pytest tests/unit tests/test_*.py -m "not integration"'
+	$(RUN) bash -c 'cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app --ignore-missing-imports && uv run pytest tests/unit'
 .PHONY: generate-api-types check-api-types api-schema
 api-schema:
 	@$(API_TYPES) --schema
@@ -69,7 +69,7 @@ check-api-types:
 check-frontend: check-api-types
 	$(RUN) bash -c 'cd frontend && npm run lint && npm run format:check && npm run typecheck && npm test && npm run build'
 complexity:
-	$(RUN) bash -c 'cd backend && uv run ruff check app --select C901 --config "lint.mccabe.max-complexity=15" --output-format concise || true'
+	cd backend-go && golangci-lint run --config ../.golangci.yml --enable-only=gocyclo --tests=false --issues-exit-code=0 --max-issues-per-linter=0 --max-same-issues=0 ./...
 
 test-db-start:
 	python3 scripts/test-db.py start

@@ -4,6 +4,9 @@ linters:
   enable:
     - bodyclose
     - errorlint
+  settings:
+    gocyclo:
+      min-complexity: 15
 formatters:
   enable:
     - gofmt
