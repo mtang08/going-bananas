@@ -17,6 +17,7 @@ import (
 type JobPage struct {
 	Activities    map[uuid.UUID]string
 	AffectedDates []string
+	CoverageIDs   []uuid.UUID
 	Counters      map[string]int
 	Newest        *time.Time
 	Pending       map[string]any
@@ -64,11 +65,12 @@ func ApplyJobPage(ctx context.Context, tx pgx.Tx, root, dataset, scope string, r
 	result.Counters = replayed.Counts.providerCounts()
 	result.Activities = replayed.Activities
 	result.AffectedDates = replayed.AffectedDates
-	coverageChanged, err := resolveImportedReviews(ctx, tx, result.Ready, at)
+	coverageIDs, err := resolveImportedReviews(ctx, tx, result.Ready, at)
 	if err != nil {
 		return JobPage{}, err
 	}
-	if coverageChanged || replayed.Counts.Changed > 0 {
+	result.CoverageIDs = coverageIDs
+	if len(coverageIDs) > 0 || len(replayed.Activities) > 0 {
 		if _, err := db.New(tx).BumpDataRevision(ctx); err != nil {
 			return JobPage{}, err
 		}
@@ -135,15 +137,15 @@ func partitionActivities(ctx context.Context, tx pgx.Tx, p Page) (JobPage, error
 	return result, nil
 }
 
-func resolveImportedReviews(ctx context.Context, tx pgx.Tx, records []garmin.Record, at time.Time) (bool, error) {
+func resolveImportedReviews(ctx context.Context, tx pgx.Tx, records []garmin.Record, at time.Time) ([]uuid.UUID, error) {
 	ids := make([]string, 0, len(records))
 	for _, r := range records {
 		ids = append(ids, fmt.Sprint(firstTruthy(r["activityId"], r["id"])))
 	}
 	if len(ids) == 0 {
-		return false, nil
+		return nil, nil
 	}
-	var changed bool
+	var changed []uuid.UUID
 	err := tx.QueryRow(ctx, `WITH imported AS (
 		SELECT ARRAY(SELECT DISTINCT garmin_id FROM activities WHERE garmin_id=ANY($1::text[])) AS ids
 	), changed AS (
@@ -157,6 +159,6 @@ func resolveImportedReviews(ctx context.Context, tx pgx.Tx, records []garmin.Rec
 		WHERE c.pending='{}' AND cv.id=(c.checkpoint->>'pending_coverage_id')::uuid RETURNING cv.id
 	), sync AS (
 	UPDATE sync_state SET status='complete',reason=NULL,last_success_at=$2 WHERE dataset='activities' AND reason='treadmill_review_pending'
-	AND EXISTS(SELECT FROM changed WHERE pending='{}' AND checkpoint ? 'pending_coverage_id' AND last_attempt_at<=finished_at)) SELECT EXISTS(SELECT FROM coverage)`, ids, at).Scan(&changed)
+	AND EXISTS(SELECT FROM changed WHERE pending='{}' AND checkpoint ? 'pending_coverage_id' AND last_attempt_at<=finished_at)) SELECT ARRAY(SELECT id FROM coverage)`, ids, at).Scan(&changed)
 	return changed, err
 }

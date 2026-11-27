@@ -138,6 +138,7 @@ def main():
         'provider': 'check_provider_replay.py',
         'strong': 'check_strong_import.py',
         'exception-inputs': 'check_exception_inputs.py',
+        'exception-view': 'check_exception_view.py',
         'coaching-lifecycle': 'coaching/check_lifecycle.py',
         'recovery': 'check_recovery.py',
         'activity-reads': 'check_activity_reads.py',
