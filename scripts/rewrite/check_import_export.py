@@ -1,18 +1,15 @@
-"""Compare Garmin export preview, apply and replay using disposable schemas."""
+"""Exercise Garmin export preview, apply and replay using native PostgreSQL."""
 
+import hashlib
 import json
-import os
 import subprocess
-import sys
 import tempfile
-from datetime import UTC, datetime
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import psycopg
-
 from check_gcal_replay import connect, test_url
-from test_proposal_slice import BACKEND, MODULE, ROOT, migrated_schema
+from test_proposal_slice import MODULE, ROOT, migrated_schema
 
 
 def fixture(path):
@@ -61,53 +58,6 @@ def fixture(path):
             z.writestr(name, json.dumps(rows, ensure_ascii=False).encode())
 
 
-def reference():
-    from app import strong_models  # noqa: F401
-    from app.db import SessionLocal
-    from app.services.export_import import import_export
-    from app.services.sync import import_activity_page, import_recovery_page
-
-    if sys.argv[1] != "seed":
-        from app.metrics import refresh
-        from app.services import derived
-
-        derived.install()
-        refresh.clock = lambda _: datetime(2026, 11, 16, 9, tzinfo=UTC)
-    root = Path(os.environ["PRIVATE_DIR"])
-    with SessionLocal.begin() as session:
-        if sys.argv[1] == "seed":
-            row = {
-                "activityId": 1234,
-                "ownerId": 777,
-                "activityType": {"typeKey": "running"},
-                "startTimeGMT": "2026-11-13T08:00:00Z",
-                "distance": 2000,
-                "elapsedDuration": 300,
-            }
-            import_activity_page(session, root, [row], account_scope="auto")
-            import_recovery_page(
-                session,
-                root,
-                "hrv",
-                [
-                    {
-                        "userProfilePk": 777,
-                        "calendarDate": "2026-11-13",
-                        "lastNightAvg": 74,
-                    }
-                ],
-                fetched_at=datetime(2026, 11, 13, tzinfo=UTC),
-            )
-        else:
-            result = import_export(
-                session,
-                root,
-                Path(os.environ["EXPORT_FIXTURE"]),
-                apply=os.environ["EXPORT_APPLY"] == "1",
-            )
-            (root / "fixture-result.json").write_text(json.dumps(result))
-
-
 def snapshot(env):
     with connect(env) as db:
         return [
@@ -144,61 +94,82 @@ def run():
             cwd=MODULE,
             check=True,
         )
-        with (
-            migrated_schema(db, url, scratch / "py", "5173") as py,
-            migrated_schema(db, url, scratch / "go", "5173") as go,
-        ):
-            for env in (py, go):
-                env.update(
-                    EXPORT_FIXTURE=str(archive),
-                    PYTHONPATH=str(BACKEND),
-                    GORACE="atexit_sleep_ms=0",
-                )
-                subprocess.run([sys.executable, __file__, "seed"], env=env, check=True)
+        with migrated_schema(db, url, scratch / "native", "5173") as go:
+            go.update(EXPORT_FIXTURE=str(archive), GORACE="atexit_sleep_ms=0")
             with connect(go) as conn:
-                conn.execute("CREATE TABLE fixture_export_refresh(scope jsonb NOT NULL)")
-            for apply in (False, True, True):
-                before = snapshot(go)
-                raw = lambda env: {
-                    p.relative_to(Path(env["PRIVATE_DIR"]) / "raw"): p.read_bytes()
-                    for p in (Path(env["PRIVATE_DIR"]) / "raw").rglob("*")
+                conn.execute(
+                    "CREATE TABLE fixture_export_refresh(scope jsonb NOT NULL)"
+                )
+            subprocess.run(
+                [binary, "-test.run", "^TestExportFixture$"],
+                env={**go, "EXPORT_SEED": "1"},
+                check=True,
+            )
+            root = Path(go["PRIVATE_DIR"])
+
+            def raw():
+                return {
+                    p.relative_to(root / "raw"): p.read_bytes()
+                    for p in (root / "raw").rglob("*")
                     if p.is_file()
                 }
-                files = raw(go)
-                for env in (py, go):
-                    env["EXPORT_APPLY"] = str(int(apply))
-                subprocess.run([sys.executable, __file__, "ref"], env=py, check=True)
+
+            initial, initial_files = snapshot(go), raw()
+            for phase, apply in (("preview", False), ("apply", True), ("replay", True)):
+                go["EXPORT_APPLY"] = str(int(apply))
                 subprocess.run(
                     [binary, "-test.run", "^TestExportFixture$"], env=go, check=True
                 )
-                a, b = (
-                    json.loads(
-                        (Path(e["PRIVATE_DIR"]) / "fixture-result.json").read_text()
+                summary = json.loads((root / "fixture-result.json").read_text())
+                stored = snapshot(go)
+                files = raw()
+                if phase == "preview":
+                    assert initial == stored and initial_files == files
+                elif phase == "apply":
+                    assert stored[1][0][1] == 2000 and len(stored[1]) == 1
+                    measurements = {row[0]: row[2] for row in stored[4]}
+                    assert (
+                        measurements["hrv"] == 74 and measurements["resting_hr"] == 55
                     )
-                    for e in (py, go)
-                )
-                assert a == b, (a, b)
-                expected, got = snapshot(py), snapshot(go)
-                for i, (x, y) in enumerate(zip(expected, got, strict=True)):
-                    assert x == y, (i, x, y)
-                assert raw(py) == raw(go)
-                if not apply:
-                    assert before == got and files == raw(go)
+                    assert len(stored[5]) == 4 and stored[-1]
+                    assert stored[7][0][0] == initial[7][0][0] + 1
+                    assert not summary.get("replayed")
+                    for relative, digest, size, _ in stored[2]:
+                        data = files[Path(relative).relative_to("raw")]
+                        assert (
+                            len(data) == size
+                            and hashlib.sha256(data).hexdigest() == digest
+                        )
+                    applied, applied_files = stored, files
+                else:
+                    assert summary["replayed"] and applied_files == files
+                    assert applied[:6] == stored[:6] and applied[7:] == stored[7:]
+                    assert stored[6][:-1] == applied[6]
+                    assert stored[6][-1][:3] == (
+                        "garmin_export",
+                        "partial",
+                        "garmin-export-v1",
+                    )
+                    receipt = stored[6][-1][3]
+                    assert (
+                        receipt["archive_sha256"]
+                        == hashlib.sha256(archive.read_bytes()).hexdigest()
+                    )
+                    assert receipt["activities"]["new_revisions"] == 0
             with connect(go) as conn:
-                scopes = conn.execute("SELECT scope FROM fixture_export_refresh").fetchall()
+                scopes = conn.execute(
+                    "SELECT scope FROM fixture_export_refresh"
+                ).fetchall()
                 assert len(scopes) == 1
                 scope = scopes[0][0]
                 assert len(scope["CoverageIDs"]) == 4 and len(scope["Activities"]) == 1
                 assert scope["RecoveryDates"] == ["2026-11-13"]
-            assert a["replayed"] and a["status"] == "partial" and got[-1]
-            assert a["recovery"] == {"sleep": 1, "resting_hr": 1, "hrv": 1}
+            assert summary["status"] == "partial"
+            assert summary["recovery"] == {"sleep": 1, "resting_hr": 1, "hrv": 1}
     print(
         "PASS Garmin export preflight, shared API precedence, three recovery datasets and byte-identical replay"
     )
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        reference()
-    else:
-        run()
+    run()

@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestPythonDemoSeed(t *testing.T) {
+func TestDemoSeedFixture(t *testing.T) {
 	out := os.Getenv("DEMO_SEED_OUTPUT")
 	if out == "" {
 		t.Skip("run scripts/test-db.py demo-seed")
