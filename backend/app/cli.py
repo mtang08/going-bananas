@@ -197,15 +197,6 @@ def _coach(args) -> int:
                         }
                     )
                     return 2
-            if settings.app_mode in {"test", "demo"}:
-                from app.coaching_native import run_draft
-
-                payload = request.model_dump(mode="json") if args.coach_command == "revise" else raw
-                result, code = run_draft(
-                    args.coach_command, payload, str(args.id) if args.coach_command == "revise" else None
-                )
-                output(result, error=code == 4)
-                return code
             with SessionLocal.begin() as session:
                 if args.coach_command == "submit":
                     submitted = submit_proposal(session, raw, now=now, resolve_kb=resolve_kb)
