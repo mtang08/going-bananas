@@ -9,7 +9,6 @@ from pathlib import Path
 
 from app.config import Settings
 
-
 _SAFE_ERRORS = {
     "csv_copy_mismatch",
     "csv_field_too_large",
