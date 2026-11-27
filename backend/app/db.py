@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-
 from sqlalchemy import create_engine, event, select, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -27,11 +25,6 @@ def global_write_lock(session: Session) -> None:
 def global_read_lock(session: Session) -> None:
     """Wait for in-flight writers, then read a consistent view until this transaction ends."""
     session.execute(_READ_LOCK)
-
-
-def get_session() -> Generator[Session, None, None]:
-    with SessionLocal() as session:
-        yield session
 
 
 def get_revision(session: Session) -> int:

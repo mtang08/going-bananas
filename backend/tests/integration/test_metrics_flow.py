@@ -15,7 +15,6 @@ from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
-from app.api.metrics import activity_execution, explain_metric, get_windows, long_run_history, recovery_nights
 from app.checkin_models import SessionRpe
 from app.config import settings
 from app.db import bump_data_revision, get_revision
@@ -23,6 +22,13 @@ from app.metric_models import MetricResult, Prompt
 from app.metrics import engine, refresh
 from app.models import Activity, AppState, CoverageInterval, ProfileVersion
 from app.services import derived
+from app.services.metric_drilldowns import (
+    activity_execution,
+    explain_metric,
+    long_run_history,
+    metric_windows,
+    recovery_nights,
+)
 from app.services.sync import import_activity_page
 
 NOW = datetime(2025, 2, 2, 17, tzinfo=UTC)
@@ -168,7 +174,7 @@ def test_four_runs_idempotent_reads_and_explanation(db, tmp_path):
         session.info["metrics_now"] = NOW
         materialize(session)
         revision = get_revision(session)
-        data = get_windows(TODAY, session)["data"]
+        data = metric_windows(session, TODAY)
         assert set(data["aerobic"]) == {"w28", "w84"}
         volume = data["windows"][0]["volume"]
         assert volume["value"]["timer_duration_s"] == 9900
@@ -179,8 +185,8 @@ def test_four_runs_idempotent_reads_and_explanation(db, tmp_path):
         assert rpe["coverage_duration"] == 0.606
         assert rpe["coverage_sessions"] == 0.5
         before = counts(session)
-        get_windows(TODAY, session)
-        get_windows(TODAY, session)
+        metric_windows(session, TODAY)
+        metric_windows(session, TODAY)
         assert counts(session) == before
         assert get_revision(session) == revision
         assert explain_metric(session, volume["id"])["value"] == volume["value"]
@@ -324,7 +330,7 @@ def test_derived_failure_rolls_back_source_and_revision(db, tmp_path, monkeypatc
     ids = seed(db, tmp_path)
     with db() as session:
         session.info["metrics_now"] = NOW
-        get_windows(TODAY, session)
+        metric_windows(session, TODAY)
         before = counts(session)
         revision = get_revision(session)
         session.get(Activity, ids[0]).timer_s = 9999
@@ -341,45 +347,6 @@ def test_derived_failure_rolls_back_source_and_revision(db, tmp_path, monkeypatc
         assert get_revision(session) == revision
         assert not session.info.get("metrics_running")
         assert not session.info.get("metrics_scopes")
-
-
-def test_http_routes_and_bounds(db, tmp_path):
-    from fastapi import FastAPI, HTTPException
-    from fastapi.testclient import TestClient
-
-    from app.api.metrics import router
-    from app.db import get_session
-    from app.main import app as production_app
-    from app.main import handle_http
-
-    ids = seed(db, tmp_path)
-    api = FastAPI()
-    api.include_router(router, prefix="/api/v1")
-    api.add_exception_handler(HTTPException, handle_http)
-
-    def override():
-        with db() as session:
-            session.info["metrics_now"] = NOW
-            yield session
-
-    api.dependency_overrides[get_session] = override
-    client = TestClient(api)
-    response = client.get("/api/v1/metrics/windows")
-    assert response.status_code == 200
-    assert len(response.json()["data"]["windows"]) == 4
-    assert client.get(f"/api/v1/activities/{ids[0]}/execution").status_code == 200
-    assert client.get(f"/api/v1/activities/{uuid.uuid4()}/execution").status_code == 404
-    assert client.get("/api/v1/metrics/recovery?start=2025-01-01&end=2025-04-03").status_code == 422
-    assert client.get("/api/v1/metrics/recovery?start=2025-02-01&end=2025-01-01").status_code == 422
-    paths = set(production_app.openapi()["paths"])
-    assert {
-        "/api/v1/metrics/windows",
-        "/api/v1/v2/checkins",
-        "/api/v1/exceptions",
-        "/api/v1/activities",
-        "/api/v1/anchors",
-    } <= paths
-    assert "/api/v1/coach/v2/daily" not in paths and "/api/v1/coach/v2/daily/request" not in paths
 
 
 def test_trace_and_anchor_history(db, tmp_path):
@@ -480,7 +447,7 @@ def test_old_new_activity_date_invalidation(db, tmp_path):
     ids = seed(db, tmp_path)
     with db() as session:
         session.info["metrics_now"] = NOW
-        get_windows(TODAY, session)
+        metric_windows(session, TODAY)
         activity = session.get(Activity, ids[0])
         activity.start_at -= timedelta(days=10)
         activity.end_at -= timedelta(days=10)
@@ -844,7 +811,7 @@ def test_metric_gets_write_nothing(db, tmp_path):
         session.execute(text("SET TRANSACTION READ ONLY"))
         transaction = session.get_transaction()
         before, revision = counts(session), get_revision(session)
-        windows = get_windows(TODAY, session)["data"]["windows"]
+        windows = metric_windows(session, TODAY)["windows"]
         activity_execution(session, ids[-1])
         recovery_nights(session, TODAY - timedelta(days=2), TODAY)
         long_run_history(session, TODAY - timedelta(days=13), TODAY)

@@ -16,9 +16,11 @@ from sqlalchemy.orm import sessionmaker
 
 from app.calendar_models import CalendarSessionRevision, CalendarVersion
 from app.config import settings
+from app.errors import AppError
 from app.metrics.refresh import _plan_uids
 from app.models import AppState
 from app.read.calendar import head_version, latest_revision, latest_revisions
+from app.services.calendar import lock_calendar
 
 pytestmark = pytest.mark.integration
 
@@ -166,3 +168,13 @@ def test_refresh_plan_uids_reads_past_cached_head(db):
         assert state.calendar_head_version == 1
 
         assert _plan_uids(session) == [uid_a]
+
+
+def test_advisory_lock_refreshes_cached_head(db):
+    with db() as session:
+        cached = session.get(AppState, 1)
+        assert cached is not None and cached.calendar_head_version == 0
+        session.connection().execute(text("UPDATE app_state SET calendar_head_version=1 WHERE id=1"))
+        with pytest.raises(AppError) as error:
+            lock_calendar(session, expected_head=0)
+        assert error.value.code == "calendar_head_moved"

@@ -1,9 +1,8 @@
-"""Settings and Finder share the login preference, with no real macOS changes in tests."""
+"""Exercise the Finder login launcher against a simulated launchd."""
 
 from __future__ import annotations
 
 import importlib.util
-import json
 import plistlib
 import subprocess
 import sys
@@ -11,14 +10,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
-
-from app.api import login_startup
-from app.main import app
 
 ROOT = Path(__file__).resolve().parents[3]
-URL = "/api/v1/settings/login-startup"
-HEADERS = {"X-Local-Request": "1"}
 
 
 @pytest.fixture
@@ -144,49 +137,3 @@ def test_drift_is_reported_without_replacing_or_stopping_existing_job(launchd, d
     assert launcher.set_login_startup(True)["status"] == status
     assert state.registered and set(state.calls) <= {"print-disabled", "print"}
     assert (agent.read_bytes() if agent.exists() else None) == before
-
-
-def test_settings_is_local_and_rejects_untyped_or_unmarked_writes(monkeypatch):
-    calls = []
-
-    def fake_startup(enabled):
-        calls.append(enabled)
-        return login_startup.LoginStartup(
-            status="enabled" if enabled else "disabled", enabled=enabled is True, message=None
-        )
-
-    monkeypatch.setattr(login_startup, "run_login_startup", fake_startup)
-    local = TestClient(app, client=("127.0.0.1", 8000))
-    remote = TestClient(app, client=("192.0.2.3", 8000))
-    assert remote.get(URL).json()["error"]["code"] == "local_login_startup_required"
-    assert local.get(URL, headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
-    assert local.put(URL, json={"enabled": True}).status_code == 403
-    assert local.put(URL, json={"enabled": "true"}, headers=HEADERS).status_code == 422
-    assert local.put(URL, json={"enabled": True, "path": "/elsewhere"}, headers=HEADERS).status_code == 422
-    assert not calls
-    assert local.get(URL).json()["data"]["status"] == "disabled"
-    changed = local.put(URL, json={"enabled": True}, headers=HEADERS).json()
-    assert changed["data"]["status"] == "enabled" and changed["data_revision"] == 0
-    assert calls == [None, True]
-
-
-def test_nonreal_settings_do_not_call_launcher(monkeypatch):
-    monkeypatch.setattr(login_startup, "sys", SimpleNamespace(platform="darwin"))
-    monkeypatch.setattr(login_startup, "settings", SimpleNamespace(app_mode="demo"))
-    local = TestClient(app, client=("127.0.0.1", 8000))
-    assert local.get(URL).json()["data"]["status"] == "unsupported"
-    rejected = local.put(URL, json={"enabled": True}, headers=HEADERS)
-    assert rejected.status_code == 409 and rejected.json()["error"]["code"] == "login_startup_unsupported"
-
-
-def test_real_api_invokes_only_fixed_checkout_helper(monkeypatch):
-    def fake_run(args, **kwargs):
-        assert args == [sys.executable, str(ROOT / "scripts" / "dashboard-login.py"), "login-startup-enable"]
-        assert kwargs["cwd"] == ROOT and kwargs["env"] == {"LC_ALL": "C"}
-        output = json.dumps({"status": "enabled", "enabled": True, "message": None}).encode()
-        return subprocess.CompletedProcess(args, 0, stdout=output)
-
-    monkeypatch.setattr(login_startup, "sys", SimpleNamespace(platform="darwin", executable=sys.executable))
-    monkeypatch.setattr(login_startup, "settings", SimpleNamespace(app_mode="real"))
-    monkeypatch.setattr(login_startup.subprocess, "run", fake_run)
-    assert login_startup.run_login_startup(True).enabled is True

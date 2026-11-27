@@ -16,19 +16,8 @@ def _imports(path: Path) -> list[str]:
     return names
 
 
-def test_lower_layers_never_import_api():
-    offenders = [
-        f"{p.relative_to(APP)}: {m}"
-        for layer in ("services", "metrics", "domain", "adapters")
-        for p in sorted((APP / layer).rglob("*.py"))
-        for m in _imports(p)
-        if m == "app.api" or m.startswith("app.api.")
-    ]
-    assert offenders == []
-
-
 def test_domain_imports_no_framework_or_db():
-    banned = ("sqlalchemy", "fastapi", "app.db", "app.models", "app.services", "app.api", "app.read")
+    banned = ("sqlalchemy", "app.db", "app.models", "app.services", "app.read")
     offenders = [
         f"{p.name}: {m}"
         for p in sorted((APP / "domain").rglob("*.py"))
@@ -135,12 +124,12 @@ def test_metrics_do_not_import_services_beyond_baseline():
     assert METRICS_SERVICES_BASELINE - found == set(), "remove fixed entries from METRICS_SERVICES_BASELINE"
 
 
-def test_read_layer_stays_below_services_metrics_and_api():
+def test_read_layer_stays_below_services_and_metrics():
     offenders = [
         f"{_rel(p)}: {m}"
         for p in sorted((APP / "read").rglob("*.py"))
         for m in _imports(p)
-        if m.startswith(("app.api", "app.metrics", "app.cli", "app.main"))
+        if m.startswith(("app.metrics", "app.cli"))
         or (m.startswith("app.services") and m not in SERVICES_ALLOWED_BELOW)
     ]
     assert offenders == []

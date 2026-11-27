@@ -17,7 +17,6 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from app import cli
-from app.api.metrics import activity_execution, get_windows
 from app.config import settings
 from app.domain.local_time import date_in_zone
 from app.metric_models import MetricResult
@@ -25,6 +24,7 @@ from app.metrics import aerobic, engine
 from app.migrations_head import EXPECTED_HEAD
 from app.models import Activity, ActivityAnnotation
 from app.services import calendar
+from app.services.metric_drilldowns import activity_execution, metric_windows
 from app.services.timezone import athlete_tz
 
 TODAY = date(2026, 11, 12)
@@ -143,13 +143,13 @@ def test_aerobic_reads(demo):
     with demo() as session:
         easy_id = activity_on(session, 8).id
         structured_id = activity_on(session, 6).id
-        assert get_windows(TODAY, session)["data"]["aerobic"]["w28"]["metric_id"] == "aerobic_efficiency"
+        assert metric_windows(session, TODAY)["aerobic"]["w28"]["metric_id"] == "aerobic_efficiency"
         assert activity_execution(session, easy_id)["aerobic"]["value"]["session_class"] == "easy"
         assert activity_execution(session, structured_id)["aerobic"]["reason_codes"] == ["STRUCTURED_SESSION"]
 
         count = select(func.count()).select_from(MetricResult)
         before = session.scalar(count)
-        get_windows(TODAY, session)
+        metric_windows(session, TODAY)
         activity_execution(session, easy_id)
         activity_execution(session, structured_id)
         assert session.scalar(count) == before

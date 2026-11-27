@@ -125,7 +125,7 @@ def test_registry_rejects_duplicate_unknown_and_cycle(monkeypatch: pytest.Monkey
 
 
 def test_default_metric_dates_are_read_under_shared_lock(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.api import metrics
+    from app.services import metric_drilldowns as metrics
 
     today = date(2025, 2, 2)
     calls: list[str] = []
@@ -139,7 +139,6 @@ def test_default_metric_dates_are_read_under_shared_lock(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(metrics, "global_read_lock", lock)
     monkeypatch.setattr(metrics.refresh, "local_today", local_today)
-    monkeypatch.setattr(metrics, "envelope", lambda _session, data: data)
     monkeypatch.setattr(
         metrics.engine,
         "read_results",
@@ -149,8 +148,8 @@ def test_default_metric_dates_are_read_under_shared_lock(monkeypatch: pytest.Mon
         },
     )
     monkeypatch.setattr(metrics.workout_progression, "progression_groups", lambda *_args: [])
-    assert metrics.get_recovery(start=None, end=None, session=None)["end"] == today
-    assert metrics.get_workout_progression(start=None, end=None, session=None)["end"] == today
+    assert metrics.recovery_nights(session=None, start=None, end=None)["end"] == today
+    assert metrics.workout_progression_data(session=None, start=None, end=None, group_by="purpose")["end"] == today
     assert calls == ["lock", "today", "lock", "today"]
 
 

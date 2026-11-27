@@ -30,7 +30,3 @@ def exception_summary(exc: Exception) -> str:
     frames = traceback.extract_tb(exc.__traceback__)
     locations = "\n".join(f"  {frame.filename}:{frame.lineno} in {frame.name}" for frame in frames)
     return f"{type(exc).__name__}\n{locations}"
-
-
-def request_error(request_id: str, method: str, path: str, exc: Exception) -> None:
-    get("api").error("unhandled request_id=%s method=%s path=%s %s", request_id, method, path, exception_summary(exc))
