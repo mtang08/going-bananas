@@ -40,20 +40,25 @@ func Open(ctx context.Context, mode string, cfg Config) (*Worker, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	key := os.Getenv("GARMIN_KEY_FILE")
-	if key == "" {
-		key = filepath.Join(cfg.PrivateDir, "garmin-key")
-	}
+	auth := garminConfig(cfg.PrivateDir)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if os.Getenv("GARMIN_API_KEY") == "" && os.Getenv("GARMIN_PERSONAL_API_KEY") == "" {
-		info, err := os.Stat(key)
+		info, err := os.Stat(auth.KeyFile)
 		if err != nil || !info.Mode().IsRegular() {
 			return nil, errCredentialMissing
 		}
 	}
-	return New(cfg, &clientSource{cfg: garmin.Config{KeyFile: key, CacheFile: filepath.Join(cfg.PrivateDir, "garmin-token.json")}})
+	return New(cfg, &clientSource{cfg: auth})
+}
+
+func garminConfig(dir string) garmin.Config {
+	key := os.Getenv("GARMIN_KEY_FILE")
+	if key == "" {
+		key = filepath.Join(dir, "garmin-key")
+	}
+	return garmin.Config{KeyFile: key, CacheFile: filepath.Join(dir, "garmin-token.json")}
 }
 
 type Source interface {
