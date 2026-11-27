@@ -49,10 +49,10 @@ test-proposal-go:
 	python3 scripts/test-db.py proposal
 test-proposal-go-external:
 	python3 scripts/test-db.py proposal-external
-check: check-docs check-backend check-frontend check-go
+check: check-docs check-backend check-frontend
 check-docs:
 	$(RUN) python3 scripts/check-docs.py
-check-backend:
+check-backend: check-go
 	python3 scripts/test_phone_gateway.py
 	$(RUN) bash -c 'cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app --ignore-missing-imports && uv run pytest tests/unit tests/test_*.py -m "not integration"'
 .PHONY: generate-api-types check-api-types api-schema
