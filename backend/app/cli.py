@@ -523,15 +523,9 @@ def main() -> int:
                     session.rollback()
             print(json.dumps({"mode": "apply" if args.apply else "dry_run", **summary}))
         elif args.command == "strong-import":
-            from app.services.strong_import import import_strong_csv
+            from app.strong_native import run_import
 
-            with SessionLocal() as session:
-                strong_summary = import_strong_csv(session, settings.private_dir, args.csv, apply=args.apply)
-                if args.apply:
-                    session.commit()
-                else:
-                    session.rollback()
-            print(json.dumps(strong_summary, default=str))
+            print(json.dumps(run_import(settings, args.csv, apply=args.apply)))
         elif args.command == "seed-demo":
             if settings.app_mode != "demo":
                 raise ValueError("demo_mode_required")

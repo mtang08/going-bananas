@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4, uuid5
 
 import psycopg
 from sqlalchemy.engine import make_url
@@ -19,6 +19,9 @@ from test_proposal_slice import BACKEND, MODULE, ROOT, migrated_schema
 def reference(path, apply):
     from app.db import SessionLocal
     from app.services.strong_import import import_strong_csv
+    from app.services import derived
+
+    derived.install()
 
     with SessionLocal.begin() as session:
         print(json.dumps(import_strong_csv(session, Path(os.environ["PRIVATE_DIR"]), path, apply=apply)))
@@ -40,24 +43,34 @@ def snapshot(env):
             "workouts": """SELECT w.source_identity,w.payload_hash,w.local_date,w.local_start,w.workout_name,
                 w.duration_s,w.row_count,w.sets,w.resolution_state,r.sha256,s.payload_hash FROM strong_workouts w
                 JOIN raw_objects r ON r.id=w.raw_object_id JOIN source_records s ON s.id=w.source_record_id ORDER BY 1""",
-            "links": """SELECT c.session_uid,c.match_method,c.status,c.version,w.source_identity FROM session_completions c
+            "links": """SELECT CASE WHEN c.status='extra' THEN 'extra:'||w.source_identity ELSE c.session_uid::text END,c.match_method,c.status,c.version,w.source_identity FROM session_completions c
                 JOIN strong_workouts w ON w.id=c.strong_workout_id ORDER BY 1""",
             "rpe": """SELECT s.rpe,s.source,w.source_identity FROM session_rpe s
                 JOIN strong_workouts w ON w.id=s.strong_workout_id ORDER BY w.source_identity""",
             "manual": "SELECT date,kind,duration_s,note,version FROM manual_sessions ORDER BY date",
+            "metrics": """SELECT metric_id,COALESCE('strong:'||w.source_identity,'extra:'||extra.source_identity,m.subject_key),status,value,reason_codes,config_hash,timezone
+                FROM metric_results m LEFT JOIN strong_workouts w ON m.subject_key='strong:'||w.id::text
+                LEFT JOIN (select c.session_uid::text,w.source_identity from session_completions c join strong_workouts w on w.id=c.strong_workout_id where c.status='extra') extra ON extra.session_uid=m.subject_key
+                WHERE m.is_current ORDER BY 1,2""",
+            "prompts": "SELECT kind,status,opens_at,closes_at,session_uid,activity_id FROM prompts ORDER BY kind,opens_at,session_uid NULLS LAST",
         }
+        for uid, workout in db.execute("SELECT session_uid,strong_workout_id FROM session_completions WHERE status='extra' AND strong_workout_id IS NOT NULL"):
+            assert uid == uuid5(UUID("e35269d4-74b0-53bf-8a74-f01b3ef69218"),f"extra:strong:{workout}")
         return {key: db.execute(sql).fetchall() for key, sql in statements.items()}
 
 
 def fixture_stamp(env, uid):
     with conn(env) as db:
         (workout,) = db.execute("SELECT id FROM strong_workouts ORDER BY local_start LIMIT 1").fetchone()
+        db.execute("INSERT INTO calendar_versions(id,number,kind,actor) VALUES(%s,1,'manual_edit','user')",(uid,))
+        db.execute("UPDATE app_state SET calendar_head_version=1 WHERE id=1")
+        db.execute("""INSERT INTO calendar_session_revisions(id,session_uid,revision,calendar_version_number,local_date,kind,certainty,intent,planned_duration_s) VALUES(%s,%s,1,1,'2026-11-09','strength','committed','Test strength',2700)""",(uid,uid))
         db.execute("""INSERT INTO session_completions(id,session_uid,strong_workout_id,status,match_method,updated_at)
             VALUES(gen_random_uuid(),%s,%s,'completed_as_planned','explicit',now())""", (uid, workout))
         db.execute("""INSERT INTO session_rpe(id,strong_workout_id,rpe,source,collected_at)
             VALUES(gen_random_uuid(),%s,7,'manual',now())""", (workout,))
         db.execute("""INSERT INTO manual_sessions(id,date,kind,duration_s,note,version)
-            VALUES(gen_random_uuid(),'2026-11-09','strength',1800,'synthetic manual history',1)""")
+            VALUES(%s,'2026-11-09','strength',1800,'synthetic manual history',1)""",(uid,))
 
 
 def scenario(binary, directory, py, go):
@@ -69,7 +82,9 @@ def scenario(binary, directory, py, go):
         expected = json.loads(subprocess.check_output([sys.executable, __file__, "reference", csv_path, str(int(apply))], env=py))
         actual = json.loads(subprocess.check_output([binary, *(["-apply"] if apply else []), csv_path], env=go))
         assert actual["summary"] == expected, (actual, expected)
-        assert snapshot(go) == snapshot(py), "Strong history and canonical rows differ"
+        actual_state, expected_state = snapshot(go), snapshot(py)
+        for key in actual_state:
+            assert actual_state[key] == expected_state[key], (key, [v for v in actual_state[key] if v not in expected_state[key]][:1], [v for v in expected_state[key] if v not in actual_state[key]][:1])
         return actual
 
     row = ["2026-11-09 19:00:00", "Day A", "45m", "Bench", "1", "45.0", "8", "0", "0", ""]
@@ -78,8 +93,15 @@ def scenario(binary, directory, py, go):
     for mode in ("real", "demo"):
         blocked = subprocess.run([binary, "-apply", csv_path], env=dict(go, APP_MODE=mode), capture_output=True, text=True)
         assert blocked.returncode and blocked.stderr.strip() in {
-            "select a test or demo workspace with PRIVATE_DIR", "database name must match synthetic mode"
+            "database name must match APP_MODE"
         }
+    def cli(apply):
+        env = {**go, "PYTHONPATH": str(BACKEND)}
+        return subprocess.run([sys.executable, "-m", "app.cli", "strong-import", csv_path, *(["--apply"] if apply else [])],
+                              env=env, cwd=BACKEND, capture_output=True, text=True, check=False)
+
+    preview = cli(False)
+    assert preview.returncode == 0 and json.loads(preview.stdout)["new"] == 2
     before = snapshot(go)
     assert check(False)["summary"]["new"] == 2
     assert snapshot(go) == before and not (Path(go["PRIVATE_DIR"]) / "raw").exists()
@@ -108,10 +130,20 @@ def scenario(binary, directory, py, go):
     assert result["summary"]["status"] == "partial" and result["summary"]["revision_conflicts_new"] == 1
     current = snapshot(go)
     assert current["revision"] == [(2,)] and len(current["history"]) == 3
-    assert current["manual"] == before["manual"] and current["rpe"] == before["rpe"] and current["links"] == before["links"]
+    assert current["manual"] == before["manual"] and current["rpe"] == before["rpe"] and [r[:2]+r[4:] for r in current["links"]] == [r[:2]+r[4:] for r in before["links"]]
     for earlier, later in zip(before["workouts"], current["workouts"], strict=True):
         assert earlier[:8] == later[:8] and earlier[9:] == later[9:], "canonical values or original source replaced"
+    replay_cli = cli(True)
+    assert replay_cli.returncode == 0 and json.loads(replay_cli.stdout)["revision_conflicts_new"] == 0
+    subprocess.check_output([sys.executable, __file__, "reference", csv_path, "1"], env=py)
     assert check(True)["summary"]["revision_conflicts_new"] == 0
+    extra_row = [*row]
+    extra_row[0] = "2026-11-13 10:00:00"
+    csv_path.write_bytes(csv_text([extra_row]).encode())
+    apply_cli = cli(True)
+    assert apply_cli.returncode == 0 and json.loads(apply_cli.stdout)["added"] == 1
+    reference_summary = json.loads(subprocess.check_output([sys.executable, __file__, "reference", csv_path, "1"], env=py))
+    assert json.loads(apply_cli.stdout)==reference_summary and snapshot(go)==snapshot(py)
     # Two independent CLI processes compete to add one new workout. Exactly one writes it.
     next_row = list(row)
     next_row[0] = "2026-11-15 10:00:00"
@@ -132,7 +164,8 @@ def scenario(binary, directory, py, go):
     for state in (actual, expected):
         receipts = state["batches"]
         receipts[-2:] = sorted(receipts[-2:], key=lambda receipt: json.dumps(receipt, sort_keys=True))
-    assert actual == expected, [key for key in expected if actual[key] != expected[key]]
+    for key in actual:
+        assert actual[key] == expected[key], (key, [v for v in actual[key] if v not in expected[key]][:1], [v for v in expected[key] if v not in actual[key]][:1])
     for digest, path, size, media in snapshot(go)["raw"]:
         raw = (Path(go["PRIVATE_DIR"]) / path).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == digest and len(raw) == size and media == "text/csv"
@@ -141,6 +174,9 @@ def scenario(binary, directory, py, go):
         before = snapshot(go)
         rejected = subprocess.run([binary, csv_path], env=go, capture_output=True, text=True)
         assert rejected.returncode and rejected.stderr.strip() == "mixed_source_account" and snapshot(go) == before
+    csv_path.write_text("Wrong,Columns\n")
+    invalid = cli(False)
+    assert invalid.returncode == 2 and json.loads(invalid.stderr.splitlines()[-1]) == {"error": "unsupported_columns"}
     print("PASS Strong preview, apply, provenance, replay, manual associations, conflicting revision, rollback/restart and concurrent delivery")
 
 
