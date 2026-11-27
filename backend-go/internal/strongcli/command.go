@@ -28,7 +28,7 @@ func options(args []string) (path string, apply bool, err error) {
 	}
 	return flags.Arg(0), apply, nil
 }
-func run(args []string) error {
+func run(args []string, summaryOnly bool) error {
 	path, apply, err := options(args)
 	if err != nil {
 		return err
@@ -59,10 +59,24 @@ func run(args []string) error {
 		}
 		return errors.New("strong_import_failed")
 	}
+	if summaryOnly {
+		return json.NewEncoder(os.Stdout).Encode(result.Summary)
+	}
 	return json.NewEncoder(os.Stdout).Encode(result)
 }
+
+// Main preserves the established owner CLI summary and machine-readable errors.
 func Main(args []string) int {
-	if err := run(args); err != nil {
+	if err := run(args, true); err != nil {
+		_ = json.NewEncoder(os.Stderr).Encode(map[string]string{"error": err.Error()})
+		return 2
+	}
+	return 0
+}
+
+// Standalone includes the changed workout IDs and dates for the import diagnostic.
+func Standalone(args []string) int {
+	if err := run(args, false); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
