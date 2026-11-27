@@ -34,7 +34,7 @@ func mkdir(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 }
-func TestPythonLaunchAgent(t *testing.T) {
+func TestLaunchAgentTransitions(t *testing.T) {
 	var sequence []struct {
 		Action    *bool
 		Change    string

@@ -2,7 +2,6 @@ package coachdashboard
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"syscall"
 	"testing"
@@ -14,10 +13,18 @@ func TestPythonFileCutoverPostgres(t *testing.T) {
 	const mode = "file-cutover"
 	private := t.TempDir()
 	store := NewStore(pool, mode)
-	if err := exec.CommandContext(ctx, os.Getenv("DASHBOARD_REFERENCE_PYTHON"), "testdata/python_review.py", private, mode).Run(); err != nil {
-		t.Fatal(err)
-	}
+	// These fixtures were written by the original dashboard with synthetic messages.
 	dir := filepath.Join(private, "coach-chat", mode)
+	path := filepath.Join(dir, "reviews", "00000000-0000-0000-0000-000000000001.json")
+	requireOK(t, os.MkdirAll(filepath.Dir(path), 0700))
+	for source, target := range map[string]string{
+		"state.json":    filepath.Join(dir, "state.json"),
+		"archived.json": path,
+	} {
+		data, err := os.ReadFile(filepath.Join("testdata", "legacy-review", source))
+		requireOK(t, err)
+		requireOK(t, os.WriteFile(target, data, 0600))
+	}
 	lock, err := os.OpenFile(filepath.Join(dir, "turn.lock"), os.O_RDWR|os.O_CREATE, 0600)
 	requireOK(t, err)
 	requireOK(t, syscall.Flock(int(lock.Fd()), syscall.LOCK_EX))
@@ -25,7 +32,6 @@ func TestPythonFileCutoverPostgres(t *testing.T) {
 		t.Fatal("imported during a live Python turn")
 	}
 	requireOK(t, lock.Close())
-	path := filepath.Join(dir, "reviews", "00000000-0000-0000-0000-000000000001.json")
 	raw, err := os.ReadFile(path)
 	requireOK(t, err)
 	requireOK(t, os.WriteFile(path, []byte("{"), 0600))

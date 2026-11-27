@@ -1,0 +1,19 @@
+{
+  "id": "00000000-0000-0000-0000-000000000001",
+  "status": "idle",
+  "messages": [
+    {
+      "id": "00000000-0000-0000-0000-000000000015",
+      "role": "user",
+      "text": "Synthetic message 1",
+      "client_message_id": "00000000-0000-0000-0000-00000000000b"
+    }
+  ],
+  "error": null,
+  "proposal_id": null,
+  "codex_thread_id": "resume-1",
+  "active_turn": null,
+  "snapshot_ids": [],
+  "observed_proposal": null,
+  "read_active_proposal": false
+}

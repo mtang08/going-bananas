@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"os/exec"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -22,27 +22,36 @@ var seed string
 //go:embed testdata/preview.sql
 var seedPreview string
 
-func TestQueryPythonParity(t *testing.T) {
+// The fixture records the established response contract for these synthetic cases.
+//
+//go:embed testdata/queries.json
+var queryResponses []byte
+
+func TestQueryResponses(t *testing.T) {
 	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("requires the synthetic PostgreSQL runner")
 	}
-	cmd := exec.CommandContext(t.Context(), os.Getenv("DASHBOARD_REFERENCE_PYTHON"), "testdata/reference.py")
-	expected, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("Python drill-down reference: %v", err)
-	}
 	var cases [][]json.RawMessage
-	if err = json.Unmarshal(expected, &cases); err != nil {
+	if err := json.Unmarshal(queryResponses, &cases); err != nil {
 		t.Fatal(err)
 	}
 	ctx := t.Context()
-	conn, err := pgx.Connect(ctx, dsn)
+	cfg, err := pgx.ParseConfig(dsn)
+	if err != nil || cfg.Database != "garmin_test" || (cfg.Host != "localhost" && cfg.Host != "127.0.0.1") ||
+		!regexp.MustCompile(`^go_parity_[a-f0-9]{32}$`).MatchString(cfg.RuntimeParams["search_path"]) {
+		t.Fatal("requires an isolated local PostgreSQL fixture")
+	}
+	conn, err := pgx.ConnectConfig(ctx, cfg)
 	if err != nil {
 		t.Fatal("connect to synthetic database")
 	}
 	defer func() { _ = conn.Close(context.Background()) }()
-	tx, err := conn.Begin(ctx)
+	var schema string
+	if err := conn.QueryRow(ctx, "SELECT current_schema()").Scan(&schema); err != nil || schema != cfg.RuntimeParams["search_path"] {
+		t.Fatal("missing isolated fixture schema")
+	}
+	tx, err := conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadWrite})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +93,7 @@ func TestQueryPythonParity(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(got, want) {
-			t.Errorf("%s: Go %s; Python %s", args["name"], gotJSON, tc[1])
+			t.Errorf("%s: got %s; want %s", args["name"], gotJSON, tc[1])
 		}
 	}
 	const id = "00000000-0000-0000-0000-000000000001"

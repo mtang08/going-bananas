@@ -14,7 +14,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/httpapi"
 )
 
-func TestPythonDashboardHTTP(t *testing.T) {
+func TestDashboardHTTPContract(t *testing.T) {
 	var cases []struct {
 		Method, Body, Guard, Peer string
 		Headers                   map[string]string
