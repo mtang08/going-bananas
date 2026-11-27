@@ -1,8 +1,8 @@
 # Workstream 2 · Provider ingestion and FIT
 
-**Owner:** the second Astra session. **First delivery:** `go/providers` at `258167c`. **Continuation branch:** `go/provider-replay`. The native Garmin HTTP client is already in `main` at `dc15070`. It handles authentication/cache reuse, activity and recovery reads, pagination and FIT downloads. Python still normalizes and persists the data. [Go client](../backend-go/internal/garmin) · [Shared specification](go-backend-rewrite.md)
+The provider lead owns planning, integration and review. The integrated Go candidate handles Garmin normalization and persistence, including replay and the native worker. The real supervisor defaults to Python until the owner selects Go for cutover. The initial decoder shipped on `go/providers` at `258167c`, followed by the replay work on `go/provider-replay`. [Go client](../backend-go/internal/garmin) · [Shared specification](go-backend-rewrite.md)
 
-## First independent assignment
+## Original decoder assignment
 
 Port **downloaded ZIP bytes to application-level decoded FIT data**. Put the production decoder and its tests under `backend-go/internal/garmin/fit/`. Give it an in-memory entry point that accepts the same downloaded bytes as Python. Use the Go decoder version pinned in the existing probe. Stream 2 owns the corresponding Go module dependency and checksum change for this slice. [Python decoder and output types](../backend/app/adapters/garmin/fit.py) · [Probe dependency](../scripts/rewrite/fit/go.mod)
 
@@ -33,26 +33,26 @@ uv run --project backend python scripts/rewrite/check_garmin_activities.py
 make check-go
 ```
 
-## Following slices and integration
+## Provider scope and integration
 
 Stream 2 owns Garmin JSON and export normalization, FIT reprocessing, Strong preview/apply, Google Calendar event and trip reconciliation, and provider job fetch/retry/checkpoint logic. Keep provider-specific tests and fixtures with these packages. Cover precedence in either import order, repeated delivery, partial or failed pages, and preserved manual trip edits. [Garmin/export precedence](../backend/tests/integration/test_export_precedence.py) · [FIT reprocessing](../backend/tests/integration/test_fit_reprocess.py) · [Strong import](../backend/tests/integration/test_strong_import.py) · [Google Calendar](../backend/tests/integration/test_gcal_sync.py)
 
-Hand stream 1 typed observations, their provenance, affected source identities/dates and the proposed job checkpoint. Connect persistence when stream 1 publishes its transaction boundary. A replay unit must commit source history, the winning values and its checkpoint together. Leave the existing worker as the sole runtime owner until the integrated replay and rollback checks pass. Stream 1 owns the shared router, schema, Makefile and supervisor. The FIT decoder and offline adapters can merge before that integration.
+The provider transaction passes typed observations, provenance, affected source identities and dates, and the job checkpoint to shared persistence and refresh. A replay unit commits source history, the winning values and its checkpoint together. Stream 1 owns the shared router, schema, Makefile and supervisor. The real cutover keeps one worker active at a time. [Cutover and rollback](go-backend-rewrite.md#data-handoff-and-rollback)
 
-## Active assignment · Replay one Garmin activity end to end
+## Original replay assignment
 
-Deliver a runnable synthetic replay from a downloaded activity page, FIT archive or export through normalized observations, field precedence, persisted source history and the job checkpoint. The lead owns the replay command and PostgreSQL transaction. The second agent owns the archive decoder and export parsing. Use the existing Python fixtures and ingestion behavior as the reference.
+The assignment followed a Garmin activity page, FIT archive or export through normalized observations, field precedence, persisted source history and the job checkpoint. The checklist captures the replay scope and uses the existing Python fixtures and ingestion behavior as the reference.
 
 1. Close the LZMA and local-header filename differences in the FIT comparison. Normalize Garmin JSON, FIT and export inputs with typed provenance and explicit missing values.
 2. Run API-first and export-first replays in independently migrated test schemas. Compare the canonical activity and source history with Python. Duplicate input must preserve identity and provenance.
 3. Apply the observations and checkpoint atomically. Inject an error after a source write, then restart the job. Verify the durable state, checkpoint and affected activity IDs/dates, including a partial page.
-4. Push each verified increment on `go/provider-replay` and keep going until the runnable replay passes the full matrix. Hand the worker and refresh integration code the command and its affected dates. Python continues to own live ingestion.
+4. Verify the full replay matrix and provide the replay command and affected dates to the worker and refresh integration.
 
 [Ingestion and precedence tests](../backend/tests/integration/test_export_precedence.py) · [Job implementation](../backend/app/services/sync.py)
 
 ## Continuation prompt
 
-> Own the complete Garmin replay assignment above with your Astra team. Continue from the published decoder on the active continuation branch. Work through normalization, database writes, replay and recovery, publishing each verified increment. Finish by reporting the runnable command, commits, Python comparison results and any remaining live-worker integration.
+> The existing provider lead plans, integrates and reviews the work. Assign new or reassigned implementation and verification to workers using `gpt-6.2-sol`. Start from the integrated Go candidate and use the synthetic comparisons below for any changes to normalization, persistence, replay or recovery. Report the commands run, comparison results, commits and any remaining integration work.
 
 ## Running a synthetic activity replay
 
@@ -84,7 +84,7 @@ Build once, then run the manifest in the selected synthetic workspace. The CLI a
 
 The synthetic replay entry point is `replay.Apply(ctx, pool, privateDir, page)`. It takes previously fetched inputs, including API records or `ScanExport` results and optional FIT bytes keyed by Garmin activity ID. It returns cumulative counters, next page, offset, and the changed activity IDs and dates for this delivery. A local-date move includes both dates. The checkpoint also retains the job-wide union of affected dates. The terminal status is `partial` when the job has rejected records or failed FIT attempts. A duplicate committed page returns its checkpoint with empty change sets. A changed redelivery or skipped page index fails.
 
-Python continues to schedule downloads, hold unconfirmed treadmill runs for review, maintain coverage, and refresh dependent metrics. The standalone command uses its own replay job dataset. It imports the activity portion of an account export. [Replay transaction](../backend-go/internal/garmin/replay/page.go) · [Synthetic comparison](../scripts/rewrite/check_provider_replay.py)
+The integrated native worker handles scheduling, unconfirmed treadmill runs, coverage and downstream refresh. The standalone command uses its own replay job dataset. It imports the activity portion of an account export. [Replay transaction](../backend-go/internal/garmin/replay/page.go) · [Synthetic comparison](../scripts/rewrite/check_provider_replay.py)
 
 ## Strong workout CSV import
 
