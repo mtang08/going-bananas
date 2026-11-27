@@ -101,7 +101,7 @@ func restrictionBool(raw json.RawMessage) (bool, error) {
 
 // The typed editor stores ISO dates. Older JSON facts can represent a date as
 // an exact-midnight timestamp, which the Python model also accepts.
-func FactDate(raw json.RawMessage) (string, error) {
+func restrictionDate(raw json.RawMessage) (string, error) {
 	var v any
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return "", errRestriction
@@ -166,7 +166,7 @@ func parseRestriction(raw json.RawMessage, asOf string) (*RunningRestriction, er
 		if len(value) == 0 || string(value) == "null" {
 			continue
 		}
-		date, err := FactDate(value)
+		date, err := restrictionDate(value)
 		if err != nil {
 			return nil, err
 		}

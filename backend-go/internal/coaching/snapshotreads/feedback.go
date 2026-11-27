@@ -33,7 +33,7 @@ func Checkins(ctx context.Context, tx pgx.Tx, now time.Time, zone *time.Location
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (map[string]any, error) {
-		value, err := pgx.RowToMap(row)
+		value, err := snapshotRow(row)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +72,7 @@ func Prompts(ctx context.Context, tx pgx.Tx, now time.Time) ([]map[string]any, e
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (map[string]any, error) {
-		value, err := pgx.RowToMap(row)
+		value, err := snapshotRow(row)
 		if err != nil {
 			return nil, err
 		}

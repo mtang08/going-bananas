@@ -263,6 +263,11 @@ func VerifySelection(root string, selection []SelectionEntry) (VerifiedKnowledge
 	if err != nil {
 		return VerifiedKnowledge{}, index, err
 	}
+	return verifyLoadedSelection(manifest, files, index, selection, nil)
+}
+
+func verifyLoadedSelection(manifest map[string]any, files map[string]verifiedFile, index KnowledgeIndex, selection []SelectionEntry, texts map[excerptKey]string) (VerifiedKnowledge, KnowledgeIndex, error) {
+	var err error
 	excerpts := []any{}
 	selected := map[string]SelectedRecord{}
 	chars := 0
@@ -307,6 +312,9 @@ func VerifySelection(root string, selection []SelectionEntry) (VerifiedKnowledge
 			chars += utf8.RuneCountInString(text)
 			if chars > maxKnowledgeBytes {
 				return VerifiedKnowledge{}, index, errors.New("selected knowledge exceeds bound")
+			}
+			if texts != nil {
+				texts[excerptKey{item.Path, v}] = text
 			}
 			excerpt["text"] = text
 			excerpts = append(excerpts, excerpt)

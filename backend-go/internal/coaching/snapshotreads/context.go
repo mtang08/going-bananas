@@ -50,7 +50,7 @@ func contextRows(ctx context.Context, tx pgx.Tx, query string, args ...any) ([]m
 		return nil, err
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (map[string]any, error) {
-		value, err := pgx.RowToMap(row)
+		value, err := snapshotRow(row)
 		if err != nil {
 			return nil, err
 		}
