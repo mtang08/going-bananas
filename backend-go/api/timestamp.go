@@ -16,3 +16,12 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 	}
 	return []byte(strconv.Quote(v.Format(layout))), nil
 }
+
+func (t *Timestamp) UnmarshalJSON(data []byte) error {
+	var v time.Time
+	if err := v.UnmarshalJSON(data); err != nil {
+		return err
+	}
+	*t = Timestamp(v)
+	return nil
+}

@@ -1,11 +1,10 @@
 import { Disclosure } from '../components/ui'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../api/client'
+import { api, getCalendar } from '../api/client'
 import { qk } from '../api/queryKeys'
 import { pageHref } from '../lib/routes'
 import type { Profile } from '../api/types/profile'
-import type { CalendarView } from '../api/types/calendar'
 import type { StrengthRoutine } from '../api/types/blocks'
 import type { Unit } from '../lib/format'
 import { QueryState } from '../components/QueryState'
@@ -24,7 +23,7 @@ import { LoginStartup } from './settings/LoginStartup'
 export function PlanningSettings({ unit, setUnit }: { unit: Unit; setUnit: (unit: Unit) => void }) {
   const calendar = useQuery({
     queryKey: qk.calendarView('head'),
-    queryFn: () => api<CalendarView>('/calendar'),
+    queryFn: () => getCalendar(),
   })
   const profile = useQuery({ queryKey: qk.profile, queryFn: () => api<Profile>('/profile') })
   const routine = useQuery({

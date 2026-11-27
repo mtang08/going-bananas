@@ -15,17 +15,13 @@ import {
 import { Badge, Button, Card, Disclosure } from '../components/ui'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, dateLabel, fmtDistance, type Unit } from '../lib/format'
-import { api, listProposals, post } from '../api/client'
+import { getCalendar, api, listProposals, post } from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
 import { pageHref } from '../lib/routes'
 import { sessionTitle } from '../lib/session'
 import type { Activity } from '../api/types/activity'
 import type { BlockVersion } from '../api/types/blocks'
-import type {
-  CalendarView,
-  SessionState,
-  WeeklyDigest as WeeklyDigestData,
-} from '../api/types/calendar'
+import type { SessionState, WeeklyDigest as WeeklyDigestData } from '../api/types/calendar'
 import type { CheckinRequest, PromptList } from '../api/types/checkins'
 import { QueryState } from '../components/QueryState'
 import { mondayOfWeek, SessionSummary } from '../components/PlanOverview'
@@ -54,7 +50,7 @@ export function Home({
   })
   const calendar = useQuery({
     queryKey: qk.calendarView('head'),
-    queryFn: () => api<CalendarView>('/calendar'),
+    queryFn: () => getCalendar(),
   })
   const projection = useQuery({
     queryKey: qk.weeklyProjection,

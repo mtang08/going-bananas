@@ -1,0 +1,7 @@
+package: calendarwire
+generate:
+  models: true
+output-options:
+  nullable-type: true
+  skip-prune: true
+output: api/calendarwire/models.gen.go

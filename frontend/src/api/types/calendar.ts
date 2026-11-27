@@ -1,123 +1,32 @@
 import type { components } from '../generated/backend'
 import type { WorkoutFeedback } from './checkins'
-import type { SessionPatchRef } from './exceptions'
-import type { Rule } from './coachText'
+import type { components as CalendarComponents } from '../generated/calendar'
+import type { components as CompletionComponents } from '../generated/completion'
 import type { PlannedActualValue } from './metrics'
-export type SessionKind = 'run' | 'strength' | 'cross' | 'rest' | 'mobility' | 'rehab'
-export type Certainty = 'committed' | 'provisional'
-export type StepType = 'warmup' | 'work' | 'recovery' | 'cooldown'
-export interface StepTarget {
-  modality: 'speed' | 'hr' | 'effort'
-  low: number | null
-  high: number | null
-  effort_cue: string | null
-}
-export interface PlannedStep {
-  type: StepType
-  duration_type: 'time' | 'distance'
-  duration_value: number
-  target: StepTarget | null
-}
-export interface RepeatBlock {
-  type: 'repeat'
-  count: number
-  steps: PlannedStep[]
-}
-export type StructureItem = PlannedStep | RepeatBlock
+type CalendarSchemas = CalendarComponents['schemas']
+export type SessionKind = SessionFields['kind']
+export type Certainty = SessionState['certainty']
+export type StepType = PlannedStep['type']
+export type StepTarget = NonNullable<CalendarSchemas['StepTarget']>
+export type PlannedStep = CalendarSchemas['PlannedStep']
+export type RepeatBlock = CalendarSchemas['RepeatBlock']
+export type StructureItem = CalendarSchemas['StructureItem']
 export interface ExpandedStep extends PlannedStep {
   step_path: string
   expanded_step: number
   repeat_index: number | null
 }
-export interface Effort {
-  rpe_low: number
-  rpe_high: number
-  feel: string
-}
-export interface SessionBrief {
-  effort: Effort
-  focus: string[]
-  adjust_if: Rule[]
-  why: string
-}
-
-export interface SessionFields {
-  local_date: string
-  slot: number
-  kind: SessionKind
-  recipe_id: string | null
-  custom: boolean
-  intent: string
-  placeholder: boolean
-  locked: boolean
-  planned_duration_s: number | null
-  planned_distance_m: number | null
-  structure: StructureItem[] | null
-  strength_slot_id: string | null
-  notes: string | null
-  brief: SessionBrief | null
-}
-export interface SessionState extends SessionFields {
-  id: string
-  certainty: Certainty
-  legacy_unstructured: boolean
-  legacy_payload: Record<string, unknown> | null
-  session_uid: string
-  revision: number
-  calendar_version_number: number
-  deleted: boolean
-  is_original: boolean
-  changed_by_version: number
-  exception_patch: SessionPatchRef | null
-  running_restriction_conflict?: string
-}
-export type CompletionStatus =
-  | 'completed_as_planned'
-  | 'completed_modified'
-  | 'partial'
-  | 'moved'
-  | 'skipped'
-  | 'extra'
-  | 'unknown'
-export type MatchMethod = 'explicit' | 'auto_same_day' | 'confirmed_move' | 'user_marked' | 'none'
-export type ModificationReason =
-  'symptom_onset' | 'fatigue' | 'illness' | 'schedule' | 'weather' | 'equipment' | 'other'
-export interface Completion {
-  id: string
-  input_version: number
-  session_uid: string
-  activity_id: string | null
-  strong_workout_id: string | null
-  manual_session_id: string | null
-  status: CompletionStatus
-  distance_m?: number | null
-  timer_s?: number | null
-  match_method: MatchMethod
-  modification_reason: ModificationReason | null
-  reason_note: string | null
-  version: number
-  updated_at: string
-  local_date: string | null
-} // local_date [DTO fixed here]: actual subject date when linked, else planned date
-export interface RecordedRun {
-  activity_id: string
-  local_date: string
-  distance_m: number | null
-  timer_s: number | null
-}
-export interface CalendarView {
-  today: string
-  timezone: string
-  start: string
-  end: string
-  version: number
-  head: number
-  undo: { target_version: number; eligible: boolean; protected_session_uids: string[] } | null
-  last_planned_date: string | null
-  sessions: SessionState[]
-  completions: Completion[]
-  recorded_runs: RecordedRun[]
-} // today/timezone/start/end [DTO fixed here]; head 0 = no calendar yet
+export type Effort = CalendarSchemas['Effort']
+export type SessionBrief = NonNullable<CalendarSchemas['SessionBrief']>
+export type SessionFields = CalendarSchemas['SessionFields']
+export type SessionState = CalendarSchemas['SessionState']
+export type Completion = CompletionComponents['schemas']['Completion'] &
+  Pick<CalendarSchemas['CalendarCompletion'], 'distance_m' | 'timer_s'>
+export type CompletionStatus = Completion['status']
+export type MatchMethod = Completion['match_method']
+export type ModificationReason = NonNullable<Completion['modification_reason']>
+export type RecordedRun = CalendarSchemas['RecordedRun']
+export type CalendarView = CalendarSchemas['CalendarView']
 export interface WeeklyProjection {
   week_start: string
   week_end: string
@@ -141,15 +50,8 @@ export interface WeeklyProjection {
 }
 export type CalendarVersion = components['schemas']['CalendarVersion']
 export type CalendarVersionKind = CalendarVersion['kind']
-export type ChangeOp = 'add' | 'modify' | 'move' | 'delete'
-export interface CalendarDiff {
-  changes: {
-    session_uid: string
-    op: ChangeOp
-    before: Partial<SessionFields> | null
-    after: Partial<SessionFields> | null
-  }[]
-}
+export type CalendarDiff = CalendarSchemas['CalendarDiff']
+export type ChangeOp = CalendarDiff['changes'][number]['op']
 export interface CalendarEdit {
   op: ChangeOp
   session_uid?: string
@@ -171,15 +73,7 @@ export interface CalendarWriteResult {
   stale_proposals: string[]
   preserved_session_uids: string[]
 }
-export interface CompletionPut {
-  expected_version?: number
-  activity_id?: string | null
-  strong_workout_id?: string | null
-  manual_session_id?: string | null
-  status?: 'skipped' | 'unknown' | 'completed_as_planned'
-  modification_reason?: ModificationReason | null
-  reason_note?: string | null
-}
+export type CompletionPut = CompletionComponents['schemas']['CompletionInput']
 export const RECIPE_LABELS: Record<string, string> = {
   REC001: 'Easy run',
   REC002: 'Long run',

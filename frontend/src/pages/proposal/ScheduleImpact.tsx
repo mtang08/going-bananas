@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { api, query } from '../../api/client'
+import { getCalendar, api } from '../../api/client'
 import { qk } from '../../api/queryKeys'
 import type { StrengthRoutine } from '../../api/types/blocks'
 import type { CalendarView } from '../../api/types/calendar'
@@ -57,7 +57,7 @@ export function ScheduleImpact({
   const covered = head && head.head === expectedHead && head.start <= start && head.end >= end
   const range = useQuery({
     queryKey: qk.calendarRange(start, end),
-    queryFn: () => api<CalendarView>(`/calendar${query({ start, end })}`),
+    queryFn: () => getCalendar({ start, end }),
     enabled: Boolean(first && !covered),
   })
   const calendar = covered ? head : range.data?.data

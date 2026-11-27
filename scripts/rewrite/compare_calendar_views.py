@@ -3,11 +3,15 @@
 from datetime import date, timedelta
 from http.client import HTTPConnection
 import json
+from pathlib import Path
+import subprocess
+import tempfile
 
 import psycopg
 
 
 def compare_calendar_views(env, ports):
+    corpus = []
     def request(port, path):
         conn = HTTPConnection("127.0.0.1", int(port), timeout=15)
         try:
@@ -24,6 +28,8 @@ def compare_calendar_views(env, ports):
         reference, candidate = [request(p, path) for p in ports]
         assert reference == candidate, (path, reference, candidate)
         assert reference[0] == status, (path, reference)
+        if status == 200:
+            corpus.append({"path": path, "diff": path.startswith("/diff"), "envelope": reference[1]})
         return reference[1].get("data")
 
     assert compare("")["last_planned_date"] is None
@@ -50,6 +56,11 @@ def compare_calendar_views(env, ports):
                    ('lock',1,1,2,1,'protected',false,true),('gone',1,2,1,1,'remove',false,false),
                    ('gone',2,3,1,1,'remove',true,false),('first',3,3,3,0,'shorter',false,false))
                    x(uid,rev,v,offset_day,slot,intent,deleted,locked)""", (day,))
+        db.execute("""UPDATE calendar_session_revisions SET structure='[{"type":"warmup","duration_type":"time","duration_value":30},
+                   {"type":"repeat","count":2,"steps":[{"type":"work","duration_type":"distance","duration_value":400,"target":{"modality":"speed","low":2,"high":3}},
+                   {"type":"recovery","duration_type":"time","duration_value":60,"target":null}]}]',
+                   brief='{"effort":{"rpe_low":2,"rpe_high":4,"feel":"easy"},"focus":[],"adjust_if":[{"when":"tired","then":"stop"}],"why":"routine"}'
+                   WHERE intent='shorter'""")
         db.execute("""INSERT INTO profile_versions(id,version,effective_at,timezone,anchor_confirmed,
                    strength_days_confirmed,scheduled_strength_days,facts,preferences,unknowns)
                    VALUES(gen_random_uuid(),1,now(),'America/New_York',false,false,'[]',
@@ -77,4 +88,10 @@ def compare_calendar_views(env, ports):
             compare("/diff?from="+pair)
         compare("/diff?from=-1&to=3",404)
         compare("/week?start="+(day-timedelta(days=day.weekday())).isoformat())
+    root = Path(__file__).resolve().parents[2]
+    with tempfile.TemporaryDirectory(dir=root / "private") as temp:
+        fixture = Path(temp) / "calendar-wire.json"
+        fixture.write_text(json.dumps(corpus))
+        subprocess.run(["go", "test", "-count=1", "./api/calendarwire"], cwd=root / "backend-go",
+                       env={**env, "CALENDAR_WIRE_CASES":str(fixture)}, check=True)
     print("PASS calendar history, undo, restrictions, actuals, forward/reverse diffs and date validation",flush=True)

@@ -1,3 +1,4 @@
+import type { operations as CalendarOperations } from './generated/calendar'
 import type { paths } from './generated/backend'
 
 export type Mode = 'demo' | 'real' | 'test'
@@ -81,6 +82,28 @@ export const query = (params: Record<string, string | number | undefined | null>
   for (const [key, value] of Object.entries(params))
     if (value !== undefined && value !== null && value !== '') search.set(key, String(value))
   return search.toString() ? `?${search}` : ''
+}
+
+type CalendarRead = CalendarOperations['getCalendar']
+type CalendarWeek = CalendarOperations['getCalendarWeek']
+type CalendarDiffRead = CalendarOperations['getCalendarDiff']
+
+export function getCalendar(params: NonNullable<CalendarRead['parameters']['query']> = {}) {
+  return requestEnvelope<CalendarRead['responses'][200]['content']['application/json']>(
+    BASE + '/calendar' + query(params),
+  )
+}
+
+export function getCalendarWeek(params: NonNullable<CalendarWeek['parameters']['query']> = {}) {
+  return requestEnvelope<CalendarWeek['responses'][200]['content']['application/json']>(
+    BASE + '/calendar/week' + query(params),
+  )
+}
+
+export function getCalendarDiff(params: CalendarDiffRead['parameters']['query']) {
+  return requestEnvelope<CalendarDiffRead['responses'][200]['content']['application/json']>(
+    BASE + '/calendar/diff' + query(params),
+  )
 }
 
 const proposalListPath = `${BASE}/coach/proposals`

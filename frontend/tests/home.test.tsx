@@ -258,6 +258,7 @@ beforeEach(() => {
   interruption = emptyInterruption()
   interruptionWriteError = null
   calendar = {
+    versions: [],
     today: '2026-11-11',
     timezone: 'America/New_York',
     start: '2026-11-04',
@@ -534,7 +535,11 @@ describe('training home', () => {
   })
 
   it('shows setup without a calendar', async () => {
-    calendar = { ...calendar, head: 0, sessions: [] }
+    calendar = {
+      ...calendar,
+      head: 0,
+      sessions: [],
+    }
     mount()
     expect(await screen.findByText('No calendar yet.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open setup' })).toHaveAttribute('href', '#settings')

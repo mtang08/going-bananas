@@ -9,9 +9,8 @@ import {
   Send,
   Square,
 } from 'lucide-react'
-import { api, post, type Mode } from '../api/client'
+import { getCalendar, api, post, type Mode } from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
-import type { CalendarView } from '../api/types/calendar'
 import type { ProposalDetail, ProposalStatus } from '../api/types/coach'
 import type {
   CoachChat,
@@ -517,7 +516,7 @@ function ChatProposal({ id }: { id?: string | null }) {
 function TodayContext() {
   const calendar = useQuery({
     queryKey: qk.calendarView('head'),
-    queryFn: () => api<CalendarView>('/calendar'),
+    queryFn: () => getCalendar(),
   })
   const view = calendar.data?.data
   if (!view?.head || calendar.isError) return null
