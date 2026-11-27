@@ -16,6 +16,55 @@ from test_proposal_slice import ROOT, MODULE, migrated_schema
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 
 
+BLOCK = "00000000-0000-4000-8000-000000000001"
+RUN = "00000000-0000-4000-8000-000000000002"
+EVENT = "00000000-0000-4000-8000-000000000003"
+MISSING = "00000000-0000-4000-8000-000000000004"
+
+
+def seed(env):
+    import re
+
+    with psycopg.connect(
+        env["PROPOSAL_TEST_DATABASE_URL"], options=env["PGOPTIONS"]
+    ) as conn:
+        db, schema = conn.execute(
+            "select current_database(),current_schema()"
+        ).fetchone()
+        assert db == "garmin_test" and re.fullmatch(r"go_parity_[0-9a-f]{32}", schema)
+        conn.execute(
+            "insert into events(id,name,event_date,status,purpose) values(%s,'Old race','2020-01-01','completed','benchmark')",
+            (EVENT,),
+        )
+        conn.execute("insert into blocks(id,block_uid) values(%s,%s)", (BLOCK, BLOCK))
+        conn.execute(
+            """insert into block_versions(id,block_uid,version,status,objective,progression_dimension,constraints,start_date,review_date,objective_status,created_at,target_event_id,benchmark)
+            values(%s,%s,1,'active','Test pace','duration','{}','2026-10-01','2026-11-20','unresolved','2026-10-01T10:00:00.123450Z',%s,%s::jsonb)""",
+            (
+                BLOCK,
+                BLOCK,
+                EVENT,
+                json.dumps(
+                    dict(
+                        kind="time_trial",
+                        protocol="Test trial",
+                        planned_date="2026-11-17",
+                        distance_m=5000,
+                    )
+                ),
+            ),
+        )
+        conn.execute(
+            """insert into activities(id,start_at,end_at,original_start,local_date,sport,canonical_revision,resolution_state,field_provenance,timer_s,distance_m)
+            values(%s,'2026-11-15T04:30Z','2026-11-15T05:10Z','fixture','2026-11-15','running',1,'resolved','{}',2400.5,5000.5)""",
+            (RUN,),
+        )
+        conn.execute(
+            """insert into block_benchmarks(id,block_uid,block_version,match_method,protocol,outcome) values(%s,%s,1,'auto','Test trial','progress')""",
+            (RUN, BLOCK),
+        )
+
+
 def main():
     url = make_url(os.environ["DATABASE_URL"])
     if url.password is None and os.environ.get("PGPASSWORD"):
@@ -38,6 +87,8 @@ def main():
             migrated_schema(db, url, p / "ref", "5173") as ref,
             migrated_schema(db, url, p / "go", "5173") as go,
         ):
+            for env in (ref, go):
+                seed(env)
             corpus = p / "commands.json"
             subprocess.run(
                 [sys.executable, __file__, "reference", str(corpus)],
@@ -68,6 +119,7 @@ def main():
                         for query in [
                             "select name,event_date,distance_m,purpose,status,goal_time_s,result_s,rank,version from events order by name",
                             "select data_revision,calendar_head_version from app_state",
+                            "select block_uid,block_version,activity_id,event_id,outcome,protocol,distance_m,result_s,local_date,match_method from block_benchmarks",
                         ]
                     ]
 
@@ -130,6 +182,19 @@ def reference(path):
         ]:
             call("PATCH", "/events/" + b, body)
         call("GET", "/events")
+        call("GET", "/blocks/active")
+        call("GET", "/blocks/benchmarks")
+        call("GET", f"/blocks/{BLOCK}/history")
+        call("GET", f"/blocks/{MISSING}/history")
+        call("GET", f"/events/{EVENT}/blocks")
+        call("GET", f"/events/{MISSING}/blocks")
+        call("PUT", f"/blocks/{MISSING}/benchmark-activity", {"activity_id": None})
+        for activity in [MISSING, RUN, None, None]:
+            call(
+                "PUT", f"/blocks/{BLOCK}/benchmark-activity", {"activity_id": activity}
+            )
+            call("GET", "/blocks/active")
+        call("GET", "/blocks/benchmarks")
     path.write_text(json.dumps(cases))
 
 

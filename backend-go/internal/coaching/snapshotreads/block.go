@@ -80,13 +80,7 @@ WITH ranks AS (
         s.build_outline,s.block_uid,s.id AS version_id,s.version,
         CASE WHEN s.target_event_id=(SELECT id FROM ranks WHERE rank=1) THEN 'current'
              WHEN s.target_event_id IS NOT NULL THEN 'changed' WHEN EXISTS(SELECT 1 FROM ranks) THEN 'unset' ELSE 'none' END AS target_event_status,
-        jsonb_build_object('status',CASE WHEN s.kind IS NULL THEN 'not_set' WHEN m.id IS NOT NULL THEN 'completed'
-                     WHEN $1::date <= s.review_date+2 THEN 'pending' ELSE 'missed' END,
-          'match_method',m.method,'activity_id',m.id,'event_id',s.event_id,'local_date',(m.start_at AT TIME ZONE zone.name)::date,
-          'distance_m',round(m.distance_m)::bigint,'result_s',COALESCE(m.result_override,round(m.timer_s)::bigint),
-          'rpe',COALESCE((SELECT rpe FROM session_rpe WHERE activity_id=m.id AND source IN ('manual','garmin_fit')
-                    ORDER BY (source='manual') DESC,collected_at DESC,id DESC LIMIT 1),m.workout_rpe),
-          'scheduled_date',(SELECT max(local_date) FROM scheduled),'evidence_at',` + utcISO("COALESCE(m.end_at,m.start_at)") + `) AS benchmark_status
+        ` + blockbenchmark.StatusJSON(utcISO("COALESCE(m.end_at,m.start_at)")) + ` AS benchmark_status
  FROM spec s CROSS JOIN zone LEFT JOIN matched m ON true
 )
 SELECT COALESCE((SELECT to_jsonb(v) FROM view v),'null'::jsonb),

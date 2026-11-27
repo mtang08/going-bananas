@@ -37,3 +37,14 @@ const Selection = `latest AS (
 ), matched AS (
  SELECT a.*,c.method,c.result_override FROM candidates c JOIN activities a USING (id) ORDER BY c.priority LIMIT 1
 )`
+
+// StatusJSON projects a matched benchmark using the timestamp representation of its caller.
+func StatusJSON(evidenceTime string) string {
+	return `jsonb_build_object('status',CASE WHEN s.kind IS NULL THEN 'not_set' WHEN m.id IS NOT NULL THEN 'completed'
+                     WHEN $1::date <= s.review_date+2 THEN 'pending' ELSE 'missed' END,
+          'match_method',m.method,'activity_id',m.id,'event_id',s.event_id,'local_date',(m.start_at AT TIME ZONE zone.name)::date,
+          'distance_m',round(m.distance_m)::bigint,'result_s',COALESCE(m.result_override,round(m.timer_s)::bigint),
+          'rpe',COALESCE((SELECT rpe FROM session_rpe WHERE activity_id=m.id AND source IN ('manual','garmin_fit')
+                    ORDER BY (source='manual') DESC,collected_at DESC,id DESC LIMIT 1),m.workout_rpe),
+          'scheduled_date',(SELECT max(local_date) FROM scheduled),'evidence_at',` + evidenceTime + `)`
+}

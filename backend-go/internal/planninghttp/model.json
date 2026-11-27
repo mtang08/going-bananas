@@ -305,5 +305,21 @@
     "type":"array"
    }
   }
+ ],
+ "BenchmarkActivityInput":[
+  {
+   "name":"activity_id",
+   "shape":{
+    "anyOf":[
+     {
+      "format":"uuid",
+      "type":"string"
+     },
+     {
+      "type":"null"
+     }
+    ]
+   }
+  }
  ]
 }
