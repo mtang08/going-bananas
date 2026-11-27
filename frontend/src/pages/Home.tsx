@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { MessageCircle } from 'lucide-react'
-import type { ExceptionsView, Finding, Patch } from '../api/types/exceptions'
+import type {
+  DismissFinding,
+  ExceptionsView,
+  Finding,
+  Patch,
+  ResolvePatch,
+} from '../api/types/exceptions'
 import type { CoachChat } from '../api/types/coachChat'
 import { CopyPrompt } from '../components/CopyPrompt'
 import { SyncCard } from '../components/SyncCard'
@@ -85,7 +91,7 @@ export function Home({
       post<Finding>(`/exceptions/${encodeURIComponent(f.id)}/dismiss`, {
         expected_version: f.version,
         note: null,
-      }),
+      } satisfies DismissFinding),
     onSettled: () => invalidateKeys(qc, [qk.exceptions]),
   })
   const resolvePatch = useMutation({
@@ -94,7 +100,7 @@ export function Home({
         expected_version: patch.version,
         status,
         note: null,
-      }),
+      } satisfies ResolvePatch),
     onSettled: () => invalidateKeys(qc, [qk.exceptions, qk.calendar]),
   })
   const block = useQuery({

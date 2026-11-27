@@ -1,4 +1,4 @@
-import type { CheckinExceptions, ExceptionsView } from '../api/types/exceptions'
+import type { ExceptionsView } from '../api/types/exceptions'
 import { CopyPrompt } from '../components/CopyPrompt'
 import { SEVERITY_LABELS } from '../coachLabels'
 import { Badge, Button, Input, NativeSelect, Textarea } from '../components/ui'
@@ -13,7 +13,8 @@ import {
   REASON_LABELS,
   type CheckinCreate,
   type CheckinRequest,
-  type CheckinV2,
+  type DetectedCheckin,
+  type CheckinExceptions,
   type ContextTag,
   type GaitChange,
   type Illness,
@@ -142,7 +143,7 @@ function SymptomFields({
 
 type Submission = {
   signature: string
-  body: CheckinCreate
+  body: CheckinCreate & Required<Pick<CheckinCreate, 'context_tags' | 'symptoms'>>
   stage: number
   completion: Completion | null
   rpe: number | null
@@ -296,10 +297,10 @@ export function CheckinModalV2({
           submission.stage = 2
         }
         if (request?.prompt || submission.body.note)
-          return (await post<CheckinV2>('/v2/checkins', submission.body)).data
+          return (await post<DetectedCheckin>('/v2/checkins', submission.body)).data
         return null
       }
-      return (await post<CheckinV2>('/v2/checkins', submission.body)).data
+      return (await post<DetectedCheckin>('/v2/checkins', submission.body)).data
     },
     onSuccess: (data) => {
       invalidateKeys(qc, [qk.prompts, qk.metrics, qk.calendar, qk.exceptions])

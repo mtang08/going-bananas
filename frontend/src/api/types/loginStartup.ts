@@ -1,5 +1,4 @@
-export interface LoginStartup {
-  status: 'enabled' | 'disabled' | 'unsupported' | 'other_checkout' | 'unavailable'
-  enabled: boolean | null
-  message: string | null
-}
+import type { components } from '../generated/exceptionStartup'
+
+export type LoginStartup = components['schemas']['LoginStartup']
+export type SetLoginStartup = components['schemas']['SetLoginStartup']

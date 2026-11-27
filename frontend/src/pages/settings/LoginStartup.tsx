@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, put } from '../../api/client'
 import { qk } from '../../api/queryKeys'
-import type { LoginStartup as LoginStartupState } from '../../api/types/loginStartup'
+import type {
+  LoginStartup as LoginStartupState,
+  SetLoginStartup,
+} from '../../api/types/loginStartup'
 import { Badge, Button, Card } from '../../components/ui'
 
 const path = '/settings/login-startup'
@@ -15,7 +18,8 @@ export function LoginStartup() {
     staleTime: 0,
   })
   const save = useMutation({
-    mutationFn: (enabled: boolean) => put<LoginStartupState>(path, { enabled }),
+    mutationFn: (enabled: boolean) =>
+      put<LoginStartupState>(path, { enabled } satisfies SetLoginStartup),
     networkMode: 'always',
     onMutate: () => qc.cancelQueries({ queryKey: qk.loginStartup }),
     onSuccess: (result) => qc.setQueryData(qk.loginStartup, result),
