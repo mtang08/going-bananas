@@ -244,7 +244,6 @@ func (c command) run(ctx context.Context, out, stderr io.Writer) int {
 }
 
 func (c command) failure(err error, root string, out, stderr io.Writer) int {
-	code := 2
 	var d *drafts.Error
 	var t *coachdashboard.ToolFailure
 	var pg *pgconn.PgError
@@ -271,13 +270,13 @@ func (c command) failure(err error, root string, out, stderr io.Writer) int {
 		if errors.As(err, &cmd) && len(cmd.Issues) > 0 {
 			issues = cmd.Issues
 		}
-		code = 2
+		code := 2
 		if d.Code == "stale_evidence" {
 			code = 3
 		}
 		return emit(out, code, invalid(c.id, d.Code, issues))
 	case errors.As(err, &t):
-		code = 2
+		code := 2
 		if strings.HasSuffix(t.Code, "_not_found") {
 			code = 4
 		}

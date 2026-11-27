@@ -14,7 +14,7 @@ func CalendarDiff(ctx context.Context, tx pgx.Tx, from, to int) (object, error) 
 		return nil, err
 	}
 	var valid bool
-	if err := tx.QueryRow(ctx, `SELECT NOT EXISTS (SELECT FROM unnest($1::int[]) v WHERE v<0 OR v>coalesce((SELECT calendar_head_version FROM app_state WHERE id=1),0)
+	if err := tx.QueryRow(ctx, `SELECT NOT EXISTS (SELECT FROM unnest($1::bigint[]) v WHERE v<0 OR v>coalesce((SELECT calendar_head_version FROM app_state WHERE id=1),0)
 		OR (v<>0 AND NOT EXISTS(SELECT FROM calendar_versions WHERE number=v)))`, []int{from, to}).Scan(&valid); err != nil {
 		return nil, err
 	}

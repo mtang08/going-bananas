@@ -86,10 +86,16 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(result['ok'])
         command = run.call_args.args[0]
-        self.assertEqual(command[:2], [str(ROOT/'scripts/with-mode'),'demo'])
+        self.assertEqual(command[:3], [str(ROOT/'scripts/with-mode'),'demo',str(ROOT/'scripts/coach-native')])
         self.assertEqual(command[-4:], ['query','activity_execution','--activity-id',UID])
         self.assertNotIn('shell', run.call_args.kwargs)
         self.assertEqual(run.call_args.kwargs['cwd'], ROOT)
+
+    def test_real_mode_keeps_python_cli(self):
+        with patch.object(helper.subprocess, 'run', return_value=SimpleNamespace(returncode=0,stdout='{}',stderr='')) as run:
+            helper.run_cli(ROOT, 'real', ['schema'])
+        self.assertEqual(run.call_args.args[0], [str(ROOT/'scripts/with-mode'), 'real', 'uv', 'run',
+                         '--directory', str(ROOT/'backend'), 'python', '-m', 'app.cli', 'coach', 'schema'])
 
     def test_schema_mismatch_never_submits(self):
         with patch.object(helper, 'run_cli', return_value=(0,{**SCHEMA,'activation':'automatic'})) as run, \

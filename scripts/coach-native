@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# The helper invokes this through with-mode. A current executable preserves
+# domain exit codes (go run maps every nonzero program exit to 1).
+set -euo pipefail
+case "${APP_MODE:-}" in test|demo) ;; *) exit 2 ;; esac
+root="$(cd "$(dirname "$0")/.." && pwd)"
+export GB_REPO="$root"
+bin="$root/private/go-tools/bin"
+mkdir -p "$bin"
+export PATH="$bin:$PATH"
+go build -C "$root/backend-go" -o "$bin/going-bananas-coach" ./cmd/going-bananas-coach
+exec "$bin/going-bananas-coach" "$@"

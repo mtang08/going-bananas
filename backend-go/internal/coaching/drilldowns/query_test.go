@@ -92,6 +92,7 @@ func TestQueryPythonParity(t *testing.T) {
 		args object
 		code string
 	}{
+		{object{"name": "calendar_diff", "from_version": "2147483648", "to_version": 0}, "calendar_version_not_found"},
 		{object{"name": "calendar_diff", "from_version": 0, "to_version": 8}, "calendar_version_not_found"},
 		{object{"name": "activity_execution", "activity_id": "00000000-0000-0000-0000-000000000010"}, "activity_not_found"},
 		{object{"name": "explain_metric", "result_id": "00000000-0000-0000-0000-000000000010"}, "metric_result_not_found"},
