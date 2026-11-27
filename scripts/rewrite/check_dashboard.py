@@ -29,7 +29,7 @@ def main():
                     {"search_path": schema}
                 ).render_as_string(hide_password=False)
                 env["DASHBOARD_REFERENCE_PYTHON"] = sys.executable
-                subprocess.run(["go", "test", "-p", "1", "-race", "-count=1", "-v", "./internal/coachdashboard", "./internal/coachdashboardhttp", "./internal/coaching/snapshotreads",
+                subprocess.run(["go", "test", "-p", "1", "-race", "-count=1", "-v", "./internal/proposalhttp", "./internal/coaching/drafts", "./internal/coachdashboard", "./internal/coachdashboardhttp", "./internal/coaching/snapshotreads",
                                 "./internal/weeklydigest", "./internal/weeklyprojection", "./internal/httpapi",
                                 "./internal/returnplan", "./internal/coaching/snapshots", "./internal/coaching/drilldowns", "./internal/coachcli"],
                                cwd=MODULE, env=env, check=True)
