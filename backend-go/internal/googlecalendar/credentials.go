@@ -27,6 +27,11 @@ type credentials struct {
 }
 
 func (c *Client) authorize(ctx context.Context) (credentials, error) {
+	return c.authorizeAfter(ctx, "")
+}
+
+// On a 401, refresh only if another caller has not already replaced the rejected bearer.
+func (c *Client) authorizeAfter(ctx context.Context, rejected string) (credentials, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	var creds credentials
@@ -76,7 +81,7 @@ func (c *Client) authorize(ctx context.Context) (credentials, error) {
 		return creds, failure("gcal_scope_missing")
 	}
 	creds.expiresAt = expiry
-	if creds.Token != "" && c.config.Now().Before(expiry.Add(-225*time.Second)) {
+	if creds.Token != "" && creds.Token != rejected && c.config.Now().Before(expiry.Add(-225*time.Second)) {
 		return creds, nil
 	}
 	if err := c.refresh(ctx, &creds, data, scopes); err != nil {

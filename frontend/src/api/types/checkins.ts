@@ -1,53 +1,19 @@
 import type { components as Feedback } from '../generated/feedback'
-import type { CheckinExceptions } from './exceptions'
-export type CheckinKind = 'exception' | 'post_run' | 'delayed_followup'
-export type Illness = 'none' | 'possible' | 'present'
-export type GaitChange = 'yes' | 'no' | 'unsure'
-export type ContextTag = 'heat' | 'travel' | 'poor_sleep' | 'unusual_surface' | 'equipment'
-export type Side = 'left' | 'right' | 'both' | 'na'
-export type SymptomTiming =
-  'during' | 'immediately_after' | 'next_morning' | 'hours_24_48' | 'later' | 'unknown'
-export interface SymptomInput {
-  site: string
-  side: Side
-  severity: number
-  timing: SymptomTiming
-}
-export interface SymptomReport extends SymptomInput {
-  id: string
-}
-export interface CheckinCreate {
-  kind: CheckinKind
-  observed_at: string
-  pain_reported?: boolean | null
-  fatigue?: number | null
-  illness?: Illness | null
-  gait_change?: GaitChange | null
-  context_tags: ContextTag[]
-  symptoms: SymptomInput[]
-  activity_id?: string | null
-  prompt_id?: string | null
-  note?: string | null
-  idempotency_key: string
-}
-export interface CheckinV2 {
-  id: string
-  version: number
-  kind: CheckinKind
-  observed_at: string
-  recorded_at: string
-  pain_reported: boolean | null
-  fatigue: number | null
-  illness: Illness | null
-  gait_change: GaitChange | null
-  context_tags: ContextTag[]
-  symptoms: SymptomReport[]
-  activity_id: string | null
-  prompt_id: string | null
-  note: string | null
-  schema_version: number
-  exceptions?: CheckinExceptions
-}
+import type { components } from '../generated/checkins'
+
+type Schemas = components['schemas']
+
+export type CheckinKind = Schemas['CheckinKind']
+export type Illness = NonNullable<Schemas['CheckinView']['illness']>
+export type GaitChange = NonNullable<Schemas['CheckinView']['gait_change']>
+export type ContextTag = Schemas['CheckinContextTag']
+export type SymptomInput = Schemas['CheckinSymptomInput']
+export type Side = SymptomInput['side']
+export type SymptomTiming = SymptomInput['timing']
+export type CheckinCreate = Schemas['CheckinCreate']
+export type DetectedCheckin = Schemas['DetectedCheckin']
+export type CheckinExceptions = Schemas['CheckinDetection']
+
 export type Prompt = Feedback['schemas']['Prompt']
 export type PromptKind = Prompt['kind']
 export interface WorkoutFeedback {

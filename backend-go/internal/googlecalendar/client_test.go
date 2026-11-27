@@ -149,13 +149,17 @@ func TestPageAndTransportFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			tokenFixture(t, dir, "2999-01-01T00:00:00Z")
-			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/token" {
+					_, _ = w.Write([]byte(`{"access_token":"other","expires_in":3600}`))
+					return
+				}
 				w.Header().Set("Retry-After", "7")
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte(tc.body))
 			}))
 			defer s.Close()
-			c := NewWithConfig(Config{PrivateDir: dir, EventsURL: s.URL})
+			c := NewWithConfig(Config{PrivateDir: dir, EventsURL: s.URL, TokenURL: s.URL + "/token"})
 			pages, err := c.Fetch(t.Context(), travel.Window{})
 			if pages != nil || err == nil || err.Error() != tc.code {
 				t.Fatalf("got %v", err)

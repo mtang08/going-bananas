@@ -16,7 +16,7 @@ The existing Go probe compares primitive decoder messages. Passing it alone does
 
 ### Stream 1 handoff
 
-Pass the bytes from `garmin.Client.DownloadActivity` to `fit.DecodeZIP(archive []byte) (*fit.DecodedFit, error)`. The import path is `github.com/mtang08/going-bananas/backend-go/internal/garmin/fit`. The result includes the uncompressed FIT SHA-256, the header profile version, and the native decoder version. Read a failure code with `errors.As` into a `*fit.DecodeError`. The Python worker continues to own ingestion and persistence. [Entry point](../backend-go/internal/garmin/fit/decode.go) · [Observation types](../backend-go/internal/garmin/fit/types.go)
+Pass the bytes from `garmin.Client.DownloadActivity` to `fit.DecodeZIP(archive []byte) (*fit.DecodedFit, error)`. The import path is `github.com/mtang08/going-bananas/backend-go/internal/garmin/fit`. The result includes the uncompressed FIT SHA-256, the header profile version, and the native decoder version. Read a failure code with `errors.As` into a `*fit.DecodeError`. The native worker persists decoded files through the transactional ingestion path described below. [Entry point](../backend-go/internal/garmin/fit/decode.go) · [Observation types](../backend-go/internal/garmin/fit/types.go)
 
 The normalized comparison rebuilds deterministic archives, calls Python’s `decode_fit_zip`, and compares every result field or error code with the Go decoder. The SDK version identifies each implementation. Pass `--update` to the comparison to refresh the checked-in reference after a deliberate contract change. The focused Go test can use the fixtures on its own. [Normalized comparison](../scripts/rewrite/fit/check_normalized.py) · [Go parity test](../backend-go/internal/garmin/fit/parity_test.go)
 
@@ -82,7 +82,7 @@ Build once, then run the manifest in the selected synthetic workspace. The CLI a
 ./scripts/with-mode demo private/garmin-replay -reprocess "$ACTIVITY_UUID"
 ```
 
-The worker integration entry point is `replay.Apply(ctx, pool, privateDir, page)`. It takes previously fetched inputs, including API records or `ScanExport` results and optional FIT bytes keyed by Garmin activity ID. It returns cumulative counters, next page, offset, and the changed activity IDs and dates for this delivery. A local-date move includes both dates. The checkpoint also retains the job-wide union of affected dates. The terminal status is `partial` when the job has rejected records or failed FIT attempts. A duplicate committed page returns its checkpoint with empty change sets. A changed redelivery or skipped page index fails.
+The synthetic replay entry point is `replay.Apply(ctx, pool, privateDir, page)`. It takes previously fetched inputs, including API records or `ScanExport` results and optional FIT bytes keyed by Garmin activity ID. It returns cumulative counters, next page, offset, and the changed activity IDs and dates for this delivery. A local-date move includes both dates. The checkpoint also retains the job-wide union of affected dates. The terminal status is `partial` when the job has rejected records or failed FIT attempts. A duplicate committed page returns its checkpoint with empty change sets. A changed redelivery or skipped page index fails.
 
 Python continues to schedule downloads, hold unconfirmed treadmill runs for review, maintain coverage, and refresh dependent metrics. The standalone command uses its own replay job dataset. It imports the activity portion of an account export. [Replay transaction](../backend-go/internal/garmin/replay/page.go) · [Synthetic comparison](../scripts/rewrite/check_provider_replay.py)
 
@@ -147,9 +147,22 @@ The native worker command is `go run ./cmd/garmin-worker sync [--start YYYY-MM-D
 
 Preview an account export with `go run ./cmd/import-export ARCHIVE` and apply it with `--apply`. Import stores the original archive, canonical activities, supported recovery observations and observed coverage in one database transaction. Run `python3 scripts/test-db.py import-export` for the synthetic preflight, apply and duplicate delivery comparison. [Export importer](../backend-go/internal/garmin/replay/import_export.go)
 
+### FIT maintenance commands
+
+Run these commands from the repository root. Replace the date and optional activity ID with the desired selection. [FIT CLI](../backend-go/cmd/garmin-fit/main.go)
+
+```sh
+./scripts/with-mode real bash -c 'cd backend-go && go run ./cmd/garmin-fit fit-backfill --since 2026-01-01'
+./scripts/with-mode real bash -c 'cd backend-go && go run ./cmd/garmin-fit fit-reprocess --since 2026-01-01'
+```
+
+Backfill downloads files immediately and commits one activity at a time. It selects running activities whose stored local date meets the cutoff and whose FIT status is `not_fetched` or `decode_error`. It prints attempted, decoded, unavailable and failed counts. The command requires real mode and the existing Garmin credential configuration.
+
+Reprocessing uses retained ZIPs in the selected private directory. It selects previously decoded activities with an older or missing decoder version, using midnight in the athlete’s time zone as the inclusive start cutoff. The default dry run rolls back the batch. Append `--apply` to commit it and refresh affected metrics in one transaction. Adding `--activity-id UUID` selects that activity regardless of date, although `--since` is still required. Reprocessing also supports demo and test mode. Run `python3 scripts/test-db.py fit-cli` for synthetic PostgreSQL comparisons. [Selection and transaction logic](../backend-go/internal/garmin/replay/fit_batch.go) · [Comparison](../scripts/rewrite/check_fit_cli.py)
+
 ### Google Calendar provider and travel contracts
 
-Pass `googlecalendar.New(privateDir)` to the travel HTTP service. The client reads the existing calendar-connect token, checks permissions, refreshes credentials, and follows event pages until it has a complete window. Use `NewWithConfig` for a synthetic HTTP endpoint and clock. From `frontend`, run `npm run check:travel-types` to verify the [Go-owned seven-route contract](../backend-go/api/travel.openapi.json) against its [generated TypeScript](../frontend/src/api/generated/travel.ts). [Client and tests](../backend-go/internal/googlecalendar)
+Pass `googlecalendar.New(privateDir)` to the travel HTTP service. From `backend-go`, `go run ./cmd/calendar calendar-connect [--no-browser]` uses loopback OAuth consent with PKCE and writes a private token. `go run ./cmd/calendar calendar-probe --days 60` prints masked calendar and event diagnostics. Both commands require explicit real mode for operation. The client checks file permissions, rotates expired or rejected credentials and follows event pages until it has a complete window. Use `NewWithConfig` for a synthetic HTTP endpoint and clock. From `frontend`, run `npm run check:travel-types` to verify the [Go-owned seven-route contract](../backend-go/api/travel.openapi.json) against its [generated TypeScript](../frontend/src/api/generated/travel.ts). [Client and tests](../backend-go/internal/googlecalendar)
 
 ### Phone and check-in integration
 
@@ -158,3 +171,13 @@ Register `checkinhttp.Handler{Store: checkins.NewStore(pool, nil, refresh.Runs),
 ### Workspace backup and restore
 
 From `backend-go`, run `go run ./cmd/workspace-backup backup OUTPUT.tar.gz` with the intended `DATABASE_URL` and `PRIVATE_DIR`. Restore with `go run ./cmd/workspace-backup restore OUTPUT.tar.gz --target-database-name NEW_DATABASE --target-private-dir NEW_DIRECTORY`. Both targets must be new. The version-one archive contains a PostgreSQL custom-format dump, an allowlisted private file tree and SHA-256 checksums. The command uses the installed PostgreSQL client tools. Run `python3 scripts/test-db.py backup` to cross-restore synthetic archives with the Python implementation. [Backup package](../backend-go/internal/backup) · [Cross-restore scenario](../scripts/rewrite/check_workspace_backup.py)
+
+### Additional HTTP registrations
+
+The main server supplies the local Host, Origin and write guards to all three registries.
+
+| Registry | Routes and behavior | Synthetic verification |
+| --- | --- | --- |
+| `synchttp.New(pool, mode, privateDir).Register(mux)` | Sync status, job lookup, enqueue, treadmill preview and confirmation. Confirmation persists the reviewed summary, FIT and lap paces with its queue and metric updates. | `python3 scripts/test-db.py sync-http` |
+| `httpapi.ExceptionRoutes{Pool: pool, Mode: mode}.Register(mux)` | Reading findings runs detection. Dismissal and patch resolution validate the expected version and update linked findings in the same transaction. For a read-only projection, call `exceptions.View(ctx, tx, now, include)`. | `python3 scripts/test-db.py exception-http` and `python3 scripts/test-db.py exception-view` |
+| `loginstartup.Local(absoluteRepoRoot, mode).Register(mux)` | Read or update the macOS login-startup preference. The OS adapter checks the current checkout's launch agent and writes its plist atomically. | From `backend-go`, run `go test -race ./internal/loginstartup` for the Python HTTP and simulated launchd cases. |

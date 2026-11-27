@@ -1,0 +1,41 @@
+{
+  "REC001": {
+    "effort": {
+      "rpe_low": 3,
+      "rpe_high": 4,
+      "feel": "conversational, relaxed"
+    },
+    "focus": [
+      "Short, quick steps; keep the shoulders loose"
+    ],
+    "adjust_if": [
+      {
+        "when": "Calf or tendon feels tight in the first 10 min",
+        "then": "walk 5 min, then jog easier or stop"
+      }
+    ],
+    "why": "Easy aerobic volume that keeps the quality days fresh"
+  },
+  "REC002": {
+    "effort": {
+      "rpe_low": 4,
+      "rpe_high": 5,
+      "feel": "steady, able to talk in sentences"
+    },
+    "focus": [
+      "Drink and fuel on the run, not after",
+      "Keep the last third no faster than the first"
+    ],
+    "adjust_if": [
+      {
+        "when": "RPE climbs above 6 before the halfway mark",
+        "then": "slow down or cut the run to 60 min"
+      },
+      {
+        "when": "Pain changes your stride",
+        "then": "stop and walk home"
+      }
+    ],
+    "why": "Builds endurance on tired legs; the week's main aerobic dose"
+  }
+}
