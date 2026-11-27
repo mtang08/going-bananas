@@ -243,6 +243,10 @@ func rpeWindow(facts []rpeFact, coverage bool) (object, string, string, []string
 }
 
 func RefreshRPE(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error {
+	return calculateRPE(ctx, tx, asOf, func(r metrics.Result) error { _, err := metrics.StoreResult(ctx, tx, r, now); return err })
+}
+
+func calculateRPE(ctx context.Context, tx pgx.Tx, asOf time.Time, emit func(metrics.Result) error) error {
 	end := dayStart(asOf).AddDate(0, 0, 1)
 	earliest := end.AddDate(0, 0, -84)
 	runs, err := runsBetween(ctx, tx, earliest, end)
@@ -289,7 +293,7 @@ func RefreshRPE(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error {
 			refs["subject_keys"] = keys
 			value, status, q, reasons, flags := rpeWindow(selected, complete)
 			key := fmt.Sprintf("w%d:%s:%s", width, asOf.Format(time.DateOnly), kind)
-			_, err = metrics.StoreResult(ctx, tx, metrics.Result{MetricID: "session_rpe_load", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Config: rpeConfig, SourceRefs: refs, Timezone: asOf.Location().String(), Status: status, QualityStatus: q, ReasonCodes: reasons, QualityFlags: flags, Value: value, Unit: "AU"}, now)
+			err = emit(metrics.Result{MetricID: "session_rpe_load", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Config: rpeConfig, SourceRefs: refs, Timezone: asOf.Location().String(), Status: status, QualityStatus: q, ReasonCodes: reasons, QualityFlags: flags, Value: value, Unit: "AU"})
 			if err != nil {
 				return err
 			}
