@@ -2,7 +2,6 @@ package coachdashboardhttp
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -13,15 +12,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/coachdashboard"
+	"github.com/mtang08/going-bananas/backend-go/internal/coaching/protocol"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drilldowns"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/snapshots"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
 	"github.com/mtang08/going-bananas/backend-go/internal/exceptions"
 )
-
-//go:embed protocol/proposal.json
-var proposalSchema []byte
 
 // NewNative starts the local dashboard with its six transactional coaching tools.
 func NewNative(ctx context.Context, pool *pgxpool.Pool, cfg LocalConfig) (*Local, error) {
@@ -37,7 +34,7 @@ func NewNative(ctx context.Context, pool *pgxpool.Pool, cfg LocalConfig) (*Local
 		Active: n.active, Snapshot: n.snapshot, Findings: n.findings, Query: drilldowns.Reader{Now: now}.Query, SavePending: n.save,
 		Schema: func(context.Context, pgx.Tx) (coachdashboard.Object, error) {
 			var shape coachdashboard.Object
-			err := json.Unmarshal(proposalSchema, &shape)
+			err := json.Unmarshal(protocol.Proposal(), &shape)
 			return shape, err
 		},
 		// The per-turn coach instructions interpret agreement in the conversation.
@@ -63,7 +60,11 @@ func (n nativeTools) snapshot(ctx context.Context, tx pgx.Tx, operation string) 
 	if err != nil {
 		return nil, err
 	}
-	return snapshots.Build(ctx, tx, operation, now.In(location).Format(time.DateOnly), now, n.kbRoot)
+	packet, err := snapshots.Build(ctx, tx, operation, now.In(location).Format(time.DateOnly), now, n.kbRoot)
+	if errors.Is(err, snapshots.ErrKnowledgeUnavailable) {
+		return nil, &coachdashboard.ToolFailure{Code: "knowledge_unavailable", Message: "Verified research is unavailable in this workspace."}
+	}
+	return packet, err
 }
 
 func (n nativeTools) findings(ctx context.Context, tx pgx.Tx, include string) (coachdashboard.Object, error) {

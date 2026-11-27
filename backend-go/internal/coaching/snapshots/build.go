@@ -22,6 +22,9 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/weeklydigest"
 )
 
+// ErrKnowledgeUnavailable identifies failure to verify the KB required by a snapshot.
+var ErrKnowledgeUnavailable = errors.New("verified research unavailable")
+
 type Preparation func(context.Context, pgx.Tx, string, string, time.Time) error
 
 // BuildWithPreparation executes preparation and persistence under the same lock
@@ -92,7 +95,7 @@ func buildPacket(ctx context.Context, tx pgx.Tx, operation, asOf string, now tim
 	}
 	route, err := coaching.LoadRoute(kbRoot, operation, recipes, topics)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrKnowledgeUnavailable, err)
 	}
 	_, fingerprint, err := coaching.Fingerprint(decisions.Sources, route.Knowledge)
 	if err != nil {

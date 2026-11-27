@@ -2,12 +2,17 @@ package drilldowns
 
 import (
 	"context"
+
 	"github.com/jackc/pgx/v5"
 )
 
 const rowView = "to_jsonb(r) || jsonb_build_object('is_original',revision=1,'changed_by_version',calendar_version_number)"
 
-func calendarDiff(ctx context.Context, tx pgx.Tx, from, to int) (object, error) {
+// CalendarDiff reads both versions under the shared planning lock.
+func CalendarDiff(ctx context.Context, tx pgx.Tx, from, to int) (object, error) {
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock_shared(71382413)"); err != nil {
+		return nil, err
+	}
 	var valid bool
 	if err := tx.QueryRow(ctx, `SELECT NOT EXISTS (SELECT FROM unnest($1::int[]) v WHERE v<0 OR v>coalesce((SELECT calendar_head_version FROM app_state WHERE id=1),0)
 		OR (v<>0 AND NOT EXISTS(SELECT FROM calendar_versions WHERE number=v)))`, []int{from, to}).Scan(&valid); err != nil {

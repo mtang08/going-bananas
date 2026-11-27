@@ -109,7 +109,7 @@ func (s *Store) save(ctx context.Context, tx pgx.Tx, r Review) error {
 }
 
 func (s *Store) withReview(ctx context.Context, f func(pgx.Tx, Review) error) error {
-	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	return pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		r, err := s.load(ctx, tx)
 		if err != nil {
 			return err
@@ -185,7 +185,7 @@ func (s *Store) Enqueue(ctx context.Context, g Guard, clientID, text, intent str
 	// pool capacity for cancellation and polling during a long-running turn.
 	lease := &TurnLease{ID: uuid.NewString(), conn: conn.Hijack()}
 	replay := false
-	err = pgx.BeginFunc(ctx, lease.conn, func(tx pgx.Tx) error {
+	err = pgx.BeginTxFunc(ctx, lease.conn, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		r, err := s.load(ctx, tx)
 		if err != nil {
 			return err
