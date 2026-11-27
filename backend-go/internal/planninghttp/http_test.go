@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mtang08/going-bananas/backend-go/internal/calendar"
 
 	"net/http"
 	"net/http/httptest"
@@ -49,7 +52,7 @@ func TestReferencePlanningCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 11, 16, 15, 0, 0, 0, time.UTC)
-	h := Handler{Pool: pool, Mode: "test", Now: func() time.Time { return now }}
+	h := Handler{Metrics: func(context.Context, pgx.Tx, calendar.PlanScope, []uuid.UUID) error { return nil }, Pool: pool, Mode: "test", Now: func() time.Time { return now }}
 	mux := http.NewServeMux()
 	h.Register(mux)
 	ids := map[string]string{}
@@ -73,6 +76,18 @@ func TestReferencePlanningCommands(t *testing.T) {
 		if w.Code == 201 && path == "/events" {
 			ref := c.Expected["data"].(map[string]any)["id"].(string)
 			ids[ref] = got["data"].(map[string]any)["id"].(string)
+		}
+		if c.Path == "/strength-routine" && w.Code == 200 {
+			wantRows := c.Expected["data"].(map[string]any)["slots"].([]any)
+			rows := got["data"].(map[string]any)["slots"].([]any)
+			if len(wantRows) == len(rows) {
+				for j, row := range rows {
+					ref, ok := wantRows[j].(map[string]any)["id"].(string)
+					if ok {
+						ids[ref] = row.(map[string]any)["id"].(string)
+					}
+				}
+			}
 		}
 		expected, _ := json.Marshal(c.Expected)
 		text := string(expected)

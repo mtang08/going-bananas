@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mtang08/going-bananas/backend-go/internal/calendar"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
 	"github.com/mtang08/going-bananas/backend-go/internal/jsonmodel"
 	"github.com/mtang08/going-bananas/backend-go/internal/planning"
@@ -25,10 +26,11 @@ var schema []byte
 var models = jsonmodel.Load(schema, nil)
 
 type Handler struct {
-	Pool   *pgxpool.Pool
-	KBRoot string
-	Mode   string
-	Now    func() time.Time
+	Pool    *pgxpool.Pool
+	KBRoot  string
+	Metrics calendar.PlanMetrics
+	Mode    string
+	Now     func() time.Time
 }
 type result struct {
 	data    any
@@ -50,6 +52,7 @@ func (h Handler) Register(m *http.ServeMux) {
 		return
 	}
 	for _, r := range []route{
+		{"GET /api/v1/strength-routine", "", 200, h.routine}, {"PUT /api/v1/strength-routine", "RoutineInput", 200, h.routine},
 		{"GET /api/v1/blocks/active", "", 200, h.activeBlock}, {"GET /api/v1/blocks/benchmarks", "", 200, benchmarks}, {"GET /api/v1/blocks/{block_uid}/history", "", 200, blockHistory}, {"GET /api/v1/events/{event_id}/blocks", "", 200, eventBlocks}, {"PUT /api/v1/blocks/{block_uid}/benchmark-activity", "BenchmarkActivityInput", 200, setBenchmark},
 		{"GET /api/v1/events", "", 200, listEvents}, {"POST /api/v1/events", "EventInput", 201, saveEvent}, {"PATCH /api/v1/events/{event_id}", "EventPatch", 200, saveEvent}, {"PUT /api/v1/events/order", "EventOrder", 200, orderEvents},
 	} {
@@ -157,6 +160,11 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, route route) {
 		if err != nil {
 			return err
 		}
+		if route.model == "RoutineInput" {
+			if err := calendar.RefreshPlans(ctx, tx, calendar.PlanScope{Since: now.In(loc).Format(time.DateOnly)}, now, h.Metrics); err != nil {
+				return err
+			}
+		}
 		if out.changed {
 			revision, err = q.BumpDataRevision(ctx)
 		} else {
@@ -229,4 +237,20 @@ func setBenchmark(ctx context.Context, tx pgx.Tx, today string, c command) (resu
 	}
 	d, e := planning.SetBenchmark(ctx, tx, *c.id, input.Activity, today)
 	return result{d, true}, e
+}
+
+func (h Handler) routine(ctx context.Context, tx pgx.Tx, today string, c command) (result, error) {
+	if c.full == nil {
+		r, e := planning.Routine(ctx, tx, today)
+		return result{data: r}, e
+	}
+	var body struct {
+		Expected int             `json:"expected_version"`
+		Slots    []planning.Slot `json:"slots"`
+	}
+	if err := json.Unmarshal(c.full, &body); err != nil {
+		return result{}, err
+	}
+	r, e := planning.ReplaceRoutine(ctx, tx, today, body.Expected, body.Slots)
+	return result{r, true}, e
 }
