@@ -24,5 +24,5 @@ func (g GarminImporter) Apply(ctx context.Context, tx pgx.Tx, job Job, records [
 	if err != nil {
 		return PageResult{}, err
 	}
-	return PageResult{AffectedDates: out.AffectedDates, Activities: out.Activities, Counters: out.Counters, Newest: out.Newest, Pending: out.Pending, Ready: out.Ready}, nil
+	return PageResult{CoverageIDs: out.CoverageIDs, AffectedDates: out.AffectedDates, Activities: out.Activities, Counters: out.Counters, Newest: out.Newest, Pending: out.Pending, Ready: out.Ready}, nil
 }

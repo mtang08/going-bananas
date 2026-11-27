@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,16 +14,13 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/garmin"
 )
 
-// FITRefresh updates dependent metrics inside the FIT write transaction.
-type FITRefresh func(context.Context, pgx.Tx, uuid.UUID, string) error
-
 type FITSource interface {
 	DownloadActivity(context.Context, string) ([]byte, error)
 }
 
 // RunFIT downloads eligible activity files after the summary page commits.
 // Each activity has its own transaction so a failed file cannot undo siblings.
-func RunFIT(ctx context.Context, pool *pgxpool.Pool, root string, source FITSource, records []garmin.Record, now time.Time, refresh FITRefresh) error {
+func RunFIT(ctx context.Context, pool *pgxpool.Pool, root string, source FITSource, records []garmin.Record, now time.Time, refresh Refresh) error {
 	var failures []error
 	for _, r := range records {
 		if ctx.Err() != nil {
@@ -38,7 +36,7 @@ func RunFIT(ctx context.Context, pool *pgxpool.Pool, root string, source FITSour
 	return errors.Join(failures...)
 }
 
-func runActivityFIT(ctx context.Context, pool *pgxpool.Pool, root string, source FITSource, remoteID, owner string, now time.Time, refresh FITRefresh) error {
+func runActivityFIT(ctx context.Context, pool *pgxpool.Pool, root string, source FITSource, remoteID, owner string, now time.Time, refresh Refresh) error {
 	const eligible = `SELECT a.id,a.local_date::text FROM activities a JOIN source_accounts s ON s.id=a.source_account_id
 		WHERE s.provider='garmin' AND s.account_scope=$1 AND a.garmin_id=$2 AND a.resolution_state='resolved'
 		AND a.sport IN ('running','trail_running','treadmill_running')`
@@ -83,14 +81,38 @@ func runActivityFIT(ctx context.Context, pool *pgxpool.Pool, root string, source
 		// Python excludes attempt timestamps and transient errors from source revisions.
 		const sourceState = `SELECT jsonb_build_array(a.fit_status,f.id,f.decode_error,f.raw_object_id,f.fit_sha256)::text
 			FROM activities a LEFT JOIN fit_files f ON f.activity_id=a.id WHERE a.id=$1`
+		const activityDays = `SELECT array_remove(ARRAY[local_date::text,(start_at AT TIME ZONE $2)::date::text,(end_at AT TIME ZONE $2)::date::text],NULL)
+FROM activities WHERE id=$1`
+		zone, err := q.CalendarTimezone(ctx)
+		if err != nil {
+			return err
+		}
+		var beforeDays []string
+		if err := tx.QueryRow(ctx, activityDays, id, zone).Scan(&beforeDays); err != nil {
+			return err
+		}
+		notify := func() error {
+			var afterDays []string
+			if err := tx.QueryRow(ctx, activityDays, id, zone).Scan(&afterDays); err != nil {
+				return err
+			}
+			days := append(beforeDays, afterDays...)
+			slices.Sort(days)
+			return refresh(ctx, tx, RefreshScope{Activities: map[uuid.UUID]string{id: date}, AffectedDates: slices.Compact(days)})
+		}
 		var before string
 		if err := tx.QueryRow(ctx, sourceState, id).Scan(&before); err != nil {
 			return err
 		}
 		if fetchErr == nil {
 			changed, failed, err := applyFIT(ctx, tx, id, f, now)
-			if err == nil && changed && refresh != nil {
-				return refresh(ctx, tx, id, date)
+			if err == nil && changed {
+				if _, err = q.BumpDataRevision(ctx); err != nil {
+					return err
+				}
+				if refresh != nil {
+					return notify()
+				}
 			}
 			if err != nil || !failed {
 				return err
@@ -117,7 +139,7 @@ func runActivityFIT(ctx context.Context, pool *pgxpool.Pool, root string, source
 		if after != before {
 			_, err = q.BumpDataRevision(ctx)
 			if err == nil && refresh != nil {
-				return refresh(ctx, tx, id, date)
+				return notify()
 			}
 		}
 		return err

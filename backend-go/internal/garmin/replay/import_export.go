@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -148,7 +149,7 @@ func archiveObject(root string, f *os.File, hash string, size int64) (object, er
 
 // ImportExport previews or imports supported account-export JSON. Source rows,
 // observations, coverage, and the import receipt share one transaction.
-func ImportExport(ctx context.Context, pool *pgxpool.Pool, root, path string, apply bool) (map[string]any, error) {
+func ImportExport(ctx context.Context, pool *pgxpool.Pool, root, path string, apply bool, refresh Refresh) (map[string]any, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, errors.New("invalid_export_archive")
@@ -251,9 +252,10 @@ func ImportExport(ctx context.Context, pool *pgxpool.Pool, root, path string, ap
 				return err
 			}
 		}
+		effects := RefreshScope{Activities: result.Activities, AffectedDates: result.AffectedDates}
 		counts := map[string]map[string]int{}
 		replayed := result.Counts.NewRevisions == 0
-		changed := result.Counts.Changed > 0
+		changed := len(result.Activities) > 0
 		status := "complete"
 		for reason, n := range recovery.skipped {
 			if n > 0 && !strings.HasSuffix(reason, "_unsupported") {
@@ -272,6 +274,7 @@ func ImportExport(ctx context.Context, pool *pgxpool.Pool, root, path string, ap
 			if err != nil {
 				return err
 			}
+			effects.RecoveryDates = append(effects.RecoveryDates, res.AffectedDates...)
 			counts[metric] = res.Counters
 			replayed = replayed && res.Counters["new_revisions"] == 0
 			changed = changed || res.Counters["changed"] > 0
@@ -280,16 +283,29 @@ func ImportExport(ctx context.Context, pool *pgxpool.Pool, root, path string, ap
 			}
 		}
 		for dataset, o := range datasets {
+			id := uuid.New()
 			tag, err := tx.Exec(ctx, `INSERT INTO coverage_intervals(id,dataset,start_date,end_date,observed_start,observed_end,status,completed_at,reason,fully_enumerated)
-			SELECT gen_random_uuid(),$1::varchar,$2::text::date,$3::text::date,$2::text::date,$3::text::date,'partial',now(),'export_snapshot_observed',false
-			WHERE NOT EXISTS(SELECT FROM coverage_intervals WHERE dataset=$1::varchar AND start_date=$2::text::date AND end_date=$3::text::date AND reason='export_snapshot_observed')`, dataset, o.First, o.Last)
+			SELECT $4::uuid,$1::varchar,$2::text::date,$3::text::date,$2::text::date,$3::text::date,'partial',now(),'export_snapshot_observed',false
+			WHERE NOT EXISTS(SELECT FROM coverage_intervals WHERE dataset=$1::varchar AND start_date=$2::text::date AND end_date=$3::text::date AND reason='export_snapshot_observed')`, dataset, o.First, o.Last, id)
 			if err != nil {
 				return err
 			}
-			changed = changed || tag.RowsAffected() > 0
+			if tag.RowsAffected() > 0 {
+				effects.CoverageIDs = append(effects.CoverageIDs, id)
+				changed = true
+			}
 		}
 		if changed {
 			if _, err = db.New(tx).BumpDataRevision(ctx); err != nil {
+				return err
+			}
+		}
+		if changed && refresh != nil {
+			slices.Sort(effects.AffectedDates)
+			effects.AffectedDates = slices.Compact(effects.AffectedDates)
+			slices.Sort(effects.RecoveryDates)
+			effects.RecoveryDates = slices.Compact(effects.RecoveryDates)
+			if err := refresh(ctx, tx, effects); err != nil {
 				return err
 			}
 		}

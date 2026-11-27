@@ -23,6 +23,7 @@ type PageResult struct {
 	Pending       map[string]any
 	Ready         []garmin.Record
 	AffectedDates []string
+	CoverageIDs   []uuid.UUID
 	Activities    map[uuid.UUID]string
 }
 type Importer interface {

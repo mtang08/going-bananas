@@ -2,16 +2,22 @@ package exportcli
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mtang08/going-bananas/backend-go/internal/garmin/replay"
+	"github.com/mtang08/going-bananas/backend-go/internal/garmincli"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 )
 
 func TestModeGate(t *testing.T) {
-	err := Run(t.Context(), nil, "", "test", []string{"synthetic.zip"}, &bytes.Buffer{})
+	err := Run(t.Context(), nil, "", "test", []string{"synthetic.zip"}, &bytes.Buffer{}, nil)
 	if err == nil || err.Error() != "real_mode_required" {
 		t.Fatalf("unexpected mode gate: %v", err)
 	}
@@ -40,8 +46,15 @@ func TestExportFixture(t *testing.T) {
 	if os.Getenv("EXPORT_APPLY") == "1" {
 		args = append(args, "--apply")
 	}
+	actual := garmincli.SourceRefresh(func() time.Time { return time.Date(2026, 11, 16, 9, 0, 0, 0, time.UTC) }, refresh.Runs)
 	var out bytes.Buffer
-	err = Run(t.Context(), pool, os.Getenv("PRIVATE_DIR"), "real", args, &out)
+	err = Run(t.Context(), pool, os.Getenv("PRIVATE_DIR"), "real", args, &out, func(ctx context.Context, tx pgx.Tx, scope replay.RefreshScope) error {
+		_, err := tx.Exec(ctx, "INSERT INTO fixture_export_refresh(scope) VALUES($1)", scope)
+		if err != nil {
+			return err
+		}
+		return actual(ctx, tx, scope)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
