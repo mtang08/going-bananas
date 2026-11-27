@@ -255,6 +255,7 @@ make check                 # docs, Python, Go and frontend checks
 make check-go              # generated code, build, lint, and race-enabled tests
 make check-go-vuln         # check the Go module against the current vulnerability database
 make generate-api-types    # regenerate Go and React HTTP types and sqlc queries
+make api-schema            # print the bundled OpenAPI contract
 make test-proposal-go      # compare Python and Go with PostgreSQL, Home and Settings
 make test-integration      # provision the isolated database and run PostgreSQL integration tests
 make test-integration TESTS=tests/integration/test_proposals.py
@@ -266,7 +267,8 @@ compile against its request and response types. `make check-api-types` also chec
 sqlc output and works with PostgreSQL stopped. To exercise both compilers, run
 `python3 scripts/rewrite/check_contract_rename.py`. It renames a proposal field
 in a temporary copy and checks that both consumers fail to build.
-[Migrated HTTP operations](backend-go/api/openapi.json)
+The bundle collects the [checked-in HTTP contracts](backend-go/api) into one
+OpenAPI document.
 
 The normal API, worker, coach commands, imports and metric commands share the
 `going-bananas` executable. From an explicit workspace, the CLI wrapper builds
