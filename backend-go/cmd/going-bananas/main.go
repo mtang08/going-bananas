@@ -26,6 +26,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/health"
 	"github.com/mtang08/going-bananas/backend-go/internal/metriccli"
 	"github.com/mtang08/going-bananas/backend-go/internal/migratecli"
+	"github.com/mtang08/going-bananas/backend-go/internal/preflight"
 	"github.com/mtang08/going-bananas/backend-go/internal/strongcli"
 	"github.com/mtang08/going-bananas/backend-go/internal/workercommand"
 	"github.com/oapi-codegen/runtime"
@@ -162,6 +163,8 @@ func main() {
 		os.Exit(backupcli.Main(args))
 	case "migrate":
 		os.Exit(migratecli.Main(args[1:]))
+	case "workspace-preflight":
+		os.Exit(preflight.Main(args[1:]))
 	case "strong-import":
 		os.Exit(strongcli.Main(args[1:]))
 	case "import-export":

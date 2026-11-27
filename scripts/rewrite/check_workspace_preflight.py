@@ -155,7 +155,7 @@ def scenario(binary, tmp, env):
         def run(ok, key, value, extra=None):
             before = snapshots(db, private)
             proc = subprocess.run(
-                [binary, "-repo", ROOT],
+                [binary, "workspace-preflight", "-repo", ROOT],
                 env={**env, **(extra or {})},
                 text=True,
                 capture_output=True,
@@ -233,7 +233,7 @@ def main():
         d = Path(t)
         binary = d / "preflight"
         subprocess.run(
-            ["go", "build", "-o", binary, "./cmd/workspace-preflight"],
+            ["go", "build", "-o", binary, "./cmd/going-bananas"],
             cwd=MODULE,
             check=True,
         )
