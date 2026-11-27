@@ -80,6 +80,7 @@ sync:
 backup:
 	$(RUN) bash -c '$(BACKUP)'
 
-.PHONY: phone-access
-phone-access:
-	python3 scripts/phone_gateway.py
+.PHONY: phone-access phone-access-demo
+phone-access-demo: PHONE_FLAGS := -demo
+phone-access phone-access-demo:
+	cd backend-go && go run ./cmd/phone-gateway -assets ../frontend/public/phone $(PHONE_FLAGS)
