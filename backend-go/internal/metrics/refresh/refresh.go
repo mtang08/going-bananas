@@ -21,6 +21,7 @@ import (
 
 type RunMetrics func(context.Context, pgx.Tx, uuid.UUID, string, time.Time) error
 type batch struct {
+	filter         map[string]bool
 	ctx            context.Context
 	tx             pgx.Tx
 	now            time.Time
@@ -78,6 +79,9 @@ func (b *batch) assess(ids []uuid.UUID) error {
 	if err := b.run(linked); err != nil {
 		return err
 	}
+	if !b.includes("planned_actual_session") {
+		return nil
+	}
 	pending := []uuid.UUID{}
 	for _, id := range ids {
 		if !b.plans[id] {
@@ -132,8 +136,10 @@ func (b *batch) windows(day time.Time) error {
 	if err := b.run(ids); err != nil {
 		return err
 	}
-	if err := trainingwindows.RefreshStrength(b.ctx, b.tx, first, end, b.now); err != nil {
-		return err
+	if b.includes("session_rpe_load") {
+		if err := trainingwindows.RefreshStrength(b.ctx, b.tx, first, end, b.now); err != nil {
+			return err
+		}
 	}
 	plans, err := b.ids(`WITH head AS(SELECT DISTINCT ON(session_uid) * FROM calendar_session_revisions WHERE calendar_version_number<=(SELECT calendar_head_version FROM app_state WHERE id=1) ORDER BY session_uid,calendar_version_number DESC,revision DESC)
  SELECT session_uid FROM head WHERE NOT deleted AND local_date BETWEEN $1::text::date AND $2::text::date UNION SELECT session_uid FROM session_completions WHERE activity_id=ANY($3)`, day.AddDate(0, 0, -13).Format(time.DateOnly), day.AddDate(0, 0, 13).Format(time.DateOnly), ids)
@@ -143,20 +149,32 @@ func (b *batch) windows(day time.Time) error {
 	if err := b.assess(plans); err != nil {
 		return err
 	}
-	for offset := -6; offset <= 0; offset++ {
+	for offset := -6; b.includes(recovery.MetricID) && offset <= 0; offset++ {
 		if _, err := recovery.Refresh(b.ctx, b.tx, "night:"+day.AddDate(0, 0, offset).Format(time.DateOnly), b.now); err != nil {
 			return err
 		}
 	}
-	for _, f := range []func(context.Context, pgx.Tx, time.Time, time.Time) error{trainingwindows.RefreshVolume, trainingwindows.RefreshLong, trainingwindows.RefreshRPE, trainingwindows.RefreshIntensity, trainingwindows.RefreshSymptoms, trainingwindows.RefreshAerobic} {
-		if err := f(b.ctx, b.tx, day, b.now); err != nil {
+	for _, item := range []struct {
+		id      string
+		refresh func(context.Context, pgx.Tx, time.Time, time.Time) error
+	}{
+		{"run_volume_frequency", trainingwindows.RefreshVolume}, {"long_run_exposure", trainingwindows.RefreshLong}, {"session_rpe_load", trainingwindows.RefreshRPE}, {"intensity_time_distribution", trainingwindows.RefreshIntensity}, {"symptom_response_timeline", trainingwindows.RefreshSymptoms}, {"aerobic_efficiency", trainingwindows.RefreshAerobic}} {
+		if !b.includes(item.id) {
+			continue
+		}
+		if err := item.refresh(b.ctx, b.tx, day, b.now); err != nil {
 			return err
 		}
 	}
-	if _, err := recovery.Refresh(b.ctx, b.tx, "w7:"+day.Format(time.DateOnly), b.now); err != nil {
-		return err
+	if b.includes(recovery.MetricID) {
+		if _, err := recovery.Refresh(b.ctx, b.tx, "w7:"+day.Format(time.DateOnly), b.now); err != nil {
+			return err
+		}
 	}
-	return spacing.RefreshDates(b.ctx, b.tx, []string{day.Format(time.DateOnly)}, b.now)
+	if b.includes("hard_session_spacing") {
+		return spacing.RefreshDates(b.ctx, b.tx, []string{day.Format(time.DateOnly)}, b.now)
+	}
+	return nil
 }
 
 func PlanMetrics(now time.Time, runs RunMetrics) calendar.PlanMetrics {
