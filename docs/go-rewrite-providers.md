@@ -4,15 +4,15 @@ Go owns Garmin normalization, persistence, replay and the worker in real mode. G
 
 ## Original decoder assignment
 
-Port **downloaded ZIP bytes to application-level decoded FIT data**. Put the production decoder and its tests under `backend-go/internal/garmin/fit/`. Give it an in-memory entry point that accepts the same downloaded bytes as Python. Use the Go decoder version pinned in the existing probe. Stream 2 owns the corresponding Go module dependency and checksum change for this slice. [Python decoder and output types](../backend/app/adapters/garmin/fit.py) · [Probe dependency](../backend-go/go.mod)
+Port **downloaded ZIP bytes to application-level decoded FIT data**. Put the production decoder and its tests under `backend-go/internal/garmin/fit/`. Give it an in-memory entry point that accepts the same downloaded bytes as Python. Use the Go decoder version pinned in the existing probe. Stream 2 owns the corresponding Go module dependency and checksum change for this slice. [Python decoder and output types](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/app/adapters/garmin/fit.py) · [Probe dependency](../backend-go/go.mod)
 
 | Deliverable | Completion check |
 | --- | --- |
 | ZIP member selection, size checks while streaming, FIT integrity checks and stable errors | The same synthetic archives produce the same error codes for zero or multiple FIT members, an oversized member, corrupt ZIP and bad FIT CRC. |
 | Typed session, laps, steps, timer intervals, streams, quality flags and filtered metadata | Compare the Go outputs to Python's `decode_fit_zip` on the same synthetic bytes. Cover pauses, duplicate timestamps, missing channels, alternate speed/altitude fields, lap intensity and workout targets. Preserve nulls, ordering and the FIT payload hash. Record the native library's actual version in decoder provenance. |
-| Reproducible parity fixtures and an isolated test command | Keep the Python fixture builder as the reference. Assert that coordinates, device serials and other excluded fields stay out of normalized results. Run focused Go race tests, Python reference cases and the project checks. |
+| Reproducible parity fixtures and an isolated test command | Keep the Python fixture builder as the reference. Assert that coordinates, device serials and other excluded fields stay out of normalized results. The port compared Python reference cases. Current checks use committed synthetic cases and the Go race suite. |
 
-The existing Go probe compares primitive decoder messages. Passing it alone does not exercise the normalized values consumed by ingestion. This first deliverable needs synthetic files only. [Synthetic FIT builder](../backend/tests/fixtures/fit/synthetic.py) · [Decoder scenarios](../backend/tests/unit/test_fit_decode.py)
+The existing Go probe compares primitive decoder messages. Passing it alone does not exercise the normalized values consumed by ingestion. This first deliverable needs synthetic files only. [Synthetic FIT builder](../backend/tests/fixtures/fit/synthetic.py) · [Decoder scenarios](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/tests/unit/test_fit_decode.py)
 
 ### Stream 1 handoff
 
@@ -25,31 +25,30 @@ The native decoder accepts stored, Deflate, BZIP2 and LZMA members. A local-head
 Run the checks from a configured checkout with Go on `PATH`.
 
 ```sh
-./scripts/with-mode test bash -c 'cd backend && uv run pytest -q tests/unit/test_fit_decode.py'
 (cd backend-go && go test -race -count=1 ./internal/garmin/fit)
 make check-go
 ```
 
 ## Provider scope and integration
 
-Stream 2 owns Garmin JSON and export normalization, FIT reprocessing, Strong preview/apply, Google Calendar event and trip reconciliation, and provider job fetch/retry/checkpoint logic. Keep provider-specific tests and fixtures with these packages. Cover precedence in either import order, repeated delivery, partial or failed pages, and preserved manual trip edits. [Garmin/export precedence](../backend/tests/integration/test_export_precedence.py) · [FIT reprocessing](../backend/tests/integration/test_fit_reprocess.py) · [Strong import](../backend/tests/integration/test_strong_import.py) · [Google Calendar](../backend/tests/integration/test_gcal_sync.py)
+Stream 2 owns Garmin JSON and export normalization, FIT reprocessing, Strong preview/apply, Google Calendar event and trip reconciliation, and provider job fetch/retry/checkpoint logic. Keep provider-specific tests and fixtures with these packages. Cover precedence in either import order, repeated delivery, partial or failed pages, and preserved manual trip edits. [Garmin/export precedence](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/tests/integration/test_export_precedence.py) · [FIT reprocessing](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/tests/integration/test_fit_reprocess.py) · [Strong import](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/tests/integration/test_strong_import.py) · [Google Calendar](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/tests/integration/test_gcal_sync.py)
 
 The provider transaction passes typed observations, provenance, affected source identities and dates, and the job checkpoint to shared persistence and refresh. A replay unit commits source history, the winning values and its checkpoint together. Stream 1 owns the shared router, schema, Makefile and supervisor. The real cutover keeps one worker active at a time. [Cutover and rollback](go-backend-rewrite.md#data-handoff-and-rollback)
 
 ## Original replay assignment
 
-The assignment followed a Garmin activity page, FIT archive or export through normalized observations, field precedence, persisted source history and the job checkpoint. The checklist captures the replay scope and uses the existing Python fixtures and ingestion behavior as the reference.
+The assignment followed a Garmin activity page, FIT archive or export through normalized observations, field precedence, persisted source history and the job checkpoint. This was the original verification plan. The Python fixtures and implementation are historical references. The current native commands follow below.
 
-1. Close the LZMA and local-header filename differences in the FIT comparison. Normalize Garmin JSON, FIT and export inputs with typed provenance and explicit missing values.
-2. Run API-first and export-first replays in independently migrated test schemas. Compare the canonical activity and source history with Python. Duplicate input must preserve identity and provenance.
-3. Apply the observations and checkpoint atomically. Inject an error after a source write, then restart the job. Verify the durable state, checkpoint and affected activity IDs/dates, including a partial page.
-4. Verify the full replay matrix and provide the replay command and affected dates to the worker and refresh integration.
+1. The FIT comparison identified LZMA and local-header filename differences. The port resolved them and normalized Garmin JSON, FIT and export inputs with typed provenance and explicit missing values.
+2. The original test ran API-first and export-first replays in independently migrated schemas, compared the canonical activity and source history with Python, and checked that duplicate input preserved identity and provenance.
+3. The failure scenario injected an error after a source write, restarted the job, and checked the durable state, checkpoint and affected IDs and dates, including a partial page.
+4. The replay matrix served as the handoff for the worker and its affected-date refresh.
 
-[Ingestion and precedence tests](../backend/tests/integration/test_export_precedence.py) · [Job implementation](../backend/app/services/sync.py)
+[Ingestion and precedence tests](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/tests/integration/test_export_precedence.py) · [Job implementation](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/app/services/sync.py)
 
 ## Continuation prompt
 
-> The existing provider lead plans, integrates and reviews the work. Assign new or reassigned implementation and verification to workers using `gpt-6.2-sol`. Start from the integrated Go candidate and use the synthetic comparisons below for any changes to normalization, persistence, replay or recovery. Report the commands run, comparison results, commits and any remaining integration work.
+> The existing provider lead plans, integrates and reviews the work. Assign new or reassigned implementation and verification to workers using `gpt-6.2-sol`. Start from the integrated Go candidate and use native tests and committed synthetic fixtures for changes to normalization, persistence, replay or recovery. Report the commands run, comparison results, commits and any remaining integration work.
 
 ## Running a synthetic activity replay
 

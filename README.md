@@ -101,8 +101,8 @@ when upgrading a database stamped with an older revision. See [local operations]
 ## Fresh setup
 
 Development prerequisites include Python 3.12+, uv, Node.js 22+, npm, Go and PostgreSQL 17 tools.
-Python supports the setup and verification scripts, the Codex helper, historical
-Alembic upgrades, and retained reference tests.
+Python supports local scripts, the Codex helper, historical Alembic upgrades,
+and backup verification.
 The Go backend pins Go 1.27.4. Install that version, or use a Go installation that supports automatic toolchain selection.
 `scripts/env.sh` recognizes the Homebrew locations on this Mac and otherwise
 uses PATH. Dependencies are resolved in `backend/uv.lock` and
@@ -260,7 +260,7 @@ Inspect or update them in Settings.
 ## Verification
 
 ```sh
-make check                 # docs, Python, Go and frontend checks
+make check                 # docs, backend, and frontend checks
 make check-go              # generated code, build, lint, and race-enabled tests
 make check-go-vuln         # check the Go module against the current vulnerability database
 make generate-api-types    # regenerate Go and React HTTP types and sqlc queries
@@ -268,7 +268,7 @@ make api-schema            # print the bundled OpenAPI contract
 make test-go-integration   # run native integration tests with managed PostgreSQL
 make test-go-integration-external  # run native integration tests on a dedicated cluster
 make test-proposal-go      # smoke-test native proposal contracts, goals, and dashboard
-make test-integration      # run retained Python reference tests against isolated PostgreSQL
+make test-integration      # verify historical migration safety in isolated PostgreSQL
 python3 scripts/test_coach_skill_v2.py  # reviewed helper contract tests; no live writes
 ```
 
@@ -301,9 +301,8 @@ use separate ports and data directories.
 
 For an existing dedicated integration cluster, export `TEST_DATABASE_URL` and
 `MIGRATION_TEST_DATABASE_URL` as `postgresql+psycopg://` URLs for the two databases,
-then run `make test-go-integration-external` for the Go suite or
-`make test-integration-external` for the retained Python tests. The runner
-verifies the loopback port and database names before testing. Use only disposable synthetic data.
+then run `make test-go-integration-external`. The runner verifies the loopback
+port and database names before testing. Use disposable synthetic data.
 
 Browser acceptance uses an isolated demo database and built frontend on port
 18000. Use a disposable demo environment, never real credentials or data:
@@ -332,8 +331,8 @@ Never run tests with real data substituted for synthetic fixtures.
 
 `make backup` writes a private PostgreSQL/raw/profile archive with checksums,
 excluding credentials. `coach snapshot` writes a privacy-filtered, versioned
-training snapshot for the selected operation. Restore only into a new target;
-commands are in [operations](docs/operations.md).
+training snapshot for the selected operation. Restore into a new target.
+The offline verifier compares database contents and raw-file checksums. [Backup, restore, and verification commands](docs/operations.md)
 
 The reviewed `running_coach_kb/` loads selectively: guide, requested workflow,
 and relevant topics/policies/sources. The AI coach must distinguish observed

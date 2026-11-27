@@ -137,7 +137,7 @@ inspect the app's dataset status and coverage.
 
 ## Troubleshooting
 
-- `make doctor`: checks Go, frontend and PostgreSQL tools, and reports whether the checkout has a mode configuration and research library. It checks file presence without reading configuration values. The optional `uv` tool serves historical Alembic migrations and Python checks.
+- `make doctor`: checks Go, frontend and PostgreSQL tools, and reports whether the checkout has a mode configuration and research library. It checks file presence without reading configuration values. The optional `uv` tool runs historical Alembic migrations and the restore verifier.
 - Readiness unavailable: start the database and run migrations for the active mode.
 - Credential attention: replace/renew the private Garmin key; don't paste it into
   chat. Imported history stays readable.
@@ -218,9 +218,10 @@ before the first real-mode server start after a metric method change.
 
 For an explicit connection outside the configured workspace, pass `APP_MODE`, `DATABASE_URL`, and `PRIVATE_DIR` together. The local runner preserves this complete destination and rejects a conflicting partial destination before running the command. The normal named-mode entry point is `scripts/with-mode`.
 
-Run database-backed checks with `make test-integration` and the focused API smoke
-with `make test-proposal-go`. The test runner manages a separate PostgreSQL
-cluster. Keep device verification separate because synthetic interval and
+Run database-backed checks with `make test-go-integration`. The runner manages
+a separate PostgreSQL cluster. [Verification and release gates](verification.md)
+
+Keep device verification separate because synthetic interval and
 recovery tests do not cover every watch export or non-worn-night behavior.
 
 ## Read-only workspace preflight

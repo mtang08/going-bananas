@@ -4,27 +4,26 @@ Go serves the coaching dashboard and pending-draft workflow in every mode. The f
 
 ## Original fingerprint assignment
 
-Port the **coaching evidence fingerprint used to decide whether an existing draft is current**. Start under `backend-go/internal/coaching/` with typed inputs for source versions and verified knowledge selection. Produce canonical UTF-8 bytes and a SHA-256 digest from those inputs. The package must compute the result from the supplied evidence, including selected record content. The Python implementation and checked-in fixtures define the behavior. [Canonicalization and fingerprint construction](../backend/app/services/decision_inputs.py) · [Coaching hash fixture](../backend/tests/fixtures/canonical-hashes.json) · [Persisted fingerprint fixture](../backend/tests/fixtures/coach-fingerprint.json)
+Port the **coaching evidence fingerprint used to decide whether an existing draft is current**. Start under `backend-go/internal/coaching/` with typed inputs for source versions and verified knowledge selection. Produce canonical UTF-8 bytes and a SHA-256 digest from those inputs. The package must compute the result from the supplied evidence, including selected record content. The original Python implementation supplied the expected outputs. The checked-in vectors preserve those byte contracts. [Canonicalization and fingerprint construction](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/app/services/decision_inputs.py) · [Coaching hash fixture](../backend/tests/fixtures/canonical-hashes.json) · [Persisted fingerprint fixture](../backend/tests/fixtures/coach-fingerprint.json)
 
 | Deliverable | Completion check |
 | --- | --- |
 | Coaching scalar and timestamp encoding | Read the fixtures as inputs, preserving large integers, integer/float distinctions, negative zero, UTC offset spelling, Unicode and exact string escaping. Assert canonical bytes and SHA-256 against Python's coaching vectors. |
 | Construction of the fingerprint from source versions and verified knowledge | Match the original fixture digest and its revised selected-content digest. Reordered object keys retain identity. Changed evidence invalidates the fingerprint. Cover missing/null values and order-sensitive lists as in Python. |
-| Reproducible reference comparison | Run the offline Python canonical-hash and proposal fingerprint cases and the focused Go race tests. Use the committed synthetic evidence. A database, Garmin account and model session are unnecessary for this package. |
+| Reproducible reference comparison | Run the focused Go race tests against the committed synthetic vectors. A database, Garmin account and model session are unnecessary for this package. |
 
-The shared JSON encoder preserves separate coaching and metric timestamp formats. Both domains have byte-for-byte regression fixtures. [Python hash tests](../backend/tests/unit/test_canonical_hash_vectors.py) · [Changed-evidence case](../backend/tests/unit/test_proposals.py)
+The shared JSON encoder preserves separate coaching and metric timestamp formats. Both domains have byte-for-byte regression fixtures. [Python hash tests](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/tests/unit/test_canonical_hash_vectors.py) · [Changed-evidence case](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/tests/unit/test_proposals.py)
 
 ### Fingerprint handoff
 
 Snapshot and proposal code can call `coaching.Fingerprint(sources, knowledge)` to obtain the canonical UTF-8 bytes and lowercase SHA-256. Supply these two inputs. [Go fingerprint API](../backend-go/internal/coaching/fingerprint.go)
 
 - `SourceVersions` contains the full source-versions object. Keep historical and unknown keys, explicit nulls and list order. Its JSON decoder preserves integer and float tokens. For programmatic inputs, use ISO strings for calendar dates and `time.Time` at microsecond precision or coarser for instants. [Coaching encoder](../backend-go/internal/coaching/canonical.go)
-- `VerifiedKnowledge` carries the verifier's digest, ordered `SelectionEntry` values (path and sections or record IDs), and ordered `SelectedRecord` values (path, record ID and complete `RecordContent`). The Go verifier checks the selected records and sections against the repository KB. [Go verifier](../backend-go/internal/coaching/knowledge.go) · [Python reference](../backend/app/services/knowledge.py)
+- `VerifiedKnowledge` carries the verifier's digest, ordered `SelectionEntry` values (path and sections or record IDs), and ordered `SelectedRecord` values (path, record ID and complete `RecordContent`). The Go verifier checks the selected records and sections against the repository KB. [Go verifier](../backend-go/internal/coaching/knowledge.go) · [Python reference](https://github.com/mtang08/going-bananas/blob/7e759fb510ad828b044911dfa969fa845f7dd7da/backend/app/services/knowledge.py)
 
 The unchanged draft fixture produces 608 canonical bytes. Changing only the selected title from `Easy` to `Easy revised` produces 616. Both byte sequences hash to their respective stored Python digests. Run the following checks from a configured checkout. [Persisted fixture test](../backend-go/internal/coaching/fingerprint_test.go)
 
 ```sh
-./scripts/with-mode test bash -c 'cd backend && uv run pytest -q tests/unit/test_canonical_hash_vectors.py tests/unit/test_proposals.py::test_fingerprint_fixture'
 (cd backend-go && go test -race -count=1 ./internal/coaching)
 make check-go
 ```
@@ -37,18 +36,18 @@ make check-go
 
 ## Original pending-draft assignment
 
-The assignment covered a synthetic workflow that builds or loads a snapshot, saves a pending proposal, reloads it, revises it under the same ID and discards it. It included a draft originally created by Python. The coaching team owns package-local persistence, knowledge selection and validation. Core owns shared route registration and calendar writes.
+The assignment covered a synthetic workflow that builds or loads a snapshot, saves a pending proposal, reloads it, revises it under the same ID and discards it. It included a draft originally created by Python. The numbered steps record the original assignment. The coaching team owns package-local persistence, knowledge selection and validation. Core owns shared route registration and calendar writes.
 
 1. Read persisted draft and snapshot evidence in PostgreSQL, verify the selected knowledge, and check its fingerprint. Cover changed source inputs and changed selected record content.
 2. Port proposal validation and submit/load/revise/discard. Preserve the current draft ID, revision checks, duplicate handling, structured errors and authorization. Produce typed inputs keyed by change ID for a future manual acceptance.
-3. Compare the responses and durable rows from Go and Python on independent synthetic schemas. Exercise a duplicate submission, stale revision, concurrent edits, a failed write with rollback and the unchanged Python-created draft.
+3. The comparison checked Go and Python responses and durable rows on independent synthetic schemas. Cases covered duplicate submission, stale revision, concurrent edits, rollback and an unchanged Python-created draft.
 4. Verify the full workflow through the runnable entry point and package-local tests. Manual acceptance remains a separate athlete action.
 
 [Native proposal tests](../backend-go/internal/coaching/drafts/store_test.go) · [Draft service](../backend-go/internal/coaching/drafts)
 
 ## Continuation prompt
 
-> The existing coaching lead plans, integrates and reviews the work. Assign new or reassigned implementation and verification to workers using `gpt-6.2-sol`. Start from the integrated Go candidate and use the synthetic comparisons below for any changes to evidence, validation, persistence or rollback. Report the commands run, comparison results, commits and any remaining integration work.
+> The existing coaching lead plans, integrates and reviews the work. Assign new or reassigned implementation and verification to workers using `gpt-6.2-sol`. Start from the integrated Go candidate and use native tests and committed synthetic fixtures for changes to evidence, validation, persistence or rollback. Report the commands run, comparison results, commits and any remaining integration work.
 
 ## Native dashboard handoff
 
