@@ -1,0 +1,2121 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Going Bananas proposal review API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/coach/proposals/active": {
+      "get": {
+        "tags": [
+          "coach"
+        ],
+        "summary": "Get Active Proposal",
+        "operationId": "get_active_proposal_api_v1_coach_proposals_active_get",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveProposalEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/coach/proposals/{proposal_id}": {
+      "get": {
+        "tags": [
+          "coach"
+        ],
+        "summary": "Get Proposal",
+        "operationId": "get_proposal_api_v1_coach_proposals__proposal_id__get",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalDetailEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proposal or revision missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "coach"
+        ],
+        "summary": "Delete Proposal",
+        "operationId": "delete_proposal_api_v1_coach_proposals__proposal_id__delete",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "expected_revision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "title": "Expected Revision"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscardResultEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proposal or revision missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Proposal conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/coach/proposals/{proposal_id}/document": {
+      "get": {
+        "tags": [
+          "coach"
+        ],
+        "summary": "Get Proposal Document",
+        "operationId": "get_proposal_document_api_v1_coach_proposals__proposal_id__document_get",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResultEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proposal or revision missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/coach/proposals/{proposal_id}/revisions/{revision}": {
+      "get": {
+        "tags": [
+          "coach"
+        ],
+        "summary": "Get Proposal Revision",
+        "operationId": "get_proposal_revision_api_v1_coach_proposals__proposal_id__revisions__revision__get",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Revision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionDetailEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proposal or revision missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/coach/proposals/{proposal_id}/revise": {
+      "post": {
+        "tags": [
+          "coach"
+        ],
+        "summary": "Post Revision",
+        "operationId": "post_revision_api_v1_coach_proposals__proposal_id__revise_post",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionResultEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proposal or revision missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Proposal conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON body required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Verified knowledge unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/coach/proposals/{proposal_id}/decision": {
+      "post": {
+        "tags": [
+          "coach"
+        ],
+        "summary": "Post Decision",
+        "operationId": "post_decision_api_v1_coach_proposals__proposal_id__decision_post",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResultEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Proposal or revision missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Proposal conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON body required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Verified knowledge unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DecisionRequest": {
+        "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 8,
+            "title": "Idempotency Key"
+          },
+          "expected_head": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Head"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "accept_change_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accept Change Ids"
+          },
+          "reject_change_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reject Change Ids"
+          },
+          "accept_block_change": {
+            "type": "boolean",
+            "title": "Accept Block Change",
+            "default": false
+          },
+          "accept_anchor_changes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accept Anchor Changes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "idempotency_key",
+          "expected_head",
+          "expected_revision",
+          "accept_change_ids",
+          "reject_change_ids"
+        ],
+        "title": "DecisionRequest"
+      },
+      "RevisionRequest": {
+        "$ref": "../internal/coaching/protocol/revision.json"
+      },
+      "ProposalDocument": {
+        "$ref": "../internal/coaching/protocol/proposal.json"
+      },
+      "RetainedDocument": {
+        "description": "Saved authored JSON retains its original field set, including historical versions. Current writes use the ProposalDocument schema.",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProposalDocument"
+          },
+          {
+            "type": "object",
+            "additionalProperties": true
+          }
+        ]
+      },
+      "ActiveProposal": {
+        "type": "object",
+        "properties": {
+          "proposal": {
+            "anyOf": [
+              {
+                "$ref": "./openapi.json#/components/schemas/ProposalSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "proposal"
+        ]
+      },
+      "DiscardResult": {
+        "type": "object",
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "discarded"
+            ]
+          }
+        },
+        "required": [
+          "proposal_id",
+          "revision",
+          "status"
+        ]
+      },
+      "RevisionSummary": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer"
+          },
+          "saved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "changed_change_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "changed_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "revision",
+          "saved_at",
+          "reason",
+          "changed_change_ids",
+          "changed_fields"
+        ]
+      },
+      "ValidationIssue": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "path",
+          "message"
+        ]
+      },
+      "RevisionResult": {
+        "type": "object",
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "partially_accepted",
+              "rejected",
+              "stale",
+              "invalid",
+              "discarded"
+            ],
+            "title": "Status"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            }
+          }
+        },
+        "required": [
+          "proposal_id",
+          "revision",
+          "status",
+          "errors"
+        ]
+      },
+      "DecisionResult": {
+        "type": "object",
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "partially_accepted",
+              "rejected"
+            ]
+          },
+          "calendar_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "block_version_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchor_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stale_proposals": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "proposal_id",
+          "status",
+          "calendar_version",
+          "block_version_id",
+          "anchor_keys",
+          "stale_proposals"
+        ]
+      },
+      "DocumentResult": {
+        "type": "object",
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "partially_accepted",
+              "rejected",
+              "stale",
+              "invalid",
+              "discarded"
+            ],
+            "title": "Status"
+          },
+          "is_current": {
+            "type": "boolean"
+          },
+          "document": {
+            "$ref": "#/components/schemas/RetainedDocument"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "revision",
+          "status",
+          "is_current",
+          "document"
+        ]
+      },
+      "RevisionDetail": {
+        "type": "object",
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "saved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "document": {
+            "$ref": "#/components/schemas/RetainedDocument"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "revision",
+          "saved_at",
+          "reason",
+          "document"
+        ]
+      },
+      "CitedSource": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "policy",
+              "evidence"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "papers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "title",
+          "papers"
+        ]
+      },
+      "ReviewSession": {
+        "type": "object",
+        "properties": {
+          "local_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Local Date"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Slot"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "run",
+                  "strength",
+                  "cross",
+                  "rest",
+                  "mobility",
+                  "rehab"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Kind"
+          },
+          "recipe_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Recipe Id"
+          },
+          "custom": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Custom"
+          },
+          "placeholder": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Placeholder"
+          },
+          "locked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Locked"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Session purpose, a short label, e.g. 'Threshold control'; not the prescription",
+            "title": "Intent"
+          },
+          "planned_duration_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Rehab requires a duration; daily rehab sessions must total at most 15 minutes (900 seconds).",
+            "title": "Planned Duration S"
+          },
+          "planned_distance_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Planned Distance M"
+          },
+          "structure": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strength_slot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Strength Slot Id"
+          },
+          "brief": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "legacy_unstructured": {
+            "type": "boolean"
+          },
+          "legacy_payload": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "session_uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "certainty": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ChangeReview": {
+        "type": "object",
+        "properties": {
+          "change_id": {
+            "type": "string"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "modify",
+              "move",
+              "delete"
+            ]
+          },
+          "session_uid": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewSession"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewSession"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewSession"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected"
+            ]
+          },
+          "material_flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "change_id",
+          "op",
+          "session_uid",
+          "before",
+          "after",
+          "current",
+          "reason",
+          "decision",
+          "material_flags"
+        ]
+      },
+      "AnchorReview": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "value_low": {
+            "title": "Value Low",
+            "type": "number"
+          },
+          "value_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Value High"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "protocol": {
+            "title": "Protocol",
+            "type": "string"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "string"
+          },
+          "calibrated_at": {
+            "format": "date-time",
+            "title": "Calibrated At",
+            "type": "string"
+          },
+          "source_activity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Activity Id"
+          },
+          "conditions": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Conditions"
+          },
+          "supersedes_key": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Supersedes Key"
+          },
+          "anchor_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "anchor_key",
+          "kind",
+          "value_low",
+          "unit",
+          "protocol",
+          "confidence",
+          "calibrated_at"
+        ]
+      },
+      "InterruptionReview": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": "string",
+            "format": "date"
+          },
+          "interruption": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "schedule",
+                  "travel",
+                  "illness",
+                  "other"
+                ]
+              },
+              "starts_on": {
+                "type": "string",
+                "format": "date"
+              },
+              "return_on": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "review_on": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "reason",
+              "starts_on",
+              "return_on",
+              "review_on"
+            ]
+          },
+          "affected_runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "session_uid": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "local_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "recipe_id": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "session_uid",
+                "local_date",
+                "recipe_id"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "affected_runs_omitted": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "today",
+          "interruption",
+          "affected_runs",
+          "affected_runs_omitted"
+        ]
+      },
+      "PatchReview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calendar_version_number": {
+            "type": "integer"
+          },
+          "category": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "ladder_level": {
+            "type": "string"
+          },
+          "window_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "window_end": {
+            "type": "string",
+            "format": "date"
+          },
+          "reassess_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "monitor": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "return_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "escalate_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unchanged": {
+            "type": "array",
+            "items": {
+              "$ref": "../internal/coaching/protocol/proposal.json#/$defs/UnchangedSession"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "resolved",
+              "escalated",
+              "superseded"
+            ]
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolved_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "athlete",
+                  "coach"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "proposal_id",
+          "calendar_version_number",
+          "category",
+          "severity",
+          "ladder_level",
+          "window_start",
+          "window_end",
+          "reassess_on",
+          "monitor",
+          "return_criteria",
+          "escalate_criteria",
+          "unchanged",
+          "status",
+          "resolved_at",
+          "resolved_by",
+          "resolution_note",
+          "created_at",
+          "version"
+        ]
+      },
+      "ProposalDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "operation": {
+            "type": "string",
+            "title": "Operation"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "partially_accepted",
+              "rejected",
+              "stale",
+              "invalid",
+              "discarded"
+            ],
+            "title": "Status"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At",
+            "x-go-type": "Timestamp"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "x-go-type": "Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "discarded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "x-go-type": "Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discarded At"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "base_calendar_version": {
+            "type": "integer",
+            "title": "Base Calendar Version"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "base_block_version_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "why": {
+            "type": "array",
+            "items": {
+              "$ref": "../internal/coaching/protocol/proposal.json#/$defs/Why"
+            }
+          },
+          "uncertainty": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "change_triggers": {
+            "type": "array",
+            "items": {
+              "$ref": "../internal/coaching/protocol/proposal.json#/$defs/Rule"
+            }
+          },
+          "next_check": {
+            "anyOf": [
+              {
+                "$ref": "../internal/coaching/protocol/proposal.json#/$defs/NextCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coach_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "legacy_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confidence": {
+            "$ref": "../internal/coaching/protocol/proposal.json#/$defs/Confidence"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "policy_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recipe_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "escalation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "block_change": {
+            "anyOf": [
+              {
+                "$ref": "../internal/coaching/protocol/proposal.json#/$defs/BlockChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "validation_errors": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ValidationIssue"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skill_version": {
+            "type": "string"
+          },
+          "decision_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CitedSource"
+            }
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RevisionSummary"
+            }
+          },
+          "anchor_changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnchorReview"
+            }
+          },
+          "head": {
+            "type": "integer"
+          },
+          "is_current": {
+            "type": "boolean"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChangeReview"
+            }
+          },
+          "running_interruption": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InterruptionReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exception": {
+            "anyOf": [
+              {
+                "$ref": "../internal/coaching/protocol/proposal.json#/$defs/ExceptionBlock"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event_review": {
+            "anyOf": [
+              {
+                "$ref": "../internal/coaching/protocol/proposal.json#/$defs/EventReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "patch_resolutions": {
+            "type": "array",
+            "items": {
+              "$ref": "../internal/coaching/protocol/proposal.json#/$defs/PatchResolution"
+            }
+          },
+          "patch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PatchReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "operation",
+          "status",
+          "submitted_at",
+          "decided_at",
+          "discarded_at",
+          "headline",
+          "base_calendar_version",
+          "snapshot_id",
+          "base_block_version_id",
+          "why",
+          "uncertainty",
+          "change_triggers",
+          "next_check",
+          "coach_note",
+          "legacy_text",
+          "confidence",
+          "evidence_ids",
+          "policy_ids",
+          "recipe_ids",
+          "escalation",
+          "block_change",
+          "validation_errors",
+          "skill_version",
+          "decision_result",
+          "sources",
+          "revisions",
+          "anchor_changes",
+          "head",
+          "is_current",
+          "changes",
+          "running_interruption",
+          "exception",
+          "event_review",
+          "patch_resolutions",
+          "patch"
+        ]
+      },
+      "ProposalError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "./openapi.json#/components/schemas/ValidationField"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ValidationIssue"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable",
+              "request_id",
+              "fields"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ActiveProposalEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "v1"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "./openapi.json#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ActiveProposal"
+          }
+        },
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ]
+      },
+      "ProposalDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "v1"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "./openapi.json#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ProposalDetail"
+          }
+        },
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ]
+      },
+      "DiscardResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "v1"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "./openapi.json#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DiscardResult"
+          }
+        },
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ]
+      },
+      "DocumentResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "v1"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "./openapi.json#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DocumentResult"
+          }
+        },
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ]
+      },
+      "RevisionDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "v1"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "./openapi.json#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RevisionDetail"
+          }
+        },
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ]
+      },
+      "RevisionResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "v1"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "./openapi.json#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RevisionResult"
+          }
+        },
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ]
+      },
+      "DecisionResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "v1"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "./openapi.json#/components/schemas/AppMode"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DecisionResult"
+          }
+        },
+        "required": [
+          "schema_version",
+          "data_revision",
+          "mode",
+          "data"
+        ]
+      }
+    }
+  }
+}
