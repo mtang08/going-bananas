@@ -1,30 +1,10 @@
-export type CoachChatIntent = 'sunday_review' | 'today_run'
+import type { components } from '../generated/coachChat'
 
-export interface CoachChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  text: string
-  client_message_id: string | null
-}
+type Schemas = components['schemas']
 
-export interface CoachChat {
-  id: string | null
-  status: 'idle' | 'running' | 'cancelled' | 'failed'
-  messages: CoachChatMessage[]
-  error: { code: string; message: string } | null
-  proposal_id: string | null
-  proposal_revision: number | null
-}
-
-export interface CoachChatSend {
-  text: string
-  client_message_id: string
-  thread_id: string | null
-  intent?: CoachChatIntent
-}
-
-export interface CoachAuth {
-  status: 'idle' | 'waiting' | 'signed_in' | 'signed_out' | 'failed' | 'cancelled'
-  url: string | null
-  error: { code: string; message: string } | null
-}
+export type CoachChat = Schemas['ChatView']
+export type CoachChatMessage = Schemas['ChatMessage']
+// The dashboard always fences sends to the displayed review, including the initial null ID.
+export type CoachChatSend = Schemas['MessageInput'] & Required<Pick<Schemas['ReviewInput'], 'thread_id'>>
+export type CoachChatIntent = NonNullable<CoachChatSend['intent']>
+export type CoachAuth = Schemas['AuthView']
