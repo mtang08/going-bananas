@@ -89,6 +89,25 @@ class BundleTests(unittest.TestCase):
         })
         self.assertEqual(bundled['paths']['/object']['post']['operationRef'], '#/paths/~1object/get')
 
+    def test_embeds_schema_roots_and_internal_definitions(self):
+        schema = Path('shared/document.json')
+        selection = Path('shared/selection.json')
+        bundled = EXPORTER['bundle_schema']({
+            CONTRACT: document({}, Root={'$ref': '../shared/document.json'}),
+            schema: {
+                'properties': {'selection': {'$ref': './selection.json#/$defs/Choice'}},
+            },
+            selection: {
+                '$defs': {
+                    'Choice': {'$ref': '#/$defs/Label'},
+                    'Label': {'type': 'string'},
+                },
+            },
+        })
+        root = resolve(bundled, bundled['components']['schemas']['openapi.Root']['$ref'])
+        choice = resolve(bundled, root['properties']['selection']['$ref'])
+        self.assertEqual(resolve(bundled, choice['$ref']), {'type': 'string'})
+
     def test_rejects_duplicate_methods_and_unresolved_references(self):
         source = Path('api/details.openapi.json')
         base = document({'/object': {'get': {}}})
