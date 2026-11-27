@@ -3,12 +3,12 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/api"
+	"github.com/mtang08/going-bananas/backend-go/internal/testpg"
 )
 
 func TestWeeklyHTTPValidationAndGuards(t *testing.T) {
@@ -54,11 +54,9 @@ func TestWeeklyHTTPValidationAndGuards(t *testing.T) {
 }
 
 func TestWeeklyHTTPPostgres(t *testing.T) {
-	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("requires disposable PostgreSQL runner")
-	}
-	pool, err := pgxpool.New(t.Context(), dsn)
+	cfg := testpg.DashboardConfig(t)
+	cfg.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
+	pool, err := pgxpool.NewWithConfig(t.Context(), cfg)
 	if err != nil {
 		t.Fatal("connect to synthetic server")
 	}

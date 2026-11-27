@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -21,7 +20,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/coachdashboard"
-	"github.com/mtang08/going-bananas/backend-go/internal/coaching/protocol"
 )
 
 // Lease an independent migrated calendar. Other HTTP and digest cases can use
@@ -81,7 +79,10 @@ func TestNativeHTTPAgreementCreatesOnlyPendingProposal(t *testing.T) {
 	if dsn == "" {
 		t.Skip("requires disposable PostgreSQL runner")
 	}
-	python := os.Getenv("DASHBOARD_REFERENCE_PYTHON")
+	python := os.Getenv("DASHBOARD_FIXTURE_PYTHON")
+	if !filepath.IsAbs(python) {
+		t.Fatal("fixture Python must be absolute")
+	}
 	pool := nativePool(t, dsn, python)
 	root := t.TempDir()
 	repo, err := filepath.Abs("../../..")
@@ -230,48 +231,5 @@ func TestNativeHTTPAgreementCreatesOnlyPendingProposal(t *testing.T) {
  FROM coach_proposals p JOIN coach_proposal_changes c ON c.proposal_id=p.id AND c.change_id='c1' AND c.decision='pending' WHERE p.id=$1`, *pending.ProposalID).Scan(&head, &duration, &count, &status, &before, &after)
 	if err != nil || head != 1 || duration != 1800 || count != 1 || status != "pending" || before != 1800 || after != 2100 {
 		t.Fatalf("proposal/calendar mismatch: %d %d %d %s %v", head, duration, count, status, err)
-	}
-}
-
-func TestNativeSchemaDomainParity(t *testing.T) {
-	python := os.Getenv("DASHBOARD_REFERENCE_PYTHON")
-	if python == "" {
-		t.Skip("requires Python domain reference environment")
-	}
-	p, err := filepath.Abs("../../../backend")
-	if err != nil {
-		t.Fatal(err)
-	}
-	const reference = `
-import json
-import sys
-sys.path.insert(0, sys.argv[1])
-from app.services.proposals.lifecycle import RevisionRequest
-from app.services.proposals.schema import ProposalDoc
-print(json.dumps({
-    "proposal": ProposalDoc.model_json_schema(),
-    "revision": RevisionRequest.model_json_schema(),
-}))
-`
-	cmd := exec.CommandContext(t.Context(), python, "-c", reference, p)
-	expected, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got, want map[string]any
-	if err := json.Unmarshal(expected, &want); err != nil {
-		t.Fatal(err)
-	}
-	actual, err := json.Marshal(protocol.Schema())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(actual, &got); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"proposal", "revision"} {
-		if !reflect.DeepEqual(got[name], want[name]) {
-			t.Errorf("embedded %s schema differs from the retained domain schema", name)
-		}
 	}
 }

@@ -1,25 +1,16 @@
 package snapshotreads
 
 import (
-	"context"
 	"encoding/json"
-	"os"
-	"os/exec"
 	"reflect"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/testpg"
 )
 
-func TestProfilePythonParity(t *testing.T) {
-	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("requires disposable dashboard test schema")
-	}
-	ref, err := exec.CommandContext(t.Context(), os.Getenv("DASHBOARD_REFERENCE_PYTHON"), "testdata/profile_reference.py").Output()
-	if err != nil {
-		t.Fatalf("Python profile reference: %v", err)
-	}
+func TestProfileContract(t *testing.T) {
+	tx := testpg.DashboardTx(t)
+	ref := fixtureFile(t, "profile.json")
 	var cases []struct {
 		Facts    json.RawMessage
 		Expected map[string]any
@@ -27,16 +18,6 @@ func TestProfilePythonParity(t *testing.T) {
 	if err := json.Unmarshal(ref, &cases); err != nil {
 		t.Fatal(err)
 	}
-	conn, err := pgx.Connect(t.Context(), dsn)
-	if err != nil {
-		t.Fatal("connect to profile fixture")
-	}
-	defer func() { _ = conn.Close(context.Background()) }()
-	tx, err := conn.Begin(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback(context.Background()) }()
 	if _, err := tx.Exec(t.Context(), `CREATE TEMP TABLE profile_versions AS SELECT * FROM profile_versions WITH NO DATA;
 		CREATE TEMP TABLE app_state AS SELECT * FROM app_state WITH NO DATA`); err != nil {
 		t.Fatal(err)
@@ -69,7 +50,7 @@ func TestProfilePythonParity(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(actual, tc.Expected) {
-			t.Fatalf("case %d: Go %v; Python %v", i, actual, tc.Expected)
+			t.Fatalf("case %d: got %v; want %v", i, actual, tc.Expected)
 		}
 	}
 }

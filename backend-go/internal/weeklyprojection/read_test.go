@@ -1,24 +1,21 @@
 package weeklyprojection
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"reflect"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/testpg"
 )
 
-func TestWeeklyProjection(t *testing.T) {
-	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("requires disposable PostgreSQL runner")
-	}
-	output, err := os.ReadFile("testdata/cases.json")
+// The saved projections cover empty, partial, and completed weeks across local day boundaries.
+func TestWeeklyProjectionContract(t *testing.T) {
+	tx := testpg.DashboardTx(t)
+	output, err := os.ReadFile("testdata/expected.json")
 	if err != nil {
-		t.Fatalf("read projection fixture: %v", err)
+		t.Fatal(err)
 	}
 	var cases []struct {
 		Fixture    string
@@ -31,16 +28,6 @@ func TestWeeklyProjection(t *testing.T) {
 	if len(cases) != 5 {
 		t.Fatal("incomplete projection fixture")
 	}
-	conn, err := pgx.Connect(t.Context(), dsn)
-	if err != nil {
-		t.Fatal("connect to synthetic server")
-	}
-	defer func() { _ = conn.Close(context.Background()) }()
-	tx, err := conn.Begin(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback(context.Background()) }()
 	fixture := ""
 	for _, c := range cases {
 		if fixture != c.Fixture {

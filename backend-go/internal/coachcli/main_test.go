@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -40,10 +41,23 @@ func TestSchemaCommand(t *testing.T) {
 	if schema["protocol"] != "coach_proposal.v2" || schema["activation"] != "manual" || schema["required_authority"] != "calendar" {
 		t.Fatalf("schema envelope: %v", schema)
 	}
-	for _, name := range []string{"proposal", "revision"} {
-		doc, ok := schema[name].(map[string]any)
-		if !ok || doc["type"] != "object" || doc["properties"] == nil {
-			t.Fatalf("missing %s schema", name)
+	for _, definition := range []struct {
+		name     string
+		required []string
+	}{
+		{"proposal", []string{"schema_version", "operation", "snapshot_id", "base_calendar_version", "base_block_version_id", "changes", "skill_version"}},
+		{"revision", []string{"expected_revision", "reason", "document"}},
+	} {
+		doc, ok := schema[definition.name].(map[string]any)
+		if !ok || doc["type"] != "object" || doc["additionalProperties"] != false {
+			t.Fatalf("invalid %s schema", definition.name)
+		}
+		required, _ := doc["required"].([]any)
+		properties, _ := doc["properties"].(map[string]any)
+		for _, field := range definition.required {
+			if !slices.Contains(required, any(field)) || properties[field] == nil {
+				t.Errorf("%s schema lost required field %s", definition.name, field)
+			}
 		}
 	}
 }

@@ -13,20 +13,19 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mtang08/going-bananas/backend-go/internal/testpg"
 )
 
 //go:embed testdata/seed.sql
 var seed string
 
-func TestReturnPlanHTTP(t *testing.T) {
-	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("requires synthetic dashboard schema")
-	}
+// The saved responses cover the same calendar across return windows and athlete restrictions.
+func TestReturnPlanHTTPContract(t *testing.T) {
+	cfg := testpg.DashboardConfig(t)
 	ctx := t.Context()
-	ref, err := os.ReadFile("testdata/cases.json")
+	ref, err := os.ReadFile("testdata/expected.json")
 	if err != nil {
-		t.Fatal("read return-plan fixture", err)
+		t.Fatal(err)
 	}
 	var cases []struct {
 		Day      string
@@ -36,12 +35,16 @@ func TestReturnPlanHTTP(t *testing.T) {
 	if err = json.Unmarshal(ref, &cases); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		t.Fatal("invalid test pool configuration")
-	}
 	cfg.MaxConns = 1
-	cfg.AfterConnect = func(ctx context.Context, c *pgx.Conn) error { _, err := c.Exec(ctx, seed); return err }
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		if err := testpg.CheckDashboardSchema(ctx, conn); err != nil {
+			return err
+		}
+		return pgx.BeginTxFunc(ctx, conn, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, seed)
+			return err
+		})
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		t.Fatal(err)

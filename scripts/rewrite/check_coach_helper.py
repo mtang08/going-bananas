@@ -20,7 +20,6 @@ from coach_browser_process import available_port, exercise_browser
 from coach_dashboard_process import exercise_chat, install_fake
 from coach_proposal_fixture import synthetic_proposal
 from coach_recovery_process import capture, recover, recovery_source
-from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from test_proposal_slice import ROOT, migrated_schema
 
@@ -241,7 +240,6 @@ def main():
     assert re.fullmatch(r"go_parity_[a-f0-9]{32}", url.query["search_path"])
     url = url.difference_update_query(["search_path"])
     sys.path[:0] = [
-        str(ROOT / "backend"),
         str(ROOT / "backend-go/internal/coachdashboardhttp/testdata"),
     ]
     from native_fixture import seed
@@ -264,16 +262,18 @@ def main():
             check=True,
         )
         with migrated_schema(
-            db, url.set(drivername="postgresql+psycopg"), scratch / "app", available_port()
+            db,
+            url.set(drivername="postgresql+psycopg"),
+            scratch / "app",
+            available_port(),
+            app_binary=binary,
         ) as env:
-            engine = create_engine(
-                url.set(drivername="postgresql+psycopg"),
-                connect_args={"options": env["PGOPTIONS"]},
-            )
-            try:
-                schema = seed(engine, datetime.now(ZoneInfo("America/New_York")).date())
-            finally:
-                engine.dispose()
+            with psycopg.connect(
+                env["PROPOSAL_TEST_DATABASE_URL"], options=env["PGOPTIONS"]
+            ) as fixture:
+                schema = seed(
+                    fixture, datetime.now(ZoneInfo("America/New_York")).date()
+                )
             read_only_url = url.set(drivername="postgresql+psycopg").update_query_dict(
                 {"search_path": schema, "default_transaction_read_only": "on"}
             )

@@ -1,0 +1,98 @@
+{
+  "completions": [
+    {
+      "activity_id": null,
+      "manual_session_id": null,
+      "match_method": "user_marked",
+      "modification_reason": null,
+      "session_uid": "00000000-0000-0000-0000-000000003e81",
+      "status": "skipped",
+      "strong_workout_id": null
+    }
+  ],
+  "goals": [
+    {
+      "goal_id": "30503ff8-3e16-4fce-b569-cc51d46c51cc",
+      "horizon": "season",
+      "priority": 1,
+      "status": "active",
+      "text": "Synthetic goal"
+    }
+  ],
+  "sessions": [
+    {
+      "brief": null,
+      "certainty": "committed",
+      "custom": false,
+      "intent": "Synthetic",
+      "kind": "run",
+      "local_date": "2025-11-08",
+      "locked": false,
+      "placeholder": false,
+      "planned_distance_m": null,
+      "planned_duration_s": null,
+      "recipe_id": null,
+      "revision": 1,
+      "session_uid": "00000000-0000-0000-0000-000000003e82",
+      "slot": 0,
+      "strength_slot_id": null,
+      "structure": null
+    },
+    {
+      "brief": null,
+      "certainty": "provisional",
+      "custom": false,
+      "intent": "Synthetic",
+      "kind": "run",
+      "local_date": "2026-03-15",
+      "locked": false,
+      "placeholder": false,
+      "planned_distance_m": null,
+      "planned_duration_s": null,
+      "recipe_id": null,
+      "revision": 2,
+      "session_uid": "00000000-0000-0000-0000-000000003e81",
+      "slot": 0,
+      "strength_slot_id": null,
+      "structure": null
+    },
+    {
+      "brief": null,
+      "certainty": "provisional",
+      "custom": false,
+      "intent": "Synthetic",
+      "kind": "run",
+      "local_date": "2026-04-19",
+      "locked": false,
+      "placeholder": false,
+      "planned_distance_m": null,
+      "planned_duration_s": null,
+      "recipe_id": null,
+      "revision": 1,
+      "session_uid": "00000000-0000-0000-0000-000000003e84",
+      "slot": 0,
+      "strength_slot_id": null,
+      "structure": null
+    }
+  ],
+  "strength_slots": [
+    {
+      "active": true,
+      "default_weekday": 1,
+      "label": "Synthetic",
+      "lower_body_cost": "low",
+      "main_lower_body_lifts": [],
+      "slot_id": "ba9c6fc1-477a-4b18-b960-9a733cfc836d",
+      "typical_duration_s": null
+    }
+  ],
+  "strong_workouts": [
+    {
+      "duration_s": 1200.0,
+      "local_date": "2026-03-08",
+      "rpe": 3.0,
+      "strong_workout_id": "fb31e62f-2f98-4297-85d4-1ac2e2ddebdd",
+      "workout_name": "Synthetic"
+    }
+  ]
+}

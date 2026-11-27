@@ -1,47 +1,31 @@
 package weeklydigest
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"reflect"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/testpg"
 )
 
-func TestWeeklyDigest(t *testing.T) {
-	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("requires disposable PostgreSQL dashboard runner")
-	}
-	ref, err := os.ReadFile("testdata/cases.json")
+// The saved digest is paired with the completed and revised sessions in seed.sql.
+func TestWeekContract(t *testing.T) {
+	tx := testpg.DashboardTx(t)
+	ref, err := os.ReadFile("testdata/expected.json")
 	if err != nil {
-		t.Fatalf("read digest fixture: %v", err)
+		t.Fatal(err)
 	}
 	var expected []row
 	if err := json.Unmarshal(ref, &expected); err != nil {
-		t.Fatal(err)
-	}
-	conn, err := pgx.Connect(t.Context(), dsn)
-	if err != nil {
-		t.Fatal("open weekly fixture")
-	}
-	defer func() { _ = conn.Close(context.Background()) }()
-	tx, err := conn.BeginTx(t.Context(), pgx.TxOptions{AccessMode: pgx.ReadWrite})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback(context.Background()) }()
-	if _, err = tx.Exec(t.Context(), "SET LOCAL TIME ZONE 'Asia/Kathmandu'"); err != nil {
 		t.Fatal(err)
 	}
 	seed, err := os.ReadFile("testdata/seed.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(t.Context(), string(seed)); err != nil {
+	if _, err = tx.Exec(t.Context(), "SET LOCAL TIME ZONE 'Asia/Kathmandu';\n"+string(seed)); err != nil {
 		t.Fatal(err)
 	}
 	for _, week := range expected {

@@ -1,0 +1,347 @@
+{
+  "coverage": [
+    {
+      "completed_at": "2021-11-08T05:00:00+00:00",
+      "dataset": "activities",
+      "end_date": "2021-07-10",
+      "fully_enumerated": true,
+      "reason": null,
+      "start_date": "2021-07-09",
+      "status": "complete"
+    },
+    {
+      "completed_at": null,
+      "dataset": "sleep",
+      "end_date": "2021-11-08",
+      "fully_enumerated": false,
+      "reason": "synthetic",
+      "start_date": "2021-11-07",
+      "status": "partial"
+    }
+  ],
+  "metric_results": [
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v1",
+      "metric_id": "aerobic_efficiency",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-000000001841",
+      "status": "available",
+      "subject_key": "00000000-0000-0000-0000-0000000017d4",
+      "subject_type": "activity",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v1",
+      "metric_id": "hard_session_spacing",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-000000001840",
+      "status": "available",
+      "subject_key": "00000000-0000-0000-0000-0000000017d4",
+      "subject_type": "activity",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v1",
+      "metric_id": "intensity_time_distribution",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-00000000183e",
+      "status": "available",
+      "subject_key": "00000000-0000-0000-0000-0000000017d4",
+      "subject_type": "activity",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v1",
+      "metric_id": "long_run_exposure",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-00000000183c",
+      "status": "available",
+      "subject_key": "00000000-0000-0000-0000-0000000017d4",
+      "subject_type": "activity",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v2",
+      "metric_id": "planned_actual_session",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-000000001839",
+      "status": "available",
+      "subject_key": "00000000-0000-0000-0000-0000000017d4",
+      "subject_type": "activity",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v1",
+      "metric_id": "recovery_multisignal_summary",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-00000000183f",
+      "status": "available",
+      "subject_key": "00000000-0000-0000-0000-0000000017d4",
+      "subject_type": "activity",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v1",
+      "metric_id": "run_volume_frequency",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-00000000183a",
+      "status": "available",
+      "subject_key": "00000000-0000-0000-0000-0000000017d4",
+      "subject_type": "activity",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v1",
+      "metric_id": "session_rpe_load",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-00000000183d",
+      "status": "available",
+      "subject_key": "00000000-0000-0000-0000-0000000017d4",
+      "subject_type": "activity",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v1",
+      "metric_id": "symptom_response_timeline",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-00000000183b",
+      "status": "available",
+      "subject_key": "00000000-0000-0000-0000-0000000017d4",
+      "subject_type": "activity",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v2",
+      "metric_id": "work_interval_execution",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-000000001838",
+      "status": "available",
+      "subject_key": "00000000-0000-0000-0000-0000000017d4",
+      "subject_type": "activity",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v2",
+      "metric_id": "work_interval_execution",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-000000001842",
+      "status": "available",
+      "subject_key": "night:2021-07-11",
+      "subject_type": "night",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v2",
+      "metric_id": "work_interval_execution",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-000000001846",
+      "status": "available",
+      "subject_key": "w14:2021-11-07",
+      "subject_type": "window",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v2",
+      "metric_id": "work_interval_execution",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-000000001845",
+      "status": "available",
+      "subject_key": "w7:2021-11-07:strength",
+      "subject_type": "window",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    },
+    {
+      "anchor_keys": [],
+      "calculated_at": "2021-11-08T05:00:00+00:00",
+      "method_version": "v2",
+      "metric_id": "work_interval_execution",
+      "quality_flags": [],
+      "quality_status": "limited",
+      "reason_codes": [
+        "fixture"
+      ],
+      "result_id": "00000000-0000-0000-0000-000000001844",
+      "status": "available",
+      "subject_key": "w84:2021-11-07:run",
+      "subject_type": "window",
+      "unit": "m",
+      "value": {
+        "measured": 12.5
+      },
+      "window_label": null
+    }
+  ],
+  "runs": [
+    {
+      "activity_id": "00000000-0000-0000-0000-0000000017d4",
+      "distance_m": 1000.5,
+      "local_date": "2021-07-10",
+      "rpe": 0.0,
+      "rpe_source": "manual",
+      "sport": "running",
+      "start_at": "2021-07-10T04:00:00+00:00",
+      "timer_s": 0.0
+    },
+    {
+      "activity_id": "00000000-0000-0000-0000-0000000017d6",
+      "distance_m": 1000.5,
+      "local_date": "2021-07-10",
+      "rpe": 3.5,
+      "rpe_source": "garmin_fit",
+      "sport": "treadmill_running",
+      "start_at": "2021-07-10T04:00:00+00:00",
+      "timer_s": null
+    },
+    {
+      "activity_id": "00000000-0000-0000-0000-0000000017d7",
+      "distance_m": 1000.5,
+      "local_date": "2021-07-10",
+      "rpe": null,
+      "rpe_source": null,
+      "sport": "running",
+      "start_at": "2021-07-10T04:00:00+00:00",
+      "timer_s": null
+    },
+    {
+      "activity_id": "00000000-0000-0000-0000-0000000017d5",
+      "distance_m": 1000.5,
+      "local_date": "2021-11-07",
+      "rpe": 4.0,
+      "rpe_source": "garmin_fit",
+      "sport": "trail_running",
+      "start_at": "2021-11-08T04:59:59.999999+00:00",
+      "timer_s": null
+    }
+  ],
+  "zone": "America/New_York"
+}

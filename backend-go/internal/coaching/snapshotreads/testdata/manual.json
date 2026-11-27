@@ -1,0 +1,42 @@
+{
+  "active_block": {
+    "benchmark": {
+      "event_id": "00000000-0000-0000-0000-000000015f90",
+      "kind": "event",
+      "planned_date": "2026-11-01",
+      "protocol": "race_5k"
+    },
+    "benchmark_status": {
+      "activity_id": "00000000-0000-0000-0000-000000015f9a",
+      "distance_m": 5100,
+      "event_id": "00000000-0000-0000-0000-000000015f90",
+      "evidence_at": "2026-11-02T03:30:00.123400+00:00",
+      "local_date": "2026-11-01",
+      "match_method": "manual",
+      "result_s": 1200,
+      "rpe": 6.0,
+      "scheduled_date": null,
+      "status": "completed"
+    },
+    "block_uid": "00000000-0000-0000-0000-000000015fa4",
+    "build_outline": [],
+    "constraints": {},
+    "early_review_triggers": [],
+    "eligible_recipe_ids": [],
+    "indicators": [],
+    "legacy_text": null,
+    "maintained_qualities": [],
+    "non_goals": [],
+    "objective": "Race benchmark",
+    "objective_status": "unresolved",
+    "progression_dimension": "none",
+    "review_date": "2026-11-04",
+    "start_date": "2026-10-11",
+    "status": "active",
+    "target_event_id": "00000000-0000-0000-0000-000000015f90",
+    "target_event_status": "changed",
+    "version": 1,
+    "version_id": "00000000-0000-0000-0000-000000015fa5",
+    "why": []
+  }
+}
