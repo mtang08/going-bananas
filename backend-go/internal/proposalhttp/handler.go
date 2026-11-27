@@ -26,7 +26,7 @@ type Handler struct {
 const prefix = "/api/v1/coach/proposals"
 
 func (h Handler) Register(mux *http.ServeMux) {
-	if h.Mode != "demo" && h.Mode != "test" {
+	if h.Mode != "demo" && h.Mode != "test" && h.Mode != "real" {
 		return
 	}
 	routes := map[string]string{

@@ -50,7 +50,7 @@ type route struct {
 }
 
 func (h Handler) Register(m *http.ServeMux) {
-	if h.Mode != "demo" && h.Mode != "test" {
+	if h.Mode != "demo" && h.Mode != "test" && h.Mode != "real" {
 		return
 	}
 	for _, r := range []route{

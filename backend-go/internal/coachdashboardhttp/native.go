@@ -22,8 +22,8 @@ import (
 
 // NewNative starts the local dashboard with its six transactional coaching tools.
 func NewNative(ctx context.Context, pool *pgxpool.Pool, cfg LocalConfig) (*Local, error) {
-	if cfg.Mode != "demo" && cfg.Mode != "test" {
-		return nil, errors.New("native coaching dashboard requires demo or test mode")
+	if cfg.Mode != "demo" && cfg.Mode != "test" && cfg.Mode != "real" {
+		return nil, errors.New("unknown native coaching dashboard mode")
 	}
 	now := cfg.Now
 	if now == nil {

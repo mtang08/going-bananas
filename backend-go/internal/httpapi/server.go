@@ -101,7 +101,7 @@ func New(reader ProposalReader, writer GoalWriter, plans PlanningReader, mode ap
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Request-ID", rid)
-		if _, pattern := routes.Handler(r); pattern != "" {
+		if _, pattern := routes.Handler(r); pattern != "" && (pattern != "GET /" || !strings.HasPrefix(r.URL.Path, "/api/")) {
 			routes.ServeHTTP(w, r)
 			return
 		}
