@@ -95,7 +95,7 @@ func groupPoints(points []object, mode string) []object {
 				assessable++
 			}
 		}
-		var signature any = items[0]["signature"]
+		signature := items[0]["signature"]
 		groupBy := "signature"
 		if strings.HasPrefix(key, "recipe:") {
 			signature = nil

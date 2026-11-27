@@ -98,7 +98,7 @@ def reference():
     return result
 
 
-def compare(script, populate, package, fixture_env):
+def compare(script, populate, package, fixture_env, state=None):
     url = make_url(os.environ["TEST_DATABASE_URL"])
     if not (
         os.getenv("APP_MODE") == "test"
@@ -143,6 +143,12 @@ def compare(script, populate, package, fixture_env):
                 env={**go, fixture_env: str(data)},
                 check=True,
             )
+
+            if state:
+                left, right = state(py), state(go)
+                for table in left:
+                    if left[table] != right[table]:
+                        raise AssertionError((table, left[table], right[table]))
 
 
 if __name__ == "__main__":
