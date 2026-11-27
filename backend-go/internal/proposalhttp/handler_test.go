@@ -3,8 +3,6 @@ package proposalhttp
 import (
 	"context"
 	"encoding/json"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +11,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
 )
 
 func TestReferenceViews(t *testing.T) {
@@ -37,8 +38,9 @@ func TestReferenceViews(t *testing.T) {
 		t.Fatal(err)
 	}
 	var cases []struct {
-		Path string
-		Body map[string]any
+		Path   string
+		Status int
+		Body   map[string]any
 	}
 	if err := json.Unmarshal(b, &cases); err != nil {
 		t.Fatal(err)
@@ -53,10 +55,16 @@ func TestReferenceViews(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 			t.Fatal(err)
 		}
-		if w.Code != 200 {
-			t.Fatalf("view %s error %d %v", c.Path, w.Code, got)
+		if e, ok := got["error"].(map[string]any); ok {
+			delete(e, "request_id")
+		}
+		if w.Code != c.Status {
+			t.Fatalf("view %s: got status %d want %d", c.Path, w.Code, c.Status)
 		}
 		if !reflect.DeepEqual(c.Body, got) {
+			if c.Status != http.StatusOK {
+				t.Fatalf("view %s: got %v want %v", c.Path, got, c.Body)
+			}
 			a, _ := c.Body["data"].(map[string]any)
 			b, _ := got["data"].(map[string]any)
 			for k, v := range a {
@@ -148,5 +156,59 @@ func TestReferenceCommands(t *testing.T) {
 		if w.Code != c.Status || !reflect.DeepEqual(c.Expected, got) {
 			t.Fatalf("step %d %s %s: got %d %v want %d %v", i, c.Method, c.Path, w.Code, got, c.Status, c.Expected)
 		}
+	}
+}
+
+func TestRevisionNumber(t *testing.T) {
+	for input, want := range map[string]int{
+		"-2.000":                 -2,
+		"  +01.00 ":              1,
+		"1_0.0":                  10,
+		"0":                      0,
+		"2147483648":             2147483648,
+		"9223372036854775807.0":  9223372036854775807,
+		"-9223372036854775808.0": -9223372036854775808,
+	} {
+		got, message := revisionNumber(input)
+		if message != "" || got != want {
+			t.Errorf("%q: got %d, %q", input, got, message)
+		}
+	}
+	for _, input := range []string{"1.1", "1e0", "1.", "--1", "1__2", "9223372036854775808", "-9223372036854775809"} {
+		if _, message := revisionNumber(input); message == "" {
+			t.Errorf("%q should fail validation", input)
+		}
+	}
+}
+
+func TestRevisionOutsideDatabaseRange(t *testing.T) {
+	mux := http.NewServeMux()
+	Handler{Mode: "test"}.Register(mux)
+	for _, c := range []struct {
+		revision string
+		status   int
+		code     string
+	}{
+		{"2147483648", http.StatusNotFound, "proposal_revision_not_found"},
+		{"-2147483649", http.StatusNotFound, "proposal_revision_not_found"},
+		{"9223372036854775807", http.StatusNotFound, "proposal_revision_not_found"},
+		{"-9223372036854775808", http.StatusNotFound, "proposal_revision_not_found"},
+		{"9223372036854775808", http.StatusUnprocessableEntity, "validation_error"},
+		{"-9223372036854775809", http.StatusUnprocessableEntity, "validation_error"},
+	} {
+		t.Run(c.revision, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			path := prefix + "/00000000-0000-0000-0000-000000000099/revisions/" + c.revision
+			mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+			var body struct {
+				Error struct{ Code string }
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if w.Code != c.status || body.Error.Code != c.code {
+				t.Fatalf("got %d %s want %d %s", w.Code, body.Error.Code, c.status, c.code)
+			}
+		})
 	}
 }

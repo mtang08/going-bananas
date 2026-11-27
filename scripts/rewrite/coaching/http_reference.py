@@ -28,15 +28,30 @@ def main():
             text("SELECT id FROM coach_proposals ORDER BY submitted_at,id")
         ).all()
     client = TestClient(app)
-    paths = ["/api/v1/coach/proposals/active"]
+    paths = [("/api/v1/coach/proposals/active", 200)]
+    suffixes = {
+        "": 200,
+        "/document": 200,
+        "/revisions/1": 200,
+        "/revisions/1.0": 200,
+        "/revisions/+0_1.00": 200,
+        "/revisions/0": 404,
+        "/revisions/-1": 404,
+        "/revisions/1.1": 422,
+        "/revisions/-2147483648": 404,
+        "/revisions/2147483647": 404,
+    }
     for id in ids:
-        for suffix in ("", "/document", "/revisions/1"):
-            paths.append(f"/api/v1/coach/proposals/{id}{suffix}")
+        for suffix, status in suffixes.items():
+            paths.append((f"/api/v1/coach/proposals/{id}{suffix}", status))
     result = []
-    for path in paths:
+    for path, status in paths:
         r = client.get(path)
-        assert r.status_code == 200, (path, r.status_code, r.text)
-        result.append(dict(path=path, body=r.json()))
+        assert r.status_code == status, (path, r.status_code, r.text)
+        body = r.json()
+        if "error" in body:
+            body["error"].pop("request_id", None)
+        result.append(dict(path=path, status=status, body=body))
     print(json.dumps(result))
 
 
