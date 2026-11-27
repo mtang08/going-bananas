@@ -4,7 +4,7 @@ import { RefreshCw } from 'lucide-react'
 import { ApiError, api, post } from '../api/client'
 import { dateLabel, type Unit } from '../lib/format'
 import { invalidateKeys, qk, refreshAfterSync } from '../api/queryKeys'
-import type { SyncJob, SyncStatus } from '../api/types/sync'
+import type { QueuedJobs, SyncJob, SyncStatus } from '../api/types/sync'
 import { QueryState } from './QueryState'
 import { TreadmillReviewDialog } from './TreadmillReviewDialog'
 import { relativeTime, stateLabel } from './shared'
@@ -58,7 +58,7 @@ export function SyncCard({ compact = false, unit = 'mi' }: { compact?: boolean; 
         : false,
   })
   const start = useMutation({
-    mutationFn: () => post<{ jobs: SyncJob[] }>('/sync', {}),
+    mutationFn: () => post<QueuedJobs>('/sync', {}),
     onSuccess: (r) => {
       qc.setQueryData(qk.syncOutcome, null)
       qc.setQueryData(
