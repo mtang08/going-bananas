@@ -139,6 +139,7 @@ def main():
         'strong': 'check_strong_import.py',
         'exception-inputs': 'check_exception_inputs.py',
         'exception-view': 'check_exception_view.py',
+        'exception-http': 'check_exception_http.py',
         'coaching-lifecycle': 'coaching/check_lifecycle.py',
         'recovery': 'check_recovery.py',
         'aerobic': 'check_aerobic.py',

@@ -145,41 +145,9 @@ func decodeGoalInput(r io.Reader, create bool) (api.GoalPatch, []api.ValidationF
 	add := func(field, message string) {
 		fields = append(fields, api.ValidationField{Field: field, Message: message})
 	}
-	body, err := io.ReadAll(r)
-	if err != nil || len(body) == 0 || string(bytes.TrimSpace(body)) == "null" {
-		add("body", "Field required")
+	values, order, fields := decodeInputObject(r)
+	if len(fields) > 0 {
 		return patch, fields
-	}
-	var raw json.RawMessage
-	if err := json.Unmarshal(body, &raw); err != nil {
-		pos := int64(len(body))
-		var syntax *json.SyntaxError
-		if errors.As(err, &syntax) && syntax.Offset > 0 && syntax.Error() != "unexpected end of JSON input" {
-			pos = syntax.Offset - 1
-		}
-		add("body."+strconv.Itoa(utf8.RuneCount(body[:pos])), "JSON decode error")
-		return patch, fields
-	}
-	if raw[0] != '{' {
-		add("body", "Input should be a valid dictionary or object to extract fields from")
-		return patch, fields
-	}
-	// Keep unknown fields in input order and report known fields in model
-	// order, matching FastAPI's accumulated validation errors.
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	_, _ = dec.Token()
-	values := map[string]any{}
-	var order []string
-	for dec.More() {
-		token, _ := dec.Token()
-		key := token.(string)
-		if _, ok := values[key]; !ok {
-			order = append(order, key)
-		}
-		var v any
-		_ = dec.Decode(&v)
-		values[key] = v
 	}
 	keys := []string{"expected_version", "text", "horizon", "priority", "status"}
 	if create {
@@ -209,4 +177,48 @@ func decodeGoalInput(r io.Reader, create bool) (api.GoalPatch, []api.ValidationF
 		}
 	}
 	return patch, fields
+}
+
+func decodeInputObject(r io.Reader) (map[string]any, []string, []api.ValidationField) {
+	var fields []api.ValidationField
+	add := func(field, message string) {
+		fields = append(fields, api.ValidationField{Field: field, Message: message})
+	}
+	body, err := io.ReadAll(r)
+	if err != nil || len(body) == 0 || string(bytes.TrimSpace(body)) == "null" {
+		add("body", "Field required")
+		return nil, nil, fields
+	}
+	var raw json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		pos := int64(len(body))
+		var syntax *json.SyntaxError
+		if errors.As(err, &syntax) && syntax.Offset > 0 && syntax.Error() != "unexpected end of JSON input" {
+			pos = syntax.Offset - 1
+		}
+		add("body."+strconv.Itoa(utf8.RuneCount(body[:pos])), "JSON decode error")
+		return nil, nil, fields
+	}
+	if raw[0] != '{' {
+		add("body", "Input should be a valid dictionary or object to extract fields from")
+		return nil, nil, fields
+	}
+	// Keep unknown fields in input order and report known fields in model
+	// order, matching FastAPI's accumulated validation errors.
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	_, _ = dec.Token()
+	values := map[string]any{}
+	var order []string
+	for dec.More() {
+		token, _ := dec.Token()
+		key := token.(string)
+		if _, ok := values[key]; !ok {
+			order = append(order, key)
+		}
+		var v any
+		_ = dec.Decode(&v)
+		values[key] = v
+	}
+	return values, order, nil
 }
