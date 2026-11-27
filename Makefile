@@ -27,6 +27,7 @@ seed-demo:
 dev:
 	$(RUN) python3 scripts/serve.py --dev
 build:
+	$(RUN) python3 scripts/serve.py --build
 	$(RUN) bash -c 'cd frontend && npm run build'
 start:
 	$(RUN) python3 scripts/serve.py
