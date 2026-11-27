@@ -10,7 +10,7 @@ The integrated `go/core` candidate registers all 81 reference HTTP operations. T
 
 ## Remaining before real cutover
 
-Native demo seeding and same-day replay passed through the standard Make target. Run the generated contract and schema drift checks on the final integrated tree, then finish the integrated suites. Schedule the real switch with the owner. Take and verify a current backup, stop the old supervisor and worker, and run the read-only `going-bananas workspace-preflight` against the selected workspace before startup refresh or worker writes. [Cutover and rollback](go-backend-rewrite.md#data-handoff-and-rollback)
+Native demo seeding and same-day replay passed through the standard Make target. The integrated build, generated contract and schema drift checks, race suite, browser workflows and PostgreSQL comparisons passed. Schedule the real switch with the owner. Take and verify a current backup, stop the old supervisor and worker, and run the read-only `going-bananas workspace-preflight` against the selected workspace before startup refresh or worker writes. [Cutover and rollback](go-backend-rewrite.md#data-handoff-and-rollback)
 
 ### Planned-versus-actual assessment
 
