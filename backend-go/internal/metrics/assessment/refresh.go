@@ -256,18 +256,10 @@ func refresh(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time, bump 
 		_, err = tx.Exec(ctx, `UPDATE metric_results SET is_current=false WHERE metric_id=$1 AND method_version=$2 AND subject_key=$3 AND is_current`, metricID, methodVersion, uid.String())
 		return Result{}, err
 	}
-	out, err := Assess(s.Input)
+	out, err := s.assessWithRefs()
 	if err != nil {
 		return Result{}, err
 	}
-	s.refs["candidate_activity_ids"] = out.Value.CandidateIDs
-	s.refs["coverage_complete"] = s.Coverage
-	s.refs["as_of"] = s.AsOf
-	h, err := metrics.Digest(s.refs)
-	if err != nil {
-		return Result{}, err
-	}
-	s.refs["input_hash"] = h
 	cfg, err := metrics.Digest(Config)
 	if err != nil {
 		return Result{}, err
@@ -316,4 +308,39 @@ func refresh(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time, bump 
 		result.StatusChanged = true
 	}
 	return result, nil
+}
+
+func (s *subject) assessWithRefs() (Outcome, error) {
+	out, err := Assess(s.Input)
+	if err != nil {
+		return Outcome{}, err
+	}
+	s.refs["candidate_activity_ids"] = out.Value.CandidateIDs
+	s.refs["coverage_complete"] = s.Coverage
+	s.refs["as_of"] = s.AsOf
+	h, err := metrics.Digest(s.refs)
+	if err != nil {
+		return Outcome{}, err
+	}
+	s.refs["input_hash"] = h
+	return out, nil
+}
+
+// Calculate evaluates an unpersisted plan/completion assessment for a dashboard read.
+func Calculate(ctx context.Context, tx pgx.Tx, uid uuid.UUID, now time.Time) (*metrics.Result, error) {
+	s, err := load(ctx, tx, uid, now)
+	if err != nil || (s.Plan == nil && s.Completion == nil) {
+		return nil, err
+	}
+	out, err := s.assessWithRefs()
+	if err != nil {
+		return nil, err
+	}
+	quality := ""
+	if out.Quality != nil {
+		quality = *out.Quality
+	}
+	return &metrics.Result{MetricID: metricID, MethodVersion: methodVersion, SubjectType: "session", SubjectKey: uid.String(),
+		WindowLabel: s.day, Status: out.Status, QualityStatus: quality, Value: out.Value, ReasonCodes: out.Reasons, QualityFlags: out.Flags,
+		Config: Config, SourceRefs: s.refs, Timezone: s.zone}, nil
 }
