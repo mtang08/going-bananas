@@ -8,7 +8,7 @@ policy. Inherit the root iteration-speed policy; load only relevant material.
   coaching, use the skill's returned verified excerpts instead of scanning here.
 - `references/source_registry.json` and evidence matrices record support;
   `manifest.json` provides integrity metadata. Runtime selection and verification
-  live in `../backend/app/services/knowledge.py` and `decision_inputs.py`.
+  live in `backend-go/internal/coaching/knowledge.go` and `backend-go/internal/coaching/evidence/`.
 - Candidate policies are not automatically active rules. Distinguish direct
   evidence from generalization and athlete-specific inference. Do not turn a
   research dose or safety bound into a universal prescription.

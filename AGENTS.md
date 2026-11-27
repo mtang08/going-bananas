@@ -67,9 +67,9 @@ Strong remains the lifting workflow.
 The current coaching path is the **repo-local `.codex/skills/going-bananas-coach`**
 package and the calendar proposal API. Its manifest declares `coach_proposal.v2`,
 calendar authority, and manual activation. `README.md` describes this user flow.
-`backend/app/history_models.py` holds frozen check-in, planning, import, and
-coaching tables for Alembic. The Go services own current application reads and
-writes. Retained Python services and tests provide non-HTTP reference behavior.
+The Go services own current application reads and writes. The historical
+Alembic chain and its frozen schema definitions support older workspaces.
+Synthetic fixtures preserve wire and storage contracts exercised by Go tests.
 
 `docs/running-coach-workflow.md` and `docs/handoff.md` include an earlier automatic
 activation design; `docs/archive/` contains design history. These documents
@@ -118,8 +118,12 @@ is managed by `make db-start` / `make db-stop`. `make dev` starts API, worker, a
 Vite; `make build` then `make start` serves the built app. Do not run both servers
 at once. Runtime details and full setup are in [README.md](README.md).
 
-- `make check` runs the docs, Python, frontend, and Go checks. Run them individually with `make check-docs`, `make check-backend`, `make check-frontend`, or `make check-go`. `make complexity` reports functions above McCabe 15.
-- `make test-integration` runs retained reference tests against isolated PostgreSQL. Use Go route tests, `make test-proposal-go`, and Playwright for HTTP behavior.
+- `make check` runs the docs, backend, and frontend checks. Run focused checks
+  with `make check-docs`, `make check-backend`, or `make check-frontend`.
+  `make complexity` reports Go functions above cyclomatic complexity 15.
+- `make test-go-integration` runs the native suite against isolated PostgreSQL.
+  `make test-integration` verifies historical migration safety. Use Go route
+  tests, `make test-proposal-go`, and Playwright for focused HTTP checks.
 - `python3 scripts/test_coach_skill_v2.py`: current helper contract/manifest checks.
 - `make test-e2e`: Playwright; requires the appropriate demo server/seed. See
   README's verification instructions before running it.

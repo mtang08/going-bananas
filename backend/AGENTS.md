@@ -2,17 +2,17 @@
 
 Inherit the root iteration-speed policy. The Go API, worker, and operational
 commands serve all workspaces. This directory contains the historical Alembic
-chain and Python reference code for offline comparisons. Start with the Go
-entry points for current behavior.
+chain, its dependencies, and synthetic fixtures. Start with the Go entry points
+for current behavior.
 
 | Layer | Location |
 | --- | --- |
 | HTTP, worker, CLI dispatch | `backend-go/cmd/going-bananas/`, `backend-go/internal/httpapi/`, `backend-go/api/` |
 | Domain services and SQL | The relevant `backend-go/internal/` package, then `backend-go/sql/` and generated `backend-go/internal/db/` |
 | Fresh and historical migration dispatch | `backend-go/internal/workspacemigrate/` and the baseline in `backend-go/sql/` |
-| Historical Python migration chain | `migrations/versions/`, `migrations/env.py`, `app/migrations_head.py` and `app/history_models.py` |
-| Python reference CLI | `app/cli.py`, `app/config.py`, `app/db.py` |
-| Python domain and service reference | `app/domain/`, `app/read/`, `app/services/`, `app/metrics/`, and `app/adapters/` |
+| Historical migration chain | `migrations/versions/`, `migrations/env.py`, and `app/history_models.py` |
+| Shared synthetic fixtures | `tests/fixtures/` and Go package testdata |
+| Offline restore and source verification | `scripts/verify-restore.py` and `scripts/verify-real.py` |
 
 Current flow goes from the helper and Go coaching commands to a snapshot and
 draft, then through explicit review and acceptance to a versioned calendar.
@@ -48,10 +48,11 @@ cd backend-go && go test ./internal/httpapi ./cmd/going-bananas
 ```
 
 `make check-go` checks generated code, builds, lints, and runs race-enabled
-tests. `make check-backend` also checks the retained Python code.
-`make test-integration` provisions isolated PostgreSQL for the Python reference
-and migration suite. Use the Go HTTP tests and the synthetic Playwright setup
-in [README.md](../README.md#verification) for runtime API and browser behavior.
+tests. `make check-backend` also runs the historical migration unit checks.
+`make test-integration` verifies migration safety in PostgreSQL and
+`make test-go-integration` runs native integration checks. Use the synthetic
+Playwright setup for browser checks.
+[Verification commands](../README.md#verification)
 
 For a complete coaching contract change, exercise the helper, Go API, accepted
 calendar, and next snapshot with synthetic data. Mocked model transport verifies
