@@ -27,13 +27,29 @@ def main():
             or host.path != "/garmin_test" or str(host.port) != os.getenv("TEST_DATABASE_PORT")):
         raise ValueError("requires isolated test PostgreSQL")
     base = url.rsplit("/", 1)[0] + "/"
-    source, to_go, to_py = ["backup_synthetic_" + uuid4().hex for _ in range(3)]
+    source, to_go, to_py = ["backup_synthetic_" + uuid4().hex + "_test" for _ in range(3)]
     with (tempfile.TemporaryDirectory() as directory, psycopg.connect(url, autocommit=True) as control):
         root = Path(directory)
         private = root / "private"
         env = dict(os.environ, PRIVATE_DIR=str(private), DATABASE_URL=base + source, PGHOSTADDR="192.0.2.1")
         binary = root / "workspace-backup"
         subprocess.run(["go", "build", "-o", binary, "./cmd/workspace-backup"], cwd=MODULE, check=True)
+        for overrides, expected in (
+            ({"APP_MODE": "wrong"}, "APP_MODE must be demo, real, or test"),
+            ({"APP_MODE": ""}, "APP_MODE must be demo, real, or test"),
+            ({"DATABASE_URL": "sqlite:///synthetic_test"}, "Only PostgreSQL is supported"),
+            ({"DATABASE_URL": base + "synthetic_real"}, "Database name must end with APP_MODE suffix"),
+            ({"DATABASE_URL": base}, "Database name must end with APP_MODE suffix"),
+        ):
+            invalid_env = {**env, **overrides}
+            output = root / "invalid-settings.tar.gz"
+            py = subprocess.run([sys.executable, "-m", "app.cli", "backup", output], cwd=BACKEND,
+                                env=invalid_env, capture_output=True, text=True, check=False)
+            assert py.returncode == 1 and py.stderr.endswith(f"ValueError: {expected}\n"), py.stderr
+            go = subprocess.run([binary, "backup", output], env=invalid_env, capture_output=True,
+                                text=True, check=False)
+            assert go.returncode == 2 and json.loads(go.stderr) == {"error": expected}, go.stderr
+            assert not output.exists()
         (private / "raw").mkdir(parents=True)
         (private / "raw/fixture.fit").write_bytes(b"synthetic fit bytes")
         (private / "raw/token.json").write_text("excluded fixture")
@@ -52,7 +68,8 @@ def main():
             restore_backup(go_archive, base + to_py, root / "restored-python")
             def restore(target, folder):
                 return go("restore", py_archive, "--target-database-name", target, "--target-private-dir", folder)
-            done = restore(to_go, root / "restored-go")
+            done = go("restore", py_archive, "--target-private-dir", root / "restored-go",
+                      "--target-database-name", to_go)
             assert done.returncode == 0, done.stderr
             assert json.loads(done.stdout)["file_count"] == 2
             assert restore(source, root / "unused").returncode == 2
