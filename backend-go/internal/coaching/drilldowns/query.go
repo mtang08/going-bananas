@@ -49,7 +49,7 @@ func (r Reader) Query(ctx context.Context, tx pgx.Tx, args map[string]any) (any,
 		now = r.Now()
 	}
 	name := stringArg(args, "name")
-	if name != "explain_metric" {
+	if name != "explain_metric" && name != "calendar_diff" {
 		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock_shared(71382413)"); err != nil {
 			return nil, err
 		}
@@ -64,7 +64,7 @@ func (r Reader) Query(ctx context.Context, tx pgx.Tx, args map[string]any) (any,
 		if err != nil {
 			return nil, badArgs()
 		}
-		return calendarDiff(ctx, tx, from, to)
+		return CalendarDiff(ctx, tx, from, to)
 	case "explain_metric", "activity_execution":
 		key := "activity_id"
 		if name == "explain_metric" {
