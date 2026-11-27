@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func TestPythonView(t *testing.T) {
+func TestExceptionViewReference(t *testing.T) {
 	path := os.Getenv("EXCEPTION_VIEW_REFERENCE")
 	if path == "" {
 		t.Skip("run scripts/test-db.py exception-view")
@@ -27,6 +27,9 @@ func TestPythonView(t *testing.T) {
 	}
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)
+	}
+	if len(cases) == 0 {
+		t.Fatal("no captured reference cases")
 	}
 	ctx := t.Context()
 	conn, err := pgx.Connect(ctx, os.Getenv("PROPOSAL_TEST_DATABASE_URL"))

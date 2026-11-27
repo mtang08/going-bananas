@@ -1,0 +1,8 @@
+[
+  {"now":"2026-11-02T04:59:59.123400+00:00","include":"active","expected":{"rule_version":"exceptions.v1","findings":[],"patches":[],"review_recommended":[],"counts":{"observe":0,"caution":0,"hold":0,"escalate":0}}},
+  {"now":"2026-11-02T04:59:59.123400+00:00","include":"recent","expected":{"rule_version":"exceptions.v1","findings":[],"patches":[],"review_recommended":[],"counts":{"observe":0,"caution":0,"hold":0,"escalate":0}}},
+  {"now":"2026-11-02T04:59:59.123401+00:00","include":"active","expected":{"rule_version":"exceptions.v1","findings":[],"patches":[],"review_recommended":[],"counts":{"observe":0,"caution":0,"hold":0,"escalate":0}}},
+  {"now":"2026-11-02T04:59:59.123401+00:00","include":"recent","expected":{"rule_version":"exceptions.v1","findings":[],"patches":[],"review_recommended":[],"counts":{"observe":0,"caution":0,"hold":0,"escalate":0}}},
+  {"now":"2026-11-02T05:00:00.123400+00:00","include":"active","expected":{"rule_version":"exceptions.v1","findings":[],"patches":[],"review_recommended":[],"counts":{"observe":0,"caution":0,"hold":0,"escalate":0}}},
+  {"now":"2026-11-02T05:00:00.123400+00:00","include":"recent","expected":{"rule_version":"exceptions.v1","findings":[],"patches":[],"review_recommended":[],"counts":{"observe":0,"caution":0,"hold":0,"escalate":0}}}
+]

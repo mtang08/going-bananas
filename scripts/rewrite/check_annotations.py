@@ -1,59 +1,7 @@
 """Compare annotation PATCH responses and refreshed source, calendar, metric and prompt state."""
 
-import json
-import sys
-from pathlib import Path
-from unittest.mock import patch
-
-from check_assessment_db import conn, id, seed
-from check_recovery import compare
-
-
-def reference():
-    from datetime import UTC, datetime
-
-    from app.main import app
-    from app.metrics import refresh
-    from fastapi.testclient import TestClient
-
-    results = []
-    with (
-        patch.object(
-            refresh, "clock", lambda _: datetime(2026, 11, 26, 12, tzinfo=UTC)
-        ),
-        TestClient(app) as client,
-    ):
-        for activity, raw in [
-            ("bad", "{"),
-            ("bad", '{"notes":12,"excluded":4}'),
-            (id(21), "null"),
-            (id(21), "{}"),
-            (
-                id(21),
-                '{"expected_version":-1,"workout_label":"bad","notes":5,"excluded":"bad"}',
-            ),
-            (id(21), json.dumps({"expected_version": 0, "notes": "a" * 4001})),
-            (id(2022), '{"expected_version":0}'),
-            (
-                id(21),
-                '{"expected_version":"1","workout_label":"long","notes":"test trail","excluded":"on","unknown":3}',
-            ),
-            (id(21), '{"expected_version":0}'),
-            (id(21), '{"expected_version":2,"notes":null,"workout_label":null}'),
-        ]:
-            path = f"/activities/{activity}/annotations"
-            r = client.patch(
-                "/api/v1" + path,
-                content=raw,
-                headers={"content-type": "application/json", "X-Local-Request": "1"},
-            )
-            value = r.json()
-            if "error" in value:
-                value["error"].pop("request_id", None)
-            results.append(
-                {"path": path, "payload": raw, "status": r.status_code, "body": value}
-            )
-    return results
+from check_activity_reads import exercise
+from check_assessment_db import conn, seed
 
 
 def state(env):
@@ -69,7 +17,4 @@ def state(env):
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["reference"]:
-        Path(sys.argv[2]).write_text(json.dumps(reference()))
-    else:
-        compare(__file__, seed, "./internal/activityhttp", "ANNOTATION_CASES", state)
+    exercise(seed, "annotations", state)

@@ -1,8 +1,6 @@
-"""Compare dashboard exception projections against Python in a migrated disposable schema."""
+"""Verify dashboard exception projections against captured synthetic cases."""
 
-import json
 import subprocess
-import sys
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -10,11 +8,11 @@ from pathlib import Path
 import psycopg
 from check_assessment_db import conn, id, seed
 from check_gcal_replay import test_url
-from fastapi.encoders import jsonable_encoder
-from test_proposal_slice import BACKEND, MODULE, ROOT, migrated_schema
+from test_proposal_slice import MODULE, ROOT, migrated_schema
 
 NOW = datetime.fromisoformat("2026-11-02T04:59:59.123400+00:00")
 TICK = timedelta(microseconds=1)
+FIXTURES = ROOT / "scripts/rewrite/fixtures/exceptions"
 
 
 def populate(env):
@@ -100,25 +98,7 @@ def populate(env):
             )
 
 
-def reference(path):
-    from app.db import SessionLocal
-    from app.services.exceptions.detector import exceptions_view
-
-    with SessionLocal() as session:
-        cases = [
-            {
-                "now": at,
-                "include": include,
-                "expected": exceptions_view(session, at, include),
-            }
-            for at in (NOW, NOW + TICK, NOW + timedelta(seconds=1))
-            for include in ("active", "recent")
-        ]
-    path.write_text(json.dumps(jsonable_encoder(cases)))
-
-
-def exercise(env, scratch):
-    target = scratch / "view.json"
+def exercise(env):
     for phase in ("empty", "populated", "reviewed"):
         if phase == "populated":
             populate(env)
@@ -135,21 +115,16 @@ def exercise(env, scratch):
                         (operation, status, NOW + TICK * delta, id(310 + n)),
                     )
         subprocess.run(
-            [sys.executable, __file__, "reference", target],
-            env={**env, "PYTHONPATH": str(BACKEND)},
-            check=True,
-        )
-        subprocess.run(
             [
                 "go",
                 "test",
                 "-count=1",
                 "-run",
-                "^TestPythonView$",
+                "^TestExceptionViewReference$",
                 "./internal/exceptions",
             ],
             cwd=MODULE,
-            env={**env, "EXCEPTION_VIEW_REFERENCE": str(target)},
+            env={**env, "EXCEPTION_VIEW_REFERENCE": str(FIXTURES / f"view-{phase}.json")},
             check=True,
         )
 
@@ -164,11 +139,8 @@ def main():
         tempfile.TemporaryDirectory(dir=ROOT / "private") as scratch,
         migrated_schema(db, url, Path(scratch) / "view", "0") as env,
     ):
-        exercise(env, Path(scratch))
+        exercise(env)
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["reference"]:
-        reference(Path(sys.argv[2]))
-    else:
-        main()
+    main()
