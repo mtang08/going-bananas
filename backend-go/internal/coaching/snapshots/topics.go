@@ -83,7 +83,9 @@ func symptomTopic(in snapshotreads.Inputs, first string, zone *time.Location) bo
 		}
 		found := false
 		for _, c := range in.Checkins {
-			if c["kind"] != "delayed_followup" || !(p["prompt_id"] != nil && c["prompt_id"] == p["prompt_id"] || p["activity_id"] != nil && c["activity_id"] == p["activity_id"]) {
+			samePrompt := p["prompt_id"] != nil && c["prompt_id"] == p["prompt_id"]
+			sameActivity := p["activity_id"] != nil && c["activity_id"] == p["activity_id"]
+			if c["kind"] != "delayed_followup" || (!samePrompt && !sameActivity) {
 				continue
 			}
 			found = true

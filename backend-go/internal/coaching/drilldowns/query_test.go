@@ -41,12 +41,12 @@ func TestQueryPythonParity(t *testing.T) {
 	if err != nil {
 		t.Fatal("connect to synthetic database")
 	}
-	defer conn.Close(context.Background())
+	defer func() { _ = conn.Close(context.Background()) }()
 	tx, err := conn.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback(context.Background())
+	defer func() { _ = tx.Rollback(context.Background()) }()
 	manifest, err := os.ReadFile("../evidence/metric_identities.json")
 	if err != nil {
 		t.Fatal(err)

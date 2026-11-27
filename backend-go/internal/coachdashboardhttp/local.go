@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/coachdashboard"
@@ -11,6 +12,7 @@ import (
 
 type LocalConfig struct {
 	RepoRoot, PrivateDir, Mode, Port, VitePort string
+	Now                                        func() time.Time
 }
 
 type Local struct {
