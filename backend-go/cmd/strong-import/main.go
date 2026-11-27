@@ -5,4 +5,4 @@ import (
 	"os"
 )
 
-func main() { os.Exit(strongcli.Main(os.Args[1:])) }
+func main() { os.Exit(strongcli.Standalone(os.Args[1:])) }
