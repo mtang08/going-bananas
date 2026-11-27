@@ -1,7 +1,8 @@
+import { createEvent, updateEvent, orderEvents } from '../../api/planning'
 import { Badge, Button, Card, Input, NativeSelect } from '../../components/ui'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, post, patch, put } from '../../api/client'
+import { api } from '../../api/client'
 import { qk, invalidateKeys } from '../../api/queryKeys'
 import { dateLabel, fmtDistance, fmtClock, clockToSeconds, type Unit } from '../../lib/format'
 import {
@@ -51,7 +52,7 @@ export function Events({ unit }: { unit: Unit }) {
     mutationFn: ({ event, to }: { event: RaceEvent; direction: 'up' | 'down'; to: number }) => {
       const next = upcoming.filter((item) => item.id !== event.id)
       next.splice(to, 0, event)
-      return put('/events/order', {
+      return orderEvents({
         items: next.map((item) => ({ id: item.id, expected_version: item.version })),
       })
     },
@@ -120,11 +121,11 @@ export function Events({ unit }: { unit: Unit }) {
         result_s,
       }
       return editing
-        ? patch(`/events/${encodeURIComponent(editing.id)}`, {
+        ? updateEvent(editing.id, {
             expected_version: editing.version,
             ...body,
           })
-        : post('/events', body)
+        : createEvent(body)
     },
     onSuccess: () => {
       invalidateKeys(qc, [qk.events, qk.blocks, qk.proposals])

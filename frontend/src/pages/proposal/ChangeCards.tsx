@@ -58,7 +58,7 @@ export function BlockChangeCard({
   const triggers = fields.early_review_triggers ?? []
   const qualities = fields.maintained_qualities ?? []
   const nonGoals = fields.non_goals ?? []
-  const constraints = fields.constraints ?? []
+  const constraints = Array.isArray(fields.constraints) ? fields.constraints : []
   const eligible = fields.eligible_recipe_ids ?? []
   const benchmark = fields.benchmark
   return (

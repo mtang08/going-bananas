@@ -20,7 +20,7 @@ import { invalidateKeys, qk } from '../api/queryKeys'
 import { pageHref } from '../lib/routes'
 import { sessionTitle } from '../lib/session'
 import type { Activity } from '../api/types/activity'
-import type { BlockVersion } from '../api/types/blocks'
+import type { ActiveBlock } from '../api/types/blocks'
 import type { SessionState, WeeklyDigest as WeeklyDigestData } from '../api/types/calendar'
 import type { CheckinRequest, PromptList } from '../api/types/checkins'
 import { QueryState } from '../components/QueryState'
@@ -99,7 +99,7 @@ export function Home({
   })
   const block = useQuery({
     queryKey: qk.blocksActive,
-    queryFn: () => api<BlockVersion | null>('/blocks/active'),
+    queryFn: () => api<ActiveBlock | null>('/blocks/active'),
   })
   const open = prompts.data?.data.items.filter((p) => p.status === 'open') ?? []
   const ids = [
