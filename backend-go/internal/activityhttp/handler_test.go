@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"regexp"
 	"testing"
+	"time"
 )
 
 func difference(a, b any, path string) string {
@@ -72,7 +73,7 @@ func TestActivityReads(t *testing.T) {
 		t.Fatal("expected disposable fixture")
 	}
 	mux := http.NewServeMux()
-	Handler{Pool: p, Mode: "test"}.Register(mux)
+	Handler{Pool: p, Mode: "test", Now: func() time.Time { return time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC) }}.Register(mux)
 	counts := func(ctx context.Context) (string, error) {
 		var s string
 		err := p.QueryRow(ctx, "SELECT json_build_array((SELECT count(*) FROM metric_results),(SELECT count(*) FROM metric_configs),(SELECT data_revision FROM app_state WHERE id=1))::text").Scan(&s)

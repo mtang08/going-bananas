@@ -8,9 +8,8 @@ import tempfile
 from pathlib import Path
 
 import psycopg
-from sqlalchemy.engine import make_url
-
 from check_self_reports import uid
+from sqlalchemy.engine import make_url
 from test_proposal_slice import BACKEND, MODULE, ROOT, migrated_schema
 
 KEYS = [
