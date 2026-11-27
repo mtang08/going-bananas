@@ -133,39 +133,45 @@ def managed_urls(workspace, port, env, *, stop=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    checks = {
+    native_checks = {
         'proposal': 'test_proposal_slice.py',
+        'planning-contract': 'check_planning_contract.py',
+        'workspace-preflight': 'check_workspace_preflight.py',
+        'dashboard': 'check_dashboard.py',
+        'supervisor': 'check_supervisor.py',
+        'calendar-commands': 'check_calendar_commands.py',
+        'planning-commands': 'check_planning_commands.py',
+        'annotations': 'check_annotations.py',
+        'activity-reads': 'check_activity_reads.py',
+        'completion-http': 'check_completion_http.py',
+        'feedback-http': 'check_feedback_http.py',
+        'exception-http': 'check_exception_http.py',
+        'travel-http': 'check_travel_http.py',
+        'sync-http': 'check_sync_http.py',
+        'phone-checkins': 'check_phone_checkins.py',
+    }
+    checks = {
+        **native_checks,
         'provider': 'check_provider_replay.py',
         'strong': 'check_strong_import.py',
-        'exception-inputs': 'check_exception_inputs.py',
         'exception-view': 'check_exception_view.py',
-        'exception-http': 'check_exception_http.py',
-        'coaching-lifecycle': 'coaching/check_lifecycle.py',
+        'exception-inputs': 'check_exception_inputs.py',
         'recovery': 'check_recovery.py',
-        'activity-reads': 'check_activity_reads.py',
         'aerobic': 'check_aerobic.py',
         'assessment': 'check_assessment_db.py',
         'gcal': 'check_gcal_replay.py',
-        'travel-http': 'check_travel_http.py',
         'provider-jobs': 'check_provider_jobs.py',
-        'sync-http': 'check_sync_http.py',
         'fit-cli': 'check_fit_cli.py',
         'workspace-migrate': 'check_workspace_migrate.py',
         'demo-seed': 'check_demo_seed.py',
         'import-export': 'check_import_export.py',
         'backup': 'check_workspace_backup.py',
         'operator-cli': 'check_operator_cli.py',
-        'phone-checkins': 'check_phone_checkins.py',
         'calendar': 'check_self_reports.py',
-        'completion-http': 'check_completion_http.py',
-        'feedback-http': 'check_feedback_http.py',
         'health-startup': 'check_health_startup.py',
-        'supervisor': 'check_supervisor.py',
-        'planning-contract': 'check_planning_contract.py',
         'rematch': 'check_rematch.py',
-        'dashboard': 'check_dashboard.py',
     }
-    actions = ['start', 'stop', 'test', 'test-external', *checks, *(name + '-external' for name in checks)]
+    actions = ['start', 'stop', 'test', 'test-external', 'native', 'native-external', *checks, *(name + '-external' for name in checks)]
     parser.add_argument('action', choices=actions)
     parser.add_argument('tests', nargs='*', help='test paths or pytest node IDs relative to backend')
     args = parser.parse_args()
@@ -227,11 +233,15 @@ def main():
         )
         env.pop('UV_ENV_FILE', None)
         env.setdefault('UV_CACHE_DIR', str(private / 'cache' / 'uv'))
-        if runner := checks.get(action.removesuffix('-external')):
-            subprocess.run(
-                ['uv', 'run', 'python', '../scripts/rewrite/' + runner],
-                cwd=backend, env=env, check=True,
-            )
+        selected = action.removesuffix('-external')
+        if selected == 'native' or selected in checks:
+            runners = native_checks.values() if selected == 'native' else [checks[selected]]
+            for runner in runners:
+                print(f'Running {runner}', flush=True)
+                subprocess.run(
+                    ['uv', 'run', 'python', '../scripts/rewrite/' + runner],
+                    cwd=backend, env=env, check=True,
+                )
             return
         subprocess.run(['uv', 'run', 'alembic', 'upgrade', 'head'], cwd=backend, env=env, check=True)
         subprocess.run(

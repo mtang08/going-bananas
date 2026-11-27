@@ -1,4 +1,4 @@
-"""Compare versioned goal edits through Python and Go on independent synthetic schemas."""
+"""Exercise native versioned goal edits on a disposable synthetic schema."""
 
 import json
 import re
@@ -20,7 +20,7 @@ def connect_fixture(stack, env):
         or url.database != "garmin_test"
         or url.host not in {"localhost", "127.0.0.1"}
     ):
-        raise ValueError("goal parity requires a local garmin_test database")
+        raise ValueError("goal command check requires a local garmin_test database")
     conn = stack.enter_context(
         psycopg.connect(
             url.set(drivername="postgresql").render_as_string(hide_password=False),
@@ -32,7 +32,7 @@ def connect_fixture(stack, env):
         "SELECT current_database(), current_schema()"
     ).fetchone()
     if name != "garmin_test" or not re.fullmatch(r"go_[a-z_]+[0-9a-f]{32}", schema):
-        raise ValueError("goal parity requires an isolated synthetic schema")
+        raise ValueError("goal command check requires an isolated synthetic schema")
     # A fallback table in public must never be used if a migration is missing.
     if not conn.execute("""
         SELECT bool_and(c.relnamespace = current_schema()::regnamespace)
@@ -49,7 +49,7 @@ def seed(conn):
                    data_revision, calendar_head_version FROM app_state WHERE id = 1
         """).fetchone()
         if counts != (0, 0, 0, 0):
-            raise ValueError("goal parity requires fresh migrated schemas")
+            raise ValueError("goal command check requires fresh migrated schemas")
         conn.execute(
             "INSERT INTO goals (id, text, horizon, priority, status, version) VALUES (%s, 'Initial', 'season', 1, 'active', 1)",
             (GOAL,),
@@ -114,38 +114,18 @@ def send_goal(port, vite_port, body, goal, headers):
             return response.status, document, header_id is not None, cache
 
 
-def compare_goals(python_port, go_port, reference_env, candidate_env):
-    if int(python_port) == int(go_port):
-        raise ValueError("goal parity requires distinct listeners")
+def check_goals(port, env):
     with ExitStack() as stack:
-        ref, ref_schema = connect_fixture(stack, reference_env)
-        go, go_schema = connect_fixture(stack, candidate_env)
-        if ref_schema == go_schema:
-            raise ValueError("goal parity requires distinct schemas")
-        for conn in (ref, go):
-            seed(conn)
-        expected_goal, revision, head, metrics = state(ref)
-        if state(go) != (expected_goal, revision, head, metrics):
-            raise AssertionError("fixture state differs before first edit")
+        conn, _ = connect_fixture(stack, env)
+        seed(conn)
+        expected_goal, revision, head, metrics = state(conn)
 
-        count = 0
-
-        def compare(
+        def check_edit(
             label, body, status, code=None, *, goal=GOAL, headers=None, changes=None
         ):
-            nonlocal count, revision
-            first, second = (
-                send_goal(port, env["VITE_PORT"], body, goal, headers or {})
-                for port, env in [
-                    (python_port, reference_env),
-                    (go_port, candidate_env),
-                ]
-            )
-            if first != second or first[0] != status:
-                raise AssertionError(
-                    f"{label}: Python {first!r}, Go {second!r}, expected HTTP {status}"
-                )
-            _, document, has_header, cache = first
+            nonlocal revision
+            actual, document, has_header, cache = send_goal(port, env["VITE_PORT"], body, goal, headers or {})
+            assert actual == status, (label, actual, status, document)
             if status in (403, 415, 500):
                 if has_header or cache:
                     raise AssertionError(
@@ -168,62 +148,60 @@ def compare_goals(python_port, go_port, reference_env, candidate_env):
                 }
                 if document != expected:
                     raise AssertionError(f"{label}: unexpected success {document!r}")
-            for conn in (ref, go):
-                if state(conn) != (expected_goal, revision, head, metrics):
-                    raise AssertionError(
-                        f"{label}: persisted goal, revisions, or unrelated metric changed unexpectedly"
-                    )
-            count += 1
+            if state(conn) != (expected_goal, revision, head, metrics):
+                raise AssertionError(
+                    f"{label}: persisted goal, revisions, or unrelated metric changed unexpectedly"
+                )
             print(f"PASS {status} PATCH goal: {label}", flush=True)
 
-        compare(
+        check_edit(
             "missing local header",
             {},
             403,
             "csrf_header_required",
             headers={"X-Local-Request": None},
         )
-        compare(
+        check_edit(
             "foreign origin",
             {},
             403,
             "invalid_origin",
             headers={"Origin": "http://foreign.example"},
         )
-        compare(
+        check_edit(
             "non-JSON media type",
             {},
             415,
             "json_required",
             headers={"Content-Type": "text/plain"},
         )
-        compare("invalid JSON", b'{"text":}', 422, "validation_error")
-        compare(
+        check_edit("invalid JSON", b'{"text":}', 422, "validation_error")
+        check_edit(
             "missing version and extra fields",
             {"text": "  ", "priority": 0, "status": "bad", "extra": True},
             422,
             "validation_error",
         )
-        compare(
+        check_edit(
             "null field on missing goal",
             {"expected_version": 1, "status": None},
             404,
             "goal_not_found",
             goal=MISSING,
         )
-        compare(
+        check_edit(
             "null field on outdated version",
             {"expected_version": 99, "status": None},
             409,
             "version_conflict",
         )
-        compare(
+        check_edit(
             "explicit null",
             {"expected_version": 1, "priority": None},
             422,
             "invalid_goal",
         )
-        compare(
+        check_edit(
             "edit all fields",
             {
                 "expected_version": "1",
@@ -240,24 +218,23 @@ def compare_goals(python_port, go_port, reference_env, candidate_env):
                 "priority": 2,
             },
         )
-        compare(
+        check_edit(
             "retry stale edit",
             {"expected_version": 1, "text": "retry"},
             409,
             "version_conflict",
         )
-        compare("unchanged value", {"expected_version": 2, "text": "Winter goal"}, 200)
-        compare("version only", {"expected_version": 3}, 200)
-        compare(
+        check_edit("unchanged value", {"expected_version": 2, "text": "Winter goal"}, 200)
+        check_edit("version only", {"expected_version": 3}, 200)
+        check_edit(
             "edit status only",
             {"expected_version": 4, "status": "done"},
             200,
             changes={"status": "done"},
         )
-        # Force the later revision UPDATE to fail after the goal UPDATE on both implementations.
-        for conn in (ref, go):
-            conn.execute("ALTER TABLE app_state ADD CONSTRAINT fixture_revision_limit CHECK (data_revision <= 4)")
-        compare(
+        # Force the later revision UPDATE to fail after the goal UPDATE.
+        conn.execute("ALTER TABLE app_state ADD CONSTRAINT fixture_revision_limit CHECK (data_revision <= 4)")
+        check_edit(
             "rollback on revision failure",
             {"expected_version": 5, "text": "rollback"},
             500,
@@ -274,22 +251,16 @@ def compare_goals(python_port, go_port, reference_env, candidate_env):
             ("normalized input", sample, 201),
         ]:
             if label == "missing fields":
-                for conn in (ref, go):
-                    conn.execute("ALTER TABLE app_state DROP CONSTRAINT fixture_revision_limit")
-            replies = []
-            for port, env, conn in ((python_port, reference_env, ref), (go_port, candidate_env, go)):
-                result = send_goal(port, env["VITE_PORT"], body, None, {})
-                assert result[0] == status, (label, result[0])
-                row_count = conn.execute("SELECT count(*) FROM goals").fetchone()[0]
-                data_revision = conn.execute("SELECT data_revision FROM app_state WHERE id=1").fetchone()[0]
-                assert (row_count, data_revision) == (1 + (status == 201), revision + (status == 201))
-                if status == 201:
-                    item = result[1]["data"]
-                    saved = conn.execute("SELECT text, horizon, priority, status, version FROM goals WHERE id=%s",
-                                         (item["id"],)).fetchone()
-                    assert saved == ("Autumn goal", "season", 3, "active", 1)
-                    item["id"] = "<generated>"
-                replies.append(result)
-            assert replies[0] == replies[1], (label, replies)
+                conn.execute("ALTER TABLE app_state DROP CONSTRAINT fixture_revision_limit")
+            result = send_goal(port, env["VITE_PORT"], body, None, {})
+            assert result[0] == status, (label, result[0])
+            row_count = conn.execute("SELECT count(*) FROM goals").fetchone()[0]
+            data_revision = conn.execute("SELECT data_revision FROM app_state WHERE id=1").fetchone()[0]
+            assert (row_count, data_revision) == (1 + (status == 201), revision + (status == 201))
+            if status == 201:
+                item = result[1]["data"]
+                saved = conn.execute(
+                    "SELECT text, horizon, priority, status, version FROM goals WHERE id=%s", (item["id"],)
+                ).fetchone()
+                assert saved == ("Autumn goal", "season", 3, "active", 1)
             print(f"PASS {status} POST goal: {label}", flush=True)
-        return count + 7

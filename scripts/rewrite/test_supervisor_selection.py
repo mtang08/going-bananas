@@ -1,4 +1,4 @@
-"""Exercise native and fallback command selection without starting real services."""
+"""Exercise mode-specific native supervisor startup without starting real services."""
 
 import os
 import runpy
@@ -14,13 +14,12 @@ SCRIPT = Path(__file__).resolve().parents[1] / "serve.py"
 class SupervisorSelection(unittest.TestCase):
     def test_mode_and_worker(self):
         cases = [
-            ("test", "", ["going-bananas", "npm"]),
-            ("demo", "python", ["uv", "npm"]),
-            ("real", "", ["uv", "uv", "npm"]),
-            ("real", "go", ["going-bananas", "going-bananas", "npm"]),
+            ("test", ["going-bananas", "npm"]),
+            ("demo", ["going-bananas", "npm"]),
+            ("real", ["going-bananas", "going-bananas", "npm"]),
         ]
-        for mode, selection, expected in cases:
-            with self.subTest(mode=mode, selection=selection), ExitStack() as stack:
+        for mode, expected in cases:
+            with self.subTest(mode=mode), ExitStack() as stack:
                 stack.enter_context(
                     patch.dict(
                         os.environ,
@@ -28,7 +27,6 @@ class SupervisorSelection(unittest.TestCase):
                             "APP_MODE": mode,
                             "APP_PORT": "8765",
                             "VITE_PORT": "8766",
-                            "GOING_BANANAS_BACKEND": selection,
                             "GARMIN_API_KEY": "fixture",
                             "DATABASE_URL": "fixture",
                         },
@@ -66,14 +64,12 @@ class SupervisorSelection(unittest.TestCase):
                 env = launched.call_args_list[-1].kwargs["env"]
                 self.assertNotIn("DATABASE_URL", env)
                 self.assertNotIn("GARMIN_API_KEY", env)
-                if expected[0] == "going-bananas":
-                    self.assertIn("-startup", commands[0])
-                    self.assertIn("127.0.0.1:8765", commands[0])
-                    self.assertIn("build", builds.call_args.args[0])
-                    if mode == "real":
-                        self.assertEqual(commands[1][1:], ["worker"])
-                else:
-                    self.assertIn("metrics-refresh-today", builds.call_args.args[0])
+                self.assertIn("-startup", commands[0])
+                self.assertIn("127.0.0.1:8765", commands[0])
+                self.assertIn("build", builds.call_args.args[0])
+                if mode == "real":
+                    self.assertEqual(commands[1][1:], ["worker"])
+
 
 
 if __name__ == "__main__":

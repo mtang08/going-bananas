@@ -1,6 +1,5 @@
-"""Compare the proposal list on two test servers seeded with tests/fixtures/proposal-list.sql."""
+"""Check the native proposal list seeded with tests/fixtures/proposal-list.sql."""
 
-import argparse
 import json
 from http.client import HTTPConnection
 
@@ -32,13 +31,7 @@ def read_response(port, query, path=PATH):
         connection.close()
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("python_port", type=int)
-    parser.add_argument("go_port", type=int)
-    args = parser.parse_args()
-    if args.python_port == args.go_port:
-        parser.error("use separate listeners for Python and Go")
+def check_list(port):
     cases = {
         "": 50,
         "?status=open": 1,
@@ -56,13 +49,7 @@ def main():
         "?status=pending&status=bogus": None,
     }
     for query, expected_count in cases.items():
-        reference = read_response(args.python_port, query)
-        candidate = read_response(args.go_port, query)
-        if json.dumps(reference, sort_keys=True) != json.dumps(
-            candidate, sort_keys=True
-        ):
-            raise SystemExit(f"Response mismatch on GET {PATH}{query}")
-        status, body = reference
+        status, body = read_response(port, query)
         if expected_count is None:
             valid = (
                 status == 422 and body["error"]["fields"][0]["field"] == "query.status"
@@ -70,9 +57,5 @@ def main():
         else:
             valid = status == 200 and len(body["data"]["items"]) == expected_count
         if not valid:
-            raise SystemExit(f"Unexpected reference fixture on GET {PATH}{query}")
+            raise SystemExit(f"Unexpected native response on GET {PATH}{query}")
         print(f"PASS {status} GET {PATH}{query}")
-
-
-if __name__ == "__main__":
-    main()
