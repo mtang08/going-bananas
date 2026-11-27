@@ -2,7 +2,7 @@
 
 > **Archived 2026-11-15.** Historical record, not a current contract. For current behavior read `docs/architecture.md`, `docs/handoff.md`, and the code. Links inside this file are not maintained.
 
-November 11, 2026. The [living workflow](running-coach-workflow.md) is the current
+November 11, 2026. The [living workflow](../running-coach-workflow.md) is the current
 product contract. The user permits automatic activation of validated running
 proposals. The installed Codex skill supplies AI reasoning; no separate model
 API credential is needed. Weekly persisted plans and daily persisted decisions
@@ -33,13 +33,13 @@ are the current core. FIT analytics and further KB refinements are deferred.
 
 ## Setup, use, inspect and undo
 
-Follow [README](../README.md) for local PostgreSQL, migration, build and startup,
+Follow [README](../../README.md) for local PostgreSQL, migration, build and startup,
 Garmin sync and skill installation. Normal invocations are
 `$going-bananas-coach review-week` and `$going-bananas-coach today` in Codex.
 The app must be running in real mode for athlete coaching. Invocations are
 manual; no daily coaching scheduler is installed.
 
-The skill's [app-access reference](../skills/going-bananas-coach/references/app-access.md)
+The skill's [app-access reference](../../.codex/skills/going-bananas-coach/references/app-access.md)
 documents context/schema inspection, proposal JSON, no-change calls, retry
 semantics, completion links, and version-checked rollback. A successful save
 must be verified in fresh context. A rollback records a new revision and does
@@ -77,7 +77,7 @@ returned the same revision. The behavior-preserving frontend split now lives
 on main too: current recurrence controls, saved prescriptions, rest handling,
 and revision history were preserved, with two additional shared-Modal tests.
 
-The current user-facing contract is [running-coach-workflow.md](running-coach-workflow.md).
+The current user-facing contract is [running-coach-workflow.md](../running-coach-workflow.md).
 The v0.9 redesign remains a separate, partially supplied specification; its
 missing task packets and Garmin inventory gates have not been implemented here.
 

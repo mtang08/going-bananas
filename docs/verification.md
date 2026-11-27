@@ -1,13 +1,13 @@
 # Verification and release gates
 
-All cases are planned. Use pytest for domain/backend, a real isolated PostgreSQL
-database for persistence tests, frontend component tests for interactions, and
-Playwright for cross-layer flows. Do not test PostgreSQL behavior using SQLite.
+Use Go tests for application behavior, an isolated PostgreSQL database for
+persistence tests, frontend component tests for interactions, and Playwright for
+cross-layer flows. Do not test PostgreSQL behavior using SQLite.
 Freeze time where relevant and use independent expected values rather than
 calculating expectations with the implementation being tested.
 
-`make check` must run backend lint/type checks/unit tests, frontend lint/type
-checks/component tests, and production build. Separate integration/E2E commands
+`make check` runs documentation and API type checks, the Go build, lint and race
+tests, and frontend lint, type checks, component tests and production build. Separate integration/E2E commands
 start or require disposable test databases and fail clearly if unavailable.
 No real credentials or private fixtures in tests, screenshots, traces, or CI.
 

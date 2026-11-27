@@ -1,5 +1,8 @@
 # Analytics MVP release verification
 
+This page records historical releases. See [Verification and release gates](verification.md)
+and [Local operations](operations.md) for the current Go application.
+
 This section records the earlier analytics release. The Strong/coaching extension
 is documented below. Verified locally on 2026-11-10. Scope: local analytics, visualization, feedback,
 manual planning, Garmin ingestion and operations. Research/adaptive coaching and

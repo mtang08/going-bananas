@@ -1,6 +1,6 @@
 # Workstream 3 · Coaching evidence and proposal lifecycle
 
-The coaching lead owns planning, integration and review. The integrated Go candidate serves the dashboard and pending-draft workflow in demo and test. Real mode defaults to Python until the owner selects Go for cutover. The fingerprint package first shipped on `go/coaching` at `33b2b61`, followed by the draft lifecycle work on `go/coaching-lifecycle`. [Working Go read](../backend-go/internal/proposals) · [Shared specification](go-backend-rewrite.md)
+Go serves the coaching dashboard and pending-draft workflow in every mode. The fingerprint package first shipped on `go/coaching` at `33b2b61`, followed by the draft lifecycle work on `go/coaching-lifecycle`. [Proposal list](../backend-go/internal/proposals) · [Shared specification](go-backend-rewrite.md)
 
 ## Original fingerprint assignment
 
@@ -10,7 +10,7 @@ Port the **coaching evidence fingerprint used to decide whether an existing draf
 | --- | --- |
 | Coaching scalar and timestamp encoding | Read the fixtures as inputs, preserving large integers, integer/float distinctions, negative zero, UTC offset spelling, Unicode and exact string escaping. Assert canonical bytes and SHA-256 against Python's coaching vectors. |
 | Construction of the fingerprint from source versions and verified knowledge | Match the original fixture digest and its revised selected-content digest. Reordered object keys retain identity. Changed evidence invalidates the fingerprint. Cover missing/null values and order-sensitive lists as in Python. |
-| Reproducible reference comparison | Run the existing Python canonical-hash and proposal fingerprint cases and the new focused Go race tests. Use the committed synthetic evidence. A database, Garmin account and model session are unnecessary for this package. |
+| Reproducible reference comparison | Run the offline Python canonical-hash and proposal fingerprint cases and the focused Go race tests. Use the committed synthetic evidence. A database, Garmin account and model session are unnecessary for this package. |
 
 The shared JSON encoder preserves separate coaching and metric timestamp formats. Both domains have byte-for-byte regression fixtures. [Python hash tests](../backend/tests/unit/test_canonical_hash_vectors.py) · [Changed-evidence case](../backend/tests/unit/test_proposals.py)
 
@@ -31,9 +31,9 @@ make check-go
 
 ## Coaching scope and integration
 
-- Maintain verified knowledge selection, bounded snapshots, and immutable evidence needed to reproduce freshness. Keep the research library and repo-local skill authoritative. Share one factual read across display and fingerprint calculation while retaining dependencies omitted from the compact display. [Knowledge verification](../backend/app/services/knowledge.py) · [Snapshot implementation](../backend/app/services/snapshot)
-- Maintain proposal validation, partial selections, revision/retry receipts, stale outcomes, the CLI/helper and native dashboard coaching operations. Preserve stable IDs and draft revisions. A saved draft requires an explicit athlete decision before calendar activation. The dashboard must preserve its private conversation receipts, local-only access and six approved tools. [Proposal services](../backend/app/services/proposals) · [Coaching API scenarios](../backend/tests/integration/test_coach_api.py) · [Dashboard scenarios](https://github.com/mtang08/going-bananas/blob/de3bdf504b8dc6f9b1577d610889349ffd723fb2/backend/tests/integration/test_coach_chat.py)
-- Stream 3 owns coaching packages and domain tests. Stream 1 owns calendar/block/anchor mutations, exception detection, shared database migrations, global API/CLI registration and their transaction runner. Hand it the validated selected changes keyed by change ID, expected revisions and idempotency key. Under one locked transaction, recheck freshness, apply accepted changes and persist the receipt. Demonstrate an unchanged Python-created draft can be revised or accepted and a lost response can be retried without a second calendar edit. [Decision scenarios](../backend/tests/integration/test_proposals.py)
+- Maintain verified knowledge selection, bounded snapshots, and immutable evidence needed to reproduce freshness. Keep the research library and repo-local skill authoritative. Share one factual read across display and fingerprint calculation while retaining dependencies omitted from the compact display. [Knowledge verification](../backend-go/internal/coaching/knowledge.go) · [Snapshot implementation](../backend-go/internal/coaching/snapshots)
+- Maintain proposal validation, partial selections, revision/retry receipts, stale outcomes, the CLI/helper and native dashboard coaching operations. Preserve stable IDs and draft revisions. A saved draft requires an explicit athlete decision before calendar activation. The dashboard must preserve its private conversation receipts, local-only access and six approved tools. [Draft service](../backend-go/internal/coaching/drafts) · [Native proposal routes](../backend-go/internal/proposalhttp/handler.go) · [Dashboard scenarios](https://github.com/mtang08/going-bananas/blob/de3bdf504b8dc6f9b1577d610889349ffd723fb2/backend/tests/integration/test_coach_chat.py)
+- Stream 3 owns coaching packages and domain tests. Stream 1 owns calendar/block/anchor mutations, exception detection, shared database migrations, global API/CLI registration and their transaction runner. Hand it the validated selected changes keyed by change ID, expected revisions and idempotency key. Under one locked transaction, recheck freshness, apply accepted changes and persist the receipt. Demonstrate an unchanged Python-created draft can be revised or accepted and a lost response can be retried without a second calendar edit. [Native decision tests](../backend-go/internal/coaching/drafts/decision_test.go)
 
 ## Original pending-draft assignment
 
@@ -44,7 +44,7 @@ The assignment covered a synthetic workflow that builds or loads a snapshot, sav
 3. Compare the responses and durable rows from Go and Python on independent synthetic schemas. Exercise a duplicate submission, stale revision, concurrent edits, a failed write with rollback and the unchanged Python-created draft.
 4. Verify the full workflow through the runnable entry point and package-local tests. Manual acceptance remains a separate athlete action.
 
-[Proposal lifecycle tests](../backend/tests/integration/test_proposals.py) · [Proposal services](../backend/app/services/proposals)
+[Native proposal tests](../backend-go/internal/coaching/drafts/store_test.go) · [Draft service](../backend-go/internal/coaching/drafts)
 
 ## Continuation prompt
 
@@ -52,27 +52,24 @@ The assignment covered a synthetic workflow that builds or loads a snapshot, sav
 
 ## Native dashboard handoff
 
-The package-local HTTP handler serves the dashboard review, message, new-review, cancellation and auth endpoints. Core owns registration under `/api/v1/coach/chat` and shutdown at server exit. For demo and test, call `coachdashboardhttp.NewNative(ctx, pool, cfg)` once with the migrated PostgreSQL pool and a `LocalConfig` containing the repository root, private directory, mode and local ports. [Native tool wiring](../backend-go/internal/coachdashboardhttp/native.go) Construction imports the mode's previous Python conversation files. Opening a review reads its state. Sending a user message loads the repo-local coaching instructions and starts a model turn. [Local composition](../backend-go/internal/coachdashboardhttp/local.go) · [Runtime](../backend-go/internal/coachdashboard/appserver.go)
+The package-local HTTP handler serves the dashboard review, message, new-review, cancellation and auth endpoints. Core owns registration under `/api/v1/coach/chat` and shutdown at server exit. At server startup, call `coachdashboardhttp.NewNative(ctx, pool, cfg)` once with the migrated PostgreSQL pool and a `LocalConfig` containing the repository root, private directory, mode and local ports. [Native tool wiring](../backend-go/internal/coachdashboardhttp/native.go) Construction imports the mode's previous Python conversation files. Opening a review reads its state. Sending a user message loads the repo-local coaching instructions and starts a model turn. [Local composition](../backend-go/internal/coachdashboardhttp/local.go) · [Runtime](../backend-go/internal/coachdashboard/appserver.go)
 
-Core owns migration `0028_coach_chat_reviews` and the schema catalog. The file importer uses its reviews, receipts and import-marker tables. Stop the Python writer for the mode at cutover. Import retains archives, thread IDs, observed evidence and message receipts in one transaction. Repeating startup preserves subsequent Go turns. [Importer](../backend-go/internal/coachdashboard/import.go)
+Core owns migration `0028_coach_chat_reviews` and the schema catalog. The file importer uses its reviews, receipts and import-marker tables. During deployment, stop the previous writer before running this import. Import retains archives, thread IDs, observed evidence and message receipts in one transaction. Repeating startup preserves subsequent Go turns. [Importer](../backend-go/internal/coachdashboard/import.go)
 
 The six dashboard tools operate on the active turn. The native constructor binds domain reads and pending-draft writes to the dispatcher's transaction. The save callback receives a verified snapshot identity and the observed draft revision. The athlete’s pending-save authorization applies to the current message. Proposal decisions belong to the proposal service and its review page. [Tool contract](../backend-go/internal/coachdashboard/tools.go)
 
 Snapshot assembly calls `snapshotreads.LoadInputs` in the caller's consistent transaction after metric and exception refresh. It reads planning, workout, feedback, block, travel, exception and profile projections. The snapshot builder composes the native weekly digest, return plan, confirmed strength sessions and accepted omissions. It selects and verifies the KB evidence and persists the canonical packet and source fingerprint in the same transaction. [Snapshot builder](../backend-go/internal/coaching/snapshots/build.go) · [Query registry](../backend-go/internal/coaching/drilldowns/query.go) [Snapshot inputs](../backend-go/internal/coaching/snapshotreads/inputs.go)
 
-Run the dashboard checks from a configured checkout with the pinned Go tools on PATH. The dashboard runner uses a disposable schema and a scripted local app-server. Its file-import case generates the archive with the Python dashboard writer. The Go pool defaults to read-only transactions. The cross-process test exercises all six tools, restarts the conversation, replays the athlete’s receipt and checks the pending proposal against the accepted calendar in PostgreSQL.
+Run the native dashboard checks with the pinned Go tools on PATH. The synthetic process and browser rehearsals used a disposable database and a scripted local app-server. The file-import rehearsal used an archive from the old Python dashboard writer. The cross-process test exercised all six tools, restarted the conversation, replayed the athlete’s receipt and checked the pending proposal against the accepted calendar in PostgreSQL.
 
 ```sh
-python3 scripts/test-db.py test tests/integration/test_coach_chat.py
-python3 scripts/test-db.py dashboard
+make test-proposal-go
 python3 scripts/test_coach_skill_v2.py
 make check-go
 ```
 
-To exercise the dashboard through Vite and installed Chrome, run `GB_NATIVE_COACH_BROWSER=1 python3 scripts/test-db.py dashboard`. The browser journey creates a fresh test database and uses a scripted local coach.
-
-The repo-local helper invokes the native coaching CLI for schema, snapshot, query, submit and revise by default in demo and test. Real mode keeps Python by default. Setting `GOING_BANANAS_BACKEND=go` selects the native CLI in the explicitly requested mode. The launcher resolves that setting inside `with-mode`, and the Go CLI verifies the database suffix before opening a connection. Reads of proposals, history and findings use the existing HTTP routes. In the dashboard runner a synthetic athlete reviews the draft in a separate HTTP action. Acceptance advances the calendar once, and an explicit undo restores the previous run duration. The runner then drives the registered dashboard against the same database using a local scripted app-server. [Helper selector](../scripts/coach-cli) · [Separate-process journey](../scripts/rewrite/check_coach_helper.py)
+The repo-local helper invokes the native coaching CLI for schema, snapshot, query, submit and revise in each mode. The launcher selects the workspace through `with-mode`, and the Go CLI verifies the database suffix before opening a connection. Reads of proposals, history and findings use the Go HTTP routes. In the synthetic journey, an athlete reviewed the draft in a separate HTTP action. Acceptance advanced the calendar once, and an explicit undo restored the previous run duration. [Helper launcher](../scripts/coach-cli) · [Verification commands](../README.md#verification)
 
 Historical revision reads accept integral spellings such as `1.0`. An absent revision in the signed 64-bit range returns `404 proposal_revision_not_found`, including values outside PostgreSQL's signed 32-bit revision column. Invalid syntax and values outside the signed 64-bit range return `422 validation_error`. These range checks avoid the Python route's database error for oversized lookups.
 
-The same rehearsal backs up an isolated source database and private directory, restores both to fresh targets, and starts the native server against the restored workspace. It checks the raw-file SHA-256, calendar and session IDs, both proposal revisions, snapshot fingerprints and message receipt digests. Replaying the original athlete message returns the original pending proposal. [Recovery rehearsal](../scripts/rewrite/coach_recovery_process.py)
+The same rehearsal backed up an isolated source database and private directory, restored both to fresh targets, and started the native server against the restored workspace. It checked the raw-file SHA-256, calendar and session IDs, both proposal revisions, snapshot fingerprints and message receipt digests. Replaying the original athlete message returns the original pending proposal. [Dashboard persistence](../backend-go/internal/coachdashboard)
