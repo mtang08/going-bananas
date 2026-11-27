@@ -5,98 +5,63 @@ import json
 import os
 import re
 import subprocess
-import sys
 import tempfile
-from datetime import UTC, datetime
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import psycopg
 from psycopg import sql
 from sqlalchemy.engine import make_url
-from test_proposal_slice import BACKEND, MODULE, ROOT, migrated_schema
+from test_proposal_slice import MODULE, ROOT, migrated_schema
 
 
-def reference():
-    from app.api.coach import resolve_kb
-    from app.db import SessionLocal
-    from app.services.backup import create_backup, validate_backup
-    from app.services.calendar import calendar_view
-    from app.services.profile import current_profile, profile_data
-    from app.services.proposals.lifecycle import submit_proposal
-    from app.services.snapshot.build import build_snapshot
-    from app.services.timezone import athlete_today
-    from app.services.weekly_digest import load_week, week_bounds
-    from sqlalchemy import text
-
-    now = datetime.now(UTC)
-    with SessionLocal.begin() as s:
-        name, schema = s.execute(
-            text("SELECT current_database(),current_schema()")
-        ).one()
-        assert name == "garmin_test" and re.fullmatch(r"go_parity_[0-9a-f]{32}", schema)
-        day = athlete_today(s, now)
-        first, last = week_bounds(day)
-        assert profile_data(current_profile(s))["version"] == 1
-        assert calendar_view(s, first, last)["head"] == 1
-        assert load_week(s, first, today=day, now=now)
-        snapshot = build_snapshot(s, "proceed_or_modify_today", day, now=now)
-        doc = {
-            "schema_version": "coach_proposal.v2",
-            "operation": "proceed_or_modify_today",
-            "snapshot_id": snapshot["snapshot_id"],
-            "base_calendar_version": 1,
-            "base_block_version_id": None,
-            "headline": "Private synthetic marker",
-            "why": [{"kind": "observation", "text": "Synthetic evidence"}],
-            "uncertainty": ["Synthetic uncertainty"],
-            "change_triggers": [{"when": "Energy drops", "then": "Rest"}],
-            "next_check": {"on": day.isoformat(), "check": "Review response"},
-            "confidence": {
-                "decision": "moderate",
-                "evidence": "moderate",
-                "data": "moderate",
-            },
-            "changes": [
-                {
-                    "change_id": "c1",
-                    "op": "add",
-                    "after": {
-                        "local_date": day.isoformat(),
-                        "kind": "rest",
-                        "intent": "Rest",
-                    },
-                    "reason": "Review",
-                }
-            ],
-            "evidence_ids": [],
-            "policy_ids": [],
-            "recipe_ids": [],
-            "skill_version": "running-coach.v1",
-        }
-        receipt = submit_proposal(s, doc, now=now, resolve_kb=resolve_kb)
-        assert receipt.status == "pending", [i.code for i in receipt.issues]
-    private = Path(os.environ["PRIVATE_DIR"])
-    archive = private.parent / "synthetic-backup.tar.gz"
-    # Freeze the selected schema for pg_dump: the standalone test shares a DB with other suites.
-    from unittest.mock import patch
-
-    from app.services import backup
-
-    run = backup._run
-    with patch.object(
-        backup,
-        "_run",
-        side_effect=lambda argv, env: run(
-            argv[:1] + ["--schema", schema] + argv[1:], env
-        ),
-    ):
-        manifest = create_backup(os.environ["DATABASE_URL"], private, archive)
-    verified, _ = validate_backup(archive)
-    assert (
-        manifest == verified
-        and verified["files"]["private/raw/synthetic"]["sha256"]
-        == hashlib.sha256(b"fixture").hexdigest()
-    )
+def seed_pending(binary, tmp, env):
+    day = datetime.now(ZoneInfo("America/New_York")).date()
+    coach_env = {**env, "GB_REPO": str(ROOT)}
+    snapshot = json.loads(subprocess.check_output(
+        [binary, "coach", "snapshot", "--operation", "proceed_or_modify_today", "--as-of", day.isoformat()],
+        env=coach_env,
+    ))
+    doc = {
+        "schema_version": "coach_proposal.v2",
+        "operation": "proceed_or_modify_today",
+        "snapshot_id": snapshot["snapshot_id"],
+        "base_calendar_version": 1,
+        "base_block_version_id": None,
+        "headline": "Private synthetic marker",
+        "why": [{"kind": "observation", "text": "Synthetic evidence"}],
+        "uncertainty": ["Synthetic uncertainty"],
+        "change_triggers": [{"when": "Energy drops", "then": "Rest"}],
+        "next_check": {"on": day.isoformat(), "check": "Review response"},
+        "confidence": {
+            "decision": "moderate",
+            "evidence": "moderate",
+            "data": "moderate",
+        },
+        "changes": [
+            {
+                "change_id": "c1",
+                "op": "add",
+                "after": {
+                    "local_date": day.isoformat(),
+                    "kind": "rest",
+                    "intent": "Rest",
+                },
+                "reason": "Review",
+            }
+        ],
+        "evidence_ids": [],
+        "policy_ids": [],
+        "recipe_ids": [],
+        "skill_version": "running-coach.v1",
+    }
+    path = tmp / "draft.json"
+    path.write_text(json.dumps(doc))
+    receipt = json.loads(subprocess.check_output(
+        [binary, "coach", "submit", "--file", path], env=coach_env,
+    ))
+    assert receipt["status"] == "pending", receipt
 
 
 def snapshots(db, private):
@@ -146,11 +111,7 @@ def scenario(binary, tmp, env):
         db.execute(
             "insert into sync_jobs(id,dataset,status,start_date,end_date,checkpoint,counters) values(gen_random_uuid(),'activities','queued',CURRENT_DATE,CURRENT_DATE,'{\"offset\":5}','{}')"
         )
-        subprocess.run(
-            [sys.executable, __file__, "reference"],
-            env={**env, "PYTHONPATH": str(BACKEND)},
-            check=True,
-        )
+        seed_pending(binary, tmp, env)
 
         def run(ok, key, value, extra=None):
             before = snapshots(db, private)
@@ -209,7 +170,7 @@ def scenario(binary, tmp, env):
         db.execute("DROP TABLE alembic_version")
         run(False, "schema", "failed")
     print(
-        "PASS read-only populated workspace, Python backup manifest and domain reads, corrupt/missing/linked raw file, broken calendar, checkpoint, running writer, interrupted migration and mode isolation"
+        "PASS read-only populated workspace, native pending draft, corrupt/missing/linked raw file, broken calendar, checkpoint, running writer, interrupted migration and mode isolation"
     )
 
 
@@ -237,12 +198,9 @@ def main():
             cwd=MODULE,
             check=True,
         )
-        with migrated_schema(db, url, d / "workspace", "5173") as env:
+        with migrated_schema(db, url, d / "workspace", "5173", app_binary=binary) as env:
             scenario(binary, d, env)
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["reference"]:
-        reference()
-    else:
-        main()
+    main()

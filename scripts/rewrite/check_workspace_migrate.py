@@ -15,6 +15,7 @@ from uuid import uuid4
 
 import psycopg
 from check_gcal_replay import test_url
+from schema_fixture import normalize_array_casts
 from psycopg import sql
 from test_proposal_slice import BACKEND, MODULE, ROOT
 
@@ -75,17 +76,7 @@ def snapshot(name, env):
         if not line.startswith(("\\restrict ", "\\unrestrict "))
     )
 
-    # A dump/restore can distribute an array cast over literal varchar elements.
-    # Compare the same expression tree spelling; preserve each element and its order.
-    def array_cast(match):
-        values = match[1].split(", ")
-        return "ARRAY[" + ", ".join(f"({v})::text" for v in values) + "]"
-
-    ddl = re.sub(
-        r"\(ARRAY\[((?:'[A-Za-z_0-9]+'::character varying)(?:, '[A-Za-z_0-9]+'::character varying)*)\]\)::text\[\]",
-        array_cast,
-        ddl,
-    )
+    ddl = normalize_array_casts(ddl)
     data = {}
     sequences = {}
     with pg_conn(env) as db:

@@ -11,11 +11,10 @@ const require = createRequire(new URL('../../frontend/package.json', import.meta
 const { chromium, firefox, webkit, expect } = require('@playwright/test')
 const ports = process.argv.slice(2)
 assert(
-  ports.length === 2 && ports.every((p) => /^\d+$/.test(p) && +p > 0 && +p <= 65535),
-  'Usage: node scripts/rewrite/proposal-home.mjs <python_port> <go_port>',
+  ports.length === 1 && ports.every((p) => /^\d+$/.test(p) && +p > 0 && +p <= 65535),
+  'Usage: node scripts/rewrite/proposal-home.mjs <go_port>',
 )
-const [python, candidate] = ports.map((p) => 'http://127.0.0.1:' + Number(p))
-assert.notEqual(python, candidate)
+const [candidate] = ports.map((p) => 'http://127.0.0.1:' + Number(p))
 const list = '/api/v1/coach/proposals?status=open'
 const goalText = 'Settings fixture ' + randomUUID()
 const draft = '00000000-0000-0000-0000-000000000033'
@@ -32,10 +31,10 @@ function setFixtureStatus(before, after) {
   assert.equal(changed.trim(), draft, 'Expected disposable proposal-list fixture')
 }
 
-for (const url of [python + '/api/v1/profile', candidate + list]) {
+for (const url of [candidate + '/api/v1/profile', candidate + list]) {
   const response = await fetch(url)
   assert.equal(response.status, 200)
-  assert.equal((await response.json()).mode, 'test', 'Start both listeners in test mode')
+  assert.equal((await response.json()).mode, 'test', 'Start the listener in test mode')
 }
 
 const engine = process.env.PROPOSAL_HOME_ENGINE || 'chrome'
@@ -47,7 +46,7 @@ const browser =
     : await browsers[engine].launch(engine === 'chrome' ? { channel: 'chrome' } : {})
 
 const frontend = fileURLToPath(new URL('../../frontend/', import.meta.url))
-Object.assign(process.env, { APP_MODE: 'test', APP_PORT: ports[1] })
+Object.assign(process.env, { APP_MODE: 'test', APP_PORT: ports[0] })
 const { createServer } = await import(require.resolve('vite'))
 const vite = await createServer({
   root: frontend,

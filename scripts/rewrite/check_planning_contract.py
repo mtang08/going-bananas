@@ -1,4 +1,4 @@
-"""Validate actual Go and FastAPI planning responses against the public contract."""
+"""Validate native planning responses against the public contract."""
 
 import json
 import os
@@ -8,9 +8,9 @@ from http.client import HTTPConnection
 from pathlib import Path
 
 import psycopg
-from check_planning_commands import BLOCK, EVENT, MISSING, RUN, seed
+from planning_fixture import BLOCK, EVENT, MISSING, RUN, seed
 from sqlalchemy.engine import make_url
-from test_proposal_slice import MODULE, ROOT, migrated_schema, servers
+from test_proposal_slice import MODULE, ROOT, migrated_schema, native_server
 
 
 def exercise(port):
@@ -153,18 +153,12 @@ def main():
         subprocess.run(
             ["go", "build", "-o", binary, "./cmd/going-bananas"], cwd=MODULE, check=True
         )
-        with (
-            migrated_schema(db, url, scratch / "py", "5173") as py,
-            migrated_schema(db, url, scratch / "go", "5173") as go,
-        ):
-            for env in (py, go):
-                seed(env)
-            with servers(py, dict(go, GB_MODE_ROOT=str(ROOT)), binary) as ports:
-                for port in ports:
-                    count = exercise(port)
-    print(
-        f"PASS {count} real planning responses per backend against all 17 contract operations"
-    )
+        with migrated_schema(db, url, scratch / "app", "5173", app_binary=binary) as env:
+            seed(env)
+            with native_server(env, binary) as port:
+                count = exercise(port)
+    print(f"PASS {count} native planning responses against all 17 contract operations")
+
 
 
 if __name__ == "__main__":
