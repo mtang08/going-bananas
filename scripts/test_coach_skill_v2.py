@@ -4,6 +4,8 @@ import importlib.util
 import io
 import json
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -86,16 +88,56 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(result['ok'])
         command = run.call_args.args[0]
-        self.assertEqual(command[:3], [str(ROOT/'scripts/with-mode'),'demo',str(ROOT/'scripts/coach-native')])
+        self.assertEqual(command[:3], [str(ROOT/'scripts/with-mode'),'demo',str(ROOT/'scripts/coach-cli')])
         self.assertEqual(command[-4:], ['query','activity_execution','--activity-id',UID])
         self.assertNotIn('shell', run.call_args.kwargs)
         self.assertEqual(run.call_args.kwargs['cwd'], ROOT)
 
-    def test_real_mode_keeps_python_cli(self):
+    def test_real_mode_selects_backend_inside_with_mode(self):
         with patch.object(helper.subprocess, 'run', return_value=SimpleNamespace(returncode=0,stdout='{}',stderr='')) as run:
             helper.run_cli(ROOT, 'real', ['schema'])
-        self.assertEqual(run.call_args.args[0], [str(ROOT/'scripts/with-mode'), 'real', 'uv', 'run',
-                         '--directory', str(ROOT/'backend'), 'python', '-m', 'app.cli', 'coach', 'schema'])
+        self.assertEqual(run.call_args.args[0], [str(ROOT/'scripts/with-mode'), 'real', str(ROOT/'scripts/coach-cli'), 'schema'])
+
+    def test_backend_selection_inside_disposable_repo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts = root/'scripts'
+            scripts.mkdir()
+            for name in ('with-mode', 'env.sh', 'coach-cli'):
+                shutil.copy2(ROOT/'scripts'/name, scripts/name)
+            # Neither stand-in contacts a database. Each reports the resolved
+            # destination so the test can assert it survived .env loading.
+            hooks = root/'shell-functions'
+            bin_dir = root/'bin'
+            bin_dir.mkdir()
+            hooks.write_text(f'export PATH="{bin_dir}:$PATH"\n')
+            uv = bin_dir/'uv'
+            uv.write_text('#!/bin/bash\necho "python $APP_MODE $DATABASE_URL $PRIVATE_DIR"\n')
+            go = bin_dir/'go'
+            go.write_text("""#!/bin/bash
+while [[ "$1" != "-o" ]]; do shift; done
+echo '#!/bin/bash' > "$2"
+echo 'echo "go $APP_MODE $DATABASE_URL $PRIVATE_DIR"' >> "$2"
+chmod +x "$2"
+""")
+            for executable in (uv, go):
+                executable.chmod(0o700)
+            for mode, configured, override, expected in [
+                ('real', '', '', 'python'), ('real', 'go', '', 'go'),
+                ('real', 'go', 'python', 'python'), ('real', 'python', 'go', 'go'),
+                ('test', '', '', 'go'), ('demo', '', '', 'go'), ('test', 'python', '', 'python'),
+            ]:
+                with self.subTest(mode=mode, configured=configured, override=override):
+                    (root/'.env').write_text(f'APP_MODE=demo\nDATABASE_URL=postgresql://fixture/config_demo\nPRIVATE_DIR={root}/configured\nGOING_BANANAS_BACKEND={configured}\n')
+                    dest = f'postgresql://fixture/selected_{mode}'
+                    private = str(root/'selected')
+                    env = {'PATH': os.environ['PATH'], 'APP_MODE':mode, 'PRIVATE_DIR':private,
+                           'DATABASE_URL':dest, 'BASH_ENV':str(hooks)}
+                    if override:
+                        env['GOING_BANANAS_BACKEND'] = override
+                    result = subprocess.run([scripts/'with-mode', mode, scripts/'coach-cli', 'schema'],
+                                            env=env, capture_output=True, text=True, check=True)
+                    self.assertEqual(result.stdout.strip(), f'{expected} {mode} {dest} {private}')
 
     def test_schema_mismatch_never_submits(self):
         with patch.object(helper, 'run_cli', return_value=(0,{**SCHEMA,'activation':'automatic'})) as run, \
@@ -228,7 +270,7 @@ class HelperTests(unittest.TestCase):
     def test_manifest_covers_exact_artifact_bytes(self):
         manifest = json.loads((PACKAGE/'coach-helper.manifest.json').read_text())
         self.assertEqual(manifest['activation'], 'manual')
-        self.assertEqual(manifest['artifact_version'], 'going-bananas-coach.MVP-1.6')
+        self.assertEqual(manifest['artifact_version'], 'going-bananas-coach.MVP-1.7')
         names = []
         for entry in manifest['files']:
             path = PACKAGE/entry['path']

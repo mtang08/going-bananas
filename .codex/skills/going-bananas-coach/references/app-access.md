@@ -23,7 +23,7 @@ Commands:
 
 Exit codes: 0 success; 1 sanitized runtime failure; 2 invalid input/protocol; 3 stale proposal; 4 unavailable verified research or missing query subject. Read structured errors and apply the bounded retries in SKILL.md. A successful submission must say `pending`; any other successful response is treated as a protocol error.
 
-Schema, snapshot, query, submit, and revise invoke the repository CLI through `scripts/with-mode` using subprocess argument arrays. Demo and test use the Go coaching executable built by `scripts/coach-native`; real mode uses the Python coaching CLI. `active-proposal`, `exceptions`, `history`, and `proposal` use read-only API GET requests. There is no automatic mode switch, shell command interpolation, direct SQL, accept command, or fallback to `/coach/agent/proposals`. Plans are accepted in the app review page. This package is installed from its verified manifest during the app's calendar-authority cutover.
+Schema, snapshot, query, submit, and revise invoke the repository CLI through `scripts/with-mode` using subprocess argument arrays. The helper uses Go by default in demo and test, and Python by default in real mode. The owner can set `GOING_BANANAS_BACKEND=go` to select Go for the explicit mode, or `python` to select Python. `active-proposal`, `exceptions`, `history`, and `proposal` use read-only API GET requests. There is no automatic mode switch, shell command interpolation, direct SQL, accept command, or fallback to `/coach/agent/proposals`. Plans are accepted in the app review page. This package is installed from its verified manifest during the app's calendar-authority cutover.
 
 ## Reusable access without repeated prompts
 

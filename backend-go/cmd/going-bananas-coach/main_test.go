@@ -88,3 +88,18 @@ func TestSyntheticCLI(t *testing.T) {
 		t.Fatal(v)
 	}
 }
+
+func TestDatabaseMatchesExplicitMode(t *testing.T) {
+	for _, test := range []struct {
+		mode, backend, db string
+		want              bool
+	}{
+		{"real", "go", "fixture_real", true}, {"real", "", "fixture_real", false}, {"real", "python", "fixture_real", false},
+		{"real", "go", "fixture_test", false}, {"test", "go", "fixture_real", false}, {"test", "", "fixture_test", true},
+		{"demo", "", "fixture_demo", true}, {"bogus", "go", "fixture_bogus", false},
+	} {
+		if got := selectedDatabase(test.mode, test.backend, test.db); got != test.want {
+			t.Errorf("mode %s backend %s database %s: %t", test.mode, test.backend, test.db, got)
+		}
+	}
+}

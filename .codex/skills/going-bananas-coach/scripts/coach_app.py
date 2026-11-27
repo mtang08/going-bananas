@@ -75,11 +75,7 @@ def repo_root(explicit: Path | None = None) -> Path:
 def run_cli(root: Path, mode: str, arguments: list[str]):
     if mode not in MODES:
         raise HelperError('invalid_mode', 2)
-    if mode in ('demo', 'test'):
-        executable = [str(root / 'scripts/coach-native')]
-    else:
-        executable = ['uv', 'run', '--directory', str(root / 'backend'), 'python', '-m', 'app.cli', 'coach']
-    command = [str(root / 'scripts/with-mode'), mode, *executable, *arguments]
+    command = [str(root / 'scripts/with-mode'), mode, str(root / 'scripts/coach-cli'), *arguments]
     response = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=180, check=False)
     try:
         payload = json.loads(response.stdout if response.stdout.strip() else response.stderr)

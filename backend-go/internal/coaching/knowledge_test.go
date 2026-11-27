@@ -120,3 +120,21 @@ func TestChangedSelectedRecipe(t *testing.T) {
 		t.Fatal("changed selection did not invalidate saved fingerprint")
 	}
 }
+
+func TestVerifyRetainedKnowledgeSelectionShape(t *testing.T) {
+	for _, raw := range []string{
+		`"invalid entry"`,
+		`{"path":"COACHING_GUIDE.md","sections":["*"],"unknown":true}`,
+		`{"Path":"COACHING_GUIDE.md","sections":["*"]}`,
+		`{"path":"COACHING_GUIDE.md","sections":["*"],"record_ids":null}`,
+		`{"path":"COACHING_GUIDE.md","sections":[null]}`,
+	} {
+		var entry SelectionEntry
+		if err := json.Unmarshal([]byte(raw), &entry); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := VerifySelection("../../../running_coach_kb", []SelectionEntry{entry}); err == nil {
+			t.Errorf("verified malformed retained selection %s", raw)
+		}
+	}
+}
