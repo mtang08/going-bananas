@@ -14,14 +14,13 @@ import tempfile
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.adapters.strong import ADAPTER_VERSION, StrongCSVError, scan_strong_csv
 from app.config import settings
-from app.db import SessionLocal, bump_data_revision, global_write_lock
+from app.db import bump_data_revision, global_write_lock
 from app.models import ImportBatch, RawObject, SourceAccount, SourceRecord
-from app.services.sync import ADVISORY_LOCK
 from app.strong_models import StrongWorkoutRow
 
 
@@ -174,17 +173,12 @@ def main() -> int:
     parser.add_argument("csv", type=Path)
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
+    from app.strong_native import run_import
+
     try:
-        with SessionLocal() as session:
-            if args.apply:
-                session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": ADVISORY_LOCK})
-            result = import_strong_csv(session, settings.private_dir, args.csv, apply=args.apply)
-            if args.apply:
-                session.commit()
-    except (StrongCSVError, OSError) as exc:
-        # Never show private paths, rows, or exception text.
-        code = str(exc) if isinstance(exc, StrongCSVError) else "csv_io_error"
-        print({"status": "error", "code": code})
+        result = run_import(settings, args.csv, apply=args.apply)
+    except ValueError as exc:
+        print({"status": "error", "code": str(exc)})
         return 1
     print(result)
     return 0
