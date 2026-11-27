@@ -3,43 +3,50 @@ package snapshots
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/coaching"
+	"github.com/mtang08/going-bananas/backend-go/internal/testpg"
 )
 
+func snapshotTestTx(t *testing.T) pgx.Tx {
+	t.Helper()
+	tx := testpg.DashboardTx(t)
+	if _, err := tx.Exec(t.Context(), "SET LOCAL TIME ZONE 'UTC'"); err != nil {
+		t.Fatal(err)
+	}
+	return tx
+}
+
 func TestPreparedSnapshotPersistence(t *testing.T) {
-	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("requires disposable dashboard PostgreSQL runner")
-	}
-	ops := []string{daily, rolling, blockReview, quality, race, calibrate, exception, postEvent}
-	args := append([]string{"testdata/build_reference.py"}, ops...)
-	output, err := exec.CommandContext(t.Context(), os.Getenv("DASHBOARD_REFERENCE_PYTHON"), args...).Output()
-	if err != nil {
-		t.Fatal("Python prepared snapshot reference:", err)
-	}
-	decoder := json.NewDecoder(bytes.NewReader(output))
+	tx := snapshotTestTx(t)
 	ctx := t.Context()
-	conn, err := pgx.Connect(ctx, dsn)
-	if err != nil {
-		t.Fatal("open snapshot fixture")
-	}
-	defer func() { _ = conn.Close(context.Background()) }()
-	tx, err := conn.Begin(ctx)
+	raw, err := os.ReadFile("testdata/prepared.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = tx.Rollback(context.Background()) }()
-	if _, err := tx.Exec(ctx, "SET LOCAL TIME ZONE 'UTC'"); err != nil {
+	var cases []struct {
+		Operation        string
+		PayloadSHA       string `json:"payload_sha256"`
+		SourcesSHA       string `json:"source_versions_sha256"`
+		ApproxTokens     int    `json:"approx_tokens"`
+		KBPackageVersion string `json:"kb_package_version"`
+	}
+	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatal(err)
+	}
+	if len(cases) != 8 {
+		t.Fatal("missing prepared snapshot operations")
 	}
 	now := time.Date(2030, 1, 9, 18, 30, 0, 0, time.UTC)
 	const kb = "../../../../running_coach_kb"
@@ -69,67 +76,51 @@ func TestPreparedSnapshotPersistence(t *testing.T) {
 	if err := tx.QueryRow(ctx, "SELECT count(*) FROM snapshot_prepare_probe").Scan(&count); err != nil || count != 0 {
 		t.Fatal("failed preparation leaked effects", err)
 	}
-	for _, op := range ops {
-		t.Run(op, func(t *testing.T) {
-			var want struct {
-				PayloadCanonical string `json:"payload_canonical"`
-				Packet           map[string]any
-				PayloadSHA       string         `json:"payload_sha256"`
-				Sources          map[string]any `json:"source_versions"`
-			}
-			if err := decoder.Decode(&want); err != nil {
-				t.Fatal(err)
-			}
-			output, err := BuildWithPreparation(ctx, tx, op, "2030-01-09", now, kb, func(context.Context, pgx.Tx, string, string, time.Time) error { return nil })
+	for _, want := range cases {
+		t.Run(want.Operation, func(t *testing.T) {
+			output, err := BuildWithPreparation(ctx, tx, want.Operation, "2030-01-09", now, kb, func(context.Context, pgx.Tx, string, string, time.Time) error { return nil })
 			if err != nil {
 				t.Fatal(err)
 			}
-			var stored struct {
-				Payload, Sources map[string]any
-				SHA              string
-			}
-			err = tx.QueryRow(ctx, "SELECT payload,source_versions,payload_sha256 FROM coach_snapshots WHERE id=$1", output["snapshot_id"]).Scan(&stored.Payload, &stored.Sources, &stored.SHA)
+			var payload, sources json.RawMessage
+			var storedSHA, kbVersion string
+			var storedTokens int
+			err = tx.QueryRow(ctx, "SELECT payload,source_versions,payload_sha256,kb_package_version,approx_tokens FROM coach_snapshots WHERE id=$1",
+				output["snapshot_id"]).Scan(&payload, &sources, &storedSHA, &kbVersion, &storedTokens)
 			if err != nil {
 				t.Fatal(err)
 			}
-			snapshotID := output["snapshot_id"]
-			delete(output, "snapshot_id")
-			b, err := json.Marshal(output)
+			var got any
+			if err := json.Unmarshal(payload, &got); err != nil {
+				t.Fatal(err)
+			}
+			responseJSON, err := json.Marshal(output["payload"])
 			if err != nil {
 				t.Fatal(err)
 			}
-			var got map[string]any
-			if err := json.Unmarshal(b, &got); err != nil {
+			var response any
+			if err := json.Unmarshal(responseJSON, &response); err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(stored.Payload, got["payload"]) {
-				t.Fatal("persisted payload differs from output")
+			if d := firstDifference("persisted payload", got, response); d != "" {
+				t.Error(d)
 			}
-			for _, v := range []struct {
-				name      string
-				got, want any
-			}{{"sources", stored.Sources, want.Sources}, {"packet", got, want.Packet}} {
-				if diff := firstDifference(v.name, v.got, v.want); diff != "" {
-					t.Error(diff)
-				}
+			var sourceValue any
+			decoder := json.NewDecoder(bytes.NewReader(sources))
+			decoder.UseNumber()
+			if err := decoder.Decode(&sourceValue); err != nil {
+				t.Fatal(err)
 			}
-			if stored.SHA != want.PayloadSHA {
-				var dbJSON []byte
-				if err := tx.QueryRow(ctx, "SELECT payload FROM coach_snapshots WHERE id=$1", snapshotID).Scan(&dbJSON); err != nil {
-					t.Fatal(err)
-				}
-				var actual, wanted any
-				for _, v := range []struct {
-					b    []byte
-					dest *any
-				}{{dbJSON, &actual}, {[]byte(want.PayloadCanonical), &wanted}} {
-					d := json.NewDecoder(bytes.NewReader(v.b))
-					d.UseNumber()
-					if err := d.Decode(v.dest); err != nil {
-						t.Fatal(err)
-					}
-				}
-				t.Errorf("stored SHA %s; Python %s: %s", stored.SHA, want.PayloadSHA, firstDifference("payload", actual, wanted))
+			canonical, err := coaching.CanonicalJSON(sourceValue)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if hash := fmt.Sprintf("%x", sha256.Sum256(canonical)); hash != want.SourcesSHA {
+				t.Errorf("source versions digest: got %s, want %s", hash, want.SourcesSHA)
+			}
+			if storedSHA != want.PayloadSHA || kbVersion != want.KBPackageVersion || storedTokens != want.ApproxTokens {
+				t.Errorf("persisted payload digest, KB version, tokens: got %s %s %d, want %s %s %d",
+					storedSHA, kbVersion, storedTokens, want.PayloadSHA, want.KBPackageVersion, want.ApproxTokens)
 			}
 		})
 	}
@@ -160,55 +151,51 @@ func firstDifference(path string, got, want any) string {
 	return fmt.Sprintf("%s differs: got %.320v, want %.320v", path, got, want)
 }
 
-// Replay the native preparation over Python-prepared state. Correct idempotent
-// derivations retain metric result IDs and evidence fingerprints.
+// Repeating native preparation on identical inputs must preserve metric row IDs
+// and must persist another snapshot with the same evidence identity and payload.
 func TestProductionSnapshotReplay(t *testing.T) {
-	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("requires disposable dashboard PostgreSQL runner")
-	}
+	tx := snapshotTestTx(t)
 	ctx := t.Context()
-	r, err := exec.CommandContext(ctx, os.Getenv("DASHBOARD_REFERENCE_PYTHON"), "testdata/build_reference.py", "--native", rolling).Output()
-	if err != nil {
-		t.Fatal("Python preparation failed:", err)
+	now := time.Date(2030, 1, 9, 18, 30, 0, 0, time.UTC)
+	type persisted struct {
+		ID               string
+		Sources, Payload map[string]any
+		SHA, Fingerprint string
+		MetricIDs        []uuid.UUID
 	}
-	var want struct {
-		Packet  map[string]any
-		Sources map[string]any `json:"source_versions"`
-		SHA     string         `json:"payload_sha256"`
+	build := func() persisted {
+		t.Helper()
+		out, err := Build(ctx, tx, rolling, "2030-01-09", now, "../../../../running_coach_kb")
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, ok := out["snapshot_id"].(string)
+		if !ok || id == "" {
+			t.Fatal("missing persisted snapshot ID")
+		}
+		result := persisted{ID: id}
+		err = tx.QueryRow(ctx, `SELECT source_versions,payload,payload_sha256,source_fingerprint,
+			(SELECT coalesce(array_agg(id ORDER BY id),'{}') FROM metric_results)
+			FROM coach_snapshots WHERE id=$1`, id).Scan(&result.Sources, &result.Payload, &result.SHA, &result.Fingerprint, &result.MetricIDs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
 	}
-	if err := json.Unmarshal(r, &want); err != nil {
-		t.Fatal(err)
+	first, replay := build(), build()
+	if replay.ID == first.ID || replay.SHA != first.SHA || replay.Fingerprint != first.Fingerprint {
+		t.Fatal("expected separate snapshot rows with the same evidence and payload digests")
 	}
-	conn, err := pgx.Connect(ctx, dsn)
-	if err != nil {
-		t.Fatal("connect to snapshot replay fixture")
-	}
-	defer func() { _ = conn.Close(context.Background()) }()
-	tx, err := conn.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback(context.Background()) }()
-	if _, err = tx.Exec(ctx, "SET LOCAL TIME ZONE 'UTC'"); err != nil {
-		t.Fatal(err)
-	}
-	out, err := Build(ctx, tx, rolling, "2030-01-09", time.Date(2030, 1, 9, 18, 30, 0, 0, time.UTC), "../../../../running_coach_kb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var sources, payload map[string]any
-	var sha string
-	if err := tx.QueryRow(ctx, "SELECT source_versions,payload,payload_sha256 FROM coach_snapshots WHERE id=$1", out["snapshot_id"]).Scan(&sources, &payload, &sha); err != nil {
-		t.Fatal(err)
-	}
-	if d := firstDifference("prepared sources", sources, want.Sources); d != "" {
+	if d := firstDifference("prepared sources", replay.Sources, first.Sources); d != "" {
 		t.Error(d)
 	}
-	if d := firstDifference("prepared payload", payload, want.Packet["payload"]); d != "" {
+	if d := firstDifference("prepared payload", replay.Payload, first.Payload); d != "" {
 		t.Error(d)
 	}
-	if sha != want.SHA {
-		t.Error("production payload hash differs from Python")
+	if len(first.MetricIDs) == 0 {
+		t.Fatal("production preparation did not persist metric results")
+	}
+	if !slices.Equal(replay.MetricIDs, first.MetricIDs) {
+		t.Error("replay changed persisted metric rows")
 	}
 }

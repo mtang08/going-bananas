@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"slices"
 	"testing"
 
@@ -13,14 +12,10 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/snapshotreads"
 )
 
-func TestSnapshotRoutesPythonParity(t *testing.T) {
-	python := os.Getenv("DASHBOARD_REFERENCE_PYTHON")
-	if python == "" {
-		t.Skip("requires backend Python environment")
-	}
-	raw, err := exec.CommandContext(t.Context(), python, "testdata/route_reference.py").Output()
+func TestSnapshotRouteReferences(t *testing.T) {
+	raw, err := os.ReadFile("testdata/route.json")
 	if err != nil {
-		t.Fatal("Python route reference failed:", err)
+		t.Fatal(err)
 	}
 	var cases []struct {
 		Operation       string

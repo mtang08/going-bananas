@@ -4,22 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"reflect"
 	"testing"
 
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/snapshotreads"
 )
 
-func TestAdvancedSectionsPythonParity(t *testing.T) {
-	python := os.Getenv("DASHBOARD_REFERENCE_PYTHON")
-	if python == "" {
-		t.Skip("requires Python reference environment")
-	}
-	cmd := exec.CommandContext(t.Context(), python, "testdata/advanced_reference.py")
-	raw, err := cmd.Output()
+func TestAdvancedSectionReferences(t *testing.T) {
+	raw, err := os.ReadFile("testdata/advanced.json")
 	if err != nil {
-		t.Fatal("Python advanced snapshot reference failed", err)
+		t.Fatal(err)
 	}
 	var cases []struct {
 		Inputs    snapshotreads.Inputs

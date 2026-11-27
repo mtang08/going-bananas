@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"reflect"
 	"slices"
 	"testing"
@@ -13,13 +12,9 @@ import (
 )
 
 func TestReferencePayloads(t *testing.T) {
-	python := os.Getenv("DASHBOARD_REFERENCE_PYTHON")
-	if python == "" {
-		t.Skip("requires configured backend Python")
-	}
-	raw, err := exec.CommandContext(t.Context(), python, "testdata/payload_reference.py").Output()
+	raw, err := os.ReadFile("testdata/payload.json")
 	if err != nil {
-		t.Fatal("Python snapshot suite:", err)
+		t.Fatal(err)
 	}
 	var cases []struct {
 		Inputs    snapshotreads.Inputs

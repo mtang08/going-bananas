@@ -1,14 +1,12 @@
 package evidence
 
 import (
-	"context"
-	"os"
 	"reflect"
-	"regexp"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/testpg"
 )
 
 const (
@@ -20,30 +18,7 @@ var testNow = time.Date(2026, 11, 19, 16, 22, 0, 123456000, time.UTC)
 
 func evidenceTx(t *testing.T) pgx.Tx {
 	t.Helper()
-	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("requires the isolated PostgreSQL dashboard runner")
-	}
-	cfg, err := pgx.ParseConfig(dsn)
-	if err != nil || cfg.Database != "garmin_test" || (cfg.Host != "localhost" && cfg.Host != "127.0.0.1") ||
-		!regexp.MustCompile(`^go_parity_[a-f0-9]{32}$`).MatchString(cfg.RuntimeParams["search_path"]) {
-		t.Fatal("requires an isolated local PostgreSQL fixture")
-	}
-	ctx := t.Context()
-	conn, err := pgx.ConnectConfig(ctx, cfg)
-	if err != nil {
-		t.Fatal("connect to synthetic evidence database")
-	}
-	t.Cleanup(func() { _ = conn.Close(context.Background()) })
-	var schema string
-	if err := conn.QueryRow(ctx, "SELECT current_schema()").Scan(&schema); err != nil || schema != cfg.RuntimeParams["search_path"] {
-		t.Fatal("missing migrated fixture schema")
-	}
-	tx, err := conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadWrite})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	tx := testpg.DashboardTx(t)
 	executeEvidenceSQL(t, tx, "SET LOCAL TIME ZONE 'Asia/Kathmandu'")
 	return tx
 }
