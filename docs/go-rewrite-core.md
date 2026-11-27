@@ -1,6 +1,6 @@
 # Workstream 1 · Application, training data and integration
 
-The Go runtime registers all 81 HTTP operations verified during the port. The API supervisor and operational commands use Go in demo, test and real mode. Python remains available for offline historical Alembic upgrades and non-HTTP references. [Rewrite readiness](go-rewrite-readiness.md) · [Shared specification](go-backend-rewrite.md)
+The Go runtime registers all 81 HTTP operations verified during the port. The API supervisor and operational commands use Go in demo, test and real mode. Alembic remains available for offline historical upgrades. The former application and comparison runners are recorded in Git history. [Rewrite readiness](go-rewrite-readiness.md) · [Shared specification](go-backend-rewrite.md)
 
 ## Synthetic integration evidence
 
