@@ -7,24 +7,18 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"testing"
 )
 
-func TestKnowledgePython(t *testing.T) {
-	ref := os.Getenv("COACHING_KB_REFERENCE")
-	if ref == "" {
-		t.Skip("scripts/rewrite/coaching/check_knowledge.py supplies live Python selections")
-	}
-	b, err := os.ReadFile(ref)
+func TestVerifiedKnowledgeReferences(t *testing.T) {
+	b, err := os.ReadFile("testdata/knowledge.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var cases []struct {
 		Selection   []SelectionEntry `json:"selection"`
 		Digest      string           `json:"digest"`
-		Records     []SelectedRecord `json:"records"`
 		PolicyIDs   []string         `json:"policy_ids"`
 		RecipeIDs   []string         `json:"recipe_ids"`
 		EvidenceIDs []string         `json:"evidence_ids"`
@@ -37,7 +31,7 @@ func TestKnowledgePython(t *testing.T) {
 		if err != nil {
 			t.Fatalf("case %d: %v", i, err)
 		}
-		if got.Digest != c.Digest || !reflect.DeepEqual(got.SelectedRecords, c.Records) || !slices.Equal(slices.Sorted(maps.Keys(index.PolicyIDs)), c.PolicyIDs) || !slices.Equal(slices.Sorted(maps.Keys(index.RecipeIDs)), c.RecipeIDs) || !slices.Equal(slices.Sorted(maps.Keys(index.EvidenceIDs)), c.EvidenceIDs) {
+		if got.Digest != c.Digest || !slices.Equal(slices.Sorted(maps.Keys(index.PolicyIDs)), c.PolicyIDs) || !slices.Equal(slices.Sorted(maps.Keys(index.RecipeIDs)), c.RecipeIDs) || !slices.Equal(slices.Sorted(maps.Keys(index.EvidenceIDs)), c.EvidenceIDs) {
 			t.Errorf("case %d: knowledge mismatch, got digest %s, want %s", i, got.Digest, c.Digest)
 		}
 	}

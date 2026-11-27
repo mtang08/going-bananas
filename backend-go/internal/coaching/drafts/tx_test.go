@@ -73,4 +73,26 @@ func TestDashboardBoundDraft(t *testing.T) {
 	if err != nil || expired == nil || expired.IsCurrent || expired.ProposalID != draft.ProposalID {
 		t.Fatalf("expired evidence should make the same draft non-current: %+v, %v", expired, err)
 	}
+
+	beforeDiscard := readDraftDecisionState(t, pool, pending.ID)
+	if _, err := observer.Discard(ctx, pending.ID, pending.Revision+1, testNow); !errors.As(err, &problem) || problem.Code != "proposal_revision_conflict" {
+		t.Fatalf("discard at the wrong revision: %v", err)
+	}
+	first, err := observer.Discard(ctx, pending.ID, pending.Revision, testNow)
+	if err != nil || first.ID != pending.ID || first.Revision != pending.Revision || first.Status != "discarded" {
+		t.Fatalf("discard result: %+v, %v", first, err)
+	}
+	replay, err := observer.Discard(ctx, pending.ID, pending.Revision, testNow.Add(time.Minute))
+	if err != nil || replay != first {
+		t.Fatalf("discard replay: %+v, %v; want %+v", replay, err, first)
+	}
+	var discardedAt time.Time
+	err = pool.QueryRow(ctx, "SELECT discarded_at FROM coach_proposals WHERE id=$1", pending.ID).Scan(&discardedAt)
+	if err != nil || !discardedAt.Equal(testNow) {
+		t.Fatalf("discard timestamp: %v, %v", discardedAt, err)
+	}
+	beforeDiscard.status = "discarded"
+	if got := readDraftDecisionState(t, pool, pending.ID); got != beforeDiscard {
+		t.Fatalf("discard changed calendar or decision ledger: %+v, want %+v", got, beforeDiscard)
+	}
 }

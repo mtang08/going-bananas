@@ -8,12 +8,8 @@ import (
 	"testing"
 )
 
-func TestPythonSchema(t *testing.T) {
-	path := os.Getenv("COACHING_SCHEMA_REFERENCE")
-	if path == "" {
-		t.Skip("check_schema.py supplies corpus")
-	}
-	data, err := os.ReadFile(path)
+func TestProposalSchemaReferences(t *testing.T) {
+	data, err := os.ReadFile("testdata/schema.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +18,7 @@ func TestPythonSchema(t *testing.T) {
 		Document, Payload any
 		Issues            []Issue
 	}
-	if err = json.Unmarshal(data, &cases); err != nil {
+	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)
 	}
 	for i, c := range cases {
@@ -36,7 +32,7 @@ func TestPythonSchema(t *testing.T) {
 		}{"document": {got.Document, c.Document}, "payload": {got.Payload, c.Payload}} {
 			var decoded any
 			if pair.raw != nil {
-				if err = json.Unmarshal(pair.raw, &decoded); err != nil {
+				if err := json.Unmarshal(pair.raw, &decoded); err != nil {
 					t.Fatal(err)
 				}
 			}
