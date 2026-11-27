@@ -1,6 +1,6 @@
 # Workstream 3 · Coaching evidence and proposal lifecycle
 
-**Owner:** the third Astra session. **First delivery:** `go/coaching` at `33b2b61`. **Continuation branch:** `go/coaching-lifecycle`. Home's Go proposal-list read is the existing transport reference. Pending proposals, decisions, the dashboard coach and the repo-local helper still use the Python application. [Working Go read](../backend-go/internal/proposals) · [Shared specification](go-backend-rewrite.md)
+**Owner:** the third Astra session. **First delivery:** `go/coaching` at `33b2b61`. **Continuation branch:** `go/coaching-lifecycle`. Home's Go proposal-list read is the existing transport reference. Real-mode coaching continues through the Python application. The native dashboard and pending-draft workflow run in demo and test. [Working Go read](../backend-go/internal/proposals) · [Shared specification](go-backend-rewrite.md)
 
 ## First independent assignment
 
@@ -60,7 +60,7 @@ The six dashboard tools operate on the active turn. The native constructor binds
 
 Snapshot assembly calls `snapshotreads.LoadInputs` in the caller's consistent transaction after metric and exception refresh. It reads planning, workout, feedback, block, travel, exception and profile projections. The snapshot builder composes the native weekly digest, return plan, confirmed strength sessions and accepted omissions. It selects and verifies the KB evidence and persists the canonical packet and source fingerprint in the same transaction. [Snapshot builder](../backend-go/internal/coaching/snapshots/build.go) · [Query registry](../backend-go/internal/coaching/drilldowns/query.go) [Snapshot inputs](../backend-go/internal/coaching/snapshotreads/inputs.go)
 
-Run the dashboard checks from a configured checkout with the pinned Go tools on PATH. The dashboard runner uses a disposable schema and a scripted local app-server. Its file-import case generates the archive with the Python dashboard writer.
+Run the dashboard checks from a configured checkout with the pinned Go tools on PATH. The dashboard runner uses a disposable schema and a scripted local app-server. Its file-import case generates the archive with the Python dashboard writer. The Go pool defaults to read-only transactions. The cross-process test exercises all six tools, restarts the conversation, replays the athlete’s receipt and checks the pending proposal against the accepted calendar in PostgreSQL.
 
 ```sh
 python3 scripts/test-db.py test tests/integration/test_coach_chat.py

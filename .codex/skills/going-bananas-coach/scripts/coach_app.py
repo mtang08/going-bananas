@@ -63,7 +63,9 @@ def repo_root(explicit: Path | None = None) -> Path:
     candidates = ([explicit] if explicit else []) + ([Path(os.environ['GB_REPO'])] if os.getenv('GB_REPO') else [])
     candidates += list(Path(__file__).resolve().parents) + [Path.home() / 'dev/going-bananas']
     for candidate in candidates:
-        if (candidate / 'scripts/with-mode').is_file() and (candidate / 'backend/app/cli.py').is_file():
+        if (candidate / 'scripts/with-mode').is_file() and (
+            (candidate / 'backend/app/cli.py').is_file() or (candidate / 'backend-go/go.mod').is_file()
+        ):
             return candidate.resolve()
         if explicit:
             break
@@ -73,8 +75,11 @@ def repo_root(explicit: Path | None = None) -> Path:
 def run_cli(root: Path, mode: str, arguments: list[str]):
     if mode not in MODES:
         raise HelperError('invalid_mode', 2)
-    command = [str(root / 'scripts/with-mode'), mode, 'uv', 'run', '--directory', str(root / 'backend'),
-               'python', '-m', 'app.cli', 'coach', *arguments]
+    if mode in ('demo', 'test'):
+        executable = [str(root / 'scripts/coach-native')]
+    else:
+        executable = ['uv', 'run', '--directory', str(root / 'backend'), 'python', '-m', 'app.cli', 'coach']
+    command = [str(root / 'scripts/with-mode'), mode, *executable, *arguments]
     response = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=180, check=False)
     try:
         payload = json.loads(response.stdout if response.stdout.strip() else response.stderr)

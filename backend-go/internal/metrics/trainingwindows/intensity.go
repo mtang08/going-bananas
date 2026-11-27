@@ -141,6 +141,10 @@ func modalityTotal(name string, items []*dependency, complete bool) (modality, e
 }
 
 func RefreshIntensity(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error {
+	return calculateIntensity(ctx, tx, asOf, func(r metrics.Result) error { _, err := metrics.StoreResult(ctx, tx, r, now); return err })
+}
+
+func calculateIntensity(ctx context.Context, tx pgx.Tx, asOf time.Time, emit func(metrics.Result) error) error {
 	end := dayStart(asOf).AddDate(0, 0, 1)
 	runs, err := runsBetween(ctx, tx, end.AddDate(0, 0, -84), end)
 	if err != nil {
@@ -223,7 +227,7 @@ func RefreshIntensity(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error
 			status = "not_assessable"
 		}
 		key := fmt.Sprintf("w%d:%s", width, asOf.Format(time.DateOnly))
-		_, err = metrics.StoreResult(ctx, tx, metrics.Result{MetricID: "intensity_time_distribution", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Config: intensityConfig, SourceRefs: refs, Timezone: asOf.Location().String(), Status: status, QualityStatus: q, ReasonCodes: keys(reasons), Value: value, Unit: "s", AnchorKeys: keys(anchorKeys)}, now)
+		err = emit(metrics.Result{MetricID: "intensity_time_distribution", MethodVersion: "v1", SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &start, WindowEnd: &end, Config: intensityConfig, SourceRefs: refs, Timezone: asOf.Location().String(), Status: status, QualityStatus: q, ReasonCodes: keys(reasons), Value: value, Unit: "s", AnchorKeys: keys(anchorKeys)})
 		if err != nil {
 			return err
 		}

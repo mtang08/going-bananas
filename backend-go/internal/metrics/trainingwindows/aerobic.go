@@ -37,7 +37,7 @@ func midOrNil(v []float64, d int) any {
 	}
 	return rounded(mid(v), d)
 }
-func aerobicWindow(ctx context.Context, tx pgx.Tx, first, end time.Time, days int, now time.Time) error {
+func aerobicWindow(ctx context.Context, tx pgx.Tx, first, end time.Time, days int, emit func(metrics.Result) error) error {
 	runs, err := runsBetween(ctx, tx, first, end)
 	if err != nil {
 		return err
@@ -132,13 +132,17 @@ func aerobicWindow(ctx context.Context, tx pgx.Tx, first, end time.Time, days in
 		reasons = append(reasons, "SYNC_COVERAGE_INCOMPLETE")
 	}
 	key := "w" + strconv.Itoa(days) + ":" + end.AddDate(0, 0, -1).Format(time.DateOnly)
-	_, err = metrics.StoreResult(ctx, tx, metrics.Result{MetricID: aerobic.ID, MethodVersion: aerobic.Version, SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &first, WindowEnd: &end, Status: status, Value: value, ReasonCodes: reasons, QualityFlags: flags, Unit: "m_per_beat", Timezone: first.Location().String(), Config: aerobic.Config, SourceRefs: refs}, now)
+	err = emit(metrics.Result{MetricID: aerobic.ID, MethodVersion: aerobic.Version, SubjectType: "window", SubjectKey: key, WindowLabel: key, WindowStart: &first, WindowEnd: &end, Status: status, Value: value, ReasonCodes: reasons, QualityFlags: flags, Unit: "m_per_beat", Timezone: first.Location().String(), Config: aerobic.Config, SourceRefs: refs})
 	return err
 }
 func RefreshAerobic(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error {
+	return calculateAerobic(ctx, tx, asOf, func(r metrics.Result) error { _, err := metrics.StoreResult(ctx, tx, r, now); return err })
+}
+
+func calculateAerobic(ctx context.Context, tx pgx.Tx, asOf time.Time, emit func(metrics.Result) error) error {
 	end := time.Date(asOf.Year(), asOf.Month(), asOf.Day()+1, 0, 0, 0, 0, asOf.Location())
 	for _, d := range []int{28, 84} {
-		if err := aerobicWindow(ctx, tx, end.AddDate(0, 0, -d), end, d, now); err != nil {
+		if err := aerobicWindow(ctx, tx, end.AddDate(0, 0, -d), end, d, emit); err != nil {
 			return err
 		}
 	}

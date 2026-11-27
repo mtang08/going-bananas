@@ -14,7 +14,7 @@
     },
     {
       "path": "references/app-access.md",
-      "sha256": "c6e92ee759cb170189a6119c74c4e57476c0b166362eba53016ab7714cb534ff"
+      "sha256": "fa475aa99b02676802b6c0d7cfb6402bdbe3c73c3293a1c52ed0c5436b441ba6"
     },
     {
       "path": "references/coaching-workflows.md",
@@ -34,7 +34,7 @@
     },
     {
       "path": "scripts/coach_app.py",
-      "sha256": "e517c8427cd4ee9eeed3d5d4e0d0ad5bdf646926fa68dcd2f68349ee8fca8a8e"
+      "sha256": "387ca831e98ee4278156a67da10bf66b1118aa33f2a6da95c784dc51df7e7bf6"
     }
   ]
 }

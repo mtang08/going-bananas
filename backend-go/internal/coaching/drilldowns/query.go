@@ -44,6 +44,15 @@ func badArgs() error {
 func stringArg(args object, key string) string { s, _ := args[key].(string); return s }
 
 func (r Reader) Query(ctx context.Context, tx pgx.Tx, args map[string]any) (any, error) {
+	return r.read(ctx, tx, args, true)
+}
+
+// CLIQuery preserves the CLI's unrestricted long-run history window.
+func CLIQuery(ctx context.Context, tx pgx.Tx, args map[string]any) (any, error) {
+	return (Reader{}).read(ctx, tx, args, false)
+}
+
+func (r Reader) read(ctx context.Context, tx pgx.Tx, args map[string]any, dashboard bool) (any, error) {
 	now := time.Now().UTC()
 	if r.Now != nil {
 		now = r.Now()
@@ -87,7 +96,7 @@ func (r Reader) Query(ctx context.Context, tx pgx.Tx, args map[string]any) (any,
 		if err != nil {
 			return nil, badArgs()
 		}
-		if end.Before(start) || !end.Before(start.AddDate(0, 0, 92)) {
+		if end.Before(start) || ((dashboard || name == "recovery_nights") && !end.Before(start.AddDate(0, 0, 92))) {
 			return nil, failure("invalid_date_window", "Choose a date window of at most 92 days.")
 		}
 		if name == "recovery_nights" {

@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/mtang08/going-bananas/backend-go/internal/calendar"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +50,7 @@ func TestReferencePlanningCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 11, 16, 15, 0, 0, 0, time.UTC)
-	h := Handler{Metrics: func(context.Context, pgx.Tx, calendar.PlanScope, []uuid.UUID) error { return nil }, Pool: pool, Mode: "test", Now: func() time.Time { return now }}
+	h := Handler{Metrics: refresh.PlanMetrics(now, refresh.Runs), Pool: pool, Mode: "test", Now: func() time.Time { return now }}
 	mux := http.NewServeMux()
 	h.Register(mux)
 	ids := map[string]string{}
