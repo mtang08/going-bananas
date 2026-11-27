@@ -117,7 +117,7 @@ func Main(args []string) int {
 	mode := os.Getenv("APP_MODE")
 	dsn := strings.Replace(os.Getenv("DATABASE_URL"), "postgresql+psycopg://", "postgresql://", 1)
 	cfg, err := pgxpool.ParseConfig(dsn)
-	allowed := mode == "demo" || mode == "test" || mode == "real" && os.Getenv("GOING_BANANAS_BACKEND") == "go"
+	allowed := mode == "demo" || mode == "test" || mode == "real"
 	if err != nil || dsn == "" || !allowed || !strings.HasSuffix(cfg.ConnConfig.Database, "_"+mode) {
 		fmt.Fprintln(os.Stderr, `{"error":"invalid_workspace"}`)
 		return 2

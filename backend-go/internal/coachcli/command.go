@@ -155,17 +155,13 @@ func invalid(id *uuid.UUID, code string, issues []drafts.Issue) object {
 	return o
 }
 
-func selectedDatabase(mode, backend, database string) bool {
+func selectedDatabase(mode, database string) bool {
 	switch mode {
-	case "test", "demo":
-	case "real":
-		if backend != "go" {
-			return false
-		}
+	case "test", "demo", "real":
+		return strings.HasSuffix(database, "_"+mode)
 	default:
 		return false
 	}
-	return strings.HasSuffix(database, "_"+mode)
 }
 
 func (c command) run(ctx context.Context, out, stderr io.Writer) int {
@@ -187,7 +183,7 @@ func (c command) run(ctx context.Context, out, stderr io.Writer) int {
 	mode := os.Getenv("APP_MODE")
 	dsn := strings.Replace(os.Getenv("DATABASE_URL"), "postgresql+psycopg://", "postgresql://", 1)
 	cfg, err := pgxpool.ParseConfig(dsn)
-	if dsn == "" || err != nil || !selectedDatabase(mode, os.Getenv("GOING_BANANAS_BACKEND"), cfg.ConnConfig.Database) {
+	if dsn == "" || err != nil || !selectedDatabase(mode, cfg.ConnConfig.Database) {
 		return emit(stderr, 1, object{"error": "invalid_database_target"})
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)

@@ -93,51 +93,57 @@ class HelperTests(unittest.TestCase):
         self.assertNotIn('shell', run.call_args.kwargs)
         self.assertEqual(run.call_args.kwargs['cwd'], ROOT)
 
-    def test_real_mode_selects_backend_inside_with_mode(self):
+    def test_helper_passes_real_mode_to_runner(self):
         with patch.object(helper.subprocess, 'run', return_value=SimpleNamespace(returncode=0,stdout='{}',stderr='')) as run:
             helper.run_cli(ROOT, 'real', ['schema'])
         self.assertEqual(run.call_args.args[0], [str(ROOT/'scripts/with-mode'), 'real', str(ROOT/'scripts/coach-cli'), 'schema'])
 
-    def test_backend_selection_inside_disposable_repo(self):
+    def test_explicit_repo_requires_native_coach_entrypoints(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            markers = ('scripts/with-mode', 'backend/app/cli.py', 'backend-go/go.mod')
+            for path in markers:
+                marker = root/path
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.touch()
+            with self.assertRaises(helper.HelperError):
+                helper.repo_root(root)
+            (root/'scripts/coach-cli').touch()
+            (root/'backend/app/cli.py').unlink()
+            self.assertEqual(helper.repo_root(root), root.resolve())
+
+    def test_native_coach_preserves_workspace_inside_disposable_repo(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             scripts = root/'scripts'
             scripts.mkdir()
             for name in ('with-mode', 'env.sh', 'coach-cli', 'backend-cli'):
                 shutil.copy2(ROOT/'scripts'/name, scripts/name)
-            # Neither stand-in contacts a database. Each reports the resolved
-            # destination so the test can assert it survived .env loading.
+            # The stand-in reports its command and destination without connecting.
             hooks = root/'shell-functions'
             bin_dir = root/'bin'
             bin_dir.mkdir()
             hooks.write_text(f'export PATH="{bin_dir}:$PATH"\n')
-            uv = bin_dir/'uv'
-            uv.write_text('#!/bin/bash\necho "python $APP_MODE $DATABASE_URL $PRIVATE_DIR"\n')
             go = bin_dir/'go'
             go.write_text("""#!/bin/bash
 while [[ "$1" != "-o" ]]; do shift; done
 echo '#!/bin/bash' > "$2"
-echo 'echo "go $APP_MODE $DATABASE_URL $PRIVATE_DIR"' >> "$2"
+echo 'echo "$* $APP_MODE $DATABASE_URL $PRIVATE_DIR"' >> "$2"
 chmod +x "$2"
 """)
-            for executable in (uv, go):
-                executable.chmod(0o700)
-            for mode, configured, override, expected in [
-                ('real', '', '', 'python'), ('real', 'go', '', 'go'),
-                ('real', 'go', 'python', 'python'), ('real', 'python', 'go', 'go'),
-                ('test', '', '', 'go'), ('demo', '', '', 'go'), ('test', 'python', '', 'python'),
-            ]:
-                with self.subTest(mode=mode, configured=configured, override=override):
-                    (root/'.env').write_text(f'APP_MODE=demo\nDATABASE_URL=postgresql://fixture/config_demo\nPRIVATE_DIR={root}/configured\nGOING_BANANAS_BACKEND={configured}\n')
+            go.chmod(0o700)
+            (root/'.env').write_text(
+                f'APP_MODE=demo\nDATABASE_URL=postgresql://fixture/config_demo\nPRIVATE_DIR={root}/configured\n'
+            )
+            for mode in ('real', 'test', 'demo'):
+                with self.subTest(mode=mode):
                     dest = f'postgresql://fixture/selected_{mode}'
                     private = str(root/'selected')
                     env = {'PATH': os.environ['PATH'], 'APP_MODE':mode, 'PRIVATE_DIR':private,
                            'DATABASE_URL':dest, 'BASH_ENV':str(hooks)}
-                    if override:
-                        env['GOING_BANANAS_BACKEND'] = override
                     result = subprocess.run([scripts/'with-mode', mode, scripts/'coach-cli', 'schema'],
                                             env=env, capture_output=True, text=True, check=True)
-                    self.assertEqual(result.stdout.strip(), f'{expected} {mode} {dest} {private}')
+                    self.assertEqual(result.stdout.strip(), f'coach schema {mode} {dest} {private}')
 
     def test_schema_mismatch_never_submits(self):
         with patch.object(helper, 'run_cli', return_value=(0,{**SCHEMA,'activation':'automatic'})) as run, \
@@ -270,7 +276,7 @@ chmod +x "$2"
     def test_manifest_covers_exact_artifact_bytes(self):
         manifest = json.loads((PACKAGE/'coach-helper.manifest.json').read_text())
         self.assertEqual(manifest['activation'], 'manual')
-        self.assertEqual(manifest['artifact_version'], 'going-bananas-coach.MVP-1.7')
+        self.assertEqual(manifest['artifact_version'], 'going-bananas-coach.MVP-1.8')
         names = []
         for entry in manifest['files']:
             path = PACKAGE/entry['path']

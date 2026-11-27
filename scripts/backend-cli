@@ -3,19 +3,8 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 case "${APP_MODE:-}" in
-  test|demo) default_backend=go ;;
-  real) default_backend=python ;;
+  test|demo|real) ;;
   *) echo 'Choose a workspace with scripts/with-mode.' >&2; exit 2 ;;
-esac
-case "${GOING_BANANAS_BACKEND:-$default_backend}" in
-  python)
-    if [[ "${1:-}" == migrate ]]; then
-      exec uv run --directory "$root/backend" alembic upgrade head
-    fi
-    exec uv run --directory "$root/backend" python -m app.cli "$@"
-    ;;
-  go) ;;
-  *) echo 'Unknown GOING_BANANAS_BACKEND.' >&2; exit 2 ;;
 esac
 export GB_REPO="$root"
 bin="$root/private/bin"
