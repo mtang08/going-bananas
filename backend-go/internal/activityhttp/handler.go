@@ -9,8 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
-	"github.com/mtang08/going-bananas/backend-go/internal/metrics"
+	"github.com/mtang08/going-bananas/backend-go/internal/httpinput"
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics/recovery"
+	refresh "github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -34,15 +35,16 @@ func invalid(field, reason string) *problem {
 	return &problem{422, "validation_error", "Invalid request fields", []object{{"field": field, "message": reason}}}
 }
 func (h Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/v1/metrics/recovery", h.respond(h.recovery))
-	mux.HandleFunc("GET /api/v1/activities/{activity_id}/workout-history", h.respond(h.history))
-	mux.HandleFunc("GET /api/v1/activities", h.respond(h.activities))
-	mux.HandleFunc("GET /api/v1/activities/{activity_id}", h.respond(h.detail))
+	mux.HandleFunc("GET /api/v1/metrics/recovery", h.respond(h.recovery, true))
+	mux.HandleFunc("GET /api/v1/activities/{activity_id}/execution", h.respond(h.execution, true))
+	mux.HandleFunc("GET /api/v1/activities/{activity_id}/workout-history", h.respond(h.history, true))
+	mux.HandleFunc("GET /api/v1/activities", h.respond(h.activities, false))
+	mux.HandleFunc("GET /api/v1/activities/{activity_id}", h.respond(h.detail, false))
 }
 
 type query func(context.Context, pgx.Tx, *http.Request, time.Time, *time.Location) (any, error)
 
-func (h Handler) respond(f query) http.HandlerFunc {
+func (h Handler) respond(f query, waitForWriter bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		now := time.Now()
@@ -51,7 +53,17 @@ func (h Handler) respond(f query) http.HandlerFunc {
 		}
 		var data any
 		var revision int
-		err := pgx.BeginTxFunc(ctx, h.Pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		opts := pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}
+		// Metric reads wait for in-flight source writers before acquiring their read snapshot.
+		if waitForWriter {
+			opts.IsoLevel = pgx.ReadCommitted
+		}
+		err := pgx.BeginTxFunc(ctx, h.Pool, opts, func(tx pgx.Tx) error {
+			if waitForWriter {
+				if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock_shared(71382413)"); err != nil {
+					return err
+				}
+			}
 			zone, err := db.New(tx).CalendarTimezone(ctx)
 			if err != nil {
 				return err
@@ -105,15 +117,20 @@ func days(r *http.Request, startKey, endKey string, now time.Time, loc *time.Loc
 		if !ok {
 			return defaultDay
 		}
-		d, err := time.ParseInLocation(time.DateOnly, v, loc)
-		if err != nil {
-			fields = append(fields, object{"field": "query." + k, "message": "Input should be a valid date or datetime, input is too short"})
+		parsed, msg := httpinput.Date(v)
+		if msg != "" {
+			fields = append(fields, object{"field": "query." + k, "message": msg})
+			return defaultDay
 		}
+		d, _ := time.ParseInLocation(time.DateOnly, parsed, loc)
 		return d
 	}
 	end = parse(endKey, end)
 	start := parse(startKey, end.AddDate(0, 0, 1-width))
 	if len(fields) > 0 {
+		if len(fields) == 2 {
+			fields[0], fields[1] = fields[1], fields[0]
+		}
 		return start, end, &problem{422, "validation_error", "Invalid request fields", fields}
 	}
 	if start.After(end) || !end.Before(start.AddDate(0, 0, limit)) {
@@ -129,42 +146,21 @@ func (h Handler) recovery(ctx context.Context, tx pgx.Tx, r *http.Request, now t
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := metrics.Digest(recovery.Config)
-	if err != nil {
-		return nil, err
-	}
 	nights := []object{}
 	for day := first; !day.After(last); day = day.AddDate(0, 0, 1) {
 		d := day.Format(time.DateOnly)
-		key := "night:" + d
-		var value object
-		var status string
-		var quality *string
-		var reasons, flags []string
-		err := tx.QueryRow(ctx, `SELECT value,status,quality_status,reason_codes,quality_flags FROM metric_results WHERE metric_id=$1 AND method_version=$2 AND subject_key=$3 AND is_current AND config_hash=$4`, recovery.MetricID, recovery.MethodVersion, key, cfg).Scan(&value, &status, &quality, &reasons, &flags)
-		if errors.Is(err, pgx.ErrNoRows) {
-			res, err := recovery.Calculate(ctx, tx, key)
-			if err != nil {
-				return nil, err
-			}
-			value = res.Value.(map[string]any)
-			status = res.Status
-			if res.QualityStatus != "" {
-				quality = &res.QualityStatus
-			}
-			reasons = res.ReasonCodes
-			flags = res.QualityFlags
-		} else if err != nil {
+		row, err := refresh.ReadResult(ctx, tx, recovery.MetricID, "night:"+d, now)
+		if err != nil {
 			return nil, err
 		}
+		value, _ := row["value"].(map[string]any)
 		if value == nil {
 			value = object{}
 		}
 		value["local_date"] = d
-		value["status"] = status
-		value["quality_status"] = quality
-		value["reason_codes"] = reasons
-		value["quality_flags"] = flags
+		for _, key := range []string{"status", "quality_status", "reason_codes", "quality_flags"} {
+			value[key] = row[key]
+		}
 		nights = append(nights, value)
 	}
 	return object{"start": first.Format(time.DateOnly), "end": last.Format(time.DateOnly), "nights": nights}, nil
@@ -174,15 +170,30 @@ func limit(q url.Values, def, min, max int) (int, error) {
 	if !ok {
 		return def, nil
 	}
-	n, err := strconv.Atoi(raw)
-	if err != nil {
-		return 0, invalid("query.limit", "Input should be a valid integer, unable to parse string as an integer")
-	}
-	if n < min {
-		return 0, invalid("query.limit", "Input should be greater than or equal to "+strconv.Itoa(min))
+	n, msg := httpinput.Integer(raw, min)
+	if msg != "" {
+		return 0, invalid("query.limit", msg)
 	}
 	if n > max {
 		return 0, invalid("query.limit", "Input should be less than or equal to "+strconv.Itoa(max))
 	}
 	return n, nil
+}
+
+func bindingErrors(first, second error) error {
+	if second == nil {
+		return first
+	}
+	if first == nil {
+		return second
+	}
+	var a, b *problem
+	if errors.As(first, &a) && errors.As(second, &b) && b.code == "validation_error" {
+		if a.code == "validation_error" {
+			a.fields = append(a.fields, b.fields...)
+			return a
+		}
+		return b
+	}
+	return first
 }

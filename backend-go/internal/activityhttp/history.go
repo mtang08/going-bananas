@@ -178,16 +178,13 @@ const latestPlans = `WITH latest AS (SELECT DISTINCT ON(r.session_uid) r.* FROM 
  WHERE r.calendar_version_number<=h.calendar_head_version ORDER BY r.session_uid,r.calendar_version_number DESC,r.revision DESC) `
 
 func (h Handler) history(ctx context.Context, tx pgx.Tx, r *http.Request, _ time.Time, loc *time.Location) (any, error) {
-	id, err := activityID(r)
-	if err != nil {
-		return nil, err
-	}
-	size, err := limit(r.URL.Query(), 6, 2, 20)
-	if err != nil {
+	id, idErr := activityID(r)
+	size, limitErr := limit(r.URL.Query(), 6, 2, 20)
+	if err := bindingErrors(idErr, limitErr); err != nil {
 		return nil, err
 	}
 	var day, sport string
-	err = tx.QueryRow(ctx, "SELECT (start_at AT TIME ZONE $2)::date::text,sport FROM activities WHERE id=$1", id, loc.String()).Scan(&day, &sport)
+	err := tx.QueryRow(ctx, "SELECT (start_at AT TIME ZONE $2)::date::text,sport FROM activities WHERE id=$1", id, loc.String()).Scan(&day, &sport)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &problem{404, "activity_not_found", "Activity not found", nil}
 	}
@@ -220,10 +217,27 @@ func (h Handler) history(ctx context.Context, tx pgx.Tx, r *http.Request, _ time
 		return v, nil
 	}
 	v["signature"] = current.signature
+	focus, err := time.Parse(time.DateOnly, day)
+	if err != nil {
+		return nil, err
+	}
+	points, err := progressionPoints(ctx, tx, focus.AddDate(0, 0, -365), focus.AddDate(0, 0, 7), loc)
+	if err != nil {
+		return nil, err
+	}
+	points = slices.DeleteFunc(points, func(p object) bool { return p["signature"] != current.signature || p["local_date"].(string) > day })
+	if len(points) > size {
+		points = points[len(points)-size:]
+	}
+	v["points"] = points
+	return v, nil
+}
+
+func progressionPoints(ctx context.Context, tx pgx.Tx, first, last time.Time, loc *time.Location) ([]object, error) {
 	rows, err := tx.Query(ctx, latestPlans+`SELECT p.session_uid::text,p.local_date::text,p.recipe_id,p.intent,p.structure,a.id::text,(a.start_at AT TIME ZONE $2)::date::text,a.sport,c.status,m.id::text,m.status,m.reason_codes,m.value
  FROM latest p LEFT JOIN session_completions c USING(session_uid) LEFT JOIN activities a ON a.id=c.activity_id AND a.sport IN ('running','trail_running','treadmill_running')
  LEFT JOIN metric_results m ON m.subject_key=a.id::text AND m.metric_id='work_interval_execution' AND m.method_version='v2' AND m.is_current
- WHERE NOT p.deleted AND p.kind='run' AND p.structure IS NOT NULL AND p.local_date BETWEEN $1::text::date-365 AND $1::text::date+7`, day, loc.String())
+ WHERE NOT p.deleted AND p.kind='run' AND p.structure IS NOT NULL AND p.local_date BETWEEN $1::text::date AND $3::text::date`, first.Format(time.DateOnly), loc.String(), last.Format(time.DateOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -238,22 +252,14 @@ func (h Handler) history(ctx context.Context, tx pgx.Tx, r *http.Request, _ time
 		if err != nil {
 			return nil, err
 		}
-		if f.signature != current.signature {
-			continue
-		}
-		pt := point(p, f)
-		if pt["local_date"].(string) <= day {
-			points = append(points, pt)
+		if f.signature != "" {
+			points = append(points, point(p, f))
 		}
 	}
 	slices.SortFunc(points, func(a, b object) int {
 		return cmp.Or(strings.Compare(a["local_date"].(string), b["local_date"].(string)), strings.Compare(a["session_uid"].(string), b["session_uid"].(string)))
 	})
-	if len(points) > size {
-		points = points[len(points)-size:]
-	}
-	v["points"] = points
-	return v, rows.Err()
+	return points, rows.Err()
 }
 func isRun(s string) bool {
 	return slices.Contains([]string{"running", "trail_running", "treadmill_running"}, s)
