@@ -15,8 +15,8 @@ def schema(calendar=False, planning=False):
     source = ProposalDoc.model_json_schema()
     models = source.pop("$defs")
     models["ProposalDoc"] = source
-    from app.services.proposals.lifecycle import RevisionRequest
     from app.services.proposals.decision import DecisionRequest
+    from app.services.proposals.lifecycle import RevisionRequest
 
     for command in (RevisionRequest, DecisionRequest):
         models[command.__name__] = command.model_json_schema()
@@ -27,13 +27,15 @@ def schema(calendar=False, planning=False):
 
         commands = (BootstrapInput, EditsInput, RollbackInput, AnchorInput)
         if planning:
+            from app.api.core import ProfileInput, RunningInterruptionInput
             from app.api.planning import (
                 BenchmarkActivityInput,
                 EventInput,
-                EventPatch,
                 EventOrder,
+                EventPatch,
                 RoutineInput,
             )
+            from app.domain.athlete_facts import RunningRestriction
 
             commands = (
                 EventInput,
@@ -41,6 +43,9 @@ def schema(calendar=False, planning=False):
                 EventOrder,
                 RoutineInput,
                 BenchmarkActivityInput,
+                ProfileInput,
+                RunningInterruptionInput,
+                RunningRestriction,
             )
         models = {}
         for command in commands:
@@ -66,7 +71,10 @@ def schema(calendar=False, planning=False):
             value = {"name": field, "shape": rule}
             if field not in obj.get("required", []):
                 value["default"] = rule.pop(
-                    "default", [] if rule.get("type") == "array" else None
+                    "default",
+                    {"array": [], "object": {}}.get(rule.get("type"))
+                    if planning
+                    else ([] if rule.get("type") == "array" else None),
                 )
             fields.append(value)
         result[name] = fields

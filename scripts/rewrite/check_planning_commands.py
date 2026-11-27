@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import psycopg
 from sqlalchemy.engine import make_url
-from test_proposal_slice import ROOT, MODULE, migrated_schema
+from test_proposal_slice import MODULE, ROOT, migrated_schema
 
 NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
 
@@ -45,12 +45,12 @@ def seed(env):
                 BLOCK,
                 EVENT,
                 json.dumps(
-                    dict(
-                        kind="time_trial",
-                        protocol="Test trial",
-                        planned_date="2026-11-17",
-                        distance_m=5000,
-                    )
+                    {
+                        "kind": "time_trial",
+                        "protocol": "Test trial",
+                        "planned_date": "2026-11-17",
+                        "distance_m": 5000,
+                    }
                 ),
             ),
         )
@@ -136,22 +136,33 @@ def main():
                         for query in [
                             "select name,event_date,distance_m,purpose,status,goal_time_s,result_s,rank,version from events order by name",
                             "select data_revision,calendar_head_version from app_state",
+                            "select metric_id,subject_key,status,value,case when subject_type='window' and metric_id in ('aerobic_efficiency','long_run_exposure','intensity_time_distribution') then null else dependency_hash end,config_hash,timezone from metric_results where is_current order by metric_id,subject_key",
+                            "select to_jsonb(p)-'id'-'effective_at'-'recorded_at' from profile_versions p order by version",
                             "select label,version,default_weekday,active,main_lower_body_lifts from strength_routine_slots order by version,label",
                             "select block_uid,block_version,activity_id,event_id,outcome,protocol,distance_m,result_s,local_date,match_method from block_benchmarks",
                         ]
                     ]
 
-            assert state(ref) == state(go)
+            for index, (reference, candidate) in enumerate(
+                zip(state(ref), state(go), strict=True)
+            ):
+                assert reference == candidate, (
+                    index,
+                    [z for z in reference if z not in candidate][:1],
+                    [z for z in candidate if z not in reference][:1],
+                )
             print(
                 f"Matched {len(json.loads(corpus.read_text()))} planning commands and stored state."
             )
 
 
 def reference(path):
-    from fastapi.testclient import TestClient
+    from app.api import core, planning
     from app.main import app
-    from app.api import planning
+    from app.metrics import refresh
     from app.services import strength_routine
+    from app.services.timezone import athlete_today
+    from fastapi.testclient import TestClient
 
     cases = []
     client = TestClient(app)
@@ -164,32 +175,41 @@ def reference(path):
         if "error" in data:
             data["error"].pop("request_id", None)
         cases.append(
-            dict(
-                method=method,
-                path=route,
-                body=json.loads(json.dumps(body)),
-                status=res.status_code,
-                expected=data,
-            )
+            {
+                "method": method,
+                "path": route,
+                "body": json.loads(json.dumps(body)),
+                "status": res.status_code,
+                "expected": data,
+            }
         )
         return data.get("data", {})
 
     with (
+        patch.object(refresh, "clock", return_value=NOW),
+        patch.object(
+            core,
+            "athlete_today",
+            side_effect=lambda session: athlete_today(session, NOW),
+        ),
         patch.object(planning, "athlete_today", return_value=NOW.date()),
         patch.object(strength_routine, "date_in_zone", return_value=NOW.date()),
     ):
         call("GET", "/events")
         call("PUT", "/events/order", {"items": []})
-        payload = dict(
-            name=" A ", event_date="2027-03-01", purpose="pr", distance_m=10000
-        )
+        payload = {
+            "name": " A ",
+            "event_date": "2027-03-01",
+            "purpose": "pr",
+            "distance_m": 10000,
+        }
         a = call("POST", "/events", payload)["id"]
         b = call("POST", "/events", dict(payload, name="B", event_date="2027-01-01"))[
             "id"
         ]
         call("POST", "/events", dict(payload, name="  "))
         call("GET", "/events")
-        order = [dict(id=b, expected_version=1), dict(id=a, expected_version=1)]
+        order = [{"id": b, "expected_version": 1}, {"id": a, "expected_version": 1}]
         call("PUT", "/events/order", {"items": order[:1]})
         call("PUT", "/events/order", {"items": order})
         call("PUT", "/events/order", {"items": order})
@@ -197,10 +217,10 @@ def reference(path):
             item["expected_version"] = 2
         call("PUT", "/events/order", {"items": order})
         for body in [
-            dict(expected_version=1),
-            dict(expected_version=2, purpose=None),
-            dict(expected_version=2, status="completed", distance_m=None),
-            dict(expected_version=3),
+            {"expected_version": 1},
+            {"expected_version": 2, "purpose": None},
+            {"expected_version": 2, "status": "completed", "distance_m": None},
+            {"expected_version": 3},
         ]:
             call("PATCH", "/events/" + b, body)
         call("GET", "/events")
@@ -218,12 +238,12 @@ def reference(path):
             call("GET", "/blocks/active")
         call("GET", "/blocks/benchmarks")
         call("GET", "/strength-routine")
-        slot = dict(
-            label="  Main ",
-            default_weekday=1,
-            lower_body_cost="moderate",
-            main_lower_body_lifts=[" Squat "],
-        )
+        slot = {
+            "label": "  Main ",
+            "default_weekday": 1,
+            "lower_body_cost": "moderate",
+            "main_lower_body_lifts": [" Squat "],
+        }
         for expected, slots in [
             (0, []),
             (2, [slot]),
@@ -232,9 +252,76 @@ def reference(path):
             (1, [dict(slot, active=False)]),
         ]:
             call(
-                "PUT", "/strength-routine", dict(expected_version=expected, slots=slots)
+                "PUT",
+                "/strength-routine",
+                {"expected_version": expected, "slots": slots},
             )
         call("GET", "/strength-routine")
+        current = call("GET", "/profile")["version"]
+        for fields in [
+            {"anchor_confirmed": True},
+            {"timezone": "Mars/Olympus"},
+            {"strength_week_a_days": [1, 1]},
+            {
+                "facts": {
+                    "running_restriction": {
+                        "source": "Clinic",
+                        "starts_on": "2026-11-02",
+                    }
+                }
+            },
+        ]:
+            call("PUT", "/profile", dict(expected_version=current, **fields))
+        fields = {
+            "timezone": "Pacific/Auckland",
+            "facts": {
+                "running_restriction": {
+                    "starts_on": "2026-11-01",
+                    "source": " Clinic ",
+                    "no_quality": True,
+                }
+            },
+            "unknowns": ["race"],
+            "preferences": {"a": 1},
+            "extra_unused": 1,
+        }
+        call("PUT", "/profile", dict(expected_version=current, **fields))
+        call("GET", "/profile")
+        call("PUT", "/profile", {"expected_version": current})
+        call(
+            "PUT",
+            "/running-interruption",
+            {"expected_version": current + 1, "interruption": None},
+        )
+        episode = {
+            "reason": "travel",
+            "starts_on": "2026-11-15",
+            "return_on": "2026-11-20",
+        }
+        call(
+            "PUT",
+            "/running-interruption",
+            {
+                "expected_version": current + 1,
+                "interruption": dict(episode, review_on="2026-11-15"),
+            },
+        )
+        call(
+            "PUT",
+            "/running-interruption",
+            {"expected_version": current + 1, "interruption": episode},
+        )
+        call(
+            "PUT",
+            "/running-interruption",
+            {"expected_version": current + 2, "interruption": episode},
+        )
+        call(
+            "PUT",
+            "/running-interruption",
+            {"expected_version": current + 2, "interruption": None},
+        )
+        call("GET", "/profile")
     path.write_text(json.dumps(cases))
 
 
