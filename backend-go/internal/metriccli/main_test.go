@@ -2,7 +2,9 @@ package metriccli
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -12,10 +14,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestPythonCommands(t *testing.T) {
-	path := os.Getenv("METRICS_CLI_CASES")
-	if path == "" {
-		t.Skip("requires isolated Python command corpus")
+func TestMetricCommands(t *testing.T) {
+	if os.Getenv("PROPOSAL_TEST_DATABASE_URL") == "" {
+		t.Skip("run the metrics-cli PostgreSQL check")
 	}
 	cfg, err := pgxpool.ParseConfig(os.Getenv("PROPOSAL_TEST_DATABASE_URL"))
 	if err != nil || os.Getenv("APP_MODE") != "test" || cfg.ConnConfig.Database != "garmin_test" || !strings.HasPrefix(os.Getenv("PGOPTIONS"), "-csearch_path=go_parity_") {
@@ -27,15 +28,16 @@ func TestPythonCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	buf, err := os.ReadFile(path)
+	buf, err := os.ReadFile("testdata/commands.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var fixture struct {
 		Query string
 		Cases []struct {
-			Args            []string
-			Response, State map[string]any
+			Args        []string
+			Response    map[string]any
+			StateSHA256 string `json:"state_sha256"`
 		}
 	}
 	if err = json.Unmarshal(buf, &fixture); err != nil {
@@ -59,20 +61,13 @@ func TestPythonCommands(t *testing.T) {
 		if err = pool.QueryRow(ctx, fixture.Query).Scan(&state); err != nil {
 			t.Fatal(err)
 		}
-		for k, v := range item.State {
-			if !reflect.DeepEqual(state[k], v) {
-				if a, ok := state[k].([]any); ok {
-					if b, ok := v.([]any); ok {
-						for i := 0; i < len(a) && i < len(b); i++ {
-							if !reflect.DeepEqual(a[i], b[i]) {
-								t.Fatalf("%v %s item %d: %v want %v", item.Args, k, i, a[i], b[i])
-							}
-						}
-						t.Fatalf("%v %s len %d want %d", item.Args, k, len(a), len(b))
-					}
-				}
-				t.Fatalf("%v %s: %v want %v", item.Args, k, state[k], v)
-			}
+		// Pin the durable result after every preview, apply, retry and failure.
+		data, err := json.Marshal(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := fmt.Sprintf("%x", sha256.Sum256(data)); got != item.StateSHA256 {
+			t.Fatalf("%v: unexpected persisted state (%s); got %s", item.Args, got, data)
 		}
 	}
 }

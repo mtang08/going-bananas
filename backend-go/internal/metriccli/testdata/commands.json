@@ -1,0 +1,568 @@
+{
+  "cases": [
+    {
+      "args": [
+        "metrics-assess-session",
+        "--session-uid",
+        "00000000-0000-0000-0000-0000000003e7"
+      ],
+      "response": {
+        "error": "completion_not_found"
+      },
+      "state_sha256": "8d7e11d8a5510b32d40a2cad43dda20377c06809c7b29a1762c544c5f9644106"
+    },
+    {
+      "args": [
+        "metrics-assess-session",
+        "--session-uid",
+        "00000000-0000-0000-0000-000000000001"
+      ],
+      "response": {
+        "activity_id": "00000000-0000-0000-0000-000000000015",
+        "after": {
+          "completion_status": "unknown",
+          "completion_version": 1,
+          "interval": {
+            "config_hash": "1ec5dbdbd4a0235f7387e1ac4824e510e4c0bc98d1ab41f51d16e3220ccf084e",
+            "quality_flags": [],
+            "reason_codes": [
+              "WATCH_WORKOUT_MISMATCH"
+            ],
+            "status": "not_assessable",
+            "step_completion_ratio": null
+          },
+          "planned_actual": {
+            "components": [
+              {
+                "name": "duration_ratio",
+                "status": "met",
+                "value": 1
+              },
+              {
+                "name": "step_completion_ratio",
+                "status": "not_assessable",
+                "value": null
+              },
+              {
+                "name": "target_coverage",
+                "status": "not_assessable",
+                "value": null
+              }
+            ],
+            "config_hash": "0ad76bdb33e30a0a08637edcc290fe3d39e7cd77f1d2c6ff74a20f66c56fc29e",
+            "overall_status": "unknown",
+            "reason_codes": [
+              "COMPONENT_NOT_ASSESSABLE"
+            ],
+            "status": "partial"
+          }
+        },
+        "applied": false,
+        "before": {
+          "completion_status": "unknown",
+          "completion_version": 1,
+          "interval": {
+            "config_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "quality_flags": [],
+            "reason_codes": [],
+            "status": "available",
+            "step_completion_ratio": null
+          },
+          "planned_actual": null
+        },
+        "session_uid": "00000000-0000-0000-0000-000000000001"
+      },
+      "state_sha256": "8d7e11d8a5510b32d40a2cad43dda20377c06809c7b29a1762c544c5f9644106"
+    },
+    {
+      "args": [
+        "metrics-assess-session",
+        "--session-uid",
+        "00000000-0000-0000-0000-000000000001",
+        "--apply"
+      ],
+      "response": {
+        "activity_id": "00000000-0000-0000-0000-000000000015",
+        "after": {
+          "completion_status": "unknown",
+          "completion_version": 1,
+          "interval": {
+            "config_hash": "1ec5dbdbd4a0235f7387e1ac4824e510e4c0bc98d1ab41f51d16e3220ccf084e",
+            "quality_flags": [],
+            "reason_codes": [
+              "WATCH_WORKOUT_MISMATCH"
+            ],
+            "status": "not_assessable",
+            "step_completion_ratio": null
+          },
+          "planned_actual": {
+            "components": [
+              {
+                "name": "duration_ratio",
+                "status": "met",
+                "value": 1
+              },
+              {
+                "name": "step_completion_ratio",
+                "status": "not_assessable",
+                "value": null
+              },
+              {
+                "name": "target_coverage",
+                "status": "not_assessable",
+                "value": null
+              }
+            ],
+            "config_hash": "0ad76bdb33e30a0a08637edcc290fe3d39e7cd77f1d2c6ff74a20f66c56fc29e",
+            "overall_status": "unknown",
+            "reason_codes": [
+              "COMPONENT_NOT_ASSESSABLE"
+            ],
+            "status": "partial"
+          }
+        },
+        "applied": true,
+        "before": {
+          "completion_status": "unknown",
+          "completion_version": 1,
+          "interval": {
+            "config_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+            "quality_flags": [],
+            "reason_codes": [],
+            "status": "available",
+            "step_completion_ratio": null
+          },
+          "planned_actual": null
+        },
+        "session_uid": "00000000-0000-0000-0000-000000000001"
+      },
+      "state_sha256": "aada3c39a2ee186e41fa38a4ecd9b3c56c26cd4a13ba06ae1491f5be69b4ed72"
+    },
+    {
+      "args": [
+        "metrics-assess-session",
+        "--session-uid",
+        "00000000-0000-0000-0000-000000000001",
+        "--apply"
+      ],
+      "response": {
+        "activity_id": "00000000-0000-0000-0000-000000000015",
+        "after": {
+          "completion_status": "unknown",
+          "completion_version": 1,
+          "interval": {
+            "config_hash": "1ec5dbdbd4a0235f7387e1ac4824e510e4c0bc98d1ab41f51d16e3220ccf084e",
+            "quality_flags": [],
+            "reason_codes": [
+              "WATCH_WORKOUT_MISMATCH"
+            ],
+            "status": "not_assessable",
+            "step_completion_ratio": null
+          },
+          "planned_actual": {
+            "components": [
+              {
+                "name": "duration_ratio",
+                "status": "met",
+                "value": 1
+              },
+              {
+                "name": "step_completion_ratio",
+                "status": "not_assessable",
+                "value": null
+              },
+              {
+                "name": "target_coverage",
+                "status": "not_assessable",
+                "value": null
+              }
+            ],
+            "config_hash": "0ad76bdb33e30a0a08637edcc290fe3d39e7cd77f1d2c6ff74a20f66c56fc29e",
+            "overall_status": "unknown",
+            "reason_codes": [
+              "COMPONENT_NOT_ASSESSABLE"
+            ],
+            "status": "partial"
+          }
+        },
+        "applied": true,
+        "before": {
+          "completion_status": "unknown",
+          "completion_version": 1,
+          "interval": {
+            "config_hash": "1ec5dbdbd4a0235f7387e1ac4824e510e4c0bc98d1ab41f51d16e3220ccf084e",
+            "quality_flags": [],
+            "reason_codes": [
+              "WATCH_WORKOUT_MISMATCH"
+            ],
+            "status": "not_assessable",
+            "step_completion_ratio": null
+          },
+          "planned_actual": {
+            "components": [
+              {
+                "name": "duration_ratio",
+                "status": "met",
+                "value": 1
+              },
+              {
+                "name": "step_completion_ratio",
+                "status": "not_assessable",
+                "value": null
+              },
+              {
+                "name": "target_coverage",
+                "status": "not_assessable",
+                "value": null
+              }
+            ],
+            "config_hash": "0ad76bdb33e30a0a08637edcc290fe3d39e7cd77f1d2c6ff74a20f66c56fc29e",
+            "overall_status": "unknown",
+            "reason_codes": [
+              "COMPONENT_NOT_ASSESSABLE"
+            ],
+            "status": "partial"
+          }
+        },
+        "session_uid": "00000000-0000-0000-0000-000000000001"
+      },
+      "state_sha256": "aada3c39a2ee186e41fa38a4ecd9b3c56c26cd4a13ba06ae1491f5be69b4ed72"
+    },
+    {
+      "args": [
+        "metrics-assess-session",
+        "--session-uid",
+        "00000000-0000-0000-0000-000000000004"
+      ],
+      "response": {
+        "activity_id": null,
+        "after": {
+          "completion_status": "completed_as_planned",
+          "completion_version": 1,
+          "interval": null,
+          "planned_actual": {
+            "components": [],
+            "config_hash": "0ad76bdb33e30a0a08637edcc290fe3d39e7cd77f1d2c6ff74a20f66c56fc29e",
+            "overall_status": "unknown",
+            "reason_codes": [
+              "SELF_REPORTED_COMPLETION"
+            ],
+            "status": "missing"
+          }
+        },
+        "applied": false,
+        "before": {
+          "completion_status": "completed_as_planned",
+          "completion_version": 1,
+          "interval": null,
+          "planned_actual": null
+        },
+        "session_uid": "00000000-0000-0000-0000-000000000004"
+      },
+      "state_sha256": "aada3c39a2ee186e41fa38a4ecd9b3c56c26cd4a13ba06ae1491f5be69b4ed72"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "invalid",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "error": "invalid_metric"
+      },
+      "state_sha256": "aada3c39a2ee186e41fa38a4ecd9b3c56c26cd4a13ba06ae1491f5be69b4ed72"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "run_volume_frequency",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 5,
+        "metric": "run_volume_frequency",
+        "results_current": 5,
+        "since": "2026-11-22",
+        "subjects": 5,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "4054ddfda3a3891f97d301ce45a700f27765e0b6c0fc9023badc4c5c8a50829e"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "symptom_response_timeline",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 5,
+        "metric": "symptom_response_timeline",
+        "results_current": 5,
+        "since": "2026-11-22",
+        "subjects": 5,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "12c49273f3680bb9d8404e65680e0e776f23e95bcb4a0d219734a8abbfd78c77"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "long_run_exposure",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 9,
+        "metric": "long_run_exposure",
+        "results_current": 9,
+        "since": "2026-11-22",
+        "subjects": 9,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "068774ef4030edf1f3717e3cb2f98e977ad089ab78d1a13fc94af8280269cc48"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "hard_session_spacing",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 1,
+        "metric": "hard_session_spacing",
+        "results_current": 1,
+        "since": "2026-11-22",
+        "subjects": 1,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "6f39caa1d5f6cadcebc5d3d381e92afccc2ef6f40600040ab558c54918f01a8c"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "planned_actual_session",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 7,
+        "metric": "planned_actual_session",
+        "results_current": 7,
+        "since": "2026-11-22",
+        "subjects": 7,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "1ad42cb87267ca1e298f2e4f7ef44e5f4d936e773a55fd050a132644e476b319"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "session_rpe_load",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 16,
+        "metric": "session_rpe_load",
+        "results_current": 16,
+        "since": "2026-11-22",
+        "subjects": 16,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "c03c45de412090e373aa5f89ed3635a71c2fad67936887f0650ce5b8fb5362a6"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "intensity_time_distribution",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 9,
+        "metric": "intensity_time_distribution",
+        "results_current": 9,
+        "since": "2026-11-22",
+        "subjects": 9,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "fd95a2544881406563d90f1fce6239bebbc14d4b690b8418c42e53dca0f4a0ff"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "aerobic_efficiency",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 6,
+        "metric": "aerobic_efficiency",
+        "results_current": 6,
+        "since": "2026-11-22",
+        "subjects": 6,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "4b9b266108b1142468f49392d8a9b3d350ed068bfb24bb39b459f48835834746"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "recovery_multisignal_summary",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 8,
+        "metric": "recovery_multisignal_summary",
+        "results_current": 8,
+        "since": "2026-11-22",
+        "subjects": 8,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "93c87863d4bb7d588d22238c92a4f91a238e64848a951b448c74033984102676"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "work_interval_execution",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 5,
+        "metric": "work_interval_execution",
+        "results_current": 4,
+        "since": "2026-11-22",
+        "subjects": 4,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "93c87863d4bb7d588d22238c92a4f91a238e64848a951b448c74033984102676"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "all",
+        "--since",
+        "2026-11-22",
+        "--until",
+        "2026-11-22"
+      ],
+      "response": {
+        "history_rows": 71,
+        "metric": "all",
+        "results_current": 70,
+        "since": "2026-11-22",
+        "subjects": 70,
+        "until": "2026-11-22"
+      },
+      "state_sha256": "93c87863d4bb7d588d22238c92a4f91a238e64848a951b448c74033984102676"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--since",
+        "2026-11-27"
+      ],
+      "response": {
+        "error": "invalid_date_window"
+      },
+      "state_sha256": "93c87863d4bb7d588d22238c92a4f91a238e64848a951b448c74033984102676"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "work_interval_execution",
+        "--until",
+        "2026-09-06"
+      ],
+      "response": {
+        "history_rows": 5,
+        "metric": "work_interval_execution",
+        "results_current": 4,
+        "since": "2026-09-04",
+        "subjects": 4,
+        "until": "2026-09-06"
+      },
+      "state_sha256": "93c87863d4bb7d588d22238c92a4f91a238e64848a951b448c74033984102676"
+    },
+    {
+      "args": [
+        "metrics-recompute",
+        "--metric",
+        "run_volume_frequency",
+        "--since",
+        "2026-11-25"
+      ],
+      "response": {
+        "history_rows": 15,
+        "metric": "run_volume_frequency",
+        "results_current": 15,
+        "since": "2026-11-25",
+        "subjects": 15,
+        "until": "2026-11-26"
+      },
+      "state_sha256": "9399d8044bd31d7ecfcac66dc7f6f9df1e4eabdf436c950dcce98130a9f906b3"
+    },
+    {
+      "args": [
+        "metrics-refresh-today"
+      ],
+      "response": {
+        "as_of": "2026-11-26",
+        "new_results": 29
+      },
+      "state_sha256": "a70dfd72cc3e8c652ee83d12078ec072c3671fe377b70de252a7be1ef7ca9ec1"
+    },
+    {
+      "args": [
+        "metrics-refresh-today"
+      ],
+      "response": {
+        "as_of": "2026-11-26",
+        "new_results": 0
+      },
+      "state_sha256": "a70dfd72cc3e8c652ee83d12078ec072c3671fe377b70de252a7be1ef7ca9ec1"
+    }
+  ],
+  "query": "\nSELECT jsonb_build_object(\n 'revision',(SELECT data_revision FROM app_state WHERE id=1),\n 'metrics',(SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY metric_id,subject_key,is_current,status,value::text),'[]') FROM (\n SELECT metric_id,method_version,subject_key,is_current,status,quality_status,reason_codes,quality_flags,config_hash,value\n FROM metric_results)p),\n 'completions',(SELECT jsonb_agg(jsonb_build_array(session_uid,status,version,input_version) ORDER BY session_uid) FROM session_completions),\n 'configs',(SELECT jsonb_agg(config_hash ORDER BY metric_id,config_hash) FROM metric_configs),\n 'prompts',(SELECT jsonb_agg(jsonb_build_array(kind,activity_id,session_uid,status,opens_at,closes_at) ORDER BY kind,activity_id,session_uid) FROM prompts))\n"
+}

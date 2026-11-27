@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -49,9 +50,8 @@ func TestLivenessWithoutDatabase(t *testing.T) {
 }
 
 func TestStartupAndReadiness(t *testing.T) {
-	oracle := os.Getenv("HEALTH_EXPECT_NEW")
-	if oracle == "" {
-		t.Skip("run health-startup database comparison")
+	if os.Getenv("PROPOSAL_TEST_DATABASE_URL") == "" {
+		t.Skip("run the health-startup PostgreSQL check")
 	}
 	if os.Getenv("APP_MODE") != "test" || !strings.HasPrefix(os.Getenv("PGOPTIONS"), "-csearch_path=go_parity_") {
 		t.Fatal("requires a synthetic schema")
@@ -92,15 +92,28 @@ func TestStartupAndReadiness(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reads.Close()
-	n, err := strconv.Atoi(oracle)
-	if err != nil || n < 1 {
-		t.Fatal(oracle)
-	}
-	for _, expected := range []int{n, 0} {
+	for _, expected := range []int{37, 0} {
 		result, err := Startup(ctx, reads, "test", "", now)
 		if err != nil || result.AsOf != "2026-11-22" || result.NewResults != expected {
 			t.Fatalf("%+v %v expected %d", result, err, expected)
 		}
+	}
+	var rows []any
+	err = pool.QueryRow(ctx, `SELECT jsonb_agg(jsonb_build_array(metric_id,subject_key,status,value,config_hash)
+        ORDER BY metric_id,subject_key) FROM metric_results`).Scan(&rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := os.ReadFile("testdata/startup.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wantRows []any
+	if err := json.Unmarshal(encoded, &wantRows); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(rows, wantRows) {
+		t.Fatalf("unexpected startup metric identities or values: %v", rows)
 	}
 	for _, sql := range []string{"INSERT INTO alembic_version VALUES('stale')", "DELETE FROM alembic_version WHERE version_num<>'stale'", "DELETE FROM alembic_version", "DROP TABLE alembic_version"} {
 		exec(sql)
