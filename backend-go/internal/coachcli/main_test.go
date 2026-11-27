@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
@@ -37,23 +35,16 @@ func TestCLIFileAndQueryValidation(t *testing.T) {
 		t.Fatal(v)
 	}
 }
-func TestPythonSchema(t *testing.T) {
-	python := os.Getenv("DASHBOARD_REFERENCE_PYTHON")
-	if python == "" {
-		t.Skip("requires Python reference")
+func TestSchemaCommand(t *testing.T) {
+	schema := invoke(t, 0, "schema")
+	if schema["protocol"] != "coach_proposal.v2" || schema["activation"] != "manual" || schema["required_authority"] != "calendar" {
+		t.Fatalf("schema envelope: %v", schema)
 	}
-	cmd := exec.CommandContext(t.Context(), python, "-m", "app.cli", "coach", "schema")
-	cmd.Dir = "../../../backend"
-	raw, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var want object
-	if err := json.Unmarshal(raw, &want); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(invoke(t, 0, "schema"), want) {
-		t.Fatal("CLI schema differs from Python")
+	for _, name := range []string{"proposal", "revision"} {
+		doc, ok := schema[name].(map[string]any)
+		if !ok || doc["type"] != "object" || doc["properties"] == nil {
+			t.Fatalf("missing %s schema", name)
+		}
 	}
 }
 func TestSyntheticCLI(t *testing.T) {

@@ -26,8 +26,13 @@ class Capture:
         module.build_payload = capture
 
 
+# The payload suite uses synthetic domain inputs and needs no server fixtures.
+unit_tests = backend / "tests/unit"
 with contextlib.redirect_stdout(sys.stderr):
-    result = pytest.main(["-q", str(backend / "tests/unit/test_snapshot.py")], plugins=[Capture()])
+    result = pytest.main(
+        ["-q", "--confcutdir", str(unit_tests), str(unit_tests / "test_snapshot.py")],
+        plugins=[Capture()],
+    )
 if result:
     sys.exit(result)
 print(canonical_json(cases))

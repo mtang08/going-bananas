@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -58,18 +57,19 @@ func TestLocalHTTPExecutablePostgres(t *testing.T) {
 	if !filepath.IsAbs(python) {
 		t.Fatal("fixture Python must be absolute")
 	}
-	repo, err := filepath.Abs("../../..")
-	if err != nil {
-		t.Fatal(err)
-	}
-	cmd := exec.CommandContext(t.Context(), python, "-c", "import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); from app.services.coach_chat_runtime import load_coach_instructions; sys.stdout.write(load_coach_instructions(Path(sys.argv[2])))", filepath.Join(repo, "backend"), root)
-	reference, err := cmd.Output()
-	if err != nil {
-		t.Fatal("Python instructions reference failed")
-	}
 	instructions, err := coachdashboard.LoadInstructions(root)
-	if err != nil || instructions != string(reference) {
-		t.Fatal("instruction parity failed", err)
+	const references = "\n\nfixture skill\n\n\nfixture workflow\n\n\nfixture format\n"
+	if err != nil || !strings.HasSuffix(instructions, references) {
+		t.Fatal("missing ordered coaching references", err)
+	}
+	for _, clause := range []string{
+		"Use it after the athlete agrees to the plan or explicitly authorizes publishing.",
+		"report the pending status. The athlete applies it in the review page.",
+		"accept, undo, or discard any proposal or calendar state through chat.",
+	} {
+		if !strings.Contains(instructions, clause) {
+			t.Errorf("missing coaching instruction %q", clause)
+		}
 	}
 	script, err := os.ReadFile("testdata/local_app_server.py")
 	if err != nil {

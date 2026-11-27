@@ -233,16 +233,27 @@ func TestNativeHTTPAgreementCreatesOnlyPendingProposal(t *testing.T) {
 	}
 }
 
-func TestNativeProposalSchemaPythonParity(t *testing.T) {
+func TestNativeSchemaDomainParity(t *testing.T) {
 	python := os.Getenv("DASHBOARD_REFERENCE_PYTHON")
 	if python == "" {
-		t.Skip("requires Python reference environment")
+		t.Skip("requires Python domain reference environment")
 	}
 	p, err := filepath.Abs("../../../backend")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.CommandContext(t.Context(), python, "-c", "import json,sys; sys.path.insert(0,sys.argv[1]); from app.services.proposals.schema import ProposalDoc; print(json.dumps(ProposalDoc.model_json_schema()))", p)
+	const reference = `
+import json
+import sys
+sys.path.insert(0, sys.argv[1])
+from app.services.proposals.lifecycle import RevisionRequest
+from app.services.proposals.schema import ProposalDoc
+print(json.dumps({
+    "proposal": ProposalDoc.model_json_schema(),
+    "revision": RevisionRequest.model_json_schema(),
+}))
+`
+	cmd := exec.CommandContext(t.Context(), python, "-c", reference, p)
 	expected, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
@@ -251,10 +262,16 @@ func TestNativeProposalSchemaPythonParity(t *testing.T) {
 	if err := json.Unmarshal(expected, &want); err != nil {
 		t.Fatal(err)
 	}
-	if err := json.Unmarshal(protocol.Proposal(), &got); err != nil {
+	actual, err := json.Marshal(protocol.Schema())
+	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatal("embedded dashboard schema differs from ProposalDoc.model_json_schema()")
+	if err := json.Unmarshal(actual, &got); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"proposal", "revision"} {
+		if !reflect.DeepEqual(got[name], want[name]) {
+			t.Errorf("embedded %s schema differs from the retained domain schema", name)
+		}
 	}
 }

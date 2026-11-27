@@ -1,0 +1,25 @@
+{
+  "review": {
+    "id": "00000000-0000-0000-0000-000000000002",
+    "status": "running",
+    "messages": [
+      {
+        "id": "00000000-0000-0000-0000-000000000016",
+        "role": "user",
+        "text": "Synthetic message 2",
+        "client_message_id": "00000000-0000-0000-0000-00000000000c"
+      }
+    ],
+    "error": null,
+    "proposal_id": null,
+    "codex_thread_id": "resume-2",
+    "active_turn": "00000000-0000-0000-0000-000000000016",
+    "snapshot_ids": [],
+    "observed_proposal": null,
+    "read_active_proposal": false
+  },
+  "receipts": {
+    "00000000-0000-0000-0000-00000000000b": "4908fca895d267387aa1a52580362009e638ce5e5bc0fa1f8e9dd4ee6279dfa9",
+    "00000000-0000-0000-0000-00000000000c": "b828a0d30a509b5ee22936d480db4028f71041d9c3dcbd2ef7d8fea46db65348"
+  }
+}
