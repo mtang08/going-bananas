@@ -16,6 +16,20 @@ tailscale serve status
 
 The status should identify the listener as available within your tailnet and its target as port 8765. The gateway serves the phone assets and the morning check-in write route. Keep the dashboard and API on loopback. Use **Serve** for the private connection.
 
+## Native Go gateway
+
+The standalone Go gateway serves the existing phone assets and forwards the morning observation to the local API. It uses the same Tailscale listener and ports as `make phone-access`. Run one gateway at a time. From the repository root, start the native gateway with Go on your path.
+
+```sh
+(cd backend-go && go run ./cmd/phone-gateway -assets ../frontend/public/phone)
+```
+
+For the synthetic demo API on port 18000, add `-demo` to the command. The gateway then listens on loopback port 8766 and prints the URL for the demo tailnet listener. The isolated PostgreSQL comparison exercises the phone shell, forwarding, API receipts, date filtering and duplicate delivery without Tailscale or a phone.
+
+```sh
+python3 scripts/test-db.py phone-checkins
+```
+
 ## Install on the iPhone
 
 1. With the Mac awake, open the complete HTTPS URL printed by `make phone-access` in Safari on the iPhone. Keep the exact host, port, and trailing `/phone/`.

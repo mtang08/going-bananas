@@ -187,6 +187,11 @@ func ScopeMetrics(ctx context.Context, tx pgx.Tx, scopes []string, matched []uui
 	if err != nil {
 		return err
 	}
+	return b.scopeMetrics(s, matched, includeTrainingToday)
+}
+
+func (b *batch) scopeMetrics(s scope, matched []uuid.UUID, includeTrainingToday bool) error {
+	ctx, tx, now := b.ctx, b.tx, b.now
 	other := b.broad || s.since != "" || len(s.dates)+len(s.plans)+len(b.explicit)+len(s.strength) > 0
 	if !other && len(s.recovery) == 0 && len(s.manual) > 0 && len(matched) == 0 {
 		if err := b.assess(s.manual); err != nil {

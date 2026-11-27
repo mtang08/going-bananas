@@ -99,7 +99,7 @@ func maintain(ctx context.Context, tx pgx.Tx, now time.Time, today string, found
 	}
 	_, err := tx.Exec(ctx, `UPDATE exception_findings f SET status='expired',closed_at=$1::timestamptz,close_note=NULL,version=version+1
 		WHERE status='open' AND ((severity='observe' AND last_seen_at < $1::timestamptz - interval '336 hours')
-		OR (rule_code='POST_EVENT_REVIEW_DUE' AND NOT EXISTS (SELECT FROM events e WHERE f.entity_key='event:'||e.id::text AND e.event_date+7 >= $2::text::date)))`, now, today)
+		OR (rule_code='POST_EVENT_REVIEW_DUE' AND NOT EXISTS (SELECT FROM events e WHERE `+eventEntityJoin+` AND e.event_date+7 >= $2::text::date)))`, now, today)
 	if err != nil {
 		return nil, err
 	}
@@ -121,10 +121,14 @@ const exceptionPrompt = "Use $going-bananas-coach for an exception review. Read 
 const blockPrompt = "Use $going-bananas-coach for a block review. An exception needs a bigger review."
 const benchmarkPrompt = "Use $going-bananas-coach for a block review. Review the block benchmark."
 
+// Python's UUID reader accepts bare IDs, braces, compact hex and UUID URNs.
+const eventEntityJoin = `replace(e.id::text,'-','') = lower(replace(trim(both '{}' from
+    replace(replace(regexp_replace(f.entity_key,'^event:',''),'urn:',''),'uuid:','')),'-',''))`
+
 func recommend(ctx context.Context, tx pgx.Tx, today string) ([]recommendation, error) {
 	rows, err := tx.Query(ctx, `SELECT f.id,f.rule_code,f.severity,f.category,f.status,e.name,to_char(e.event_date,'YYYY-MM-DD'),
 		coalesce(p.status='open' AND p.reassess_on <= $1::text::date,false)
-		FROM exception_findings f LEFT JOIN events e ON f.entity_key='event:'||e.id::text
+		FROM exception_findings f LEFT JOIN events e ON `+eventEntityJoin+`
 		LEFT JOIN exception_patches p ON p.id=f.patch_id
 		WHERE f.status IN ('open','addressed') ORDER BY f.first_seen_at,f.id`, today)
 	if err != nil {

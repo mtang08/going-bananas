@@ -166,6 +166,11 @@ func Apply(ctx context.Context, pool *pgxpool.Pool, root string, page Page) (Res
 		if err := applyRecords(ctx, tx, page, p, &result, false); err != nil {
 			return err
 		}
+		if len(result.Activities) > 0 {
+			if _, err := db.New(tx).BumpDataRevision(ctx); err != nil {
+				return err
+			}
+		}
 		cp.Pages = append(cp.Pages, p.hash)
 		cp.AffectedDates = append(cp.AffectedDates, result.AffectedDates...)
 		slices.Sort(cp.AffectedDates)
@@ -307,22 +312,24 @@ func applyRecords(ctx context.Context, tx pgx.Tx, page Page, p prepared, r *Resu
 		if rejected != nil {
 			continue
 		}
-		var priorDay string
-		err = tx.QueryRow(ctx, "SELECT local_date::text FROM activities WHERE source_account_id=$1 AND source_identity=$2", owner, identity).Scan(&priorDay)
+		var priorDays []string
+		err = tx.QueryRow(ctx, `SELECT array_remove(ARRAY[local_date::text,(start_at AT TIME ZONE $3)::date::text,(end_at AT TIME ZONE $3)::date::text],NULL) FROM activities WHERE source_account_id=$1 AND source_identity=$2`, owner, identity, zone).Scan(&priorDays)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		id, day, changed, err := reconcile(ctx, tx, owner, identity, normalized.ProviderID, !summaryOnly)
+		id, day, changed, err := reconcile(ctx, tx, owner, identity, normalized.ProviderID, r)
 		if err != nil {
 			return err
+		}
+		// A newly attached source also changes the inputs for this activity.
+		if summaryOnly {
+			r.Activities[id] = day
 		}
 		if changed {
 			counts.Changed++
 			r.Activities[id] = day
 			r.AffectedDates = append(r.AffectedDates, day)
-			if priorDay != "" {
-				r.AffectedDates = append(r.AffectedDates, priorDay)
-			}
+			r.AffectedDates = append(r.AffectedDates, priorDays...)
 		}
 	}
 	for _, id := range sortedIDs(p.fits) {

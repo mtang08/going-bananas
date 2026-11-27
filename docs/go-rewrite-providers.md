@@ -143,11 +143,17 @@ For the synthetic worker, build `backend-go/cmd/provider-jobs`. It supports `-da
 python3 scripts/test-db.py provider-jobs
 ```
 
-For worker cutover, supply core's transaction-bound metric and matching refresh functions to `Runner.RefreshPage` and `Runner.RefreshCoverage`. A page callback receives the changed dates and activity IDs. A coverage callback receives the inserted interval ID and status. Downloaded FITs use separate best-effort transactions after eligible activity pages commit. Pass a FIT refresh function to `replay.RunFIT` to refresh the activity ID and local date inside its write transaction. Production scheduling and cutover stay with core. [Synthetic CLI](../backend-go/cmd/provider-jobs/main.go) · [Database and retry comparison](../scripts/rewrite/check_provider_jobs.py)
+The native worker command is `go run ./cmd/garmin-worker sync [--start YYYY-MM-DD] [--end YYYY-MM-DD]` or `go run ./cmd/garmin-worker worker` from `backend-go`. The sync command reports job IDs and individual outcomes. The worker uses the existing Garmin key and private token cache and shares the PostgreSQL claim lock with Python. `garmincli.SourceRefresh(time.Now, refresh.Runs)` rematches affected days, computes metrics and regenerates prompts within the source transaction. FIT downloads get a separate best-effort transaction per run. Core owns live scheduling. [Worker and CLI](../backend-go/internal/garmincli) · [PostgreSQL comparison](../scripts/rewrite/check_provider_jobs.py)
+
+Preview an account export with `go run ./cmd/import-export ARCHIVE` and apply it with `--apply`. Import stores the original archive, canonical activities, supported recovery observations and observed coverage in one database transaction. Run `python3 scripts/test-db.py import-export` for the synthetic preflight, apply and duplicate delivery comparison. [Export importer](../backend-go/internal/garmin/replay/import_export.go)
 
 ### Google Calendar provider and travel contracts
 
-Pass `googlecalendar.New(privateDir)` to the travel HTTP service. The client reads the existing calendar-connect token, checks permissions, refreshes credentials, and follows event pages until it has a complete window. Use `NewWithConfig` for a synthetic HTTP endpoint and clock. The Go-owned seven-route contract is in [travel.openapi.json](../backend-go/api/travel.openapi.json), with [generated TypeScript](../frontend/src/api/generated/travel.ts). [Client and tests](../backend-go/internal/googlecalendar)
+Pass `googlecalendar.New(privateDir)` to the travel HTTP service. The client reads the existing calendar-connect token, checks permissions, refreshes credentials, and follows event pages until it has a complete window. Use `NewWithConfig` for a synthetic HTTP endpoint and clock. From `frontend`, run `npm run check:travel-types` to verify the [Go-owned seven-route contract](../backend-go/api/travel.openapi.json) against its [generated TypeScript](../frontend/src/api/generated/travel.ts). [Client and tests](../backend-go/internal/googlecalendar)
+
+### Phone and check-in integration
+
+Register `checkinhttp.Handler{Store: checkins.NewStore(pool, nil, refresh.Runs), Mode: mode}` with the guarded API mux. It serves `PUT /api/v1/phone/checkins/{entry_id}`, `GET` and `POST /api/v1/v2/checkins`, and `PATCH /api/v1/v2/checkins/{checkin_id}`. A duplicate phone submission returns its receipt without writing another observation or rerunning detection. The private phone gateway forwards its single write route to the local API. Run `python3 scripts/test-db.py phone-checkins` to compare the real Go and Python handlers, gateway guards, history, concurrency, metric refresh, prompts and rollback using synthetic data. [Check-in service](../backend-go/internal/checkins) · [Phone setup](iphone-setup.md)
 
 ### Workspace backup and restore
 
