@@ -32,12 +32,11 @@ type reportCase struct {
 	}
 }
 
-// scripts/rewrite/check_self_reports.py runs the corresponding Python service
-// commands and supplies their durable outcomes from an independent schema.
+// The fixture records durable outcomes for the seeded calendar and recording links.
 func TestSelfReportsPostgres(t *testing.T) {
 	path := os.Getenv("COMPLETION_CASES")
 	if path == "" {
-		t.Skip("requires the migrated Python comparison fixture")
+		t.Skip("run scripts/test-db.py calendar")
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {

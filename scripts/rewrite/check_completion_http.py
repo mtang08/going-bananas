@@ -10,7 +10,7 @@ from pathlib import Path
 import psycopg
 from sqlalchemy.engine import make_url
 
-from check_assessment_db import conn, id
+from training_fixture import conn, id
 from test_proposal_slice import MODULE, ROOT, migrated_schema
 
 NOW = datetime(2026, 11, 22, 12, 0, 0, 123400, tzinfo=UTC)

@@ -1,6 +1,7 @@
 package recovery
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,12 +16,18 @@ import (
 func TestRecoveryPostgres(t *testing.T) {
 	path := os.Getenv("RECOVERY_CASES")
 	if path == "" {
-		t.Skip("requires Python recovery fixture")
+		t.Skip("run scripts/test-db.py recovery")
 	}
-	raw, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer file.Close()
+	fixture, err := gzip.NewReader(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.Close()
 	var ref struct {
 		Query string
 		Cases []struct {
@@ -29,7 +36,7 @@ func TestRecoveryPostgres(t *testing.T) {
 			State map[string]any
 		}
 	}
-	if err := json.Unmarshal(raw, &ref); err != nil {
+	if err := json.NewDecoder(fixture).Decode(&ref); err != nil {
 		t.Fatal(err)
 	}
 	ctx := t.Context()

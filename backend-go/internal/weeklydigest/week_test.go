@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"reflect"
 	"testing"
 	"time"
@@ -12,14 +11,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func TestWeekPythonParity(t *testing.T) {
+func TestWeeklyDigest(t *testing.T) {
 	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("requires disposable PostgreSQL dashboard runner")
 	}
-	ref, err := exec.CommandContext(t.Context(), os.Getenv("DASHBOARD_REFERENCE_PYTHON"), "testdata/reference.py").Output()
+	ref, err := os.ReadFile("testdata/cases.json")
 	if err != nil {
-		t.Fatalf("Python digest reference: %v", err)
+		t.Fatalf("read digest fixture: %v", err)
 	}
 	var expected []row
 	if err := json.Unmarshal(ref, &expected); err != nil {
@@ -30,12 +29,19 @@ func TestWeekPythonParity(t *testing.T) {
 		t.Fatal("open weekly fixture")
 	}
 	defer func() { _ = conn.Close(context.Background()) }()
-	tx, err := conn.BeginTx(t.Context(), pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	tx, err := conn.BeginTx(t.Context(), pgx.TxOptions{AccessMode: pgx.ReadWrite})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(context.Background()) }()
 	if _, err = tx.Exec(t.Context(), "SET LOCAL TIME ZONE 'Asia/Kathmandu'"); err != nil {
+		t.Fatal(err)
+	}
+	seed, err := os.ReadFile("testdata/seed.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(t.Context(), string(seed)); err != nil {
 		t.Fatal(err)
 	}
 	for _, week := range expected {
@@ -56,7 +62,7 @@ func TestWeekPythonParity(t *testing.T) {
 		}
 		for k, v := range week {
 			if !reflect.DeepEqual(v, actual[k]) {
-				t.Errorf("%s %s: Python %v, Go %v", week["week_start"], k, v, actual[k])
+				t.Errorf("%s %s: want %v, got %v", week["week_start"], k, v, actual[k])
 			}
 		}
 	}

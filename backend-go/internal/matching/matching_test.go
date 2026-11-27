@@ -11,12 +11,8 @@ func TestMatchingFixture(t *testing.T) {
 	checkMatchingCases(t, "testdata/matching.json")
 }
 
-func TestPythonMatchingCorpus(t *testing.T) {
-	path := os.Getenv("MATCHING_REFERENCE_JSON")
-	if path == "" {
-		t.Skip("scripts/rewrite/check_matching.py supplies the Python reference corpus")
-	}
-	checkMatchingCases(t, path)
+func TestMatchingCases(t *testing.T) {
+	checkMatchingCases(t, "testdata/matching-cases.json")
 }
 
 func checkMatchingCases(t *testing.T, path string) {

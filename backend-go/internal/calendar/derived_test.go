@@ -21,7 +21,7 @@ import (
 func TestDerivedPostgres(t *testing.T) {
 	path := os.Getenv("REMATCH_CASES")
 	if path == "" {
-		t.Skip("requires Python-generated reference")
+		t.Skip("run scripts/test-db.py rematch")
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {

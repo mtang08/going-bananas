@@ -7,9 +7,7 @@ import tempfile
 from pathlib import Path
 
 import psycopg
-from check_aerobic import seed as seed_runs
-from check_recovery import seed as seed_recovery
-from check_self_reports import uid
+from training_fixture import seed_runs, seed_recovery, uid
 from psycopg.types.json import Jsonb
 from sqlalchemy.engine import make_url
 from test_proposal_slice import MODULE, ROOT, migrated_schema

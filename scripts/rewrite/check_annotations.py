@@ -1,7 +1,7 @@
 """Compare annotation PATCH responses and refreshed source, calendar, metric and prompt state."""
 
 from check_activity_reads import exercise
-from check_assessment_db import conn, seed
+from training_fixture import conn, seed_assessment as seed
 
 
 def state(env):
