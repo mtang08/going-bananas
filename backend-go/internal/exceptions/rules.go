@@ -172,7 +172,8 @@ func symptomRules(in DetectionInputs) []Candidate {
 	var out []Candidate
 	for _, key := range keys {
 		group := groups[key]
-		site, side, _ := strings.Cut(key, "|")
+		side := group[0].s.Side
+		site := strings.TrimSuffix(key, "|"+side)
 		if side != "na" {
 			site = side + " " + site
 		}
