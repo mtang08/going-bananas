@@ -50,6 +50,7 @@ func TestHTTPFixture(t *testing.T) {
 	if err != nil || c.ConnConfig.Database != "garmin_test" || (c.ConnConfig.Host != "localhost" && c.ConnConfig.Host != "127.0.0.1") || os.Getenv("APP_MODE") != "test" || fmt.Sprint(c.ConnConfig.Port) != os.Getenv("TEST_DATABASE_PORT") {
 		t.Fatal("expected synthetic database")
 	}
+	c.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
 	pool, err := pgxpool.NewWithConfig(t.Context(), c)
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +58,7 @@ func TestHTTPFixture(t *testing.T) {
 	defer pool.Close()
 	var schema string
 	if err := pool.QueryRow(t.Context(), "SELECT current_schema()").Scan(&schema); err != nil || !regexp.MustCompile("^go_parity_[0-9a-f]{32}$").MatchString(schema) {
-		t.Fatal("expected comparison schema")
+		t.Fatal("expected disposable sync schema")
 	}
 	h := New(pool, os.Getenv("SYNC_ROUTE_MODE"), os.Getenv("PRIVATE_DIR"))
 	h.Now = func() time.Time { return time.Date(2026, 11, 16, 9, 0, 0, 0, time.UTC) }

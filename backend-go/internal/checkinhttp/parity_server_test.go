@@ -18,7 +18,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/phonegateway"
 )
 
-func TestCheckinParityServer(t *testing.T) {
+func TestCheckinFixtureServer(t *testing.T) {
 	if os.Getenv("CHECKIN_HTTP_FIXTURE") == "" {
 		t.Skip("run scripts/test-db.py phone-checkins")
 	}
@@ -26,6 +26,7 @@ func TestCheckinParityServer(t *testing.T) {
 	if err != nil || os.Getenv("APP_MODE") != "test" || cfg.ConnConfig.Database != "garmin_test" || (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "localhost") || fmt.Sprint(cfg.ConnConfig.Port) != os.Getenv("TEST_DATABASE_PORT") || !regexp.MustCompile(`^-csearch_path=go_parity_[0-9a-f]{32} -cTimeZone=Asia/Kathmandu$`).MatchString(os.Getenv("PGOPTIONS")) {
 		t.Fatal("expected disposable test schema")
 	}
+	cfg.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
 	pool, err := pgxpool.NewWithConfig(t.Context(), cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +34,7 @@ func TestCheckinParityServer(t *testing.T) {
 	defer pool.Close()
 	var schema string
 	if err := pool.QueryRow(t.Context(), "SELECT current_schema()").Scan(&schema); err != nil || !regexp.MustCompile(`^go_parity_[0-9a-f]{32}$`).MatchString(schema) {
-		t.Fatal("invalid comparison schema")
+		t.Fatal("invalid fixture schema")
 	}
 	s := checkins.Store{Pool: pool, Refresh: func(ctx context.Context, tx pgx.Tx, scopes []string) error {
 		_, err := tx.Exec(ctx, "INSERT INTO fixture_hooks(kind,scopes) VALUES ('refresh',$1)", scopes)

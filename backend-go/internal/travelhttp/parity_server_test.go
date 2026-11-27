@@ -42,11 +42,11 @@ func (p fixtureCalendar) Fetch(_ context.Context, _ travel.Window) ([]json.RawMe
 	return delivery.Pages, nil
 }
 
-// TestParityServer is a loopback-only adapter for scripts/test-db.py travel-http.
-func TestParityServer(t *testing.T) {
+// TestTravelFixtureServer is a loopback-only adapter for scripts/test-db.py travel-http.
+func TestTravelFixtureServer(t *testing.T) {
 	mode := os.Getenv("TRAVEL_HTTP_FIXTURE_MODE")
 	if mode == "" {
-		t.Skip("run via the travel-http PostgreSQL comparison")
+		t.Skip("run via the travel-http PostgreSQL fixture")
 	}
 	if (mode != "test" && mode != "real") || os.Getenv("APP_MODE") != "test" {
 		t.Fatal("expected a synthetic test workspace")
@@ -55,7 +55,7 @@ func TestParityServer(t *testing.T) {
 	if err != nil || config.ConnConfig.Database != "garmin_test" || config.ConnConfig.Host != "127.0.0.1" && config.ConnConfig.Host != "localhost" ||
 		fmt.Sprint(config.ConnConfig.Port) != os.Getenv("TEST_DATABASE_PORT") ||
 		!regexp.MustCompile(`^-csearch_path=go_parity_[0-9a-f]{32} -cTimeZone=Asia/Kathmandu -cdefault_transaction_read_only=on$`).MatchString(os.Getenv("PGOPTIONS")) {
-		t.Fatal("expected a disposable local comparison schema")
+		t.Fatal("expected a disposable local fixture schema")
 	}
 	pool, err := pgxpool.NewWithConfig(t.Context(), config)
 	if err != nil {
@@ -64,7 +64,7 @@ func TestParityServer(t *testing.T) {
 	defer pool.Close()
 	var schema string
 	if err := pool.QueryRow(t.Context(), "SELECT current_schema()").Scan(&schema); err != nil || !strings.HasPrefix(schema, "go_parity_") {
-		t.Fatal("comparison schema is not active")
+		t.Fatal("fixture schema is not active")
 	}
 	dir := os.Getenv("PRIVATE_DIR")
 	h := Handler{Pool: pool, Mode: mode, PrivateDir: dir, Provider: fixtureCalendar{dir}, Now: func() time.Time {

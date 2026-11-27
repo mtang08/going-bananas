@@ -1,128 +1,45 @@
-"""Compare all travel HTTP endpoints with FastAPI in disposable PostgreSQL schemas.
-
-Run python3 scripts/test-db.py travel-http. Both loopback servers use synthetic
-calendar pages. Their database settings stay in test mode for the entire run.
-"""
+"""Exercise the seven native travel routes with synthetic Calendar pages."""
 
 import json
-import os
 import re
 import selectors
-import socket
 import subprocess
-import sys
 import tempfile
-from contextlib import ExitStack, contextmanager
-from datetime import UTC, datetime
+from contextlib import contextmanager
 from http.client import HTTPConnection
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import Mock, patch
 
 import psycopg
 from check_gcal_replay import connect, fixture, test_url
 from test_proposal_slice import (
-    BACKEND,
     MODULE,
     ROOT,
     listener,
     migrated_schema,
-    wait_ready,
 )
 
 PREFIX = "/api/v1"
 FIXED_DAY = "2026-11-22"
-UUID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")
-
-
-def python_server(fd):
-    test_url()
-    if not re.fullmatch(
-        r"-csearch_path=go_parity_[0-9a-f]{32} -cTimeZone=Asia/Kathmandu",
-        os.environ.get("PGOPTIONS", ""),
-    ):
-        raise SystemExit("expected a disposable comparison schema")
-    import uvicorn
-    from app.adapters.google_calendar import GcalError
-    from app.api import responses, travel
-    from app.main import app
-    from app.services import gcal_sync, timezone
-
-    private = Path(os.environ["PRIVATE_DIR"])
-    mode = os.environ["TRAVEL_HTTP_FIXTURE_MODE"]
-    assert mode in {"real", "test"}
-
-    class FixtureClock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return datetime.fromisoformat((private / "now").read_text()).astimezone(tz)
-
-    def authorized(_):
-        delivery = json.loads((private / "delivery.json").read_text())
-        if delivery.get("error"):
-            raise GcalError(delivery["error"])
-        pages = iter(delivery["pages"])
-
-        def get(_url, *, params, timeout):
-            page = next(pages)
-            assert params.get("pageToken", "") == page.get("page_token", "")
-            response = Mock(status_code=200)
-            response.json.return_value = page
-            return response
-
-        http = Mock()
-        http.get.side_effect = get
-        return http
-
-    # Only the route gate and response mode are injected. App DB credentials and security settings stay in test mode.
-    route_settings = SimpleNamespace(app_mode=mode, private_dir=private)
-    with ExitStack() as stack:
-        for module in (responses, travel):
-            stack.enter_context(patch.object(module, "settings", route_settings))
-        for module in (travel, timezone):
-            stack.enter_context(patch.object(module, "datetime", FixtureClock))
-        stack.enter_context(patch.object(gcal_sync, "authorized_session", authorized))
-        uvicorn.run(app, fd=fd, access_log=False, log_level="error")
 
 
 @contextmanager
-def listeners(py, go, binary, mode):
-    with ExitStack() as stack:
-        sock = stack.enter_context(socket.socket())
-        sock.bind(("127.0.0.1", 0))
-        sock.listen()
-        port = sock.getsockname()[1]
-        proc = stack.enter_context(
-            listener(
-                [sys.executable, __file__, "serve", str(sock.fileno())],
-                env=dict(
-                    py,
-                    APP_PORT=str(port),
-                    PYTHONPATH=str(BACKEND),
-                    TRAVEL_HTTP_FIXTURE_MODE=mode,
-                ),
-                pass_fds=(sock.fileno(),),
-                cwd=BACKEND,
-            )
-        )
-        wait_ready(port, proc)
-        proc = stack.enter_context(
-            listener(
-                [binary, "-test.run=^TestParityServer$", "-test.timeout=5m"],
-                env=dict(go, TRAVEL_HTTP_FIXTURE_MODE=mode,
-                         PGOPTIONS=go["PGOPTIONS"] + " -cdefault_transaction_read_only=on"),
-                stdout=subprocess.PIPE,
-                text=True,
-            )
-        )
+def server(env, binary, mode):
+    with listener(
+        [binary, "-test.run=^TestTravelFixtureServer$", "-test.timeout=5m"],
+        env=dict(
+            env,
+            TRAVEL_HTTP_FIXTURE_MODE=mode,
+            PGOPTIONS=env["PGOPTIONS"] + " -cdefault_transaction_read_only=on",
+        ),
+        stdout=subprocess.PIPE,
+        text=True,
+    ) as proc:
         with selectors.DefaultSelector() as selector:
             selector.register(proc.stdout, selectors.EVENT_READ)
-            if not selector.select(timeout=20):
-                raise RuntimeError("Go fixture listener did not start")
-            address = proc.stdout.readline().strip()
-        if not re.fullmatch(r"127\.0\.0\.1:\d+", address):
-            raise RuntimeError(f"Go fixture listener failed: {address}")
-        yield (port, int(address.split(":")[1]))
+            assert selector.select(timeout=20), "travel fixture listener did not start"
+        address = proc.stdout.readline().strip()
+        assert re.fullmatch(r"127\.0\.0\.1:\d+", address), address
+        yield int(address.split(":")[1])
 
 
 def request(port, method, path, body):
@@ -149,97 +66,56 @@ def identities(env):
         return out
 
 
-def normalized(env, value, key=None):
-    ids = identities(env)
-    with connect(env) as db:
-        finished = {
-            stamp.astimezone(UTC): "finished:" + started.astimezone(UTC).isoformat()
-            for started, stamp in db.execute(
-                "SELECT started_at,finished_at FROM import_batches WHERE finished_at IS NOT NULL"
-            )
-        }
-
-    def canonical(obj, field):
-        if isinstance(obj, dict):
-            return {k: canonical(v, k) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [canonical(item, field) for item in obj]
-        if isinstance(obj, str):
-            if field == "request_id":
-                assert obj
-                return "request-id"
-            if UUID.fullmatch(obj):
-                return ids[obj]
-            if field in {"finished_at", "last_success_at"}:
-                stamp = datetime.fromisoformat(obj)
-                return (finished[stamp.astimezone(UTC)], stamp.utcoffset())
-            if field in {"started_at", "start_at", "end_at", "depart_at", "arrive_at"}:
-                return datetime.fromisoformat(obj).isoformat()
-            if field in {"depart_local", "arrive_local"}:
-                return datetime.fromisoformat(obj).isoformat()
-        return obj
-
-    return canonical(value, key)
-
-
-def scenario(binary, py, go):
-    environments = (py, go)
+def scenario(binary, env):
+    folder = Path(env["PRIVATE_DIR"])
 
     def clock(hour):
-        for env in environments:
-            (Path(env["PRIVATE_DIR"]) / "now").write_text(
-                f"{FIXED_DAY}T{hour:02}:00:00Z"
-            )
+        (folder / "now").write_text(f"{FIXED_DAY}T{hour:02}:00:00Z")
 
     def provider(items=None, error=None):
-        for env in environments:
-            folder = Path(env["PRIVATE_DIR"])
-            (folder / "connected").touch()
-            (folder / "google-calendar-token.json").touch()
-            pages = (
-                [
-                    {"items": items[:2], "nextPageToken": "2"},
-                    {"page_token": "2", "items": items[2:]},
-                ]
-                if items
-                else [{"items": []}]
-            )
-            (folder / "delivery.json").write_text(
-                json.dumps({"pages": pages, "error": error})
-            )
+        (folder / "connected").touch()
+        (folder / "google-calendar-token.json").touch()
+        pages = (
+            [
+                {"items": items[:2], "nextPageToken": "2"},
+                {"page_token": "2", "items": items[2:]},
+            ]
+            if items
+            else [{"items": []}]
+        )
+        (folder / "delivery.json").write_text(
+            json.dumps({"pages": pages, "error": error})
+        )
 
     def call(method, route, body=None, *, status=200, code=None):
-        replies = []
-        for env, port in zip(environments, ports, strict=True):
-            path = route
-            ids = identities(env)
-            for uid, alias in ids.items():
-                path = path.replace("{" + alias + "}", uid)
-            actual, result = request(port, method, path, body)
-            assert actual == status, (method, route, actual, result)
-            if code:
-                assert result["error"]["code"] == code, result
-            else:
-                with connect(env) as db:
-                    assert (
-                        result["data_revision"]
-                        == db.execute(
-                            "SELECT data_revision FROM app_state WHERE id=1"
-                        ).fetchone()[0]
-                    )
-            replies.append(normalized(env, result))
-        assert replies[0] == replies[1], (method, route, replies)
-        return replies[0].get("data", replies[0])
+        path = route
+        ids = identities(env)
+        for uid, alias in ids.items():
+            path = path.replace("{" + alias + "}", uid)
+        actual, result = request(port, method, path, body)
+        assert actual == status, (method, route, actual, result)
+        if code:
+            error = result["error"]
+            assert error["code"] == code and error["request_id"], error
+            return error
+        with connect(env) as db:
+            (revision,) = db.execute(
+                "SELECT data_revision FROM app_state WHERE id=1"
+            ).fetchone()
+        assert result["mode"] == mode and result["data_revision"] == revision
+        return result["data"]
 
     sync = "/google-calendar/sync"
     events = "/google-calendar/events"
     trips = "/trips"
     status_url = "/google-calendar/status"
     clock(8)
-    with listeners(py, go, binary, "test") as ports:
+    mode = "test"
+    with server(env, binary, mode) as port:
         call("POST", sync, {}, status=409, code="real_mode_required")
         assert call("GET", status_url)["connected"] is False
-    with listeners(py, go, binary, "real") as ports:
+    mode = "real"
+    with server(env, binary, mode) as port:
         call("POST", sync, {}, status=409, code="gcal_not_connected")
         assert call("GET", events)["items"] == call("GET", trips)["items"] == []
         originals = [
@@ -248,7 +124,7 @@ def scenario(binary, py, go):
         originals += [
             e for e in fixture("basic_pages.json") if e["id"] != "evt-flight-1"
         ]
-        # Avoid UUID tie-breaking across independent schemas at local midnight.
+        # Fix ordering for two events that share a local date.
         for event in originals:
             if event["id"] == "evt-ooo-1":
                 event["start"]["dateTime"] = "2026-12-03T00:01:00-05:00"
@@ -311,7 +187,7 @@ def scenario(binary, py, go):
             status=404,
             code="event_not_found",
         )
-        detected = trips + "/{" + trip["id"] + "}"
+        detected = trips + "/" + trip["id"]
         call(
             "PATCH",
             detected,
@@ -332,7 +208,7 @@ def scenario(binary, py, go):
         provider(changed)
         assert call("POST", sync, {})["trips"]["flagged"] == 1
         assert [
-            e["id"]
+            identities(env)[e["id"]]
             for e in call("GET", events + "?include_removed=yes")["items"]
             if e["removed"]
         ] == ["event:evt-focus-1"]
@@ -369,7 +245,7 @@ def scenario(binary, py, go):
             "day_availability": [availability],
         }
         manual_trip = call("POST", trips, manual, status=201)
-        manual_url = trips + "/{" + manual_trip["id"] + "}"
+        manual_url = trips + "/" + manual_trip["id"]
         invalid = [
             (dict(manual, destination_tz="Unknown/City"), "validation_error"),
             (
@@ -446,15 +322,9 @@ def main():
             cwd=MODULE,
             check=True,
         )
-        with (
-            migrated_schema(db, url, directory / "py", "5173") as py,
-            migrated_schema(db, url, directory / "go", "5173") as go,
-        ):
-            scenario(binary, py, go)
+        with migrated_schema(db, url, directory / "travel", "5173") as env:
+            scenario(binary, env)
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["serve"]:
-        python_server(int(sys.argv[2]))
-    else:
-        main()
+    main()

@@ -1,32 +1,23 @@
-"""Run python3 scripts/test-db.py phone-checkins for synthetic gateway, HTTP and PostgreSQL parity."""
+"""Run python3 scripts/test-db.py phone-checkins for synthetic native gateway, HTTP and PostgreSQL regressions."""
 
 import json
-import os
 import re
 import selectors
-import socket
 import subprocess
-import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from datetime import UTC, datetime
-from functools import partial
 from http.client import HTTPConnection
-from http.server import ThreadingHTTPServer
 from pathlib import Path
-from threading import Thread
-from unittest.mock import patch
 
 import psycopg
 from check_gcal_replay import connect, test_url
 from test_proposal_slice import (
-    BACKEND,
     MODULE,
     ROOT,
     listener,
     migrated_schema,
-    wait_ready,
 )
 
 HOST = "synthetic.ts.net:8444"
@@ -38,105 +29,24 @@ CHECKINS = PREFIX + "/v2/checkins"
 BODY = {"observed_at": "2025-02-15T23:30:00-05:00", "pain": 0, "walking_response": None}
 
 
-def reference(fd):
-    test_url()
-    if not re.fullmatch(
-        r"-csearch_path=go_parity_[0-9a-f]{32} -cTimeZone=Asia/Kathmandu",
-        os.environ.get("PGOPTIONS", ""),
-    ):
-        raise SystemExit("expected disposable comparison schema")
-    import uvicorn
-    from app.api import checkins
-    from app.main import app
-    from app.services import derived
-    from sqlalchemy import text
-
-    if instant := os.environ.get("CHECKIN_REFRESH_CLOCK"):
-        from app.metrics import refresh as metric_refresh
-
-        fixed = datetime.fromisoformat(instant)
-
-        class Clock(datetime):
-            @classmethod
-            def now(cls, tz=None):
-                return fixed.astimezone(tz)
-
-        with (
-            patch.object(metric_refresh, "clock", lambda session: fixed),
-            patch.object(checkins, "datetime", Clock),
-        ):
-            uvicorn.run(app, fd=fd, access_log=False, log_level="error")
-        return
-
-    def refresh(session, scopes):
-        session.execute(
-            text("INSERT INTO fixture_hooks(kind,scopes) VALUES ('refresh',:scopes)"),
-            {"scopes": sorted(scopes)},
-        )
-
-    real_detect = checkins.run_detection
-
-    def detect(session, now):
-        session.execute(text("INSERT INTO fixture_hooks(kind) VALUES ('detect')"))
-        return real_detect(session, now)
-
-    with (
-        patch.object(derived, "refresh_scopes", refresh),
-        patch.object(checkins, "run_detection", detect),
-    ):
-        uvicorn.run(app, fd=fd, access_log=False, log_level="error")
-
-
 @contextmanager
-def servers(py, go, binary):
-    sys.path.insert(0, str(ROOT / "scripts"))
-    from phone_gateway import PhoneAccess, PhoneHandler
-
-    with ExitStack() as stack:
-        s = stack.enter_context(socket.socket())
-        s.bind(("127.0.0.1", 0))
-        s.listen()
-        port = s.getsockname()[1]
-        p = stack.enter_context(
-            listener(
-                [sys.executable, __file__, "serve", str(s.fileno())],
-                env=dict(py, APP_PORT=str(port), PYTHONPATH=str(BACKEND)),
-                pass_fds=(s.fileno(),),
-                cwd=BACKEND,
-            )
-        )
-        wait_ready(port, p)
-        ref = stack.enter_context(
-            ThreadingHTTPServer(
-                ("127.0.0.1", 0),
-                partial(PhoneHandler, access=PhoneAccess(HOST, OWNER, "test", port)),
-            )
-        )
-        thread = Thread(target=ref.serve_forever, daemon=True)
-        thread.start()
-        stack.callback(thread.join)
-        stack.callback(ref.shutdown)
-        candidate = stack.enter_context(
-            listener(
-                [binary, "-test.run=^TestCheckinParityServer$", "-test.timeout=3m"],
-                env=dict(
-                    go,
-                    CHECKIN_HTTP_FIXTURE="1",
-                    PHONE_FIXTURE_ASSETS=str(ROOT / "frontend/public/phone"),
-                ),
-                stdout=subprocess.PIPE,
-                text=True,
-            )
-        )
+def server(env, binary):
+    with listener(
+        [binary, "-test.run=^TestCheckinFixtureServer$", "-test.timeout=3m"],
+        env=dict(
+            env,
+            CHECKIN_HTTP_FIXTURE="1",
+            PHONE_FIXTURE_ASSETS=str(ROOT / "frontend/public/phone"),
+        ),
+        stdout=subprocess.PIPE,
+        text=True,
+    ) as candidate:
         with selectors.DefaultSelector() as sel:
             sel.register(candidate.stdout, selectors.EVENT_READ)
-            if not sel.select(timeout=20):
-                raise RuntimeError("Go fixture listener did not start")
-            line = candidate.stdout.readline().strip()
-        if not re.fullmatch(r"\d+ \d+", line):
-            raise RuntimeError("Go listener failed: " + line)
-        api, gateway = map(int, line.split())
-        yield ((py, port, ref.server_port), (go, api, gateway))
+            assert sel.select(timeout=20), "check-in fixture listener did not start"
+        line = candidate.stdout.readline().strip()
+        assert re.fullmatch(r"\d+ \d+", line), line
+        yield tuple(map(int, line.split()))
 
 
 def setup(env):
@@ -244,40 +154,38 @@ def request(port, method, path, body, headers):
         client.close()
 
 
-def compare(binary, py, go):
-    for env in (py, go):
-        setup(env)
-    with servers(py, go, binary) as pairs:
+def exercise(binary, env):
+    setup(env)
+    with server(env, binary) as (api, phone):
 
         def call(method, path, body=None, *, gateway=False, headers=None, status=200):
-            outputs = []
-            for env, api, phone in pairs:
-                defaults = {"X-Local-Request": "1", "Content-Type": "application/json"}
-                if gateway:
-                    defaults.update(
-                        Host=HOST,
-                        Origin="https://" + HOST,
-                        **{"Tailscale-User-Login": OWNER},
-                    )
-                if headers:
-                    defaults.update(headers)
-                resolved = path
-                for uid, name in names(env)[0].items():
-                    resolved = resolved.replace("{" + name + "}", uid)
-                code, head, raw = request(
-                    phone if gateway else api, method, resolved, body, defaults
+            defaults = {"X-Local-Request": "1", "Content-Type": "application/json"}
+            if gateway:
+                defaults.update(
+                    Host=HOST,
+                    Origin="https://" + HOST,
+                    **{"Tailscale-User-Login": OWNER},
                 )
-                assert code == status, (method, path, status, code, raw)
-                if head.get_content_type() == "application/json" and raw:
-                    reply = canonical(json.loads(raw), env)
-                    if "data_revision" in reply:
-                        assert reply["data_revision"] == snapshot(env)[1]
-                else:
-                    reply = raw
-                outputs.append((reply, head.get("Location"), head.get_content_type()))
-            assert outputs[0] == outputs[1], (method, path, outputs)
-            assert snapshot(py) == snapshot(go), (snapshot(py), snapshot(go))
-            return outputs[0][0]
+            if headers:
+                defaults.update(headers)
+            for uid, name in names(env)[0].items():
+                path = path.replace("{" + name + "}", uid)
+            before = snapshot(env)
+            code, head, raw = request(
+                phone if gateway else api, method, path, body, defaults
+            )
+            assert code == status, (method, path, status, code, raw)
+            if status < 500 and (status >= 400 or method in ("GET", "HEAD")):
+                assert snapshot(env) == before
+            if head.get_content_type() == "application/json" and raw:
+                reply = canonical(json.loads(raw), env)
+                if "data_revision" in reply:
+                    assert reply["mode"] == "test"
+                    assert reply["data_revision"] == snapshot(env)[1]
+                return reply
+            if status == 302:
+                assert head["Location"] == "/phone/"
+            return raw
 
         for verb, path, status in [
             ("GET", "/", 302),
@@ -313,9 +221,14 @@ def compare(binary, py, go):
             {"observed_at": "2025-02-15T10:00:00"},
         ]:
             call("PUT", PHONE, dict(BODY, **edits), gateway=True, status=422)
+        before = snapshot(env)
         saved = call("PUT", PHONE, BODY, gateway=True)
+        after = snapshot(env)
+        assert after[1] == before[1] + 1
+        assert [kind for kind, _ in after[0][len(before[0]) :]] == ["detect", "refresh"]
         assert saved["data"] == {"id": ENTRY}
         assert call("PUT", PHONE, BODY, gateway=True) == saved
+        assert snapshot(env) == after
         call(
             "PUT",
             PHONE,
@@ -404,9 +317,8 @@ def compare(binary, py, go):
             },
         )
         assert old["data"]["version"] == 1 and old["data"]["pain_reported"] is None
-        for env in (py, go):
-            with connect(env) as db:
-                db.execute("INSERT INTO fixture_abort VALUES ('refresh')")
+        with connect(env) as db:
+            db.execute("INSERT INTO fixture_abort VALUES ('refresh')")
         call(
             "POST",
             CHECKINS,
@@ -417,12 +329,11 @@ def compare(binary, py, go):
             ),
             status=500,
         )
-        for env in (py, go):
-            with connect(env) as db:
-                assert db.execute(
-                    "SELECT count(*) FROM checkins_v2 WHERE idempotency_key='rollback'"
-                ).fetchone() == (0,)
-                db.execute("DELETE FROM fixture_abort")
+        with connect(env) as db:
+            assert db.execute(
+                "SELECT count(*) FROM checkins_v2 WHERE idempotency_key='rollback'"
+            ).fetchone() == (0,)
+            db.execute("DELETE FROM fixture_abort")
         call(
             "POST",
             CHECKINS,
@@ -439,21 +350,19 @@ def compare(binary, py, go):
         split = dict(
             generic, idempotency_key="split", observed_at="2025-02-17T11:00:00Z"
         )
-        for env in (py, go):
-            with connect(env) as db:
-                db.execute("INSERT INTO fixture_abort VALUES ('detect')")
+        with connect(env) as db:
+            db.execute("INSERT INTO fixture_abort VALUES ('detect')")
         call("PUT", other, late, gateway=True, status=500)
         call("POST", CHECKINS, split, status=500)
-        for env in (py, go):
-            with connect(env) as db:
-                assert db.execute(
-                    "SELECT count(*) FROM checkins_v2 WHERE idempotency_key = %s",
-                    ("phone-first-steps:" + other.rsplit("/", 1)[1],),
-                ).fetchone() == (0,)
-                assert db.execute(
-                    "SELECT count(*) FROM checkins_v2 WHERE idempotency_key='split'"
-                ).fetchone() == (1,)
-                db.execute("DELETE FROM fixture_abort")
+        with connect(env) as db:
+            assert db.execute(
+                "SELECT count(*) FROM checkins_v2 WHERE idempotency_key = %s",
+                ("phone-first-steps:" + other.rsplit("/", 1)[1],),
+            ).fetchone() == (0,)
+            assert db.execute(
+                "SELECT count(*) FROM checkins_v2 WHERE idempotency_key='split'"
+            ).fetchone() == (1,)
+            db.execute("DELETE FROM fixture_abort")
         call("POST", CHECKINS, split)
         headers = {
             "Host": HOST,
@@ -462,21 +371,19 @@ def compare(binary, py, go):
             "X-Local-Request": "1",
             "Content-Type": "application/json",
         }
-        for env, _, gw in pairs:
-            before = snapshot(env)[1]
-            with ThreadPoolExecutor(max_workers=2) as workers:
-                replies = list(
-                    workers.map(
-                        lambda _, port=gw: request(port, "PUT", other, late, headers),
-                        range(2),
-                    )
+        before = snapshot(env)[1]
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            replies = list(
+                workers.map(
+                    lambda _, port=phone: request(port, "PUT", other, late, headers),
+                    range(2),
                 )
-            assert (
-                all(code == 200 for code, _, _ in replies)
-                and replies[0][2] == replies[1][2]
             )
-            assert snapshot(env)[1] == before + 1
-        assert snapshot(py) == snapshot(go)
+        assert (
+            all(code == 200 for code, _, _ in replies)
+            and replies[0][2] == replies[1][2]
+        )
+        assert snapshot(env)[1] == before + 1
         alternate = dict(
             generic, idempotency_key="alternate", observed_at="2025-02-19T12:00+0530"
         )
@@ -511,7 +418,7 @@ def compare(binary, py, go):
     )
 
 
-def positive_refresh(binary, py, go):
+def positive_refresh(binary, env):
     fixed = "2026-11-15T15:00:00Z"
     headers = {"X-Local-Request": "1", "Content-Type": "application/json"}
 
@@ -527,45 +434,31 @@ def positive_refresh(binary, py, go):
             ).fetchone()[0]
             return rows, prompts, revision
 
-    for env in (py, go):
-        env["CHECKIN_REFRESH_CLOCK"] = fixed
-        with connect(env) as db:
-            db.execute("""INSERT INTO prompts(id,kind,opens_at,closes_at,status)
-                  VALUES ('bd66b144-0194-4690-aad1-b7e15835ca62','missing_activity',
-                        '2026-11-10T10:00Z','2026-11-12T10:00Z','open')""")
-    with servers(py, go, binary) as pairs:
-        previous = None
-        for _ in range(2):
-            receipts = []
-            for env, api, _gw in pairs:
-                code, _, raw = request(
-                    api,
-                    "PUT",
-                    PHONE,
-                    dict(BODY, observed_at="2026-11-15T09:00:00-05:00"),
-                    headers,
-                )
-                assert code == 200, (code, raw)
-                receipts.append(json.loads(raw))
-            assert receipts[0] == receipts[1], receipts
-            left, right = state(py), state(go)
-            if left != right:
-                from itertools import zip_longest
+    env["CHECKIN_REFRESH_CLOCK"] = fixed
+    with connect(env) as db:
+        db.execute("""INSERT INTO prompts(id,kind,opens_at,closes_at,status)
+              VALUES ('bd66b144-0194-4690-aad1-b7e15835ca62','missing_activity',
+                    '2026-11-10T10:00Z','2026-11-12T10:00Z','open')""")
+    with server(env, binary) as (api, _):
 
-                diff = next(
-                    ((a, b) for a, b in zip_longest(left[0], right[0]) if a != b), None
-                )
-                raise AssertionError(
-                    (len(left[0]), len(right[0]), diff, left[1:], right[1:])
-                )
-            assert (
-                left[0]
-                and left[1][0][2] == "expired"
-                and left[2] == receipts[0]["data_revision"]
+        def submit():
+            code, _, raw = request(
+                api,
+                "PUT",
+                PHONE,
+                dict(BODY, observed_at="2026-11-15T09:00:00-05:00"),
+                headers,
             )
-            if previous is not None:
-                assert left == previous
-            previous = left
+            assert code == 200, (code, raw)
+            return json.loads(raw)
+
+        receipt = submit()
+        previous = state(env)
+        rows, prompts, revision = previous
+        assert len(rows) == 37
+        assert prompts[0][2] == "expired"
+        assert revision == receipt["data_revision"]
+        assert submit() == receipt and state(env) == previous
     print(
         f"PASS full check-in refresh: {len(previous[0])} current metric results, prompt expiry and duplicate receipt"
     )
@@ -587,11 +480,8 @@ def main():
             cwd=MODULE,
             check=True,
         )
-        with (
-            migrated_schema(db, url, directory / "py", "5173") as py,
-            migrated_schema(db, url, directory / "go", "5173") as go,
-        ):
-            compare(binary, py, go)
+        with migrated_schema(db, url, directory / "phone", "5173") as env:
+            exercise(binary, env)
             subprocess.run(
                 [
                     "go",
@@ -603,18 +493,12 @@ def main():
                     "./internal/exceptions",
                 ],
                 cwd=MODULE,
-                env=dict(go, CHECKIN_HTTP_FIXTURE="1"),
+                env=dict(env, CHECKIN_HTTP_FIXTURE="1"),
                 check=True,
             )
-        with (
-            migrated_schema(db, url, directory / "positive-py", "5173") as py,
-            migrated_schema(db, url, directory / "positive-go", "5173") as go,
-        ):
-            positive_refresh(binary, py, go)
+        with migrated_schema(db, url, directory / "refresh", "5173") as env:
+            positive_refresh(binary, env)
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["serve"]:
-        reference(int(sys.argv[2]))
-    else:
-        main()
+    main()

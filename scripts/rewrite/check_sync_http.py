@@ -1,27 +1,19 @@
-"""Compare native Garmin sync HTTP and pending treadmill review in disposable PostgreSQL schemas."""
+"""Exercise native Garmin queue and treadmill HTTP against synthetic PostgreSQL."""
 
 import json
-import os
-import re
 import runpy
 import selectors
 import subprocess
-import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import nullcontext
-from datetime import UTC, datetime
 from http.client import HTTPConnection
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import patch
 
 import psycopg
 from check_gcal_replay import connect, test_url
 from test_proposal_slice import BACKEND, MODULE, ROOT, listener, migrated_schema
 
 DAY = "2026-11-10"
-NOW = datetime(2026, 11, 16, 9, tzinfo=UTC)
 JOB = "b1e32fd1-bc9a-42f7-92ff-9246eb562a20"
 INTERVAL = "8d9ee0ec-7843-4461-8bb8-e58a6661006b"
 BASE = "/api/v1/sync"
@@ -85,92 +77,107 @@ def seed(env):
 
 def exercise(request, mode, env):
     root = Path(env["PRIVATE_DIR"])
-    results = []
-    ids = {}
 
-    def normalize(code, value):
-        if "error" in value:
-            value["error"].pop("request_id")
-        else:
-            assert value["mode"] == mode
-            data = value["data"]
-            if isinstance(data, dict):
-                for job in data.get("jobs", []) + data.get("active_jobs", []):
-                    raw = job["id"]
-                    key = (job["dataset"], job["start_date"], job["end_date"])
-                    assert ids.setdefault(key, raw) == raw
-                    job["id"] = ":".join(str(item) for item in key)
-                if (
-                    "id" in data
-                    and "dataset" in data
-                    and data["id"] not in {JOB, LEGACY}
-                ):
-                    key = (data["dataset"], data["start_date"], data["end_date"])
-                    assert data["id"] == ids[key]
-                    data["id"] = ":".join(str(item) for item in key)
+    def send(method, path, body=None, *, status=200, error=None):
+        code, value = request(method, BASE + path, body)
+        assert code == status, (method, path, code, value)
+        if error is not None:
+            issue = value["error"]
+            assert issue["code"] == error and issue["request_id"], issue
+            return issue
+        assert value["mode"] == mode and value["schema_version"] == "v1"
+        with connect(env) as db:
+            (revision,) = db.execute(
+                "SELECT data_revision FROM app_state WHERE id=1"
+            ).fetchone()
+        assert value["data_revision"] == revision
+        return value["data"]
 
-                if "activity_id" in data:
-                    with connect(env) as db:
-                        assert (
-                            db.execute(
-                                "SELECT id::text FROM activities WHERE garmin_id='1'"
-                            ).fetchone()[0]
-                            == data["activity_id"]
-                        )
-                    data["activity_id"] = "<saved>"
-        results.append((code, value))
-        return value.get("data", {})
-
-    def send(method, path, body=None):
-        return normalize(*request(method, BASE + path, body))
-
-    for method, path, body in [
-        ("GET", "/status", None),
-        ("GET", "/jobs/" + JOB, None),
-        ("GET", "/jobs/" + LEGACY, None),
-        ("GET", "/jobs/" + INTERVAL, None),
-        ("GET", "/jobs/xyz", None),
-        ("POST", "", {"start_date": "invalid"}),
-        ("POST", "", {"start_date": "2026-01-10", "end_date": "2025-01-10"}),
-        ("POST", "", {"start_date": "2026-12-10"}),
-        ("POST", "", {}),
-        ("POST", "", {}),
-        ("GET", "/treadmill-review/missing", None),
-        ("POST", REVIEW, {}),
-        ("POST", REVIEW, {"preview_token": "stale", "paces": []}),
-    ]:
-        send(method, path, body)
-    if mode != "real":
-        return results
-    for raw in ids.values():
-        send("GET", "/jobs/" + raw)
+    first = send("GET", "/status")
+    assert first["pending_treadmill_runs"] == [{"id": "1", "local_date": DAY}]
+    assert [job["id"] for job in first["active_jobs"]] == [LEGACY]
+    current = send("GET", "/jobs/" + JOB)
+    assert current["status"] == "complete" and current["checkpoint"] == {"offset": 50}
+    prior = send("GET", "/jobs/" + LEGACY)
+    assert prior["status"] == "retry_wait" and prior["checkpoint"] == {"page": 3}
+    assert prior["next_attempt_at"].endswith("+05:45")
+    send("GET", "/jobs/" + INTERVAL, status=404, error="job_not_found")
+    send("GET", "/jobs/xyz", status=422, error="validation_error")
+    for body in (
+        {"start_date": "invalid"},
+        {"start_date": "2026-01-10", "end_date": "2025-01-10"},
+    ):
+        send("POST", "", body, status=422, error="validation_error")
+    send("POST", REVIEW, {}, status=422, error="validation_error")
+    if mode == "test":
+        for body in ({"start_date": "2026-12-10"}, {}, {}):
+            send("POST", "", body, status=409, error="real_mode_required")
+        send("GET", REVIEW, status=409, error="real_mode_required")
+        send(
+            "POST",
+            REVIEW,
+            {"preview_token": "stale", "paces": []},
+            status=409,
+            error="real_mode_required",
+        )
+        assert send("GET", "/status") == first
+        return
+    send(
+        "POST", "", {"start_date": "2026-12-10"}, status=422, error="invalid_sync_range"
+    )
+    jobs = send("POST", "", {}, status=202)["jobs"]
+    assert {job["dataset"] for job in jobs} == {
+        "activities",
+        "sleep",
+        "resting_hr",
+        "hrv",
+    }
+    assert send("POST", "", {}, status=202)["jobs"] == jobs
+    for job in jobs:
+        assert send("GET", "/jobs/" + job["id"]) == job
+    send(
+        "GET",
+        "/treadmill-review/missing",
+        status=404,
+        error="treadmill_review_not_found",
+    )
+    send(
+        "POST",
+        REVIEW,
+        {"preview_token": "stale", "paces": []},
+        status=409,
+        error="treadmill_review_reload_required",
+    )
     row = json.loads((root / "row.json").read_text())
-    for changed in (
-        {"activityId": "different"},
-        {"ownerId": "different"},
-        {"activityType": {"typeKey": "running"}},
+    for changed, status, error in (
+        ({"activityId": "different"}, 502, "treadmill_summary_unavailable"),
+        ({"ownerId": "different"}, 502, "treadmill_review_unavailable"),
+        ({"activityType": {"typeKey": "running"}}, 409, "treadmill_summary_changed"),
     ):
         (root / "row.json").write_text(json.dumps({**row, **changed}))
-        send("GET", REVIEW)
+        send("GET", REVIEW, status=status, error=error)
     (root / "row.json").write_text(json.dumps(row))
-    for remote in (429, 404):
-        (root / "download_status").write_text(str(remote))
-        response = send("GET", REVIEW)
-        if remote == 404:
-            assert response["intervals"] == [] and response["timer_s"] is None
-            response["preview_token"] = "<missing-fit-preview>"
+    (root / "download_status").write_text("429")
+    send("GET", REVIEW, status=502, error="treadmill_review_unavailable")
+    (root / "download_status").write_text("404")
+    unavailable_fit = send("GET", REVIEW)
+    assert unavailable_fit["intervals"] == [] and unavailable_fit["timer_s"] is None
     (root / "download_status").unlink()
     data = send("GET", REVIEW)
-    token = data.get("preview_token")
-    if not token:
-        raise AssertionError(data)
-    data["preview_token"] = "<preview>"
-    assert len(data["intervals"]) == 2
-    for paces in (
-        [{"lap_index": 8, "pace_seconds_per_mile": 380}],
-        [{"lap_index": 0, "pace_seconds_per_mile": 455}] * 2,
+    token = data["preview_token"]
+    assert token and token != unavailable_fit["preview_token"]
+    assert len(data["intervals"]) == 2 and data["timer_s"] > 0
+    for paces, error in (
+        ([{"lap_index": 8, "pace_seconds_per_mile": 380}], "treadmill_lap_invalid"),
+        ([{"lap_index": 0, "pace_seconds_per_mile": 455}] * 2, "validation_error"),
     ):
-        send("POST", REVIEW, {"preview_token": token, "paces": paces})
+        send(
+            "POST",
+            REVIEW,
+            {"preview_token": token, "paces": paces},
+            status=422,
+            error=error,
+        )
     valid = {
         "preview_token": token,
         "paces": [{"lap_index": "1", "pace_seconds_per_mile": "490"}],
@@ -181,8 +188,8 @@ def exercise(request, mode, env):
         $$ BEGIN RAISE EXCEPTION 'synthetic metric refresh failure'; END $$""")
         db.execute("""CREATE TRIGGER synthetic_refresh_failure BEFORE INSERT ON metric_results
         FOR EACH ROW EXECUTE FUNCTION synthetic_refresh_failure()""")
-    send("POST", REVIEW, valid)
-    assert results[-1][0] == 500 and persisted(env) == before
+    send("POST", REVIEW, valid, status=500, error="internal_error")
+    assert persisted(env) == before
     with connect(env) as db:
         db.execute("DROP TRIGGER synthetic_refresh_failure ON metric_results")
     with ThreadPoolExecutor(max_workers=2) as workers:
@@ -197,65 +204,44 @@ def exercise(request, mode, env):
         "treadmill_review_not_found",
         "treadmill_review_reload_required",
     }
-    normalize(*responses[0])
-    send("POST", REVIEW, {"preview_token": token, "paces": []})
-    send("GET", REVIEW)
-    send("GET", "/status")
-    return results
-
-
-def python_ref():
-    test_url()
-    assert re.fullmatch(
-        r"-csearch_path=go_parity_[0-9a-f]{32} -cTimeZone=Asia/Kathmandu",
-        os.environ["PGOPTIONS"],
+    saved = responses[0][1]
+    assert saved["mode"] == mode
+    with connect(env) as db:
+        (activity_id,) = db.execute(
+            "SELECT id::text FROM activities WHERE garmin_id='1'"
+        ).fetchone()
+    assert saved["data"] == {"activity_id": activity_id}
+    activities, laps, coverage, checkpoints, sources, revisions, metrics = persisted(
+        env
     )
-    from app.adapters.garmin.personal import GarminRemoteError
-    from app.api import responses
-    from app.api import sync as api
-    from app.main import app
-    from app.metrics import refresh
-    from app.services import sync, treadmill_review
-    from fastapi.testclient import TestClient
-
-    mode = os.environ["SYNC_ROUTE_MODE"]
-    root = Path(os.environ["PRIVATE_DIR"])
-
-    class Source:
-        def pages(self, *_):
-            yield 0, [json.loads((root / "row.json").read_text())]
-
-        def download_activity(self, _):
-            status = root / "download_status"
-            if status.exists():
-                raise GarminRemoteError(int(status.read_text()), None)
-            return (root / "synthetic.zip").read_bytes()
-
-    class Clock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return NOW.astimezone(tz)
-
-    settings = SimpleNamespace(app_mode=mode, private_dir=root)
-    with (
-        patch.object(api, "settings", settings),
-        patch.object(responses, "settings", settings),
-        patch.object(treadmill_review, "datetime", Clock),
-        patch.object(
-            treadmill_review, "GarminPersonalSource", lambda *_: nullcontext(Source())
-        ),
-        patch.object(sync, "athlete_today", lambda _: NOW.date()),
-        patch.object(refresh, "clock", lambda _: NOW),
-        TestClient(app, base_url="http://localhost") as client,
-    ):
-
-        def send(method, path, body):
-            resp = client.request(
-                method, path, json=body, headers={"X-Local-Request": "1"}
-            )
-            return resp.status_code, resp.json()
-
-        return exercise(send, mode, os.environ)
+    assert len(activities) == 1 and activities[0][0:2] == ("1", "decoded")
+    paces = activities[0][2]
+    assert set(paces) == {"1"} and paces["1"]["pace_s_per_mile"] == 490
+    assert paces["1"]["lap_identity"] and [row[0] for row in laps] == [0, 1]
+    assert coverage == [("complete", None, True)]
+    checkpoint, counters = checkpoints[0]
+    assert not checkpoint.get("pending_treadmill") and counters["changed"] == 1
+    assert sources and metrics
+    assert revisions == [(saved["data_revision"],)]
+    assert saved["data_revision"] == before[5][0][0] + 1
+    send(
+        "POST",
+        REVIEW,
+        {"preview_token": token, "paces": []},
+        status=409,
+        error="treadmill_review_reload_required",
+    )
+    send("GET", REVIEW, status=404, error="treadmill_review_not_found")
+    assert send("GET", "/status")["pending_treadmill_runs"] == []
+    assert persisted(env) == [
+        activities,
+        laps,
+        coverage,
+        checkpoints,
+        sources,
+        revisions,
+        metrics,
+    ]
 
 
 def persisted(env):
@@ -291,25 +277,12 @@ def run():
             check=True,
         )
         for mode in ("test", "real"):
-            with (
-                migrated_schema(db, url, tmp / ("py-" + mode), "5173") as py,
-                migrated_schema(db, url, tmp / ("go-" + mode), "5173") as go,
-            ):
-                for env in (py, go):
-                    seed(env)
-                    env.update(
-                        SYNC_ROUTE_MODE=mode,
-                        SYNC_HTTP_FIXTURE="1",
-                        PYTHONPATH=str(BACKEND),
-                    )
-                expected = json.loads(
-                    subprocess.check_output(
-                        [sys.executable, __file__, "reference"], env=py, text=True
-                    ).splitlines()[-1]
-                )
+            with migrated_schema(db, url, tmp / mode, "5173") as env:
+                seed(env)
+                env.update(SYNC_ROUTE_MODE=mode, SYNC_HTTP_FIXTURE="1")
                 with listener(
                     [binary, "-test.run=^TestHTTPFixture$"],
-                    env=go,
+                    env=env,
                     stdout=subprocess.PIPE,
                     text=True,
                 ) as proc:
@@ -331,17 +304,11 @@ def run():
                         conn.close()
                         return item
 
-                    actual = exercise(send, mode, go)
-                for i, (a, b) in enumerate(zip(expected, actual, strict=True)):
-                    assert a == list(b), (i, a, b)
-                assert persisted(py) == persisted(go), (persisted(py), persisted(go))
+                    exercise(send, mode, env)
     print(
         "PASS Garmin sync HTTP mode gates, queue state, review confirmation, persisted lap paces, coverage and derived windows"
     )
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["reference"]:
-        print(json.dumps(python_ref()))
-    else:
-        run()
+    run()
