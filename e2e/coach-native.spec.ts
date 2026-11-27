@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../frontend/node_modules/@playwright/test'
 
 test('discusses, saves, reloads and accepts a pending draft through the native dashboard', async ({
   page,

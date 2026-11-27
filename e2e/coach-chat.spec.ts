@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../frontend/node_modules/@playwright/test'
 
 const local = { 'X-Local-Request': '1', 'Content-Type': 'application/json' }
 const fixture = '/api/v1/__test/coach'
