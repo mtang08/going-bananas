@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
+	"github.com/mtang08/going-bananas/backend-go/internal/httpinput"
 	"github.com/mtang08/going-bananas/backend-go/internal/providerjobs"
 	"github.com/mtang08/going-bananas/backend-go/internal/pydantic"
- "github.com/mtang08/going-bananas/backend-go/internal/httpinput"
 )
 
 type jobView struct {

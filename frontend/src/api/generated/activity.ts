@@ -116,6 +116,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/metrics/windows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMetricWindows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/activities/{activity_id}/annotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["patchActivityAnnotations"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -442,6 +474,40 @@ export interface components {
             mode: "real" | "demo" | "test";
             data_revision: number;
             data: components["schemas"]["WorkoutProgression"];
+        };
+        TrainingWindow: {
+            days: number;
+            volume: components["schemas"]["MetricResult"] | null;
+            srpe: components["schemas"]["MetricResult"] | null;
+            srpe_strength: components["schemas"]["MetricResult"] | null;
+            intensity: components["schemas"]["MetricResult"] | null;
+            long_run: components["schemas"]["MetricResult"] | null;
+        };
+        TrainingWindows: {
+            /** Format: date */
+            as_of: string;
+            windows: components["schemas"]["TrainingWindow"][];
+            spacing: components["schemas"]["MetricResult"] | null;
+            aerobic: {
+                w28: components["schemas"]["MetricResult"] | null;
+                w84: components["schemas"]["MetricResult"] | null;
+            };
+            symptoms: components["schemas"]["MetricResult"] | null;
+        };
+        TrainingWindowsEnvelope: {
+            /** @enum {string} */
+            schema_version: "v1";
+            /** @enum {string} */
+            mode: "real" | "demo" | "test";
+            data_revision: number;
+            data: components["schemas"]["TrainingWindows"];
+        };
+        AnnotationInput: {
+            expected_version: number;
+            workout_label?: ("easy" | "quality" | "long" | "other") | null;
+            notes?: string | null;
+            /** @default false */
+            excluded: boolean;
         };
         /** ValidationField */
         ValidationField: {
@@ -858,6 +924,135 @@ export interface operations {
             };
             /** @description Unknown activity */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMetricWindows: {
+        parameters: {
+            query?: {
+                as_of?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description TrainingWindows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingWindowsEnvelope"];
+                };
+            };
+            /** @description Local guard rejection */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unknown activity */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    patchActivityAnnotations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnotationInput"];
+            };
+        };
+        responses: {
+            /** @description ActivityDetail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityDetailEnvelope"];
+                };
+            };
+            /** @description Local guard rejection */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Unknown activity */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Annotation version conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

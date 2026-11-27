@@ -33,7 +33,7 @@ type Handler struct {
 }
 
 func (h Handler) Register(mux *http.ServeMux) {
-	if h.Mode != "test" && h.Mode != "demo" {
+	if h.Mode != "test" && h.Mode != "demo" && h.Mode != "real" {
 		return
 	}
 	for _, path := range []string{"/api/v1/calendar", "/api/v1/calendar/week", "/api/v1/calendar/diff"} {
