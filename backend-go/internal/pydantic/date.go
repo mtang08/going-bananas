@@ -1,4 +1,4 @@
-package travelhttp
+package pydantic
 
 import (
 	"encoding/json"
@@ -33,7 +33,7 @@ func unixDate(s string) (string, string) {
 	return t.Format(time.DateOnly), ""
 }
 
-func inputDate(v any) (string, string) {
+func Date(v any) (string, string) {
 	var s string
 	switch x := v.(type) {
 	case json.Number:

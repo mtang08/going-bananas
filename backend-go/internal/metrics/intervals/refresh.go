@@ -49,6 +49,15 @@ func pyFloat(v *float64) string {
 	b, _ := canonicaljson.Metric(*v)
 	return string(b)
 }
+
+// LapIdentity survives FIT replay, which recreates the database lap rows.
+func LapIdentity(start time.Time, end *time.Time, elapsed, timer *float64, step *int) string {
+	ref := "None"
+	if step != nil {
+		ref = strconv.Itoa(*step)
+	}
+	return fmt.Sprintf("%s|%s|%s|%s|%s", stamp(&start), stamp(end), pyFloat(elapsed), pyFloat(timer), ref)
+}
 func loadLaps(ctx context.Context, tx pgx.Tx, r *metrics.Run) ([]lap, map[string]any, error) {
 	var saved map[string]struct {
 		Identity string      `json:"lap_identity"`
@@ -77,11 +86,7 @@ func loadLaps(ctx context.Context, tx pgx.Tx, r *metrics.Run) ([]lap, map[string
 		}
 		key := strconv.Itoa(l.index)
 		if p, ok := saved[key]; ok {
-			ref := "None"
-			if l.ref != nil {
-				ref = strconv.Itoa(*l.ref)
-			}
-			if p.Identity == fmt.Sprintf("%s|%s|%s|%s|%s", stamp(&start), stamp(end), pyFloat(l.elapsed), pyFloat(l.timer), ref) {
+			if p.Identity == LapIdentity(start, end, l.elapsed, l.timer, l.ref) {
 				v, err := p.Pace.Float64()
 				if err != nil {
 					return l, err

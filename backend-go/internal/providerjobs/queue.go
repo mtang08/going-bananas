@@ -28,7 +28,14 @@ const jobColumns = "id,dataset,status,start_date,end_date,checkpoint,counters"
 
 func scanJob(row pgx.Row) (Job, error) {
 	var j Job
-	err := row.Scan(&j.ID, &j.Dataset, &j.Status, &j.Start, &j.End, &j.Checkpoint, &j.Counters)
+	var first, last *time.Time
+	err := row.Scan(&j.ID, &j.Dataset, &j.Status, &first, &last, &j.Checkpoint, &j.Counters)
+	if first != nil {
+		j.Start = *first
+	}
+	if last != nil {
+		j.End = *last
+	}
 	return j, err
 }
 

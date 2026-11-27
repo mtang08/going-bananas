@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/mtang08/going-bananas/backend-go/internal/pydantic"
 )
 
 type syncAttempt struct {
@@ -122,7 +123,7 @@ func readRange(q url.Values) (listRange, error) {
 		if !ok {
 			continue
 		}
-		normalized, message := inputDate(raw)
+		normalized, message := pydantic.Date(raw)
 		if message != "" {
 			invalidFields = append(invalidFields, Field{Field: "query." + key, Message: message})
 			continue
