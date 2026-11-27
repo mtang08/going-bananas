@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/mtang08/going-bananas/backend-go/internal/canonicaljson"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics"
 )
 
 const MetricID = "recovery_multisignal_summary"
@@ -73,7 +74,7 @@ func compute(ctx context.Context, tx pgx.Tx, key string) (result, error) {
 
 func loadObservations(ctx context.Context, tx pgx.Tx, first, last time.Time) ([]observation, error) {
 	rows, err := tx.Query(ctx, `SELECT o.source_date,o.metric,o.value,o.source_account_id::text,coalesce(s.source_kind,'unknown'),o.statistic,o.time_semantics,
-     coalesce(nullif(s.fields->>'device_generation',''),'unknown'),o.id::text,o.source_revision,s.id::text,s.payload_hash,r.sha256,s.rejected_reason
+     CASE WHEN s.fields->'device_generation' IS NULL OR s.fields->'device_generation' IN ('null','""','false','0','[]','{}') THEN '"unknown"'::jsonb ELSE s.fields->'device_generation' END,o.id::text,o.source_revision,s.id::text,s.payload_hash,r.sha256,s.rejected_reason
    FROM recovery_observations o LEFT JOIN source_records s ON s.id=o.source_record_id LEFT JOIN raw_objects r ON r.id=s.raw_object_id
    WHERE o.source_date BETWEEN $1::date AND $2::date AND o.metric IN ('sleep','hrv','resting_hr') ORDER BY s.fetched_at,o.id`, first.Format(time.DateOnly), last.Format(time.DateOnly))
 	if err != nil {
@@ -81,10 +82,15 @@ func loadObservations(ctx context.Context, tx pgx.Tx, first, last time.Time) ([]
 	}
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (observation, error) {
 		var o observation
-		var account, source, statistic, definition, device, id string
+		var account, source, statistic, definition, id string
+		var deviceJSON []byte
 		var rev string
 		var sid, payload, sha, rejected *string
-		err := row.Scan(&o.day, &o.metric, &o.value, &account, &source, &statistic, &definition, &device, &id, &rev, &sid, &payload, &sha, &rejected)
+		err := row.Scan(&o.day, &o.metric, &o.value, &account, &source, &statistic, &definition, &deviceJSON, &id, &rev, &sid, &payload, &sha, &rejected)
+		if err != nil {
+			return o, err
+		}
+		device, err := metrics.JSONValue(deviceJSON)
 		if err != nil {
 			return o, err
 		}

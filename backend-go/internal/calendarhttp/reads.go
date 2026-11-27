@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/mtang08/going-bananas/backend-go/api"
+	"github.com/mtang08/going-bananas/backend-go/api/calendarwire"
 	"github.com/mtang08/going-bananas/backend-go/internal/athleteprofile"
 	"github.com/mtang08/going-bananas/backend-go/internal/calendar"
 	"github.com/mtang08/going-bananas/backend-go/internal/coachdashboard"
@@ -123,18 +123,18 @@ func versionMissing() error {
 }
 
 type calendarView struct {
-	Today           string                       `json:"today"`
-	Timezone        string                       `json:"timezone"`
-	Start           string                       `json:"start"`
-	End             string                       `json:"end"`
-	Version         int                          `json:"version"`
-	Head            int                          `json:"head"`
-	LastPlannedDate *string                      `json:"last_planned_date"`
-	Sessions        []map[string]json.RawMessage `json:"sessions"`
-	Completions     []map[string]json.RawMessage `json:"completions"`
-	RecordedRuns    []json.RawMessage            `json:"recorded_runs"`
-	Versions        []map[string]json.RawMessage `json:"versions"`
-	Undo            *calendar.UndoPreview        `json:"undo"`
+	Today           string                            `json:"today"`
+	Timezone        string                            `json:"timezone"`
+	Start           string                            `json:"start"`
+	End             string                            `json:"end"`
+	Version         int                               `json:"version"`
+	Head            int                               `json:"head"`
+	LastPlannedDate *string                           `json:"last_planned_date"`
+	Sessions        []map[string]json.RawMessage      `json:"sessions"`
+	Completions     []calendarwire.CalendarCompletion `json:"completions"`
+	RecordedRuns    []calendarwire.RecordedRun        `json:"recorded_runs"`
+	Versions        []calendarwire.RecentVersion      `json:"versions"`
+	Undo            *calendar.UndoPreview             `json:"undo"`
 }
 
 func readView(ctx context.Context, tx pgx.Tx, q viewQuery, week bool, now time.Time) (calendarView, error) {
@@ -202,12 +202,6 @@ func readView(ctx context.Context, tx pgx.Tx, q viewQuery, week bool, now time.T
 			}
 		}
 	}
-	if err := normalizeTimes(v.Completions, "updated_at"); err != nil {
-		return v, err
-	}
-	if err := normalizeTimes(v.Versions, "created_at"); err != nil {
-		return v, err
-	}
 	v.Undo, err = calendar.PreviewUndo(ctx, tx, v.Head, v.Today)
 	return v, err
 }
@@ -235,21 +229,6 @@ func (v calendarView) annotate(limit *athleteprofile.RunningRestriction) error {
 				return err
 			}
 		}
-	}
-	return nil
-}
-
-func normalizeTimes(rows []map[string]json.RawMessage, key string) error {
-	for _, row := range rows {
-		var at time.Time
-		if err := json.Unmarshal(row[key], &at); err != nil {
-			return err
-		}
-		encoded, err := json.Marshal(api.Timestamp(at))
-		if err != nil {
-			return err
-		}
-		row[key] = encoded
 	}
 	return nil
 }

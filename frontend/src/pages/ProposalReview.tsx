@@ -1,8 +1,7 @@
 import { Button } from '../components/ui'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CalendarView } from '../api/types/calendar'
-import { ApiError, api, post } from '../api/client'
+import { ApiError, getCalendar, api, post } from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
 import type {
   ProposalDecision,
@@ -45,7 +44,7 @@ function ReviewForm({ proposalId, unit }: { proposalId: string; unit: Unit }) {
   const proposal = detail.data?.data
   const head = useQuery({
     queryKey: qk.calendarView('head'),
-    queryFn: () => api<CalendarView>('/calendar'),
+    queryFn: () => getCalendar(),
   })
 
   useEffect(() => {

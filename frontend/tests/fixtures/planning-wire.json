@@ -9,6 +9,8 @@
     "last_planned_date": null,
     "sessions": [],
     "completions": [],
+    "versions": [],
+    "recorded_runs": [],
     "undo": null
   },
   "volume_all_missing": {
@@ -168,10 +170,14 @@
         "planned_distance_m": null,
         "structure": null,
         "strength_slot_id": null,
+        "exception_patch": null,
+        "brief": null,
         "notes": null
       }
     ],
     "completions": [],
+    "versions": [{"number": 2, "kind": "manual_edit", "actor": "user", "created_at": "2026-11-16T12:00:00Z"}],
+    "recorded_runs": [],
     "undo": {
       "target_version": 1,
       "eligible": true,

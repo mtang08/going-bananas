@@ -119,6 +119,7 @@ const completion = {
   local_date: '2026-11-10',
 } as const
 const view: CalendarView = {
+  versions: [],
   today: '2026-11-11',
   timezone: 'America/New_York',
   start: '2026-11-09',

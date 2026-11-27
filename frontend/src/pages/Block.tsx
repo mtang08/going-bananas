@@ -19,9 +19,9 @@ import {
   type BlockVersion,
 } from '../api/types/blocks'
 import { addDays, dateLabel, fmtDistance, fmtDuration, fmtRpe, type Unit } from '../lib/format'
-import { api, put, query } from '../api/client'
+import { getCalendar, api, put, query } from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
-import { RECIPE_LABELS, type CalendarView } from '../api/types/calendar'
+import { RECIPE_LABELS } from '../api/types/calendar'
 import type { Activity } from '../api/types/activity'
 import { benchmarkStatusLabel, OUTCOME_LABELS } from '../coachLabels'
 import { QueryState } from '../components/QueryState'
@@ -34,7 +34,7 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
   })
   const calendar = useQuery({
     queryKey: qk.calendarView('head'),
-    queryFn: () => api<CalendarView>('/calendar'),
+    queryFn: () => getCalendar(),
   })
   const block = active.data?.data
   const history = useQuery({

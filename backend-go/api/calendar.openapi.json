@@ -1,0 +1,1180 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Going Bananas calendar reads",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/calendar": {
+      "get": {
+        "operationId": "getCalendar",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CalendarView",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarViewEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown calendar version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calendar/week": {
+      "get": {
+        "operationId": "getCalendarWeek",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CalendarView",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarViewEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown calendar version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calendar/diff": {
+      "get": {
+        "operationId": "getCalendarDiff",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CalendarDiff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarDiffEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown calendar version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ValidationField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "ValidationField"
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationField"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id",
+          "fields"
+        ]
+      },
+      "StepTarget": {
+        "type": "object",
+        "properties": {
+          "modality": {
+            "type": "string",
+            "enum": [
+              "speed",
+              "hr",
+              "effort"
+            ]
+          },
+          "low": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "high": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "effort_cue": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "modality"
+        ],
+        "nullable": true
+      },
+      "PlannedStep": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "warmup",
+              "work",
+              "recovery",
+              "cooldown"
+            ]
+          },
+          "duration_type": {
+            "type": "string",
+            "enum": [
+              "time",
+              "distance"
+            ]
+          },
+          "duration_value": {
+            "type": "number",
+            "format": "double"
+          },
+          "target": {
+            "$ref": "#/components/schemas/StepTarget"
+          }
+        },
+        "required": [
+          "type",
+          "duration_type",
+          "duration_value"
+        ]
+      },
+      "RepeatBlock": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "repeat"
+            ]
+          },
+          "count": {
+            "type": "integer"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlannedStep"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "count",
+          "steps"
+        ]
+      },
+      "StructureItem": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PlannedStep"
+          },
+          {
+            "$ref": "#/components/schemas/RepeatBlock"
+          }
+        ]
+      },
+      "Effort": {
+        "type": "object",
+        "properties": {
+          "rpe_low": {
+            "type": "integer"
+          },
+          "rpe_high": {
+            "type": "integer"
+          },
+          "feel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rpe_low",
+          "rpe_high",
+          "feel"
+        ]
+      },
+      "SessionBrief": {
+        "type": "object",
+        "properties": {
+          "effort": {
+            "$ref": "#/components/schemas/Effort"
+          },
+          "focus": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "adjust_if": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "when": {
+                  "type": "string"
+                },
+                "then": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "when",
+                "then"
+              ]
+            }
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "effort",
+          "focus",
+          "adjust_if",
+          "why"
+        ],
+        "nullable": true
+      },
+      "SessionFields": {
+        "type": "object",
+        "properties": {
+          "local_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "slot": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "run",
+              "strength",
+              "cross",
+              "rest",
+              "mobility",
+              "rehab"
+            ]
+          },
+          "recipe_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "custom": {
+            "type": "boolean"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "placeholder": {
+            "type": "boolean"
+          },
+          "intent": {
+            "type": "string"
+          },
+          "planned_duration_s": {
+            "type": "integer",
+            "nullable": true
+          },
+          "planned_distance_m": {
+            "type": "integer",
+            "nullable": true
+          },
+          "structure": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StructureItem"
+            },
+            "nullable": true
+          },
+          "strength_slot_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "brief": {
+            "$ref": "#/components/schemas/SessionBrief"
+          }
+        },
+        "required": [
+          "local_date",
+          "slot",
+          "kind",
+          "recipe_id",
+          "custom",
+          "locked",
+          "placeholder",
+          "intent",
+          "planned_duration_s",
+          "planned_distance_m",
+          "structure",
+          "strength_slot_id",
+          "notes",
+          "brief"
+        ]
+      },
+      "SessionRevision": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SessionFields"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "session_uid": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revision": {
+                "type": "integer"
+              },
+              "calendar_version_number": {
+                "type": "integer"
+              },
+              "deleted": {
+                "type": "boolean"
+              },
+              "certainty": {
+                "type": "string",
+                "enum": [
+                  "committed",
+                  "provisional"
+                ]
+              },
+              "legacy_unstructured": {
+                "type": "boolean"
+              },
+              "legacy_payload": {
+                "type": "object",
+                "additionalProperties": true,
+                "nullable": true
+              },
+              "is_original": {
+                "type": "boolean"
+              },
+              "changed_by_version": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "session_uid",
+              "revision",
+              "calendar_version_number",
+              "deleted",
+              "certainty",
+              "legacy_unstructured",
+              "legacy_payload",
+              "is_original",
+              "changed_by_version"
+            ]
+          }
+        ]
+      },
+      "SessionPatchRef": {
+        "type": "object",
+        "properties": {
+          "patch_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reassess_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "resolved",
+              "escalated",
+              "superseded"
+            ]
+          }
+        },
+        "required": [
+          "patch_id",
+          "proposal_id",
+          "reassess_on",
+          "status"
+        ],
+        "nullable": true
+      },
+      "SessionState": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SessionRevision"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "exception_patch": {
+                "$ref": "#/components/schemas/SessionPatchRef"
+              },
+              "running_restriction_conflict": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "exception_patch"
+            ]
+          }
+        ]
+      },
+      "CalendarCompletion": {
+        "type": "object",
+        "required": [
+          "id",
+          "session_uid",
+          "activity_id",
+          "strong_workout_id",
+          "manual_session_id",
+          "status",
+          "match_method",
+          "modification_reason",
+          "reason_note",
+          "version",
+          "input_version",
+          "updated_at",
+          "local_date"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "session_uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "activity_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "strong_workout_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "manual_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed_as_planned",
+              "completed_modified",
+              "partial",
+              "moved",
+              "skipped",
+              "extra",
+              "unknown"
+            ]
+          },
+          "match_method": {
+            "type": "string",
+            "enum": [
+              "explicit",
+              "auto_same_day",
+              "confirmed_move",
+              "user_marked",
+              "none"
+            ]
+          },
+          "modification_reason": {
+            "type": "string",
+            "enum": [
+              "symptom_onset",
+              "fatigue",
+              "illness",
+              "schedule",
+              "weather",
+              "equipment",
+              "other"
+            ],
+            "nullable": true
+          },
+          "reason_note": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer"
+          },
+          "input_version": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "x-go-type": "api.Timestamp",
+            "x-go-type-import": {
+              "name": "api",
+              "path": "github.com/mtang08/going-bananas/backend-go/api"
+            }
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "distance_m": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "timer_s": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        }
+      },
+      "RecordedRun": {
+        "type": "object",
+        "properties": {
+          "activity_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "distance_m": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "timer_s": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "required": [
+          "activity_id",
+          "local_date",
+          "distance_m",
+          "timer_s"
+        ]
+      },
+      "RecentVersion": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bootstrap",
+              "manual_edit",
+              "proposal_accept",
+              "rollback",
+              "legacy_import"
+            ]
+          },
+          "actor": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "coach"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "x-go-type": "api.Timestamp",
+            "x-go-type-import": {
+              "name": "api",
+              "path": "github.com/mtang08/going-bananas/backend-go/api"
+            }
+          }
+        },
+        "required": [
+          "number",
+          "kind",
+          "actor",
+          "created_at"
+        ]
+      },
+      "UndoPreview": {
+        "type": "object",
+        "properties": {
+          "target_version": {
+            "type": "integer"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "protected_session_uids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "target_version",
+          "eligible",
+          "protected_session_uids"
+        ],
+        "nullable": true
+      },
+      "CalendarView": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string",
+            "format": "date"
+          },
+          "end": {
+            "type": "string",
+            "format": "date"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "head": {
+            "type": "integer"
+          },
+          "last_planned_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionState"
+            }
+          },
+          "completions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CalendarCompletion"
+            }
+          },
+          "recorded_runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordedRun"
+            }
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentVersion"
+            }
+          },
+          "undo": {
+            "$ref": "#/components/schemas/UndoPreview"
+          }
+        },
+        "required": [
+          "today",
+          "timezone",
+          "start",
+          "end",
+          "version",
+          "head",
+          "last_planned_date",
+          "sessions",
+          "completions",
+          "recorded_runs",
+          "versions",
+          "undo"
+        ]
+      },
+      "DiffRevision": {
+        "type": "object",
+        "properties": {
+          "local_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "slot": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "run",
+              "strength",
+              "cross",
+              "rest",
+              "mobility",
+              "rehab"
+            ]
+          },
+          "recipe_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "custom": {
+            "type": "boolean"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "placeholder": {
+            "type": "boolean"
+          },
+          "intent": {
+            "type": "string"
+          },
+          "planned_duration_s": {
+            "type": "integer",
+            "nullable": true
+          },
+          "planned_distance_m": {
+            "type": "integer",
+            "nullable": true
+          },
+          "structure": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StructureItem"
+            },
+            "nullable": true
+          },
+          "strength_slot_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "brief": {
+            "$ref": "#/components/schemas/SessionBrief"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "session_uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "calendar_version_number": {
+            "type": "integer"
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "certainty": {
+            "type": "string",
+            "enum": [
+              "committed",
+              "provisional"
+            ]
+          },
+          "legacy_unstructured": {
+            "type": "boolean"
+          },
+          "legacy_payload": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "is_original": {
+            "type": "boolean"
+          },
+          "changed_by_version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "local_date",
+          "slot",
+          "kind",
+          "recipe_id",
+          "custom",
+          "locked",
+          "placeholder",
+          "intent",
+          "planned_duration_s",
+          "planned_distance_m",
+          "structure",
+          "strength_slot_id",
+          "notes",
+          "brief",
+          "id",
+          "session_uid",
+          "revision",
+          "calendar_version_number",
+          "deleted",
+          "certainty",
+          "legacy_unstructured",
+          "legacy_payload",
+          "is_original",
+          "changed_by_version"
+        ],
+        "nullable": true
+      },
+      "CalendarChange": {
+        "type": "object",
+        "properties": {
+          "session_uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "modify",
+              "move",
+              "delete"
+            ]
+          },
+          "before": {
+            "$ref": "#/components/schemas/DiffRevision"
+          },
+          "after": {
+            "$ref": "#/components/schemas/DiffRevision"
+          }
+        },
+        "required": [
+          "session_uid",
+          "op",
+          "before",
+          "after"
+        ]
+      },
+      "CalendarDiff": {
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CalendarChange"
+            }
+          }
+        },
+        "required": [
+          "changes"
+        ]
+      },
+      "CalendarViewEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CalendarView"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      },
+      "CalendarDiffEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CalendarDiff"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ]
+      }
+    }
+  }
+}

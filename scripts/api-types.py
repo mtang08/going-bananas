@@ -11,11 +11,15 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / 'backend-go'
 CONTRACT = Path('api/openapi.json')
 HANDLERS = Path('api/api.gen.go')
+CALENDAR = Path('api/calendar.openapi.json')
+CALENDAR_CONFIG = Path('api/calendarwire/oapi-codegen.yaml')
+CALENDAR_MODELS = Path('api/calendarwire/models.gen.go')
 SQL_OUTPUT = Path('internal/db')
 
 
 def generate_go(work: Path) -> None:
     subprocess.run(['oapi-codegen', '-config', 'api/oapi-codegen.yaml', CONTRACT], cwd=work, check=True)
+    subprocess.run(['oapi-codegen', '-config', CALENDAR_CONFIG, CALENDAR], cwd=work, check=True)
     subprocess.run(['sqlc', 'generate'], cwd=work, check=True)
 
 
@@ -24,12 +28,12 @@ def check_generated_go() -> None:
     scratch.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='go-generate-', dir=scratch) as directory:
         work = Path(directory)
-        (work / 'api').mkdir()
-        for relative in [CONTRACT, Path('api/oapi-codegen.yaml'), Path('sqlc.yaml'), Path('go.mod')]:
+        (work / CALENDAR_CONFIG.parent).mkdir(parents=True)
+        for relative in [CONTRACT, CALENDAR, CALENDAR_CONFIG, Path('api/oapi-codegen.yaml'), Path('sqlc.yaml'), Path('go.mod')]:
             shutil.copyfile(MODULE / relative, work / relative)
         shutil.copytree(MODULE / 'sql', work / 'sql')
         generate_go(work)
-        outputs = {HANDLERS}
+        outputs = {HANDLERS, CALENDAR_MODELS}
         for base in (work, MODULE):
             outputs.update(path.relative_to(base) for path in (base / SQL_OUTPUT).glob('*.go'))
         for relative in sorted(outputs):
