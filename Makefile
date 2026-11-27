@@ -80,7 +80,7 @@ test-integration:
 test-integration-external:
 	python3 scripts/test-db.py test-external $(TESTS)
 test-e2e:
-	$(RUN) bash -c 'cd frontend && npx playwright test'
+	./scripts/with-mode demo bash -c 'cd frontend && npx playwright test'
 sync:
 	$(RUN) ./scripts/backend-cli sync
 
