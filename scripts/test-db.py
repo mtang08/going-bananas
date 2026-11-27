@@ -151,6 +151,7 @@ def main():
         'calendar': 'check_self_reports.py',
         'completion-http': 'check_completion_http.py',
         'feedback-http': 'check_feedback_http.py',
+        'health-startup': 'check_health_startup.py',
         'rematch': 'check_rematch.py',
         'dashboard': 'check_dashboard.py',
     }
