@@ -14,7 +14,7 @@ Go serves the React app’s same-origin `/api/v1` in demo, test, and real mode. 
 | Worker and operator commands | The same executable dispatches `worker`, `sync`, migrations, preflight, imports, metrics, backup and restore. [Command dispatch](../backend-go/cmd/going-bananas/main.go) · [Operator CLI wrapper](../scripts/backend-cli) |
 | Coaching | The dashboard runs a local Codex app-server with six coaching tools. The repo helper uses the Go coaching CLI for snapshots, queries and pending draft writes. [Dashboard launcher and tools](../backend-go/internal/coachdashboardhttp) · [Coaching CLI wrapper](../scripts/coach-cli) |
 | iPhone check-ins | A separately bound Go gateway serves phone assets and forwards the scoped ingest request to the loopback API. [Gateway](../backend-go/cmd/phone-gateway) · [iPhone setup](iphone-setup.md) |
-| PostgreSQL | Go uses pgx and generates named queries with sqlc where configured. The native baseline initializes fresh databases. Upgrades of older stamped schemas use historical Alembic migrations. [SQL baseline and migration stamps](../backend-go/sql) · [sqlc configuration](../backend-go/sqlc.yaml) · [Migration command](../backend-go/internal/migratecli) |
+| PostgreSQL | Go uses pgx and generates named queries with sqlc where configured. The native baseline initializes fresh databases. Upgrades of older stamped schemas use the retained Alembic migration history. [SQL baseline and migration stamps](../backend-go/sql) · [sqlc configuration](../backend-go/sqlc.yaml) · [Migration command](../backend-go/internal/migratecli) · [Historical migrations](../backend/migrations) |
 
 The Go API registers its routes in the server executable. Checked-in OpenAPI files generate TypeScript wire models, strict Go handlers for the base contract, and Go wire models for the calendar schema. Other route families use hand-written Go handlers and validation. [API schemas](../backend-go/api) · [Generator](../scripts/api-types.py) · [Rewrite readiness](go-rewrite-readiness.md)
 
@@ -56,6 +56,6 @@ Two unique indexes enforce this: `uq_metric_results_identity` (all identity fiel
 | `real` | `garmin_real` | `private/real` | The athlete's data; `make start` also runs the sync worker |
 
 - `APP_MODE` must be `demo`, `real`, or `test`, and each server requires the database name to end in `_<mode>`.
-- `scripts/with-mode MODE COMMAND` swaps the database name and `PRIVATE_DIR` for one command without editing `.env`. Use it for demo commands. `make test-integration` sets its own test mode and database URLs.
+- `scripts/with-mode MODE COMMAND` swaps the database name and `PRIVATE_DIR` for one command without editing `.env`. Use it for demo commands. `make test-go-integration` sets its own test mode and database URLs.
 - `make start`, `make sync`, and `make migrate` follow the mode in `.env`. In real mode `make migrate` backs up first and stops if the backup fails; the daily launchd sync writes one backup per day and prunes old ones (see [operations.md](operations.md)).
 - Never run tests, seeds, or experiments against real data. Credentials, raw files, and athlete payloads stay under `private/` and out of git.

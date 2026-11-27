@@ -7,14 +7,17 @@ Freeze time where relevant and use independent expected values rather than
 calculating expectations with the implementation being tested.
 
 `make check` runs documentation and API type checks, the Go build, lint and race
-tests, and frontend lint, type checks, component tests and production build.
+tests, the retained Python migration unit checks, and frontend lint, type checks,
+component tests and production build.
 No real credentials or private fixtures belong in tests, screenshots, traces, or CI.
 
 Run native integration tests with `make test-go-integration` to use the
 checkout’s managed PostgreSQL cluster. Use `make test-go-integration-external`
 with an existing dedicated loopback cluster. Both require disposable test
 databases. See [Verification setup](../README.md#verification) for the database
-names and environment variables.
+names and environment variables. Native integration tests exercise the Go
+application with synthetic fixtures. Use `make test-integration` for the
+retained historical migration checks against PostgreSQL.
 
 ## Required cases
 
