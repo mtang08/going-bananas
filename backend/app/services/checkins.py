@@ -9,7 +9,6 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, cast
 
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -204,10 +203,18 @@ def _creation_request(value: dict) -> dict:
     }
 
 
+def _json_scalar(value: object) -> str:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    raise TypeError(f"Unexpected check-in value type: {type(value).__name__}")
+
+
 def _hash(value: dict) -> str:
     return hashlib.sha256(
         json.dumps(
-            jsonable_encoder(_creation_request(value)), sort_keys=True, separators=(",", ":"), allow_nan=False
+            _creation_request(value), default=_json_scalar, sort_keys=True, separators=(",", ":"), allow_nan=False
         ).encode()
     ).hexdigest()
 
@@ -339,7 +346,8 @@ def patch_checkin(session: Session, id: uuid.UUID, body: dict) -> dict:
         _check_delayed_owner(session, candidate)
     if any(candidate[key] != prior[key] for key in ("kind", "activity_id", "prompt_id", "observed_at")):
         _check_delayed_timing(session, candidate, prompt)
-    session.add(CheckinRevision(checkin_id=row.id, version=row.version, payload=jsonable_encoder(prior)))
+    payload = json.loads(json.dumps(prior, default=_json_scalar))
+    session.add(CheckinRevision(checkin_id=row.id, version=row.version, payload=payload))
     symptoms = changes.pop("symptoms", None)
     for key, value in changes.items():
         setattr(row, key, value)

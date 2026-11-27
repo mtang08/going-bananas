@@ -2,7 +2,7 @@
 
 Session listeners record which source rows changed at each flush and turn them into refresh
 scopes. At commit, in the same transaction, `_before_commit` bumps `data_revision` and runs the
-refresh, so a failed refresh rolls the write back. `app.main` and `app.cli` call `install()`.
+refresh, so a failed refresh rolls the write back. `app.cli` and the database fixture call `install()`.
 """
 
 from __future__ import annotations

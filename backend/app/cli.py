@@ -131,16 +131,13 @@ def _coach(args) -> int:
 
     from app.errors import AppError
     from app.services import knowledge
-    from app.services.decision_inputs import VerifiedKnowledge
+    from app.services.decision_inputs import resolve_kb
     from app.services.proposals.lifecycle import RevisionRequest, revise_proposal, submit_proposal
     from app.services.proposals.schema import DecisionError, ProposalDoc
     from app.services.timezone import athlete_tz
 
     def output(value, *, error=False):
         print(json.dumps(value, default=str, ensure_ascii=False), file=sys.stderr if error else sys.stdout)
-
-    def resolve_kb(selection):
-        return VerifiedKnowledge(**knowledge.verify_selection(selection))
 
     try:
         now = datetime.now(UTC)
@@ -229,8 +226,8 @@ def _coach(args) -> int:
                     error=True,
                 )
                 return 2
-        from app.api.metrics import activity_execution, explain_metric, long_run_history, recovery_nights
         from app.services.calendar import calendar_diff
+        from app.services.metric_drilldowns import activity_execution, explain_metric, long_run_history, recovery_nights
 
         data: Any
         with SessionLocal() as session:
@@ -517,8 +514,8 @@ def main() -> int:
             from app.services.strong_import import import_strong_csv
 
             with SessionLocal.begin() as session:
-                summary = import_strong_csv(session, settings.private_dir, args.csv, apply=args.apply)
-            print(json.dumps(summary))
+                imported = import_strong_csv(session, settings.private_dir, args.csv, apply=args.apply)
+            print(json.dumps(imported))
         elif args.command == "seed-demo":
             if settings.app_mode != "demo":
                 raise ValueError("demo_mode_required")

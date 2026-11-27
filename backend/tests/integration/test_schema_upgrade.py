@@ -12,24 +12,20 @@ import os
 import uuid
 from datetime import UTC, date, datetime
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError, IntegrityError
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db import get_session
-from app.main import app
 from app.migrations_head import EXPECTED_HEAD as HEAD
+from app.services.profile import current_profile, profile_data
 
 STAMP = datetime(2026, 11, 12, tzinfo=UTC)
-HEADERS = {"X-Local-Request": "1", "Origin": "http://testserver"}
 
 
 def _guard_url() -> str:
@@ -295,7 +291,7 @@ def _expect_integrity(connection, sql: str, *, constraint: str | None = None, **
         assert error.value.orig.diag.constraint_name == constraint
 
 
-def test_populated_0009_upgrade_preserves_legacy_and_serves_profile(isolated_schema):
+def test_populated_0009_upgrade_preserves_legacy_and_loads_profile(isolated_schema):
     connection = isolated_schema
     _migration(connection, "0009_agent_plan")
     activity = _seed_legacy(connection)
@@ -312,45 +308,16 @@ def test_populated_0009_upgrade_preserves_legacy_and_serves_profile(isolated_sch
         == "not_fetched"
     )
 
-    factory = sessionmaker(bind=connection, expire_on_commit=False)
-
-    def override():
-        with factory() as session:
-            yield session
-
-    app.dependency_overrides[get_session] = override
-    with patch("app.main.SessionLocal", factory):
-        try:
-            client = TestClient(app)
-            assert client.get("/api/v1/health/ready").status_code == 200
-            profile = client.get("/api/v1/profile").json()["data"]
-            assert profile["strength_schedule_mode"] == "alternating"
-            profile["expected_version"] = profile["version"]
-            profile["preferences"] = {"long_run_weekdays": [6]}
-            response = client.put("/api/v1/profile", json=profile, headers=HEADERS)
-            assert response.status_code == 200, response.text
-            assert "planning_authority" not in response.json()["data"]
-        finally:
-            app.dependency_overrides.pop(get_session, None)
+    with Session(bind=connection) as session:
+        profile = profile_data(current_profile(session))
+        assert profile["strength_schedule_mode"] == "alternating"
+        assert "planning_authority" not in profile
 
 
 def test_empty_round_trip_and_each_nonempty_downgrade_guard(isolated_schema):
     connection = isolated_schema
     _migration(connection, HEAD)
     connection.commit()
-    factory = sessionmaker(bind=connection, expire_on_commit=False)
-
-    def override():
-        with factory() as session:
-            yield session
-
-    app.dependency_overrides[get_session] = override
-    try:
-        response = TestClient(app).get("/api/v1/profile")
-        assert response.status_code == 200
-        assert "planning_authority" not in response.json()["data"]
-    finally:
-        app.dependency_overrides.pop(get_session, None)
     _migration(connection, "0019_lap_intensity_end", down=True)
     assert connection.execute(text("SELECT planning_authority FROM app_state WHERE id=1")).scalar_one() == "legacy"
     connection.execute(text("UPDATE app_state SET calendar_head_version=2 WHERE id=1"))

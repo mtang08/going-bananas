@@ -3,9 +3,8 @@ import uuid
 from datetime import UTC, date, datetime
 
 import pytest
-from sqlalchemy import event, func, select
+from sqlalchemy import delete, event, func, select
 from sqlalchemy.orm import Session
-from test_calendar_api import calendar_fixture  # noqa: F401
 
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.checkin_models import SessionRpe
@@ -135,8 +134,19 @@ def _keys(value):
             yield from _keys(item)
 
 
-def test_load_week_reads_stored_rows_without_writes(calendar_fixture, monkeypatch):  # noqa: F811
-    _, connection, _ = calendar_fixture
+@pytest.fixture
+def digest_connection(db_connection, metrics_disabled, session_factory, profile_factory, calendar_state):
+    with session_factory() as session:
+        for model in (SessionCompletion, CalendarSessionRevision, CalendarVersion):
+            session.execute(delete(model))
+        calendar_state(session, reset_head=True)
+        profile_factory(session)
+        session.commit()
+    return db_connection
+
+
+def test_load_week_reads_stored_rows_without_writes(digest_connection, monkeypatch):
+    connection = digest_connection
     week_start, today = date(2030, 1, 7), date(2030, 1, 9)
     monkeypatch.setattr(calendar, "calendar_today", lambda session, now=None: today)
     uid = {name: uuid.uuid4() for name in "ABCDEKRMH"}

@@ -11,16 +11,11 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
-from app.api.anchors import router
 from app.config import settings
-from app.db import get_session
-from app.main import handle_http, handle_validation
 from app.metric_models import MetricConfig
 from app.metric_models import MetricResult as MetricResultRow
 from app.metrics.anchors import active_anchors, anchor_set_hash, create_anchor
@@ -164,32 +159,6 @@ def test_anchor_history_same_date_correction_and_backdate_guard(db) -> None:
             create_anchor(session, _anchor("hr_aerobic_upper", 147, date(2026, 11, 11)))
         assert getattr(error.value, "detail", {}).get("code") == "anchor_supersede_required"
         session.commit()
-
-
-@pytest.mark.integration
-def test_bare_anchor_router_envelope(db) -> None:
-    app = FastAPI()
-    app.include_router(router, prefix="/api/v1")
-    from fastapi import HTTPException
-    from fastapi.exceptions import RequestValidationError
-
-    app.add_exception_handler(HTTPException, handle_http)
-    app.add_exception_handler(RequestValidationError, handle_validation)
-
-    def session_override():
-        with db() as session:
-            yield session
-
-    app.dependency_overrides[get_session] = session_override
-    client = TestClient(app)
-    payload = _anchor("hr_threshold_lower", 160, date(2026, 11, 1))
-    payload["calibrated_at"] = STAMP.isoformat()
-    payload["valid_from"] = payload["valid_from"].isoformat()
-    response = client.post("/api/v1/anchors", json=payload)
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["kind"] == "hr_threshold_lower" and data["content_hash"]
-    assert client.get("/api/v1/anchors").json()["data"]["items"][0]["anchor_key"] == data["anchor_key"]
 
 
 @pytest.mark.integration

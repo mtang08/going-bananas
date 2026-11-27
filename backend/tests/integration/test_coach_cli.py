@@ -268,32 +268,6 @@ def test_query_commands_and_schema(cli_db):
     assert code == 4 and "activity_not_found" in error
 
 
-def test_coach_router_and_structured_fields(cli_db):
-    import asyncio
-    import json
-
-    from fastapi import HTTPException
-    from starlette.requests import Request
-
-    from app.main import app, handle_http
-
-    assert "/api/v1/coach/proposals" in app.openapi()["paths"]
-    response = asyncio.run(
-        handle_http(
-            Request({"type": "http"}),
-            HTTPException(
-                422,
-                detail={
-                    "code": "proposal_invalid_subset",
-                    "message": "Invalid subset",
-                    "fields": [{"code": "V9.strength_count", "path": "changes.1", "message": "Preserve strength"}],
-                },
-            ),
-        )
-    )
-    assert json.loads(response.body)["error"]["fields"][0]["path"] == "changes.1"
-
-
 def test_snapshot_kb_integrity_exit_4(cli_db, tmp_path, monkeypatch):
     import shutil
 
@@ -315,7 +289,7 @@ def test_snapshot_kb_integrity_exit_4(cli_db, tmp_path, monkeypatch):
         assert code == 4 and result is None and "knowledge_unavailable" in error
     assert session.scalar(select(func.count()).select_from(CoachSnapshot)) == before
     assert session.scalar(select(func.count()).select_from(CoachProposal)) == 0
-    from app.api.metrics import recovery_nights
+    from app.services.metric_drilldowns import recovery_nights
 
     assert recovery_nights(session, TODAY - timedelta(days=1), TODAY)["end"] == TODAY
 

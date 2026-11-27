@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.core import envelope
 from app.calendar_models import CalendarSessionRevision, SessionCompletion
 from app.checkin_models import SessionRpe
-from app.db import get_session, global_read_lock
+from app.db import global_read_lock
 from app.domain.local_time import date_in_zone
 from app.domain.sports import RUN_SPORTS
 from app.errors import fail
@@ -27,7 +25,6 @@ from app.read.workout_feedback import load_workout_feedback
 from app.services import calendar, workout_progression
 from app.services.timezone import athlete_tz
 
-router = APIRouter()
 WINDOW_DAYS = (7, 14, 28, 56)
 
 
@@ -222,18 +219,7 @@ def workout_progression_data(session: Session, start: date | None, end: date | N
     }
 
 
-def activity_workout_history(session: Session, activity_id: UUID, limit: int) -> dict:
-    global_read_lock(session)
-    activity = session.get(Activity, activity_id)
-    if activity is None:
-        fail("activity_not_found", "Activity not found", 404)
-    if activity.sport not in RUN_SPORTS:
-        fail("not_run_activity", "Activity is not a run")
-    return workout_progression.workout_history(session, activity, limit)
-
-
-@router.get("/metrics/windows")
-def get_windows(as_of: date | None = None, session: Session = Depends(get_session)) -> dict:
+def metric_windows(session: Session, as_of: date | None = None) -> dict:
     global_read_lock(session)
     as_of = as_of or refresh.local_today(session)
     window_keys = [f"w{n}:{as_of}" for n in WINDOW_DAYS]
@@ -257,48 +243,10 @@ def get_windows(as_of: date | None = None, session: Session = Depends(get_sessio
     spacing_key, symptoms_key = f"w14:{as_of}", f"w28:{as_of}"
     aerobic_keys = {f"w{n}": f"w{n}:{as_of}" for n in (28, 84)}
     aerobic = engine.read_results(session, "aerobic_efficiency", list(aerobic_keys.values()))
-    data = {
+    return {
         "as_of": as_of,
         "windows": windows,
         "spacing": engine.read_results(session, "hard_session_spacing", [spacing_key])[spacing_key],
         "aerobic": {label: aerobic[key] for label, key in aerobic_keys.items()},
         "symptoms": engine.read_results(session, "symptom_response_timeline", [symptoms_key])[symptoms_key],
     }
-    return envelope(session, data)
-
-
-@router.get("/metrics/recovery")
-def get_recovery(start: date | None = None, end: date | None = None, session: Session = Depends(get_session)) -> dict:
-    data = recovery_nights(session, start, end)
-    return envelope(session, data)
-
-
-@router.get("/activities/{activity_id}/execution")
-def get_execution(activity_id: UUID, session: Session = Depends(get_session)) -> dict:
-    data = activity_execution(session, activity_id)
-    return envelope(session, data)
-
-
-@router.get("/metrics/long-runs")
-def get_long_runs(start: date, end: date, session: Session = Depends(get_session)) -> dict:
-    data = long_run_history(session, start, end)
-    return envelope(session, data)
-
-
-@router.get("/metrics/workout-progression")
-def get_workout_progression(
-    start: date | None = None,
-    end: date | None = None,
-    group_by: Literal["signature", "recipe"] = "signature",
-    session: Session = Depends(get_session),
-) -> dict:
-    data = workout_progression_data(session, start, end, group_by)
-    return envelope(session, data)
-
-
-@router.get("/activities/{activity_id}/workout-history")
-def get_workout_history(
-    activity_id: UUID, limit: int = Query(6, ge=2, le=20), session: Session = Depends(get_session)
-) -> dict:
-    data = activity_workout_history(session, activity_id, limit)
-    return envelope(session, data)

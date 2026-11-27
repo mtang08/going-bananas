@@ -9,7 +9,6 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.coach import resolve_kb
 from app.calendar_models import CalendarSessionRevision, CalendarVersion, SessionCompletion
 from app.coach_v2_models import CoachDecisionKey, CoachProposal, CoachProposalChange, CoachSnapshot
 from app.domain.session_class import classify
@@ -17,7 +16,7 @@ from app.exception_models import ExceptionFinding, ExceptionPatch
 from app.models import Activity, AppState, ProfileVersion
 from app.planning_models import Block, BlockBenchmarkResult, BlockDecision, BlockVersion, Event, IntensityAnchor
 from app.services import calendar
-from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs
+from app.services.decision_inputs import VerifiedKnowledge, collect_decision_inputs, resolve_kb
 from app.services.proposals.context import load_context
 from app.services.proposals.decision import DecisionRequest, decide_proposal
 from app.services.proposals.lifecycle import SubmitResult, discard_proposal, submit_proposal
@@ -1665,13 +1664,12 @@ def test_sunday_follows_only_applied_run_and_keeps_accepted_dose(proposal_sessio
     assert packet["payload"]["weekly_digest"]["weeks"][-1]["decision_follow_up"] == follow
 
 
-def test_return_review_preserves_history_until_accepted_and_keeps_its_saved_evidence(proposal_session, monkeypatch):
-    from app.api import core
-    from app.api.coach import proposal_detail
-    from app.services.profile import current_profile
+def test_return_review_preserves_history_until_accepted_and_keeps_its_saved_evidence(proposal_session):
+    from app.domain.running_interruption import RUNNING_INTERRUPTION_KEY
+    from app.services.profile import append_profile_version, current_profile, profile_data
+    from app.services.running_interruption import return_view
 
     session = proposal_session
-    monkeypatch.setattr(core, "athlete_today", lambda _: TODAY)
     original = calendar.state_at(session, 1)
     blocked = next(row for row in original if row["kind"] == "run")
     calendar.apply_edits(
@@ -1691,14 +1689,15 @@ def test_return_review_preserves_history_until_accepted_and_keeps_its_saved_evid
         ],
         "Accepted rhythm after travel",
     )
-    version = current_profile(session).version
-    record = core.RunningInterruptionInput.model_validate(
-        {
-            "expected_version": version,
-            "interruption": {"starts_on": str(TODAY), "return_on": "2026-11-21", "reason": "travel"},
-        }
+    profile = current_profile(session)
+    fields = profile_data(profile)
+    del fields["version"]
+    record = {"starts_on": str(TODAY), "return_on": "2026-11-21", "reason": "travel"}
+    updated_profile = append_profile_version(
+        session, profile, {**fields, "facts": {**fields["facts"], RUNNING_INTERRUPTION_KEY: record}}
     )
-    view = core.put_running_interruption(record, session)["data"]
+    session.flush()
+    view = return_view(session, TODAY)
     assert view["first_run"]["local_date"] == date(2026, 11, 22)
     packet = build_snapshot(session, "review_rolling_plan", TODAY, now=NOW)
     context = packet["payload"]["running_interruption"]
@@ -1722,12 +1721,11 @@ def test_return_review_preserves_history_until_accepted_and_keeps_its_saved_evid
         session, draft.proposal_id, _req(2, "accept-return-review", ["c1"]), now=NOW, resolve_kb=resolve_kb
     )
     assert decision.status == "accepted"
-    updated = core.get_running_interruption(session)["data"]
+    updated = return_view(session, TODAY)
     assert updated["affected_runs"] == [] and updated["first_run"] == view["first_run"]
-    core.put_running_interruption(
-        core.RunningInterruptionInput(expected_version=updated["profile_version"], interruption=None), session
-    )
-    stored = proposal_detail(session, session.get(CoachProposal, draft.proposal_id))
+    append_profile_version(session, updated_profile, fields)
+    session.flush()
+    stored = session.get(CoachSnapshot, snapshot.id).payload
     assert stored["running_interruption"]["interruption"]["return_on"] == "2026-11-21"
     assert stored["running_interruption"]["affected_runs"][0]["session_uid"] == str(blocked["session_uid"])
-    assert core.get_running_interruption(session)["data"]["interruption"] is None
+    assert return_view(session, TODAY)["interruption"] is None

@@ -5,8 +5,8 @@ from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 
+from app.errors import AppError
 from app.services import strength_routine as routine
 
 
@@ -66,7 +66,7 @@ def test_routine_slot_validation():
         {"main_lower_body_lifts": [""]},
         {"lower_body_cost": "unknown"},
     ):
-        with pytest.raises(HTTPException):
+        with pytest.raises(AppError):
             routine._validate_slot({**valid, **patch})
 
 
