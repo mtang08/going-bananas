@@ -81,3 +81,4 @@ def exercise_chat(base):
     with client.open(base + "/api/v1/calendar/versions", timeout=10) as response:
         latest = json.load(response)["data"]["items"][0]["number"]
     assert latest == draft["document"]["base_calendar_version"]
+    return agreement
