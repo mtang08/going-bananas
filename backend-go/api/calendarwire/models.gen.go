@@ -1701,6 +1701,7 @@ type SessionBrief struct {
 
 // SessionFields defines model for SessionFields.
 type SessionFields struct {
+	Brief            nullable.Nullable[SessionBrief]       `json:"brief"`
 	Custom           bool                                  `json:"custom"`
 	Intent           string                                `json:"intent"`
 	Kind             SessionFieldsKind                     `json:"kind"`
@@ -1732,6 +1733,7 @@ type SessionPatchRefStatus string
 
 // SessionRevision defines model for SessionRevision.
 type SessionRevision struct {
+	Brief                 nullable.Nullable[SessionBrief]       `json:"brief"`
 	CalendarVersionNumber int                                   `json:"calendar_version_number"`
 	Certainty             SessionRevisionCertainty              `json:"certainty"`
 	ChangedByVersion      int                                   `json:"changed_by_version"`
@@ -1765,6 +1767,7 @@ type SessionRevisionKind string
 
 // SessionState defines model for SessionState.
 type SessionState struct {
+	Brief                      nullable.Nullable[SessionBrief]       `json:"brief"`
 	CalendarVersionNumber      int                                   `json:"calendar_version_number"`
 	Certainty                  SessionStateCertainty                 `json:"certainty"`
 	ChangedByVersion           int                                   `json:"changed_by_version"`

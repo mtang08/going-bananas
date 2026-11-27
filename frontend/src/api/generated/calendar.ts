@@ -209,6 +209,7 @@ export interface components {
             /** Format: uuid */
             strength_slot_id: string | null;
             notes: string | null;
+            brief: components["schemas"]["SessionBrief"];
         };
         SessionRevision: components["schemas"]["SessionFields"] & {
             /** Format: uuid */
