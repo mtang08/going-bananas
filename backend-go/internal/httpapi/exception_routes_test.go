@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestExceptionHTTPPython(t *testing.T) {
+func TestExceptionHTTPReference(t *testing.T) {
 	path := os.Getenv("EXCEPTION_HTTP_REFERENCE")
 	if path == "" {
 		t.Skip("requires scripts/rewrite/check_exception_http.py")
@@ -44,6 +44,9 @@ func TestExceptionHTTPPython(t *testing.T) {
 	}
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatal(err)
+	}
+	if len(cases) == 0 {
+		t.Fatal("no captured reference cases")
 	}
 	h := New(nil, nil, nil, "test", "8000", "5173", ExceptionRoutes{pool, "test", func() time.Time { return now }}.Register)
 	for _, c := range cases {
