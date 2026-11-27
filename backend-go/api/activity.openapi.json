@@ -400,6 +400,172 @@
           }
         }
       }
+    },
+    "/api/v1/metrics/long-runs": {
+      "get": {
+        "operationId": "getLongRuns",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LongRuns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LongRunsEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/metrics/workout-progression": {
+      "get": {
+        "operationId": "getWorkoutProgression",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "recipe",
+                "signature"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "WorkoutProgression",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutProgressionEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local guard rejection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1980,6 +2146,170 @@
           },
           "data": {
             "$ref": "#/components/schemas/Execution"
+          }
+        }
+      },
+      "LongRuns": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MetricResult"
+        }
+      },
+      "LongRunsEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LongRuns"
+          }
+        }
+      },
+      "ProgressionGroup": {
+        "type": "object",
+        "required": [
+          "group_key",
+          "group_by",
+          "signature",
+          "signatures",
+          "recipe_ids",
+          "sessions_total",
+          "sessions_assessable",
+          "latest_date",
+          "points"
+        ],
+        "properties": {
+          "group_key": {
+            "type": "string"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "recipe",
+              "signature"
+            ]
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signatures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recipe_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sessions_total": {
+            "type": "integer"
+          },
+          "sessions_assessable": {
+            "type": "integer"
+          },
+          "latest_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProgressionPoint"
+            }
+          }
+        }
+      },
+      "WorkoutProgression": {
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "group_by",
+          "groups"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date"
+          },
+          "end": {
+            "type": "string",
+            "format": "date"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "recipe",
+              "signature"
+            ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProgressionGroup"
+            }
+          }
+        }
+      },
+      "WorkoutProgressionEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "enum": [
+              "v1"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "real",
+              "demo",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkoutProgression"
           }
         }
       },
