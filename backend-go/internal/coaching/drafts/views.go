@@ -143,36 +143,41 @@ type ActiveDraft struct {
 }
 
 func (s Store) ActiveProposal(ctx context.Context, now time.Time, kbRoot string) (*ActiveDraft, error) {
-	var out ActiveDraft
+	var out *ActiveDraft
 	err := s.withTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		if err := LockPlanning(ctx, tx); err != nil {
 			return err
 		}
-		err := tx.QueryRow(ctx, `SELECT id,snapshot_id,revision,status,payload,jsonb_build_object('id',id,'revision',revision,'operation',operation,'status',status,'submitted_at',submitted_at,'decided_at',decided_at,'discarded_at',discarded_at,'headline',headline,'base_calendar_version',base_calendar_version,'change_count',jsonb_array_length(coalesce(payload->'changes','[]'))) FROM coach_proposals WHERE status IN ('pending','stale','invalid') ORDER BY submitted_at DESC,id DESC LIMIT 1`).Scan(&out.ProposalID, &out.SnapshotID, &out.Revision, &out.Status, &out.Document, &out.Proposal)
-		if err != nil {
-			return err
-		}
-		out.Proposal, err = timedRow(out.Proposal, "submitted_at", "decided_at", "discarded_at")
-		if err != nil {
-			return err
-		}
-		if out.Status != "pending" {
-			return nil
-		}
-		snap, err := LoadSnapshot(ctx, tx, out.SnapshotID)
-		if err != nil {
-			return err
-		}
-		out.IsCurrent, err = isCurrent(ctx, tx, out.Document, snap, now, kbRoot)
+		var err error
+		out, err = ReadActive(ctx, tx, now, kbRoot)
 		return err
 	})
+	return out, err
+}
+
+// ReadActive uses the caller's snapshot. Writers that need to act on the result take LockPlanning first.
+func ReadActive(ctx context.Context, tx pgx.Tx, now time.Time, kbRoot string) (*ActiveDraft, error) {
+	var out ActiveDraft
+	err := tx.QueryRow(ctx, `SELECT id,snapshot_id,revision,status,payload,jsonb_build_object('id',id,'revision',revision,'operation',operation,'status',status,'submitted_at',submitted_at,'decided_at',decided_at,'discarded_at',discarded_at,'headline',headline,'base_calendar_version',base_calendar_version,'change_count',jsonb_array_length(coalesce(payload->'changes','[]'))) FROM coach_proposals WHERE status IN ('pending','stale','invalid') ORDER BY submitted_at DESC,id DESC LIMIT 1`).Scan(&out.ProposalID, &out.SnapshotID, &out.Revision, &out.Status, &out.Document, &out.Proposal)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &out, nil
+	out.Proposal, err = timedRow(out.Proposal, "submitted_at", "decided_at", "discarded_at")
+	if err != nil {
+		return nil, err
+	}
+	if out.Status != "pending" {
+		return &out, nil
+	}
+	snap, err := LoadSnapshot(ctx, tx, out.SnapshotID)
+	if err != nil {
+		return nil, err
+	}
+	out.IsCurrent, err = isCurrent(ctx, tx, out.Document, snap, now, kbRoot)
+	return &out, err
 }
 func isCurrent(ctx context.Context, tx pgx.Tx, payload json.RawMessage, snap Snapshot, now time.Time, kbRoot string) (bool, error) {
 	kb, _, err := coaching.VerifySelection(kbRoot, snap.Selection)
