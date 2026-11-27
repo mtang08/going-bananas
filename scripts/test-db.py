@@ -148,6 +148,7 @@ def main():
         'travel-http': 'check_travel_http.py',
         'provider-jobs': 'check_provider_jobs.py',
         'sync-http': 'check_sync_http.py',
+        'workspace-migrate': 'check_workspace_migrate.py',
         'import-export': 'check_import_export.py',
         'backup': 'check_workspace_backup.py',
         'phone-checkins': 'check_phone_checkins.py',
