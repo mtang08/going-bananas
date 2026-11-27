@@ -5,16 +5,19 @@ package proposalhttp
 import (
 	"encoding/json"
 	"errors"
-	"github.com/google/uuid"
-	"github.com/mtang08/going-bananas/backend-go/api"
-	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
-	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
-	"github.com/mtang08/going-bananas/backend-go/internal/proposals"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/mtang08/going-bananas/backend-go/api"
+	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
+	"github.com/mtang08/going-bananas/backend-go/internal/httpinput"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
+	"github.com/mtang08/going-bananas/backend-go/internal/proposals"
 )
 
 type Handler struct {
@@ -103,6 +106,22 @@ func issues(in []drafts.Issue) []field {
 	}
 	return out
 }
+
+// revisionNumber accepts integer spellings supported by the Python read route.
+// Parse the normalized digits exactly so overflow never aliases an existing revision.
+func revisionNumber(raw string) (int, string) {
+	const invalid = "Input should be a valid integer, unable to parse string as an integer"
+	if _, message := httpinput.Integer(raw, math.MinInt); message != "" {
+		return 0, invalid
+	}
+	whole, _, _ := strings.Cut(strings.TrimSpace(raw), ".")
+	revision, err := strconv.Atoi(strings.ReplaceAll(whole, "_", ""))
+	if err != nil {
+		return 0, invalid
+	}
+	return revision, ""
+}
+
 func (h Handler) serve(w http.ResponseWriter, r *http.Request, method string) {
 	ctx := r.Context()
 	now := time.Now().UTC()
@@ -144,9 +163,14 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, method string) {
 	case "detail", "document", "revision":
 		n := 0
 		if method == "revision" {
-			n, err = strconv.Atoi(r.PathValue("revision"))
-			if err != nil {
-				invalid(w, []field{{"path.revision", "Input should be a valid integer, unable to parse string as an integer"}})
+			var message string
+			n, message = revisionNumber(r.PathValue("revision"))
+			if message != "" {
+				invalid(w, []field{{"path.revision", message}})
+				return
+			}
+			if n < math.MinInt32 || n > math.MaxInt32 {
+				writeError(w, &drafts.Error{Code: "proposal_revision_not_found", Message: "Proposal revision not found", Status: http.StatusNotFound})
 				return
 			}
 		}
