@@ -3,6 +3,7 @@ package replay
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -84,6 +85,15 @@ func firstTruthy(x, y any) any {
 		return x
 	}
 	return y
+}
+
+// ActivityID returns the provider's summary ID, including its legacy fallback key.
+func ActivityID(row map[string]any) string {
+	value := firstTruthy(row["activityId"], row["id"])
+	if value == nil {
+		return ""
+	}
+	return fmt.Sprint(value)
 }
 
 var sports = map[string]string{

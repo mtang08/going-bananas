@@ -47,7 +47,7 @@ const browser =
     : await browsers[engine].launch(engine === 'chrome' ? { channel: 'chrome' } : {})
 
 const frontend = fileURLToPath(new URL('../../frontend/', import.meta.url))
-Object.assign(process.env, { APP_MODE: 'test', APP_PORT: ports[0], PROPOSAL_GO_PORT: ports[1] })
+Object.assign(process.env, { APP_MODE: 'test', APP_PORT: ports[1] })
 const { createServer } = await import(require.resolve('vite'))
 const vite = await createServer({
   root: frontend,
@@ -116,11 +116,6 @@ async function renderState(state) {
   }
 }
 
-function isGoRead(requestPath) {
-  const path = requestPath.split('?')[0]
-  return ['/api/v1/strength-routine', '/api/v1/prompts', '/api/v1/exceptions', '/api/v1/settings/login-startup', '/api/v1/calendar', '/api/v1/calendar/week', '/api/v1/coach/chat', '/api/v1/coach/chat/auth', '/api/v1/blocks/active', '/api/v1/blocks/benchmarks', '/api/v1/events', '/api/v1/anchors', '/api/v1/v2/checkins', '/api/v1/trips', '/api/v1/activities', '/api/v1/metrics/recovery', '/api/v1/calendar/weekly-digest', '/api/v1/calendar/weekly-projection', '/api/v1/running-interruption'].includes(path) || path.startsWith('/api/v1/google-calendar/')
-}
-
 async function checkState(state) {
   upstreams.length = 0
   disconnectList = state === 'failed'
@@ -134,7 +129,7 @@ async function checkState(state) {
     'Home did not request calendar',
   )
   for (const { path, target } of upstreams) {
-    assert.equal(target, [list, '/api/v1/goals'].includes(path) || isGoRead(path) ? candidate : python, 'Wrong upstream for ' + path)
+    assert.equal(target, candidate, 'Wrong upstream for ' + path)
   }
 }
 
@@ -168,7 +163,7 @@ async function checkGoalEdit() {
   for (const request of upstreams) {
     assert.equal(
       request.target,
-      request === writes[0] || request.path === goalsPath || isGoRead(request.path) ? candidate : python,
+      candidate,
       'Wrong upstream for ' + request.path,
     )
   }
@@ -203,7 +198,7 @@ try {
   await checkState('failed')
   await checkGoalEdit()
   console.log(
-    `PASS Home (${engine}) rendered the Go draft, empty list, and disconnected list alert alongside Python.`,
+    `PASS Home (${engine}) rendered the Go draft, empty list, and disconnected list alert through the native API.`,
   )
 } finally {
   httpRequests.unsubscribe(observeUpstream)

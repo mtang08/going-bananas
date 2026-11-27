@@ -6,7 +6,8 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/api"
 )
 
-func TestSyntheticTargetRequired(t *testing.T) {
+func TestModeAndDatabaseMustMatch(t *testing.T) {
+	t.Setenv("GOING_BANANAS_BACKEND", "")
 	for _, tc := range []struct {
 		mode    api.AppMode
 		dsn     string
@@ -26,6 +27,16 @@ func TestSyntheticTargetRequired(t *testing.T) {
 		if err == nil && cfg.ConnConfig.RuntimeParams["default_transaction_read_only"] != "on" {
 			t.Error("database default must be read-only")
 		}
+	}
+}
+
+func TestRealServerRequiresAnExplicitSwitch(t *testing.T) {
+	t.Setenv("GOING_BANANAS_BACKEND", "go")
+	if _, err := runtimeConfig(api.Real, "postgresql://localhost/fixture_real"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtimeConfig(api.Real, "postgresql://localhost/fixture_demo"); err == nil {
+		t.Fatal("accepted mismatched database")
 	}
 }
 

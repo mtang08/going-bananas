@@ -10,7 +10,7 @@ Keep the React app, PostgreSQL, the offline phone queue, the running knowledge b
 
 The reference app mounts **81 method/path pairs under `/api/v1`**, including two health operations. Re-enumerate the mounted operations when work begins and record the slice or intentional retirement of each operation. Inventory the CLI, worker and macOS launcher separately. [App wiring](../backend/app/main.py) · [HTTP handlers](../backend/app/api) · [CLI commands](../backend/app/cli.py) · [Launcher behavior](operations.md)
 
-Go serves **12 of 81 HTTP operations** in demo and test. Home lists proposals, Settings creates and edits goals, and Calendar reads version history. Seven other operations cover trips and Google Calendar. Sync requires real mode, so the synthetic API exercises its mode guard. The real API and worker still use Python. [Current checks and remaining work](go-rewrite-readiness.md)
+Go serves **81 of 81 HTTP operations** through the test/demo integration. The development proxy sends all methods and paths to the same Go listener. The Garmin worker, backups, proposal decisions and coaching dashboard have native implementations. Real startup still selects Python pending rehearsal and owner scheduling. [Current checks and remaining work](go-rewrite-readiness.md)
 
 | Surface | HTTP operations | Other callers and state to carry |
 | --- | ---: | --- |

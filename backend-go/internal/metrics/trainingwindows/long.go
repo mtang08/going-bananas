@@ -49,6 +49,10 @@ func resultsFor(ctx context.Context, tx pgx.Tx, metric string, runs []*metrics.R
 }
 
 func RefreshLong(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error {
+	return calculateLong(ctx, tx, asOf, func(r metrics.Result) error { _, err := metrics.StoreResult(ctx, tx, r, now); return err })
+}
+
+func calculateLong(ctx context.Context, tx pgx.Tx, asOf time.Time, emit func(metrics.Result) error) error {
 	end := dayStart(asOf).AddDate(0, 0, 1)
 	runs, err := runsBetween(ctx, tx, end.AddDate(0, 0, -84), end)
 	if err != nil {
@@ -117,7 +121,7 @@ func RefreshLong(ctx context.Context, tx pgx.Tx, asOf, now time.Time) error {
 			r.Status = "missing"
 			r.Value = nil
 		}
-		if _, err := metrics.StoreResult(ctx, tx, r, now); err != nil {
+		if err := emit(r); err != nil {
 			return err
 		}
 	}

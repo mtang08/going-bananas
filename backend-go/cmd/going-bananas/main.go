@@ -18,12 +18,16 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/api"
+	"github.com/mtang08/going-bananas/backend-go/internal/health"
 	"github.com/oapi-codegen/runtime"
 )
 
 func runtimeConfig(mode api.AppMode, dsn string) (*pgxpool.Config, error) {
-	if mode != api.Test && mode != api.Demo {
-		return nil, errors.New("APP_MODE must select test or demo")
+	if mode == api.Real && os.Getenv("GOING_BANANAS_BACKEND") != "go" {
+		return nil, errors.New("real mode requires the configured Go backend")
+	}
+	if mode != api.Test && mode != api.Demo && mode != api.Real {
+		return nil, errors.New("APP_MODE must select test, demo or real")
 	}
 	if dsn == "" {
 		return nil, errors.New("DATABASE_URL is required")
@@ -34,7 +38,7 @@ func runtimeConfig(mode api.AppMode, dsn string) (*pgxpool.Config, error) {
 		return nil, errors.New("invalid DATABASE_URL")
 	}
 	if !strings.HasSuffix(cfg.ConnConfig.Database, "_"+string(mode)) {
-		return nil, errors.New("database name must end in the selected synthetic mode suffix")
+		return nil, errors.New("database name must end in the selected mode suffix")
 	}
 	cfg.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
 	return cfg, nil
@@ -42,6 +46,7 @@ func runtimeConfig(mode api.AppMode, dsn string) (*pgxpool.Config, error) {
 
 func serve(args []string) error {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+	startup := flags.Bool("startup", false, "refresh athlete-local windows and prompts before serving")
 	repo := flags.String("repo", os.Getenv("GB_MODE_ROOT"), "repository root containing running_coach_kb")
 	address := flags.String("listen", "127.0.0.1:8011", "loopback IPv4 address and port")
 	if err := flags.Parse(args); err != nil {
@@ -62,11 +67,11 @@ func serve(args []string) error {
 	ctx := context.Background()
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
-		return errors.New("unable to open synthetic database pool")
+		return errors.New("unable to open database pool")
 	}
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
-		return errors.New("unable to connect to synthetic database")
+		return errors.New("unable to connect to database")
 	}
 	l, err := net.Listen("tcp4", addr.String())
 	if err != nil {
@@ -96,7 +101,16 @@ func serve(args []string) error {
 	if err != nil {
 		return fmt.Errorf("initialize coaching dashboard: %w", err)
 	}
-	h := applicationHandler(pool, mode, port, vitePort, root, privateDir, dashboard)
+	if *startup {
+		if _, err := health.Startup(ctx, pool, string(mode), privateDir, time.Now()); err != nil {
+			log.Print("Startup metric refresh failed; metric pages compute on view until the next write.")
+		}
+	}
+	dist := os.Getenv("FRONTEND_DIST")
+	if dist == "" {
+		dist = filepath.Join(root, "frontend", "dist")
+	}
+	h := applicationHandler(pool, mode, port, vitePort, root, privateDir, dist, dashboard)
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Println(l.Addr())
 	shutdown, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)

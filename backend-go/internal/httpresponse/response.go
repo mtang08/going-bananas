@@ -22,5 +22,9 @@ func Error(w http.ResponseWriter, status int, code, message string, fields []api
 }
 
 func Success(w http.ResponseWriter, mode string, revision int, data any) {
-	reply(w, 200, map[string]any{"schema_version": "v1", "mode": mode, "data_revision": revision, "data": data})
+	Envelope(w, http.StatusOK, mode, revision, data)
+}
+
+func Envelope(w http.ResponseWriter, status int, mode string, revision int, data any) {
+	reply(w, status, map[string]any{"schema_version": "v1", "mode": mode, "data_revision": revision, "data": data})
 }

@@ -271,16 +271,14 @@ sqlc output and works with PostgreSQL stopped. To exercise both compilers, run
 in a temporary copy and checks that both consumers fail to build.
 [Migrated HTTP operations](backend-go/api/openapi.json)
 
-To try both routes interactively, start `make demo-go-proposals` with the demo
-database already migrated. In a second terminal run
-`PROPOSAL_GO_PORT=8011 ./scripts/with-mode demo make dev`, then open Vite
-at `http://127.0.0.1:5173`. Home lists proposals through Go. In Settings, Go
-saves edits to existing goals. Python handles goal creation and refreshes the list.
+The development proxy sends every API request to one local backend. For a
+demo with a migrated database, run `./scripts/with-mode demo make dev`.
+The Go server can also serve the built frontend from the same port.
 
 `make test-proposal-go` compares HTTP responses and persisted goal, revision
 and metric state on independent copies of the migrated test database. It also
 runs competing-writer and rollback tests. A shared disposable schema exercises
-the mixed-backend UI with a 52-proposal fixture. Home renders the open, empty
+the Go-backed UI with a 52-proposal fixture. Home renders the open, empty
 and failed-list states, and Settings creates, edits and reloads a goal.
 The default browser is installed Chrome. Set `PROPOSAL_HOME_ENGINE=chromium` for
 Playwright's installed Chromium or `PROPOSAL_HOME_ENGINE=dom` for Vitest/jsdom.

@@ -117,7 +117,7 @@ inspect the app's dataset status and coverage.
 
 ## Troubleshooting
 
-- `make doctor`: availability only, never credential values.
+- `make doctor`: checks Go, frontend and PostgreSQL tools, and reports whether the checkout has a mode configuration and research library. It checks file presence without reading configuration values. The optional `uv` tool serves historical Alembic migrations and Python checks.
 - Readiness unavailable: start the database and run migrations for the active mode.
 - Credential attention: replace/renew the private Garmin key; don't paste it into
   chat. Imported history stays readable.

@@ -1,5 +1,4 @@
-import { defineConfig, type Plugin } from 'vite'
-import { servedByGo } from './goRoutes'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath } from 'node:url'
@@ -13,34 +12,9 @@ function loopbackTarget(port: string): string {
   return `http://127.0.0.1:${port}`
 }
 
-const goProxy: Plugin = {
-  name: 'going-bananas-go-dev-proxy',
-  configureServer(server) {
-    const port = process.env.PROPOSAL_GO_PORT
-    if (port === undefined) return
-    if (process.env.APP_MODE !== 'test' && process.env.APP_MODE !== 'demo')
-      throw new Error('PROPOSAL_GO_PORT requires APP_MODE=test or demo')
-    const target = loopbackTarget(port)
-    server.config.server.proxy = {
-      '/api': {
-        target: loopbackTarget(process.env.APP_PORT ?? '8000'),
-        changeOrigin: true,
-        configure(proxy) {
-          server.middlewares.use((req, res, next) => {
-            const path = req.url?.split('?', 1)[0] ?? ''
-            if (servedByGo(req.method, path)) return proxy.web(req, res, { target })
-            next()
-          })
-        },
-      },
-    }
-  },
-}
-
 export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   plugins: [
-    goProxy,
     react(),
     tailwindcss(),
     {
@@ -56,6 +30,6 @@ export default defineConfig({
       },
     },
   ],
-  server: { host: '127.0.0.1', proxy: { '/api': 'http://127.0.0.1:8000' } },
+  server: { host: '127.0.0.1', proxy: { '/api': {target: loopbackTarget(process.env.APP_PORT ?? '8000'), changeOrigin: true} } },
   test: { environment: 'jsdom', setupFiles: ['./tests/setup.ts'] },
 })

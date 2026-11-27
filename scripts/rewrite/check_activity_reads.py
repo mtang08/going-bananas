@@ -89,6 +89,9 @@ def reference():
     app.dependency_overrides[get_session] = session
     client = TestClient(app)
     paths = [
+        "/metrics/windows",
+        "/metrics/windows?as_of=2026-03-30",
+        "/metrics/windows?as_of=bad",
         "/metrics/long-runs?start=2026-03-01&end=2026-03-31",
         "/metrics/long-runs?start=2026-03-31&end=2026-03-01",
         "/metrics/long-runs",

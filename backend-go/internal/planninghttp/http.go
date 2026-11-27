@@ -24,7 +24,7 @@ import (
 
 //go:embed model.json
 var schema []byte
-var models = jsonmodel.Load(schema, nil)
+var models = jsonmodel.Load(schema, checkModel)
 
 type Handler struct {
 	Pool    *pgxpool.Pool
@@ -38,6 +38,7 @@ type result struct {
 	changed bool
 }
 type command struct {
+	now            time.Time
 	full, authored json.RawMessage
 	id             *uuid.UUID
 }
@@ -49,10 +50,11 @@ type route struct {
 }
 
 func (h Handler) Register(m *http.ServeMux) {
-	if h.Mode != "demo" && h.Mode != "test" {
+	if h.Mode != "demo" && h.Mode != "test" && h.Mode != "real" {
 		return
 	}
 	for _, r := range []route{
+		{"GET /api/v1/profile", "", 200, profile}, {"PUT /api/v1/profile", "ProfileInput", 200, profile}, {"PUT /api/v1/running-interruption", "RunningInterruptionInput", 200, interruption},
 		{"GET /api/v1/strength-routine", "", 200, h.routine}, {"PUT /api/v1/strength-routine", "RoutineInput", 200, h.routine},
 		{"GET /api/v1/blocks/active", "", 200, h.activeBlock}, {"GET /api/v1/blocks/benchmarks", "", 200, benchmarks}, {"GET /api/v1/blocks/{block_uid}/history", "", 200, blockHistory}, {"GET /api/v1/events/{event_id}/blocks", "", 200, eventBlocks}, {"PUT /api/v1/blocks/{block_uid}/benchmark-activity", "BenchmarkActivityInput", 200, setBenchmark},
 		{"GET /api/v1/events", "", 200, listEvents}, {"POST /api/v1/events", "EventInput", 201, saveEvent}, {"PATCH /api/v1/events/{event_id}", "EventPatch", 200, saveEvent}, {"PUT /api/v1/events/order", "EventOrder", 200, orderEvents},
@@ -102,6 +104,9 @@ func parse(r *http.Request, model string) (command, []field) {
 	if !json.Valid(body) {
 		return c, append(issues, field{"body.0", "JSON decode error"})
 	}
+	if model == "ProfileInput" {
+		body = knownProfileFields(body)
+	}
 	var problems []jsonmodel.Issue
 	c.full, c.authored, problems = models.Parse(model, "body", body)
 	for _, i := range problems {
@@ -121,6 +126,9 @@ func parse(r *http.Request, model string) (command, []field) {
 			obj["name"] = name
 			c.full, _ = json.Marshal(obj)
 		}
+	}
+	if model == "ProfileInput" && len(issues) == 0 {
+		c.full, issues = normalizeProfile(c.full)
 	}
 	return c, issues
 }
@@ -157,6 +165,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, route route) {
 		if h.Now != nil {
 			now = h.Now()
 		}
+		c.now = now
 		out, err = route.run(ctx, tx, now.In(loc).Format(time.DateOnly), c)
 		if err != nil {
 			return err

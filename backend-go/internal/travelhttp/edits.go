@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
+	"github.com/mtang08/going-bananas/backend-go/internal/pydantic"
 	"github.com/mtang08/going-bananas/backend-go/internal/travel"
 )
 
@@ -25,7 +26,7 @@ func (h Handler) edit(w http.ResponseWriter, r *http.Request, operation string) 
 			key = "event_id"
 		}
 		var msg string
-		id, msg = editUUID(r.PathValue(key))
+		id, msg = pydantic.UUID(r.PathValue(key))
 		if msg != "" {
 			fields = append([]Field{{"path." + key, msg}}, fields...)
 		}

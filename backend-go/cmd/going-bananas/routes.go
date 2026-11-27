@@ -14,6 +14,7 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/feedbackhttp"
 	"github.com/mtang08/going-bananas/backend-go/internal/goals"
 	"github.com/mtang08/going-bananas/backend-go/internal/googlecalendar"
+	"github.com/mtang08/going-bananas/backend-go/internal/health"
 	"github.com/mtang08/going-bananas/backend-go/internal/httpapi"
 	"github.com/mtang08/going-bananas/backend-go/internal/loginstartup"
 	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
@@ -22,12 +23,13 @@ import (
 	"github.com/mtang08/going-bananas/backend-go/internal/proposalhttp"
 	"github.com/mtang08/going-bananas/backend-go/internal/proposals"
 	"github.com/mtang08/going-bananas/backend-go/internal/returnplan"
+	"github.com/mtang08/going-bananas/backend-go/internal/synchttp"
 	"github.com/mtang08/going-bananas/backend-go/internal/travelhttp"
 	"net/http"
 	"path/filepath"
 )
 
-func applicationHandler(pool *pgxpool.Pool, mode api.AppMode, port, vitePort, root, privateDir string, dashboard http.Handler) http.Handler {
+func applicationHandler(pool *pgxpool.Pool, mode api.AppMode, port, vitePort, root, privateDir, dist string, dashboard http.Handler) http.Handler {
 	travel := travelhttp.Handler{Pool: pool, Mode: string(mode), PrivateDir: privateDir, Provider: googlecalendar.New(privateDir)}
 	review := proposalhttp.Handler{Store: drafts.Store{Pool: pool}, KBRoot: filepath.Join(root, "running_coach_kb"), Mode: string(mode)}
 	activities := activityhttp.Handler{Pool: pool, Mode: string(mode)}
@@ -46,7 +48,10 @@ func applicationHandler(pool *pgxpool.Pool, mode api.AppMode, port, vitePort, ro
 		mux.Handle("/api/v1/coach/chat", dashboard)
 		mux.Handle("/api/v1/coach/chat/", dashboard)
 	}
-	return httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort, travel.Register, review.Register, weekly.Register, registerReturnPlan, activities.Register, calendarHTTP.Register, events.Register, completions.Register, feedback.Register, checkinsHTTP.Register, registerChat, exceptions.Register, login.Register)
+	status := health.Handler{Pool: pool, Mode: string(mode)}
+	sync := synchttp.New(pool, string(mode), privateDir)
+	frontend := httpapi.Frontend{Dist: dist}
+	return httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort, travel.Register, review.Register, weekly.Register, registerReturnPlan, activities.Register, calendarHTTP.Register, events.Register, completions.Register, feedback.Register, checkinsHTTP.Register, registerChat, exceptions.Register, login.Register, frontend.Register, status.Register, sync.Register)
 }
 
 func nativeDashboard(ctx context.Context, pool *pgxpool.Pool, mode api.AppMode, port, vitePort, root, privateDir string) (*coachdashboardhttp.Local, error) {
