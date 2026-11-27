@@ -1,92 +1,113 @@
 package evidence
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"os"
-	"strings"
+	"reflect"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/mtang08/going-bananas/backend-go/internal/canonicaljson"
-	"github.com/mtang08/going-bananas/backend-go/internal/coaching"
 )
 
-func TestPythonDecisionInputs(t *testing.T) {
-	path := os.Getenv("EVIDENCE_REFERENCE")
-	if path == "" {
-		t.Skip("scripts/rewrite/coaching/check_evidence.py supplies the migrated synthetic database and Python result")
+const (
+	testOp  = "proceed_or_modify_today"
+	testDay = "2026-11-19"
+)
+
+var testNow = time.Date(2026, 11, 19, 16, 22, 0, 123456000, time.UTC)
+
+func evidenceTx(t *testing.T) pgx.Tx {
+	t.Helper()
+	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("requires the isolated PostgreSQL dashboard runner")
 	}
-	b, err := os.ReadFile(path)
+	cfg, err := pgx.ParseConfig(dsn)
+	if err != nil || cfg.Database != "garmin_test" || (cfg.Host != "localhost" && cfg.Host != "127.0.0.1") ||
+		!regexp.MustCompile(`^go_parity_[a-f0-9]{32}$`).MatchString(cfg.RuntimeParams["search_path"]) {
+		t.Fatal("requires an isolated local PostgreSQL fixture")
+	}
+	ctx := t.Context()
+	conn, err := pgx.ConnectConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal("connect to synthetic evidence database")
+	}
+	t.Cleanup(func() { _ = conn.Close(context.Background()) })
+	var schema string
+	if err := conn.QueryRow(ctx, "SELECT current_schema()").Scan(&schema); err != nil || schema != cfg.RuntimeParams["search_path"] {
+		t.Fatal("missing migrated fixture schema")
+	}
+	tx, err := conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadWrite})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fixture struct {
-		Operation, AsOf string
-		Now             time.Time
-		SavedHash       string
-		Fresh           bool
-		Selection       []coaching.SelectionEntry
-		Sources         map[string]json.RawMessage
-		Guard, Schedule json.RawMessage
-		CurrentHash     string
-	}
-	if err := json.Unmarshal(b, &fixture); err != nil {
+	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	executeEvidenceSQL(t, tx, "SET LOCAL TIME ZONE 'Asia/Kathmandu'")
+	return tx
+}
+
+func executeEvidenceSQL(t *testing.T, tx pgx.Tx, statement string, args ...any) {
+	t.Helper()
+	if _, err := tx.Exec(t.Context(), statement, args...); err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
-	c, err := pgx.Connect(ctx, os.Getenv("EVIDENCE_DATABASE_URL"))
+}
+
+func readEvidence(t *testing.T, tx pgx.Tx, now time.Time) Inputs {
+	t.Helper()
+	got, err := CollectInputs(t.Context(), tx, testOp, testDay, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = c.Close(ctx) }()
-	tx, err := c.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
-	if err != nil {
-		t.Fatal(err)
+	return got
+}
+
+func TestDecisionEvidenceWindows(t *testing.T) {
+	tx := evidenceTx(t)
+	executeEvidenceSQL(t, tx, `
+INSERT INTO profile_versions(id,version,effective_at,timezone,anchor_confirmed,strength_days_confirmed,scheduled_strength_days,facts,preferences,unknowns)
+VALUES(md5('evidence-profile')::uuid,1,'2026-11-01T21:00Z','America/Denver',false,false,'[]',
+    '{"clinician_restriction":"synthetic","large_id":9007199254740993,"threshold":1.0}','{}','["unknown"]')`)
+	executeEvidenceSQL(t, tx, `
+INSERT INTO checkins_v2(id,idempotency_key,kind,observed_at,illness,gait_change) VALUES
+    (md5('evidence-cutoff')::uuid,'evidence-cutoff','exception',$1::timestamptz-interval '72 hours','present','yes'),
+    (md5('evidence-outside')::uuid,'evidence-outside','exception',$1::timestamptz-interval '72 hours 1 microsecond','present','yes'),
+    (md5('evidence-future')::uuid,'evidence-future','exception',$1::timestamptz+interval '1 microsecond','present','yes');
+`, testNow)
+	executeEvidenceSQL(t, tx, `
+INSERT INTO symptom_reports(id,checkin_id,site,side,severity,timing) VALUES
+    (md5('evidence-symptom-in')::uuid,md5('evidence-cutoff')::uuid,'synthetic','left',2,'during'),
+    (md5('evidence-symptom-out')::uuid,md5('evidence-outside')::uuid,'synthetic','left',9,'during'),
+    (md5('evidence-symptom-future')::uuid,md5('evidence-future')::uuid,'synthetic','left',8,'during');
+`)
+	executeEvidenceSQL(t, tx, `
+INSERT INTO prompts(id,kind,session_uid,opens_at,closes_at,status) VALUES
+    (md5('evidence-prompt-cutoff')::uuid,'delayed_symptom',md5('evidence-session-cutoff')::uuid,$1::timestamptz-interval '120 days',$1,'open'),
+    (md5('evidence-prompt-before')::uuid,'delayed_symptom',md5('evidence-session-before')::uuid,$1::timestamptz-interval '120 days 1 microsecond',$1,'open'),
+    (md5('evidence-prompt-future')::uuid,'delayed_symptom',md5('evidence-session-future')::uuid,$1::timestamptz+interval '1 microsecond',NULL,'open'),
+    (md5('evidence-prompt-rpe')::uuid,'rpe',md5('evidence-session-rpe')::uuid,$1::timestamptz-interval '1 hour',NULL,'open')
+`, testNow)
+	got := readEvidence(t, tx, testNow)
+	guard := row{"window_hours": 72, "gait_change_yes": true, "illness_present": true,
+		"max_symptom_severity": float64(2), "clinical_restriction_active": true}
+	if !reflect.DeepEqual(got.SafetyGuard, guard) {
+		t.Errorf("safety guard got %v want %v", got.SafetyGuard, guard)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	var db, schema string
-	if err := tx.QueryRow(ctx, "select current_database(),current_schema()").Scan(&db, &schema); err != nil || db != "garmin_test" || !strings.HasPrefix(schema, "go_evidence_") {
-		t.Fatalf("expected synthetic DB/schema: %v", err)
+	prompts := got.Sources["delayed_response_prompts"].([]row)
+	if len(prompts) != 1 || prompts[0]["status"] != "expired" ||
+		prompts[0]["closes_at"] != "2026-11-19T16:22:00.123456+00:00" {
+		t.Errorf("delayed prompt window got %v", prompts)
 	}
-	got, err := CollectInputs(ctx, tx, fixture.Operation, fixture.AsOf, fixture.Now)
-	if err != nil {
-		t.Fatal(err)
+	// At the next microsecond the older report leaves the window and the
+	// future report becomes eligible, without changing any database rows.
+	later := readEvidence(t, tx, testNow.Add(time.Microsecond))
+	if later.SafetyGuard["max_symptom_severity"] != float64(8) {
+		t.Errorf("advanced safety guard got %v", later.SafetyGuard)
 	}
-	compare := func(k string, v any, want []byte) {
-		t.Helper()
-		raw, err := canonicaljson.Coaching(v)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(raw, want) {
-			t.Errorf("canonical mismatch in %s: got %s, want %s", k, raw, want)
-		}
-	}
-	if len(fixture.Sources) != len(got.Sources) {
-		t.Errorf("source keys: got %d want %d", len(got.Sources), len(fixture.Sources))
-	}
-	for key, expected := range fixture.Sources {
-		value, exists := got.Sources[key]
-		if !exists {
-			t.Errorf("missing %s", key)
-			continue
-		}
-		compare(key, value, expected)
-	}
-	compare("confirmed_strength_sessions", got.ConfirmedStrengthSessions, fixture.Schedule)
-	compare("safety_guard", got.SafetyGuard, fixture.Guard)
-	kb, _, err := coaching.VerifySelection("../../../../running_coach_kb", fixture.Selection)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, hash, err := coaching.Fingerprint(got.Sources, kb)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if hash != fixture.CurrentHash || (hash == fixture.SavedHash) != fixture.Fresh {
-		t.Errorf("freshness mismatch for Python-created snapshot: current=%s saved=%s fresh=%t", hash, fixture.SavedHash, fixture.Fresh)
+	prompts = later.Sources["delayed_response_prompts"].([]row)
+	if len(prompts) != 1 || prompts[0]["status"] != "open" {
+		t.Errorf("advanced delayed prompt window got %v", prompts)
 	}
 }
