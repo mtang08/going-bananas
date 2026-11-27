@@ -21,13 +21,20 @@ import {
 import { Badge, Button, Card, Disclosure } from '../components/ui'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addDays, dateLabel, fmtDistance, type Unit } from '../lib/format'
-import { getCalendar, api, listProposals, post } from '../api/client'
+import {
+  getCalendar,
+  getWeeklyDigest,
+  getWeeklyProjection,
+  api,
+  listProposals,
+  post,
+} from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
 import { pageHref } from '../lib/routes'
 import { sessionTitle } from '../lib/session'
 import type { Activity } from '../api/types/activity'
 import type { ActiveBlock } from '../api/types/blocks'
-import type { SessionState, WeeklyDigest as WeeklyDigestData } from '../api/types/calendar'
+import type { SessionState } from '../api/types/calendar'
 import type { CheckinRequest, PromptList } from '../api/types/checkins'
 import { QueryState } from '../components/QueryState'
 import { mondayOfWeek, SessionSummary } from '../components/PlanOverview'
@@ -35,7 +42,6 @@ import { WeekSessions } from '../components/WeekSessions'
 import { WeeklyMileage } from '../components/WeeklyMileage'
 import { WeeklyDigest, type DigestWeek } from '../components/WeeklyDigest'
 import { RunningInterruption, useRunningInterruption } from './RunningInterruption'
-import type { WeeklyProjection } from '../api/types/calendar'
 
 export function Home({
   unit,
@@ -60,19 +66,19 @@ export function Home({
   })
   const projection = useQuery({
     queryKey: qk.weeklyProjection,
-    queryFn: () => api<WeeklyProjection>('/calendar/weekly-projection'),
+    queryFn: () => getWeeklyProjection(),
   })
   const [digestWeek, setDigestWeek] = useState<DigestWeek>('this')
   const digestNow = useQuery({
     queryKey: qk.weeklyDigest('current'),
-    queryFn: () => api<WeeklyDigestData>('/calendar/weekly-digest'),
+    queryFn: () => getWeeklyDigest(),
   })
   const lastWeekStart = digestNow.data?.data
     ? addDays(mondayOfWeek(digestNow.data.data.today), -7)
     : null
   const digestLast = useQuery({
     queryKey: qk.weeklyDigest(lastWeekStart ?? 'pending'),
-    queryFn: () => api<WeeklyDigestData>(`/calendar/weekly-digest?week_start=${lastWeekStart}`),
+    queryFn: () => getWeeklyDigest({ week_start: lastWeekStart ?? undefined }),
     enabled: digestWeek === 'last' && lastWeekStart !== null,
   })
   const digest = digestWeek === 'last' ? digestLast : digestNow

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -18,7 +19,6 @@ func TestPythonCalendarResponses(t *testing.T) {
 	}
 	var cases []struct {
 		Path     string
-		Diff     bool
 		Envelope json.RawMessage
 	}
 	if err := json.Unmarshal(corpus, &cases); err != nil {
@@ -27,8 +27,15 @@ func TestPythonCalendarResponses(t *testing.T) {
 	for _, item := range cases {
 		t.Run(item.Path, func(t *testing.T) {
 			var wire any = &CalendarViewEnvelope{}
-			if item.Diff {
+			switch strings.SplitN(item.Path, "?", 2)[0] {
+			case "/diff":
 				wire = &CalendarDiffEnvelope{}
+			case "/weekly-projection":
+				wire = &WeeklyProjectionEnvelope{}
+			case "/weekly-digest":
+				wire = &WeeklyDigestEnvelope{}
+			case "/bootstrap", "/edits", "/rollback":
+				wire = &CalendarWriteResultEnvelope{}
 			}
 			if err := json.Unmarshal(item.Envelope, wire); err != nil {
 				t.Fatal(err)

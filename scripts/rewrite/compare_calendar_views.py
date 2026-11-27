@@ -29,11 +29,13 @@ def compare_calendar_views(env, ports):
         assert reference == candidate, (path, reference, candidate)
         assert reference[0] == status, (path, reference)
         if status == 200:
-            corpus.append({"path": path, "diff": path.startswith("/diff"), "envelope": reference[1]})
+            corpus.append({"path": path, "envelope": reference[1]})
         return reference[1].get("data")
 
     assert compare("")["last_planned_date"] is None
     compare("/week")
+    compare("/weekly-digest")
+    compare("/weekly-projection")
     for query, status in [
         ("/diff", 422), ("/diff?from=no&to=", 422), ("/week?start=2026-03-03", 422),
         ("?version=9999999999", 404), ("?start=bad&end=bad&version=bad", 422),
@@ -87,6 +89,8 @@ def compare_calendar_views(env, ports):
         for pair in ("0&to=3","3&to=0","2&to=3","3&to=3"):
             compare("/diff?from="+pair)
         compare("/diff?from=-1&to=3",404)
+        compare("/weekly-projection")
+        compare("/weekly-digest?week_start="+(day-timedelta(days=day.weekday())).isoformat())
         compare("/week?start="+(day-timedelta(days=day.weekday())).isoformat())
     root = Path(__file__).resolve().parents[2]
     with tempfile.TemporaryDirectory(dir=root / "private") as temp:

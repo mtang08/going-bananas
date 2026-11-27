@@ -12,24 +12,54 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for BootstrapInputPatternLong.
+const (
+	BootstrapInputPatternLongN1 BootstrapInputPatternLong = 1
+)
+
+// Valid indicates whether the value is a known member of the BootstrapInputPatternLong enum.
+func (e BootstrapInputPatternLong) Valid() bool {
+	switch e {
+	case BootstrapInputPatternLongN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BootstrapInputPatternQuality.
+const (
+	BootstrapInputPatternQualityN1 BootstrapInputPatternQuality = 1
+)
+
+// Valid indicates whether the value is a known member of the BootstrapInputPatternQuality enum.
+func (e BootstrapInputPatternQuality) Valid() bool {
+	switch e {
+	case BootstrapInputPatternQualityN1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CalendarChangeOp.
 const (
-	Add    CalendarChangeOp = "add"
-	Delete CalendarChangeOp = "delete"
-	Modify CalendarChangeOp = "modify"
-	Move   CalendarChangeOp = "move"
+	CalendarChangeOpAdd    CalendarChangeOp = "add"
+	CalendarChangeOpDelete CalendarChangeOp = "delete"
+	CalendarChangeOpModify CalendarChangeOp = "modify"
+	CalendarChangeOpMove   CalendarChangeOp = "move"
 )
 
 // Valid indicates whether the value is a known member of the CalendarChangeOp enum.
 func (e CalendarChangeOp) Valid() bool {
 	switch e {
-	case Add:
+	case CalendarChangeOpAdd:
 		return true
-	case Delete:
+	case CalendarChangeOpDelete:
 		return true
-	case Modify:
+	case CalendarChangeOpModify:
 		return true
-	case Move:
+	case CalendarChangeOpMove:
 		return true
 	default:
 		return false
@@ -65,31 +95,31 @@ func (e CalendarCompletionMatchMethod) Valid() bool {
 
 // Defines values for CalendarCompletionModificationReason.
 const (
-	Equipment    CalendarCompletionModificationReason = "equipment"
-	Fatigue      CalendarCompletionModificationReason = "fatigue"
-	Illness      CalendarCompletionModificationReason = "illness"
-	Other        CalendarCompletionModificationReason = "other"
-	Schedule     CalendarCompletionModificationReason = "schedule"
-	SymptomOnset CalendarCompletionModificationReason = "symptom_onset"
-	Weather      CalendarCompletionModificationReason = "weather"
+	CalendarCompletionModificationReasonEquipment    CalendarCompletionModificationReason = "equipment"
+	CalendarCompletionModificationReasonFatigue      CalendarCompletionModificationReason = "fatigue"
+	CalendarCompletionModificationReasonIllness      CalendarCompletionModificationReason = "illness"
+	CalendarCompletionModificationReasonOther        CalendarCompletionModificationReason = "other"
+	CalendarCompletionModificationReasonSchedule     CalendarCompletionModificationReason = "schedule"
+	CalendarCompletionModificationReasonSymptomOnset CalendarCompletionModificationReason = "symptom_onset"
+	CalendarCompletionModificationReasonWeather      CalendarCompletionModificationReason = "weather"
 )
 
 // Valid indicates whether the value is a known member of the CalendarCompletionModificationReason enum.
 func (e CalendarCompletionModificationReason) Valid() bool {
 	switch e {
-	case Equipment:
+	case CalendarCompletionModificationReasonEquipment:
 		return true
-	case Fatigue:
+	case CalendarCompletionModificationReasonFatigue:
 		return true
-	case Illness:
+	case CalendarCompletionModificationReasonIllness:
 		return true
-	case Other:
+	case CalendarCompletionModificationReasonOther:
 		return true
-	case Schedule:
+	case CalendarCompletionModificationReasonSchedule:
 		return true
-	case SymptomOnset:
+	case CalendarCompletionModificationReasonSymptomOnset:
 		return true
-	case Weather:
+	case CalendarCompletionModificationReasonWeather:
 		return true
 	default:
 		return false
@@ -98,31 +128,31 @@ func (e CalendarCompletionModificationReason) Valid() bool {
 
 // Defines values for CalendarCompletionStatus.
 const (
-	CompletedAsPlanned CalendarCompletionStatus = "completed_as_planned"
-	CompletedModified  CalendarCompletionStatus = "completed_modified"
-	Extra              CalendarCompletionStatus = "extra"
-	Moved              CalendarCompletionStatus = "moved"
-	Partial            CalendarCompletionStatus = "partial"
-	Skipped            CalendarCompletionStatus = "skipped"
-	Unknown            CalendarCompletionStatus = "unknown"
+	CalendarCompletionStatusCompletedAsPlanned CalendarCompletionStatus = "completed_as_planned"
+	CalendarCompletionStatusCompletedModified  CalendarCompletionStatus = "completed_modified"
+	CalendarCompletionStatusExtra              CalendarCompletionStatus = "extra"
+	CalendarCompletionStatusMoved              CalendarCompletionStatus = "moved"
+	CalendarCompletionStatusPartial            CalendarCompletionStatus = "partial"
+	CalendarCompletionStatusSkipped            CalendarCompletionStatus = "skipped"
+	CalendarCompletionStatusUnknown            CalendarCompletionStatus = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the CalendarCompletionStatus enum.
 func (e CalendarCompletionStatus) Valid() bool {
 	switch e {
-	case CompletedAsPlanned:
+	case CalendarCompletionStatusCompletedAsPlanned:
 		return true
-	case CompletedModified:
+	case CalendarCompletionStatusCompletedModified:
 		return true
-	case Extra:
+	case CalendarCompletionStatusExtra:
 		return true
-	case Moved:
+	case CalendarCompletionStatusMoved:
 		return true
-	case Partial:
+	case CalendarCompletionStatusPartial:
 		return true
-	case Skipped:
+	case CalendarCompletionStatusSkipped:
 		return true
-	case Unknown:
+	case CalendarCompletionStatusUnknown:
 		return true
 	default:
 		return false
@@ -165,6 +195,30 @@ func (e CalendarDiffEnvelopeSchemaVersion) Valid() bool {
 	}
 }
 
+// Defines values for CalendarEditOp.
+const (
+	CalendarEditOpAdd    CalendarEditOp = "add"
+	CalendarEditOpDelete CalendarEditOp = "delete"
+	CalendarEditOpModify CalendarEditOp = "modify"
+	CalendarEditOpMove   CalendarEditOp = "move"
+)
+
+// Valid indicates whether the value is a known member of the CalendarEditOp enum.
+func (e CalendarEditOp) Valid() bool {
+	switch e {
+	case CalendarEditOpAdd:
+		return true
+	case CalendarEditOpDelete:
+		return true
+	case CalendarEditOpModify:
+		return true
+	case CalendarEditOpMove:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CalendarViewEnvelopeMode.
 const (
 	CalendarViewEnvelopeModeDemo CalendarViewEnvelopeMode = "demo"
@@ -195,6 +249,144 @@ const (
 func (e CalendarViewEnvelopeSchemaVersion) Valid() bool {
 	switch e {
 	case CalendarViewEnvelopeSchemaVersionV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CalendarWriteResultKind.
+const (
+	CalendarWriteResultKindBootstrap      CalendarWriteResultKind = "bootstrap"
+	CalendarWriteResultKindLegacyImport   CalendarWriteResultKind = "legacy_import"
+	CalendarWriteResultKindManualEdit     CalendarWriteResultKind = "manual_edit"
+	CalendarWriteResultKindProposalAccept CalendarWriteResultKind = "proposal_accept"
+	CalendarWriteResultKindRollback       CalendarWriteResultKind = "rollback"
+)
+
+// Valid indicates whether the value is a known member of the CalendarWriteResultKind enum.
+func (e CalendarWriteResultKind) Valid() bool {
+	switch e {
+	case CalendarWriteResultKindBootstrap:
+		return true
+	case CalendarWriteResultKindLegacyImport:
+		return true
+	case CalendarWriteResultKindManualEdit:
+		return true
+	case CalendarWriteResultKindProposalAccept:
+		return true
+	case CalendarWriteResultKindRollback:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CalendarWriteResultEnvelopeMode.
+const (
+	CalendarWriteResultEnvelopeModeDemo CalendarWriteResultEnvelopeMode = "demo"
+	CalendarWriteResultEnvelopeModeReal CalendarWriteResultEnvelopeMode = "real"
+	CalendarWriteResultEnvelopeModeTest CalendarWriteResultEnvelopeMode = "test"
+)
+
+// Valid indicates whether the value is a known member of the CalendarWriteResultEnvelopeMode enum.
+func (e CalendarWriteResultEnvelopeMode) Valid() bool {
+	switch e {
+	case CalendarWriteResultEnvelopeModeDemo:
+		return true
+	case CalendarWriteResultEnvelopeModeReal:
+		return true
+	case CalendarWriteResultEnvelopeModeTest:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CalendarWriteResultEnvelopeSchemaVersion.
+const (
+	CalendarWriteResultEnvelopeSchemaVersionV1 CalendarWriteResultEnvelopeSchemaVersion = "v1"
+)
+
+// Valid indicates whether the value is a known member of the CalendarWriteResultEnvelopeSchemaVersion enum.
+func (e CalendarWriteResultEnvelopeSchemaVersion) Valid() bool {
+	switch e {
+	case CalendarWriteResultEnvelopeSchemaVersionV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DecisionResponseGaitChange.
+const (
+	No     DecisionResponseGaitChange = "no"
+	Unsure DecisionResponseGaitChange = "unsure"
+	Yes    DecisionResponseGaitChange = "yes"
+)
+
+// Valid indicates whether the value is a known member of the DecisionResponseGaitChange enum.
+func (e DecisionResponseGaitChange) Valid() bool {
+	switch e {
+	case No:
+		return true
+	case Unsure:
+		return true
+	case Yes:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DecisionResponseSymptomsSide.
+const (
+	Both  DecisionResponseSymptomsSide = "both"
+	Left  DecisionResponseSymptomsSide = "left"
+	Na    DecisionResponseSymptomsSide = "na"
+	Right DecisionResponseSymptomsSide = "right"
+)
+
+// Valid indicates whether the value is a known member of the DecisionResponseSymptomsSide enum.
+func (e DecisionResponseSymptomsSide) Valid() bool {
+	switch e {
+	case Both:
+		return true
+	case Left:
+		return true
+	case Na:
+		return true
+	case Right:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DecisionResponseSymptomsTiming.
+const (
+	DecisionResponseSymptomsTimingDuring           DecisionResponseSymptomsTiming = "during"
+	DecisionResponseSymptomsTimingHours2448        DecisionResponseSymptomsTiming = "hours_24_48"
+	DecisionResponseSymptomsTimingImmediatelyAfter DecisionResponseSymptomsTiming = "immediately_after"
+	DecisionResponseSymptomsTimingLater            DecisionResponseSymptomsTiming = "later"
+	DecisionResponseSymptomsTimingNextMorning      DecisionResponseSymptomsTiming = "next_morning"
+	DecisionResponseSymptomsTimingUnknown          DecisionResponseSymptomsTiming = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the DecisionResponseSymptomsTiming enum.
+func (e DecisionResponseSymptomsTiming) Valid() bool {
+	switch e {
+	case DecisionResponseSymptomsTimingDuring:
+		return true
+	case DecisionResponseSymptomsTimingHours2448:
+		return true
+	case DecisionResponseSymptomsTimingImmediatelyAfter:
+		return true
+	case DecisionResponseSymptomsTimingLater:
+		return true
+	case DecisionResponseSymptomsTimingNextMorning:
+		return true
+	case DecisionResponseSymptomsTimingUnknown:
 		return true
 	default:
 		return false
@@ -243,6 +435,285 @@ func (e DiffRevisionKind) Valid() bool {
 	case DiffRevisionKindRun:
 		return true
 	case DiffRevisionKindStrength:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DigestActualRpeSource.
+const (
+	GarminFit DigestActualRpeSource = "garmin_fit"
+	Manual    DigestActualRpeSource = "manual"
+)
+
+// Valid indicates whether the value is a known member of the DigestActualRpeSource enum.
+func (e DigestActualRpeSource) Valid() bool {
+	switch e {
+	case GarminFit:
+		return true
+	case Manual:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DigestActualSubject.
+const (
+	DigestActualSubjectActivity      DigestActualSubject = "activity"
+	DigestActualSubjectManualSession DigestActualSubject = "manual_session"
+	DigestActualSubjectStrongWorkout DigestActualSubject = "strong_workout"
+)
+
+// Valid indicates whether the value is a known member of the DigestActualSubject enum.
+func (e DigestActualSubject) Valid() bool {
+	switch e {
+	case DigestActualSubjectActivity:
+		return true
+	case DigestActualSubjectManualSession:
+		return true
+	case DigestActualSubjectStrongWorkout:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DigestExecutionAssessmentStatus.
+const (
+	DigestExecutionAssessmentStatusAvailable DigestExecutionAssessmentStatus = "available"
+	DigestExecutionAssessmentStatusMissing   DigestExecutionAssessmentStatus = "missing"
+	DigestExecutionAssessmentStatusPartial   DigestExecutionAssessmentStatus = "partial"
+)
+
+// Valid indicates whether the value is a known member of the DigestExecutionAssessmentStatus enum.
+func (e DigestExecutionAssessmentStatus) Valid() bool {
+	switch e {
+	case DigestExecutionAssessmentStatusAvailable:
+		return true
+	case DigestExecutionAssessmentStatusMissing:
+		return true
+	case DigestExecutionAssessmentStatusPartial:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DigestExecutionComponentsName.
+const (
+	DistanceRatio       DigestExecutionComponentsName = "distance_ratio"
+	DurationRatio       DigestExecutionComponentsName = "duration_ratio"
+	StepCompletionRatio DigestExecutionComponentsName = "step_completion_ratio"
+	TargetCoverage      DigestExecutionComponentsName = "target_coverage"
+)
+
+// Valid indicates whether the value is a known member of the DigestExecutionComponentsName enum.
+func (e DigestExecutionComponentsName) Valid() bool {
+	switch e {
+	case DistanceRatio:
+		return true
+	case DurationRatio:
+		return true
+	case StepCompletionRatio:
+		return true
+	case TargetCoverage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DigestExecutionComponentsStatus.
+const (
+	Met           DigestExecutionComponentsStatus = "met"
+	NotAssessable DigestExecutionComponentsStatus = "not_assessable"
+	NotMet        DigestExecutionComponentsStatus = "not_met"
+	PartiallyMet  DigestExecutionComponentsStatus = "partially_met"
+)
+
+// Valid indicates whether the value is a known member of the DigestExecutionComponentsStatus enum.
+func (e DigestExecutionComponentsStatus) Valid() bool {
+	switch e {
+	case Met:
+		return true
+	case NotAssessable:
+		return true
+	case NotMet:
+		return true
+	case PartiallyMet:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DigestRowKind.
+const (
+	DigestRowKindCross    DigestRowKind = "cross"
+	DigestRowKindMobility DigestRowKind = "mobility"
+	DigestRowKindRehab    DigestRowKind = "rehab"
+	DigestRowKindRest     DigestRowKind = "rest"
+	DigestRowKindRun      DigestRowKind = "run"
+	DigestRowKindStrength DigestRowKind = "strength"
+)
+
+// Valid indicates whether the value is a known member of the DigestRowKind enum.
+func (e DigestRowKind) Valid() bool {
+	switch e {
+	case DigestRowKindCross:
+		return true
+	case DigestRowKindMobility:
+		return true
+	case DigestRowKindRehab:
+		return true
+	case DigestRowKindRest:
+		return true
+	case DigestRowKindRun:
+		return true
+	case DigestRowKindStrength:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DigestRowModificationReason.
+const (
+	DigestRowModificationReasonEquipment    DigestRowModificationReason = "equipment"
+	DigestRowModificationReasonFatigue      DigestRowModificationReason = "fatigue"
+	DigestRowModificationReasonIllness      DigestRowModificationReason = "illness"
+	DigestRowModificationReasonOther        DigestRowModificationReason = "other"
+	DigestRowModificationReasonSchedule     DigestRowModificationReason = "schedule"
+	DigestRowModificationReasonSymptomOnset DigestRowModificationReason = "symptom_onset"
+	DigestRowModificationReasonWeather      DigestRowModificationReason = "weather"
+)
+
+// Valid indicates whether the value is a known member of the DigestRowModificationReason enum.
+func (e DigestRowModificationReason) Valid() bool {
+	switch e {
+	case DigestRowModificationReasonEquipment:
+		return true
+	case DigestRowModificationReasonFatigue:
+		return true
+	case DigestRowModificationReasonIllness:
+		return true
+	case DigestRowModificationReasonOther:
+		return true
+	case DigestRowModificationReasonSchedule:
+		return true
+	case DigestRowModificationReasonSymptomOnset:
+		return true
+	case DigestRowModificationReasonWeather:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DigestRowOutcome.
+const (
+	DigestRowOutcomeCompleted   DigestRowOutcome = "completed"
+	DigestRowOutcomeMissed      DigestRowOutcome = "missed"
+	DigestRowOutcomeModified    DigestRowOutcome = "modified"
+	DigestRowOutcomeMoved       DigestRowOutcome = "moved"
+	DigestRowOutcomeNotRecorded DigestRowOutcome = "not_recorded"
+	DigestRowOutcomePartial     DigestRowOutcome = "partial"
+	DigestRowOutcomePlanned     DigestRowOutcome = "planned"
+	DigestRowOutcomeRecorded    DigestRowOutcome = "recorded"
+)
+
+// Valid indicates whether the value is a known member of the DigestRowOutcome enum.
+func (e DigestRowOutcome) Valid() bool {
+	switch e {
+	case DigestRowOutcomeCompleted:
+		return true
+	case DigestRowOutcomeMissed:
+		return true
+	case DigestRowOutcomeModified:
+		return true
+	case DigestRowOutcomeMoved:
+		return true
+	case DigestRowOutcomeNotRecorded:
+		return true
+	case DigestRowOutcomePartial:
+		return true
+	case DigestRowOutcomePlanned:
+		return true
+	case DigestRowOutcomeRecorded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DigestUnplannedSubject.
+const (
+	DigestUnplannedSubjectActivity      DigestUnplannedSubject = "activity"
+	DigestUnplannedSubjectManualSession DigestUnplannedSubject = "manual_session"
+	DigestUnplannedSubjectStrongWorkout DigestUnplannedSubject = "strong_workout"
+)
+
+// Valid indicates whether the value is a known member of the DigestUnplannedSubject enum.
+func (e DigestUnplannedSubject) Valid() bool {
+	switch e {
+	case DigestUnplannedSubjectActivity:
+		return true
+	case DigestUnplannedSubjectManualSession:
+		return true
+	case DigestUnplannedSubjectStrongWorkout:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EditFieldsKind.
+const (
+	EditFieldsKindCross    EditFieldsKind = "cross"
+	EditFieldsKindMobility EditFieldsKind = "mobility"
+	EditFieldsKindRehab    EditFieldsKind = "rehab"
+	EditFieldsKindRest     EditFieldsKind = "rest"
+	EditFieldsKindRun      EditFieldsKind = "run"
+	EditFieldsKindStrength EditFieldsKind = "strength"
+)
+
+// Valid indicates whether the value is a known member of the EditFieldsKind enum.
+func (e EditFieldsKind) Valid() bool {
+	switch e {
+	case EditFieldsKindCross:
+		return true
+	case EditFieldsKindMobility:
+		return true
+	case EditFieldsKindRehab:
+		return true
+	case EditFieldsKindRest:
+		return true
+	case EditFieldsKindRun:
+		return true
+	case EditFieldsKindStrength:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FollowUpActualSubject.
+const (
+	FollowUpActualSubjectActivity      FollowUpActualSubject = "activity"
+	FollowUpActualSubjectManualSession FollowUpActualSubject = "manual_session"
+	FollowUpActualSubjectStrongWorkout FollowUpActualSubject = "strong_workout"
+)
+
+// Valid indicates whether the value is a known member of the FollowUpActualSubject enum.
+func (e FollowUpActualSubject) Valid() bool {
+	switch e {
+	case FollowUpActualSubjectActivity:
+		return true
+	case FollowUpActualSubjectManualSession:
+		return true
+	case FollowUpActualSubjectStrongWorkout:
 		return true
 	default:
 		return false
@@ -314,25 +785,25 @@ func (e RecentVersionActor) Valid() bool {
 
 // Defines values for RecentVersionKind.
 const (
-	Bootstrap      RecentVersionKind = "bootstrap"
-	LegacyImport   RecentVersionKind = "legacy_import"
-	ManualEdit     RecentVersionKind = "manual_edit"
-	ProposalAccept RecentVersionKind = "proposal_accept"
-	Rollback       RecentVersionKind = "rollback"
+	RecentVersionKindBootstrap      RecentVersionKind = "bootstrap"
+	RecentVersionKindLegacyImport   RecentVersionKind = "legacy_import"
+	RecentVersionKindManualEdit     RecentVersionKind = "manual_edit"
+	RecentVersionKindProposalAccept RecentVersionKind = "proposal_accept"
+	RecentVersionKindRollback       RecentVersionKind = "rollback"
 )
 
 // Valid indicates whether the value is a known member of the RecentVersionKind enum.
 func (e RecentVersionKind) Valid() bool {
 	switch e {
-	case Bootstrap:
+	case RecentVersionKindBootstrap:
 		return true
-	case LegacyImport:
+	case RecentVersionKindLegacyImport:
 		return true
-	case ManualEdit:
+	case RecentVersionKindManualEdit:
 		return true
-	case ProposalAccept:
+	case RecentVersionKindProposalAccept:
 		return true
-	case Rollback:
+	case RecentVersionKindRollback:
 		return true
 	default:
 		return false
@@ -348,6 +819,96 @@ const (
 func (e RepeatBlockType) Valid() bool {
 	switch e {
 	case Repeat:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewFollowUpModificationReason.
+const (
+	ReviewFollowUpModificationReasonEquipment    ReviewFollowUpModificationReason = "equipment"
+	ReviewFollowUpModificationReasonFatigue      ReviewFollowUpModificationReason = "fatigue"
+	ReviewFollowUpModificationReasonIllness      ReviewFollowUpModificationReason = "illness"
+	ReviewFollowUpModificationReasonOther        ReviewFollowUpModificationReason = "other"
+	ReviewFollowUpModificationReasonSchedule     ReviewFollowUpModificationReason = "schedule"
+	ReviewFollowUpModificationReasonSymptomOnset ReviewFollowUpModificationReason = "symptom_onset"
+	ReviewFollowUpModificationReasonWeather      ReviewFollowUpModificationReason = "weather"
+)
+
+// Valid indicates whether the value is a known member of the ReviewFollowUpModificationReason enum.
+func (e ReviewFollowUpModificationReason) Valid() bool {
+	switch e {
+	case ReviewFollowUpModificationReasonEquipment:
+		return true
+	case ReviewFollowUpModificationReasonFatigue:
+		return true
+	case ReviewFollowUpModificationReasonIllness:
+		return true
+	case ReviewFollowUpModificationReasonOther:
+		return true
+	case ReviewFollowUpModificationReasonSchedule:
+		return true
+	case ReviewFollowUpModificationReasonSymptomOnset:
+		return true
+	case ReviewFollowUpModificationReasonWeather:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewFollowUpOp.
+const (
+	ReviewFollowUpOpAdd    ReviewFollowUpOp = "add"
+	ReviewFollowUpOpModify ReviewFollowUpOp = "modify"
+	ReviewFollowUpOpMove   ReviewFollowUpOp = "move"
+)
+
+// Valid indicates whether the value is a known member of the ReviewFollowUpOp enum.
+func (e ReviewFollowUpOp) Valid() bool {
+	switch e {
+	case ReviewFollowUpOpAdd:
+		return true
+	case ReviewFollowUpOpModify:
+		return true
+	case ReviewFollowUpOpMove:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewFollowUpOutcome.
+const (
+	ReviewFollowUpOutcomeCompleted   ReviewFollowUpOutcome = "completed"
+	ReviewFollowUpOutcomeMissed      ReviewFollowUpOutcome = "missed"
+	ReviewFollowUpOutcomeModified    ReviewFollowUpOutcome = "modified"
+	ReviewFollowUpOutcomeMoved       ReviewFollowUpOutcome = "moved"
+	ReviewFollowUpOutcomeNotRecorded ReviewFollowUpOutcome = "not_recorded"
+	ReviewFollowUpOutcomePartial     ReviewFollowUpOutcome = "partial"
+	ReviewFollowUpOutcomePlanned     ReviewFollowUpOutcome = "planned"
+	ReviewFollowUpOutcomeRecorded    ReviewFollowUpOutcome = "recorded"
+)
+
+// Valid indicates whether the value is a known member of the ReviewFollowUpOutcome enum.
+func (e ReviewFollowUpOutcome) Valid() bool {
+	switch e {
+	case ReviewFollowUpOutcomeCompleted:
+		return true
+	case ReviewFollowUpOutcomeMissed:
+		return true
+	case ReviewFollowUpOutcomeModified:
+		return true
+	case ReviewFollowUpOutcomeMoved:
+		return true
+	case ReviewFollowUpOutcomeNotRecorded:
+		return true
+	case ReviewFollowUpOutcomePartial:
+		return true
+	case ReviewFollowUpOutcomePlanned:
+		return true
+	case ReviewFollowUpOutcomeRecorded:
 		return true
 	default:
 		return false
@@ -525,6 +1086,184 @@ func (e StepTargetModality) Valid() bool {
 	}
 }
 
+// Defines values for WeeklyDigestRemovedKind.
+const (
+	WeeklyDigestRemovedKindCross    WeeklyDigestRemovedKind = "cross"
+	WeeklyDigestRemovedKindMobility WeeklyDigestRemovedKind = "mobility"
+	WeeklyDigestRemovedKindRehab    WeeklyDigestRemovedKind = "rehab"
+	WeeklyDigestRemovedKindRest     WeeklyDigestRemovedKind = "rest"
+	WeeklyDigestRemovedKindRun      WeeklyDigestRemovedKind = "run"
+	WeeklyDigestRemovedKindStrength WeeklyDigestRemovedKind = "strength"
+)
+
+// Valid indicates whether the value is a known member of the WeeklyDigestRemovedKind enum.
+func (e WeeklyDigestRemovedKind) Valid() bool {
+	switch e {
+	case WeeklyDigestRemovedKindCross:
+		return true
+	case WeeklyDigestRemovedKindMobility:
+		return true
+	case WeeklyDigestRemovedKindRehab:
+		return true
+	case WeeklyDigestRemovedKindRest:
+		return true
+	case WeeklyDigestRemovedKindRun:
+		return true
+	case WeeklyDigestRemovedKindStrength:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WeeklyDigestSchema.
+const (
+	WeeklyDigestV1 WeeklyDigestSchema = "weekly_digest.v1"
+)
+
+// Valid indicates whether the value is a known member of the WeeklyDigestSchema enum.
+func (e WeeklyDigestSchema) Valid() bool {
+	switch e {
+	case WeeklyDigestV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WeeklyDigestEnvelopeMode.
+const (
+	WeeklyDigestEnvelopeModeDemo WeeklyDigestEnvelopeMode = "demo"
+	WeeklyDigestEnvelopeModeReal WeeklyDigestEnvelopeMode = "real"
+	WeeklyDigestEnvelopeModeTest WeeklyDigestEnvelopeMode = "test"
+)
+
+// Valid indicates whether the value is a known member of the WeeklyDigestEnvelopeMode enum.
+func (e WeeklyDigestEnvelopeMode) Valid() bool {
+	switch e {
+	case WeeklyDigestEnvelopeModeDemo:
+		return true
+	case WeeklyDigestEnvelopeModeReal:
+		return true
+	case WeeklyDigestEnvelopeModeTest:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WeeklyDigestEnvelopeSchemaVersion.
+const (
+	WeeklyDigestEnvelopeSchemaVersionV1 WeeklyDigestEnvelopeSchemaVersion = "v1"
+)
+
+// Valid indicates whether the value is a known member of the WeeklyDigestEnvelopeSchemaVersion enum.
+func (e WeeklyDigestEnvelopeSchemaVersion) Valid() bool {
+	switch e {
+	case WeeklyDigestEnvelopeSchemaVersionV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WeeklyProjectionEnvelopeMode.
+const (
+	WeeklyProjectionEnvelopeModeDemo WeeklyProjectionEnvelopeMode = "demo"
+	WeeklyProjectionEnvelopeModeReal WeeklyProjectionEnvelopeMode = "real"
+	WeeklyProjectionEnvelopeModeTest WeeklyProjectionEnvelopeMode = "test"
+)
+
+// Valid indicates whether the value is a known member of the WeeklyProjectionEnvelopeMode enum.
+func (e WeeklyProjectionEnvelopeMode) Valid() bool {
+	switch e {
+	case WeeklyProjectionEnvelopeModeDemo:
+		return true
+	case WeeklyProjectionEnvelopeModeReal:
+		return true
+	case WeeklyProjectionEnvelopeModeTest:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WeeklyProjectionEnvelopeSchemaVersion.
+const (
+	WeeklyProjectionEnvelopeSchemaVersionV1 WeeklyProjectionEnvelopeSchemaVersion = "v1"
+)
+
+// Valid indicates whether the value is a known member of the WeeklyProjectionEnvelopeSchemaVersion enum.
+func (e WeeklyProjectionEnvelopeSchemaVersion) Valid() bool {
+	switch e {
+	case WeeklyProjectionEnvelopeSchemaVersionV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BootstrapCalendarParamsXLocalRequest.
+const (
+	BootstrapCalendarParamsXLocalRequestN1 BootstrapCalendarParamsXLocalRequest = "1"
+)
+
+// Valid indicates whether the value is a known member of the BootstrapCalendarParamsXLocalRequest enum.
+func (e BootstrapCalendarParamsXLocalRequest) Valid() bool {
+	switch e {
+	case BootstrapCalendarParamsXLocalRequestN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EditCalendarParamsXLocalRequest.
+const (
+	EditCalendarParamsXLocalRequestN1 EditCalendarParamsXLocalRequest = "1"
+)
+
+// Valid indicates whether the value is a known member of the EditCalendarParamsXLocalRequest enum.
+func (e EditCalendarParamsXLocalRequest) Valid() bool {
+	switch e {
+	case EditCalendarParamsXLocalRequestN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RollbackCalendarParamsXLocalRequest.
+const (
+	RollbackCalendarParamsXLocalRequestN1 RollbackCalendarParamsXLocalRequest = "1"
+)
+
+// Valid indicates whether the value is a known member of the RollbackCalendarParamsXLocalRequest enum.
+func (e RollbackCalendarParamsXLocalRequest) Valid() bool {
+	switch e {
+	case RollbackCalendarParamsXLocalRequestN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// BootstrapInput defines model for BootstrapInput.
+type BootstrapInput struct {
+	AnchorDate openapi_types.Date `json:"anchor_date"`
+	Pattern    struct {
+		Long    BootstrapInputPatternLong    `json:"long"`
+		Quality BootstrapInputPatternQuality `json:"quality"`
+	} `json:"pattern"`
+	StartDate openapi_types.Date `json:"start_date"`
+}
+
+// BootstrapInputPatternLong defines model for BootstrapInput.Pattern.Long.
+type BootstrapInputPatternLong int
+
+// BootstrapInputPatternQuality defines model for BootstrapInput.Pattern.Quality.
+type BootstrapInputPatternQuality int
+
 // CalendarChange defines model for CalendarChange.
 type CalendarChange struct {
 	After      nullable.Nullable[DiffRevision] `json:"after"`
@@ -583,6 +1322,30 @@ type CalendarDiffEnvelopeMode string
 // CalendarDiffEnvelopeSchemaVersion defines model for CalendarDiffEnvelope.SchemaVersion.
 type CalendarDiffEnvelopeSchemaVersion string
 
+// CalendarEdit Add assigns the session ID on the server. Modify, move, and delete require a session UID. Add and modify require fields, move requires a local date, and delete accepts omitted, null, or empty fields.
+type CalendarEdit struct {
+	Fields     nullable.Nullable[EditFields]         `json:"fields,omitempty"`
+	Op         CalendarEditOp                        `json:"op"`
+	SessionUid nullable.Nullable[openapi_types.UUID] `json:"session_uid,omitempty"`
+}
+
+// CalendarEditOp defines model for CalendarEdit.Op.
+type CalendarEditOp string
+
+// CalendarEditsRequest defines model for CalendarEditsRequest.
+type CalendarEditsRequest struct {
+	Edits        []CalendarEdit            `json:"edits"`
+	ExpectedHead int                       `json:"expected_head"`
+	Reason       nullable.Nullable[string] `json:"reason,omitempty"`
+}
+
+// CalendarRollbackRequest defines model for CalendarRollbackRequest.
+type CalendarRollbackRequest struct {
+	ExpectedHead int                       `json:"expected_head"`
+	Reason       nullable.Nullable[string] `json:"reason,omitempty"`
+	ToVersion    int                       `json:"to_version"`
+}
+
 // CalendarView defines model for CalendarView.
 type CalendarView struct {
 	Completions     []CalendarCompletion                  `json:"completions"`
@@ -612,6 +1375,54 @@ type CalendarViewEnvelopeMode string
 
 // CalendarViewEnvelopeSchemaVersion defines model for CalendarViewEnvelope.SchemaVersion.
 type CalendarViewEnvelopeSchemaVersion string
+
+// CalendarWriteResult defines model for CalendarWriteResult.
+type CalendarWriteResult struct {
+	Kind                 CalendarWriteResultKind `json:"kind"`
+	PreservedSessionUids []openapi_types.UUID    `json:"preserved_session_uids"`
+	StaleProposals       []openapi_types.UUID    `json:"stale_proposals"`
+	Version              int                     `json:"version"`
+}
+
+// CalendarWriteResultKind defines model for CalendarWriteResult.Kind.
+type CalendarWriteResultKind string
+
+// CalendarWriteResultEnvelope defines model for CalendarWriteResultEnvelope.
+type CalendarWriteResultEnvelope struct {
+	Data          CalendarWriteResult                      `json:"data"`
+	DataRevision  int                                      `json:"data_revision"`
+	Mode          CalendarWriteResultEnvelopeMode          `json:"mode"`
+	SchemaVersion CalendarWriteResultEnvelopeSchemaVersion `json:"schema_version"`
+}
+
+// CalendarWriteResultEnvelopeMode defines model for CalendarWriteResultEnvelope.Mode.
+type CalendarWriteResultEnvelopeMode string
+
+// CalendarWriteResultEnvelopeSchemaVersion defines model for CalendarWriteResultEnvelope.SchemaVersion.
+type CalendarWriteResultEnvelopeSchemaVersion string
+
+// DecisionResponse defines model for DecisionResponse.
+type DecisionResponse struct {
+	GaitChange    nullable.Nullable[DecisionResponseGaitChange] `json:"gait_change"`
+	HoursAfterEnd nullable.Nullable[float64]                    `json:"hours_after_end"`
+	ObservedAt    nullable.Nullable[string]                     `json:"observed_at"`
+	PainReported  nullable.Nullable[bool]                       `json:"pain_reported"`
+	Symptoms      []struct {
+		Severity int                            `json:"severity"`
+		Side     DecisionResponseSymptomsSide   `json:"side"`
+		Site     string                         `json:"site"`
+		Timing   DecisionResponseSymptomsTiming `json:"timing"`
+	} `json:"symptoms"`
+}
+
+// DecisionResponseGaitChange defines model for DecisionResponse.GaitChange.
+type DecisionResponseGaitChange string
+
+// DecisionResponseSymptomsSide defines model for DecisionResponse.Symptoms.Side.
+type DecisionResponseSymptomsSide string
+
+// DecisionResponseSymptomsTiming defines model for DecisionResponse.Symptoms.Timing.
+type DecisionResponseSymptomsTiming string
 
 // DiffRevision defines model for DiffRevision.
 type DiffRevision struct {
@@ -647,6 +1458,119 @@ type DiffRevisionCertainty string
 // DiffRevisionKind defines model for DiffRevision.Kind.
 type DiffRevisionKind string
 
+// DigestActual defines model for DigestActual.
+type DigestActual struct {
+	AvgHrBpm         nullable.Nullable[float64]               `json:"avg_hr_bpm"`
+	DistanceM        nullable.Nullable[float64]               `json:"distance_m"`
+	DurationS        nullable.Nullable[float64]               `json:"duration_s"`
+	Id               openapi_types.UUID                       `json:"id"`
+	LocalDate        openapi_types.Date                       `json:"local_date"`
+	MovingPaceSPerKm nullable.Nullable[float64]               `json:"moving_pace_s_per_km"`
+	Rpe              nullable.Nullable[float64]               `json:"rpe"`
+	RpeSource        nullable.Nullable[DigestActualRpeSource] `json:"rpe_source"`
+	Sport            nullable.Nullable[string]                `json:"sport"`
+	Subject          DigestActualSubject                      `json:"subject"`
+}
+
+// DigestActualRpeSource defines model for DigestActual.RpeSource.
+type DigestActualRpeSource string
+
+// DigestActualSubject defines model for DigestActual.Subject.
+type DigestActualSubject string
+
+// DigestCounts defines model for DigestCounts.
+type DigestCounts struct {
+	Done          int `json:"done"`
+	Planned       int `json:"planned"`
+	PlannedToDate int `json:"planned_to_date"`
+}
+
+// DigestExecution defines model for DigestExecution.
+type DigestExecution struct {
+	AssessmentStatus nullable.Nullable[DigestExecutionAssessmentStatus] `json:"assessment_status"`
+	Components       []struct {
+		Name   DigestExecutionComponentsName   `json:"name"`
+		Status DigestExecutionComponentsStatus `json:"status"`
+		Value  nullable.Nullable[float64]      `json:"value"`
+	} `json:"components"`
+	QualityFlags  []string               `json:"quality_flags"`
+	ReasonCodes   []string               `json:"reason_codes"`
+	RepsCompleted nullable.Nullable[int] `json:"reps_completed"`
+	RepsPlanned   nullable.Nullable[int] `json:"reps_planned"`
+}
+
+// DigestExecutionAssessmentStatus defines model for DigestExecution.AssessmentStatus.
+type DigestExecutionAssessmentStatus string
+
+// DigestExecutionComponentsName defines model for DigestExecution.Components.Name.
+type DigestExecutionComponentsName string
+
+// DigestExecutionComponentsStatus defines model for DigestExecution.Components.Status.
+type DigestExecutionComponentsStatus string
+
+// DigestRow defines model for DigestRow.
+type DigestRow struct {
+	Actual                   nullable.Nullable[DigestActual]                `json:"actual"`
+	Changed                  bool                                           `json:"changed"`
+	Class                    string                                         `json:"class"`
+	Custom                   bool                                           `json:"custom"`
+	Execution                nullable.Nullable[DigestExecution]             `json:"execution"`
+	Intent                   nullable.Nullable[string]                      `json:"intent"`
+	Key                      bool                                           `json:"key"`
+	Kind                     DigestRowKind                                  `json:"kind"`
+	LocalDate                openapi_types.Date                             `json:"local_date"`
+	ModificationReason       nullable.Nullable[DigestRowModificationReason] `json:"modification_reason"`
+	Outcome                  DigestRowOutcome                               `json:"outcome"`
+	PlannedDistanceEstimated bool                                           `json:"planned_distance_estimated"`
+	PlannedDistanceM         nullable.Nullable[float64]                     `json:"planned_distance_m"`
+	PlannedDurationS         nullable.Nullable[float64]                     `json:"planned_duration_s"`
+	RecipeId                 nullable.Nullable[string]                      `json:"recipe_id"`
+	SessionUid               openapi_types.UUID                             `json:"session_uid"`
+	Slot                     int                                            `json:"slot"`
+}
+
+// DigestRowKind defines model for DigestRow.Kind.
+type DigestRowKind string
+
+// DigestRowModificationReason defines model for DigestRow.ModificationReason.
+type DigestRowModificationReason string
+
+// DigestRowOutcome defines model for DigestRow.Outcome.
+type DigestRowOutcome string
+
+// DigestUnplanned defines model for DigestUnplanned.
+type DigestUnplanned struct {
+	DistanceM nullable.Nullable[float64] `json:"distance_m"`
+	DurationS nullable.Nullable[float64] `json:"duration_s"`
+	Id        openapi_types.UUID         `json:"id"`
+	Kind      string                     `json:"kind"`
+	LocalDate openapi_types.Date         `json:"local_date"`
+	Subject   DigestUnplannedSubject     `json:"subject"`
+}
+
+// DigestUnplannedSubject defines model for DigestUnplanned.Subject.
+type DigestUnplannedSubject string
+
+// EditFields defines model for EditFields.
+type EditFields struct {
+	Custom           *bool                                 `json:"custom,omitempty"`
+	Intent           *string                               `json:"intent,omitempty"`
+	Kind             *EditFieldsKind                       `json:"kind,omitempty"`
+	LocalDate        *openapi_types.Date                   `json:"local_date,omitempty"`
+	Locked           *bool                                 `json:"locked,omitempty"`
+	Notes            nullable.Nullable[string]             `json:"notes,omitempty"`
+	Placeholder      *bool                                 `json:"placeholder,omitempty"`
+	PlannedDistanceM nullable.Nullable[int]                `json:"planned_distance_m,omitempty"`
+	PlannedDurationS nullable.Nullable[int]                `json:"planned_duration_s,omitempty"`
+	RecipeId         nullable.Nullable[string]             `json:"recipe_id,omitempty"`
+	Slot             *int                                  `json:"slot,omitempty"`
+	StrengthSlotId   nullable.Nullable[openapi_types.UUID] `json:"strength_slot_id,omitempty"`
+	Structure        nullable.Nullable[[]StructureItem]    `json:"structure,omitempty"`
+}
+
+// EditFieldsKind defines model for EditFields.Kind.
+type EditFieldsKind string
+
 // Effort defines model for Effort.
 type Effort struct {
 	Feel    string `json:"feel"`
@@ -667,6 +1591,19 @@ type ErrorDetail struct {
 type ErrorEnvelope struct {
 	Error ErrorDetail `json:"error"`
 }
+
+// FollowUpActual defines model for FollowUpActual.
+type FollowUpActual struct {
+	DistanceM nullable.Nullable[float64] `json:"distance_m"`
+	DurationS nullable.Nullable[float64] `json:"duration_s"`
+	Id        openapi_types.UUID         `json:"id"`
+	LocalDate openapi_types.Date         `json:"local_date"`
+	Rpe       nullable.Nullable[float64] `json:"rpe"`
+	Subject   FollowUpActualSubject      `json:"subject"`
+}
+
+// FollowUpActualSubject defines model for FollowUpActual.Subject.
+type FollowUpActualSubject string
 
 // PlannedStep defines model for PlannedStep.
 type PlannedStep struct {
@@ -713,6 +1650,43 @@ type RepeatBlock struct {
 
 // RepeatBlockType defines model for RepeatBlock.Type.
 type RepeatBlockType string
+
+// ReviewFollowUp defines model for ReviewFollowUp.
+type ReviewFollowUp struct {
+	Accepted struct {
+		DistanceM nullable.Nullable[float64] `json:"distance_m"`
+		DurationS nullable.Nullable[float64] `json:"duration_s"`
+		Effort    nullable.Nullable[struct {
+			Feel    string `json:"feel"`
+			RpeHigh int    `json:"rpe_high"`
+			RpeLow  int    `json:"rpe_low"`
+		}] `json:"effort"`
+		Intent    string             `json:"intent"`
+		LocalDate openapi_types.Date `json:"local_date"`
+	} `json:"accepted"`
+	Actual             nullable.Nullable[FollowUpActual]                   `json:"actual"`
+	EditedSince        bool                                                `json:"edited_since"`
+	ModificationReason nullable.Nullable[ReviewFollowUpModificationReason] `json:"modification_reason"`
+	NextCheck          nullable.Nullable[struct {
+		Check string             `json:"check"`
+		On    openapi_types.Date `json:"on"`
+	}] `json:"next_check"`
+	Op         ReviewFollowUpOp                    `json:"op"`
+	Outcome    ReviewFollowUpOutcome               `json:"outcome"`
+	ProposalId openapi_types.UUID                  `json:"proposal_id"`
+	Reason     string                              `json:"reason"`
+	Response   nullable.Nullable[DecisionResponse] `json:"response"`
+	SessionUid openapi_types.UUID                  `json:"session_uid"`
+}
+
+// ReviewFollowUpModificationReason defines model for ReviewFollowUp.ModificationReason.
+type ReviewFollowUpModificationReason string
+
+// ReviewFollowUpOp defines model for ReviewFollowUp.Op.
+type ReviewFollowUpOp string
+
+// ReviewFollowUpOutcome defines model for ReviewFollowUp.Outcome.
+type ReviewFollowUpOutcome string
 
 // SessionBrief defines model for SessionBrief.
 type SessionBrief struct {
@@ -856,6 +1830,141 @@ type ValidationField struct {
 	Message string `json:"message"`
 }
 
+// WeeklyDigest defines model for WeeklyDigest.
+type WeeklyDigest struct {
+	ActivityCoverageComplete bool                              `json:"activity_coverage_complete"`
+	CalendarVersion          int                               `json:"calendar_version"`
+	DaysElapsed              int                               `json:"days_elapsed"`
+	DecisionFollowUp         nullable.Nullable[ReviewFollowUp] `json:"decision_follow_up"`
+	PlanAvailable            bool                              `json:"plan_available"`
+	Removed                  []struct {
+		Kind       WeeklyDigestRemovedKind `json:"kind"`
+		LocalDate  openapi_types.Date      `json:"local_date"`
+		SessionUid openapi_types.UUID      `json:"session_uid"`
+	} `json:"removed"`
+	Schema   WeeklyDigestSchema `json:"schema"`
+	Sessions []DigestRow        `json:"sessions"`
+	Timezone string             `json:"timezone"`
+	Today    openapi_types.Date `json:"today"`
+	Totals   struct {
+		ByKind struct {
+			Cross    DigestCounts `json:"cross"`
+			Mobility DigestCounts `json:"mobility"`
+			Rehab    DigestCounts `json:"rehab"`
+			Run      DigestCounts `json:"run"`
+			Strength DigestCounts `json:"strength"`
+		} `json:"by_kind"`
+		KeySessions struct {
+			ByOutcome struct {
+				Completed   int `json:"completed"`
+				Missed      int `json:"missed"`
+				Modified    int `json:"modified"`
+				Moved       int `json:"moved"`
+				NotRecorded int `json:"not_recorded"`
+				Partial     int `json:"partial"`
+				Planned     int `json:"planned"`
+				Recorded    int `json:"recorded"`
+			} `json:"by_outcome"`
+			Done          int `json:"done"`
+			Planned       int `json:"planned"`
+			PlannedToDate int `json:"planned_to_date"`
+		} `json:"key_sessions"`
+		RunDistance struct {
+			ActualM          float64 `json:"actual_m"`
+			ActualUnknown    int     `json:"actual_unknown"`
+			PlannedEstimated int     `json:"planned_estimated"`
+			PlannedM         float64 `json:"planned_m"`
+			PlannedToDateM   float64 `json:"planned_to_date_m"`
+			PlannedUnknown   int     `json:"planned_unknown"`
+		} `json:"run_distance"`
+		Sessions struct {
+			ByOutcome struct {
+				Completed   int `json:"completed"`
+				Missed      int `json:"missed"`
+				Modified    int `json:"modified"`
+				Moved       int `json:"moved"`
+				NotRecorded int `json:"not_recorded"`
+				Partial     int `json:"partial"`
+				Planned     int `json:"planned"`
+				Recorded    int `json:"recorded"`
+			} `json:"by_outcome"`
+			Done          int `json:"done"`
+			Planned       int `json:"planned"`
+			PlannedToDate int `json:"planned_to_date"`
+			Removed       int `json:"removed"`
+			Unplanned     int `json:"unplanned"`
+		} `json:"sessions"`
+		Time struct {
+			ActualS        float64 `json:"actual_s"`
+			ActualUnknown  int     `json:"actual_unknown"`
+			PlannedS       float64 `json:"planned_s"`
+			PlannedToDateS float64 `json:"planned_to_date_s"`
+			PlannedUnknown int     `json:"planned_unknown"`
+			UnplannedS     float64 `json:"unplanned_s"`
+		} `json:"time"`
+	} `json:"totals"`
+	Unplanned []DigestUnplanned  `json:"unplanned"`
+	WeekEnd   openapi_types.Date `json:"week_end"`
+	WeekStart openapi_types.Date `json:"week_start"`
+}
+
+// WeeklyDigestRemovedKind defines model for WeeklyDigest.Removed.Kind.
+type WeeklyDigestRemovedKind string
+
+// WeeklyDigestSchema defines model for WeeklyDigest.Schema.
+type WeeklyDigestSchema string
+
+// WeeklyDigestEnvelope defines model for WeeklyDigestEnvelope.
+type WeeklyDigestEnvelope struct {
+	Data          WeeklyDigest                      `json:"data"`
+	DataRevision  int                               `json:"data_revision"`
+	Mode          WeeklyDigestEnvelopeMode          `json:"mode"`
+	SchemaVersion WeeklyDigestEnvelopeSchemaVersion `json:"schema_version"`
+}
+
+// WeeklyDigestEnvelopeMode defines model for WeeklyDigestEnvelope.Mode.
+type WeeklyDigestEnvelopeMode string
+
+// WeeklyDigestEnvelopeSchemaVersion defines model for WeeklyDigestEnvelope.SchemaVersion.
+type WeeklyDigestEnvelopeSchemaVersion string
+
+// WeeklyProjection defines model for WeeklyProjection.
+type WeeklyProjection struct {
+	ActivityCoverageComplete bool                                  `json:"activity_coverage_complete"`
+	ActualDistanceM          float64                               `json:"actual_distance_m"`
+	ActualRuns               int                                   `json:"actual_runs"`
+	CalendarVersion          int                                   `json:"calendar_version"`
+	EstimatedRuns            int                                   `json:"estimated_runs"`
+	MissingActualRuns        int                                   `json:"missing_actual_runs"`
+	MissingPlannedRuns       int                                   `json:"missing_planned_runs"`
+	PaceMps                  nullable.Nullable[float64]            `json:"pace_mps"`
+	PaceSampleCount          int                                   `json:"pace_sample_count"`
+	PlanAvailable            bool                                  `json:"plan_available"`
+	PlanThrough              nullable.Nullable[openapi_types.Date] `json:"plan_through"`
+	ProjectedDistanceM       float64                               `json:"projected_distance_m"`
+	RemainingDistanceM       float64                               `json:"remaining_distance_m"`
+	RemainingRuns            int                                   `json:"remaining_runs"`
+	Timezone                 string                                `json:"timezone"`
+	Today                    openapi_types.Date                    `json:"today"`
+	UnrecordedPastRuns       int                                   `json:"unrecorded_past_runs"`
+	WeekEnd                  openapi_types.Date                    `json:"week_end"`
+	WeekStart                openapi_types.Date                    `json:"week_start"`
+}
+
+// WeeklyProjectionEnvelope defines model for WeeklyProjectionEnvelope.
+type WeeklyProjectionEnvelope struct {
+	Data          WeeklyProjection                      `json:"data"`
+	DataRevision  int                                   `json:"data_revision"`
+	Mode          WeeklyProjectionEnvelopeMode          `json:"mode"`
+	SchemaVersion WeeklyProjectionEnvelopeSchemaVersion `json:"schema_version"`
+}
+
+// WeeklyProjectionEnvelopeMode defines model for WeeklyProjectionEnvelope.Mode.
+type WeeklyProjectionEnvelopeMode string
+
+// WeeklyProjectionEnvelopeSchemaVersion defines model for WeeklyProjectionEnvelope.SchemaVersion.
+type WeeklyProjectionEnvelopeSchemaVersion string
+
 // GetCalendarParams defines parameters for GetCalendar.
 type GetCalendarParams struct {
 	Start   *openapi_types.Date `form:"start,omitempty" json:"start,omitempty"`
@@ -863,17 +1972,55 @@ type GetCalendarParams struct {
 	Version *int                `form:"version,omitempty" json:"version,omitempty"`
 }
 
+// BootstrapCalendarParams defines parameters for BootstrapCalendar.
+type BootstrapCalendarParams struct {
+	XLocalRequest BootstrapCalendarParamsXLocalRequest `json:"X-Local-Request"`
+}
+
+// BootstrapCalendarParamsXLocalRequest defines parameters for BootstrapCalendar.
+type BootstrapCalendarParamsXLocalRequest string
+
 // GetCalendarDiffParams defines parameters for GetCalendarDiff.
 type GetCalendarDiffParams struct {
 	From int `form:"from" json:"from"`
 	To   int `form:"to" json:"to"`
 }
 
+// EditCalendarParams defines parameters for EditCalendar.
+type EditCalendarParams struct {
+	XLocalRequest EditCalendarParamsXLocalRequest `json:"X-Local-Request"`
+}
+
+// EditCalendarParamsXLocalRequest defines parameters for EditCalendar.
+type EditCalendarParamsXLocalRequest string
+
+// RollbackCalendarParams defines parameters for RollbackCalendar.
+type RollbackCalendarParams struct {
+	XLocalRequest RollbackCalendarParamsXLocalRequest `json:"X-Local-Request"`
+}
+
+// RollbackCalendarParamsXLocalRequest defines parameters for RollbackCalendar.
+type RollbackCalendarParamsXLocalRequest string
+
 // GetCalendarWeekParams defines parameters for GetCalendarWeek.
 type GetCalendarWeekParams struct {
 	Start   *openapi_types.Date `form:"start,omitempty" json:"start,omitempty"`
 	Version *int                `form:"version,omitempty" json:"version,omitempty"`
 }
+
+// GetWeeklyDigestParams defines parameters for GetWeeklyDigest.
+type GetWeeklyDigestParams struct {
+	WeekStart *openapi_types.Date `form:"week_start,omitempty" json:"week_start,omitempty"`
+}
+
+// BootstrapCalendarJSONRequestBody defines body for BootstrapCalendar for application/json ContentType.
+type BootstrapCalendarJSONRequestBody = BootstrapInput
+
+// EditCalendarJSONRequestBody defines body for EditCalendar for application/json ContentType.
+type EditCalendarJSONRequestBody = CalendarEditsRequest
+
+// RollbackCalendarJSONRequestBody defines body for RollbackCalendar for application/json ContentType.
+type RollbackCalendarJSONRequestBody = CalendarRollbackRequest
 
 // AsPlannedStep returns the union data inside the StructureItem as a PlannedStep
 func (t StructureItem) AsPlannedStep() (PlannedStep, error) {

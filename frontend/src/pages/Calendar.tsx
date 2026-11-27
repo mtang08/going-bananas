@@ -1,7 +1,16 @@
 import { Badge, Button, Card, Disclosure, Input, NativeSelect, Textarea } from '../components/ui'
 import { useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, api, getCalendarWeek, getCalendarDiff, post, put, query } from '../api/client'
+import {
+  ApiError,
+  api,
+  editCalendar,
+  rollbackCalendar,
+  getCalendarWeek,
+  getCalendarDiff,
+  put,
+  query,
+} from '../api/client'
 import { RUN_SPORTS } from '../api/types/blocks'
 import { REASON_LABELS } from '../api/types/checkins'
 import {
@@ -10,7 +19,6 @@ import {
   type CalendarEditsRequest,
   type CalendarRollbackRequest,
   type CalendarVersion,
-  type CalendarWriteResult,
   type Completion,
   type CompletionPut,
   type SessionFields,
@@ -101,7 +109,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
       ),
   })
   const edits = useMutation({
-    mutationFn: (body: CalendarEditsRequest) => post<CalendarWriteResult>('/calendar/edits', body),
+    mutationFn: (body: CalendarEditsRequest) => editCalendar(body),
     onSuccess: (response) => {
       invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.proposals])
       setEditor(null)
@@ -118,8 +126,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
     onError: (error) => setWriteError(error),
   })
   const rollback = useMutation({
-    mutationFn: (body: CalendarRollbackRequest) =>
-      post<CalendarWriteResult>('/calendar/rollback', body),
+    mutationFn: (body: CalendarRollbackRequest) => rollbackCalendar(body),
     onSuccess: (response, body) => {
       invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.proposals])
       setConfirmRestore(null)
