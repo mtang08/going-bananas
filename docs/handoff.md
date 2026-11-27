@@ -1,4 +1,8 @@
-# Current handoff — persisted running-coach workflow
+# Historical handoff — persisted running-coach workflow
+
+This handoff records checkpoints from the earlier Python runtime. For the
+current Go application, see [Architecture](architecture.md) and
+[Local operations](operations.md).
 
 ## AC-1 checkpoint — adaptive coaching and lean UI
 

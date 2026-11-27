@@ -38,35 +38,38 @@ all migrations, the full research library, or private data to orient yourself.
 
 | Task | First files to inspect |
 | --- | --- |
-| Native HTTP, commands and SQL | `backend-go/cmd/going-bananas/`, `backend-go/api/`, `backend-go/internal/proposals/`, `backend-go/sql/`, [rewrite progress](docs/go-rewrite-readiness.md) |
+| HTTP routing, commands and SQL | `backend-go/cmd/going-bananas/`, `backend-go/api/`, `backend-go/internal/httpapi/`, `backend-go/sql/` |
 | Athlete coaching | [.codex/skills/going-bananas-coach/SKILL.md](.codex/skills/going-bananas-coach/SKILL.md), then its selected workflow/reference |
-| Coaching snapshots, validation, proposals | `backend/app/api/coach.py`, `backend/app/services/snapshot/`, `backend/app/services/decision_inputs.py`, `backend/app/services/proposals/` |
-| Calendar, completion, undo | `backend/app/api/calendar.py`, `backend/app/services/{calendar,matching,weekly_digest}.py` |
-| Blocks, anchors, schedule configuration | `backend/app/api/{planning,anchors}.py`, `backend/app/planning_models.py` |
-| Check-ins, prompts, exception findings | `backend/app/api/{checkins,exceptions}.py`, `backend/app/services/{checkins,prompts}.py`, `backend/app/services/exceptions/` |
-| Metrics, FIT, weekly mileage | `backend/app/metrics/`, `backend/app/services/{fit_ingest,weekly_projection}.py` |
-| Garmin/Strong ingestion | `backend/app/adapters/`, `backend/app/services/{sync,export_import,strong_import}.py` |
-| Google Calendar, trips | `backend/app/adapters/google_calendar.py`, `backend/app/services/{gcal_sync,trips}.py`, `backend/app/api/travel.py`, `backend/app/domain/travel.py` |
+| Coaching snapshots, validation, proposals | `backend-go/internal/coaching/{snapshots,evidence,drafts}/`, `backend-go/internal/{coachdashboardhttp,proposalhttp,proposals}/` |
+| Calendar, completion, undo | `backend-go/internal/{calendarhttp,completionhttp,calendar,matching,weeklydigest}/` |
+| Blocks, anchors, schedule configuration | `backend-go/internal/{planninghttp,planning,anchors}/` |
+| Check-ins, prompts, exception findings | `backend-go/internal/{checkinhttp,checkins,prompts,exceptions}/` |
+| Metrics, FIT, weekly mileage | `backend-go/internal/{metrics,garmin/fit,weeklyprojection}/` |
+| Garmin/Strong ingestion | `backend-go/internal/{garmin,garmincli,strong,strongcli,providerjobs}/` |
+| Google Calendar, trips | `backend-go/internal/{googlecalendar,calendarcli,travel,travelhttp}/` |
 | UI and navigation | [frontend/AGENTS.md](frontend/AGENTS.md), `frontend/src/App.tsx`, the relevant file in `frontend/src/pages/` |
-| Research content/retrieval | [running_coach_kb/AGENTS.md](running_coach_kb/AGENTS.md), `backend/app/services/knowledge.py` |
+| Research content/retrieval | [running_coach_kb/AGENTS.md](running_coach_kb/AGENTS.md), `backend-go/internal/coaching/knowledge.go` |
 | Startup, modes, backups | `Makefile`, `scripts/serve.py`, `scripts/with-mode`, [docs/operations.md](docs/operations.md) |
 | Layers, write → refresh lifecycle, metric identity, modes | [docs/architecture.md](docs/architecture.md) |
 | Save an idea for later | `.codex/skills/going-bananas-feature-request/SKILL.md`, `docs/backlog.md` |
 
-React/TypeScript/Vite uses the same-origin `/api/v1` backed by PostgreSQL,
-with a separate local sync worker. Demo and test select Go by default. Real
-mode uses FastAPI and SQLAlchemy until the owner selects Go. Use Alembic for
-historically stamped schema upgrades. Codex supplies coaching
-reasoning through the skill/helper; ordinary app requests, metrics, imports, and
-calendar expansion do not call a model. Strong remains the lifting workflow.
+React/TypeScript/Vite uses the same-origin `/api/v1` served by Go and backed by
+PostgreSQL. The local sync worker and operational commands use the same Go
+executable. Fresh schemas use the native SQL baseline. Offline Alembic handles
+older stamped schema upgrades. [Backend verification and migration notes](backend/AGENTS.md)
+
+Codex supplies coaching reasoning through the skill and helper. Ordinary app
+requests, metrics, imports, and calendar expansion run without model calls.
+Strong remains the lifting workflow.
 
 ## Current versus historical contracts
 
 The current coaching path is the **repo-local `.codex/skills/going-bananas-coach`**
 package and the calendar proposal API. Its manifest declares `coach_proposal.v2`,
 calendar authority, and manual activation. `README.md` describes this user flow.
-`backend/app/history_models.py` holds the frozen check-in, planning, import
-and coaching tables for Alembic. Current application reads and writes use the live models.
+`backend/app/history_models.py` holds frozen check-in, planning, import, and
+coaching tables for Alembic. The Go services own current application reads and
+writes. Retained Python services and tests provide non-HTTP reference behavior.
 
 `docs/running-coach-workflow.md` and `docs/handoff.md` include an earlier automatic
 activation design; `docs/archive/` contains design history. These documents
@@ -116,7 +119,7 @@ Vite; `make build` then `make start` serves the built app. Do not run both serve
 at once. Runtime details and full setup are in [README.md](README.md).
 
 - `make check` runs the docs, Python, frontend, and Go checks. Run them individually with `make check-docs`, `make check-backend`, `make check-frontend`, or `make check-go`. `make complexity` reports functions above McCabe 15.
-- `make test-integration` migrates and tests the isolated PostgreSQL test DB. To run one file, use `make test-integration TESTS=tests/integration/test_proposals.py`.
+- `make test-integration` runs retained reference tests against isolated PostgreSQL. Use Go route tests, `make test-proposal-go`, and Playwright for HTTP behavior.
 - `python3 scripts/test_coach_skill_v2.py`: current helper contract/manifest checks.
 - `make test-e2e`: Playwright; requires the appropriate demo server/seed. See
   README's verification instructions before running it.

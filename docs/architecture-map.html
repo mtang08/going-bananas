@@ -199,7 +199,7 @@
       <div class="map-body">
         <svg class="system-svg" viewBox="0 0 1100 350" role="img" aria-labelledby="svg-title svg-desc">
           <title id="svg-title">Three routes into the local training app</title>
-          <desc id="svg-desc">Garmin, Strong and Google Calendar feed local sync and import tools. You use a React dashboard that talks to FastAPI on the Mac. The coach in Codex uses a local helper to read evidence and submit drafts. All three routes use shared app services. PostgreSQL stores structured history. Private files retain original imports and backups.</desc>
+          <desc id="svg-desc">Garmin, Strong and Google Calendar feed local sync and import tools. You use a React dashboard that talks to the local Go API on the Mac. The coach in Codex uses a local helper to read evidence and submit drafts. All three routes use shared app services. PostgreSQL stores structured history. Private files retain original imports and backups.</desc>
           <defs><marker id="tip" markerWidth="6" markerHeight="7" refX="5.5" refY="3.5" orient="auto-start-reverse"><path d="M0 0 6 3.5 0 7Z" fill="#42644f"/></marker></defs>
           <rect x="277" y="15" width="803" height="320" rx="13" fill="#eef4e8" stroke="#739478" stroke-dasharray="5 4"/>
           <text x="24" y="42" class="micro">WHO CONNECTS</text>
@@ -222,10 +222,10 @@
             <text x="311" y="278" class="t">Coaching helper</text><text x="311" y="301" class="d">Filtered access to the app</text>
           </g>
           <path class="edge" d="M503 97H592"/><text class="edge-text" x="548" y="87">import</text>
-          <path class="edge two" d="M508 192H592"/><text class="edge-text" x="548" y="182">FastAPI</text>
-          <path class="edge two" d="M508 286H592"/><text class="edge-text" x="548" y="276">API / CLI</text>
+          <path class="edge two" d="M508 192H592"/><text class="edge-text" x="548" y="182">Go API</text>
+          <path class="edge two" d="M508 286H592"/><text class="edge-text" x="548" y="276">Go CLI</text>
           <rect class="local" x="597" y="62" width="191" height="260" rx="10"/>
-          <text class="t" x="614" y="105">App services</text>
+          <text class="t" x="614" y="105">Go app services</text>
           <path class="rule" d="M614 121H770"/>
           <text class="d" x="614" y="148">Calendar &amp; matching</text>
           <text class="d" x="614" y="175">Metrics &amp; prompts</text>
@@ -247,8 +247,8 @@
         <div class="mobile-map">
           <div class="inlets">
             <div class="m-inlet"><span class="lane-name">Training sources → Mac</span><strong>Sync &amp; import tools</strong>Garmin, Strong and Google Calendar supply records.</div>
-            <div class="m-inlet"><span class="lane-name">You ↔ Mac</span><strong>React dashboard</strong>You use Home, Calendar and Trends through the local FastAPI service.</div>
-            <div class="m-inlet"><span class="lane-name">Codex ↔ Mac</span><strong>Coaching helper</strong>The coach reads filtered evidence and submits drafts through the local API and command-line tools.</div>
+            <div class="m-inlet"><span class="lane-name">You ↔ Mac</span><strong>React dashboard</strong>You use Home, Calendar and Trends through the local Go API.</div>
+            <div class="m-inlet"><span class="lane-name">Codex ↔ Mac</span><strong>Coaching helper</strong>The coach reads filtered evidence and submits drafts through the local Go command-line tool.</div>
           </div>
           <div class="m-connector" aria-hidden="true">↓</div>
           <div class="m-local"><h3>Shared services on your Mac</h3><p>Local rules handle imports, calendar matching, metrics, prompts and proposals. PostgreSQL holds the structured training record and plan history. Private files retain source files and backups. The research library supplies verified excerpts for coaching.</p></div>

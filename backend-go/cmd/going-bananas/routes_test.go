@@ -5,41 +5,51 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/mtang08/going-bananas/backend-go/api"
 )
 
-// Always assemble the full mux. Go detects overlapping wildcard registrations
-// at startup. The PostgreSQL comparison runner also supplies FastAPI's live
-// operation inventory to catch missing method/path registrations.
 func TestApplicationRoutes(t *testing.T) {
 	mux := http.NewServeMux()
 	api.HandlerFromMux(nil, mux)
 	for _, register := range applicationRoutes(nil, api.Test, t.TempDir(), t.TempDir(), t.TempDir(), http.NotFoundHandler()) {
 		register(mux)
 	}
-	if file := os.Getenv("REFERENCE_HTTP_ROUTES"); file != "" {
-		b, err := os.ReadFile(file)
+	fragments, err := filepath.Glob("../../api/*.openapi.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parameter := regexp.MustCompile(`\{[^}]+\}`)
+	for _, file := range append(fragments, "../../api/openapi.json") {
+		var spec struct {
+			Paths map[string]map[string]json.RawMessage
+		}
+		data, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var routes [][2]string
-		if err := json.Unmarshal(b, &routes); err != nil {
+		if err := json.Unmarshal(data, &spec); err != nil {
 			t.Fatal(err)
 		}
-		if len(routes) == 0 {
-			t.Fatal("empty Python route inventory")
+		if len(spec.Paths) == 0 {
+			t.Fatalf("no paths in %s", file)
 		}
-		parameter := regexp.MustCompile(`\{[^}]+\}`)
-		for _, route := range routes {
-			path := parameter.ReplaceAllString(route[1], "00000000-0000-0000-0000-000000000001")
-			_, pattern := mux.Handler(httptest.NewRequest(route[0], path, nil))
-			if pattern == "" || pattern == "/" {
-				t.Errorf("missing %s %s", route[0], route[1])
+		for path, item := range spec.Paths {
+			for key := range item {
+				switch key {
+				case "get", "put", "post", "delete", "options", "head", "patch", "trace":
+					method := strings.ToUpper(key)
+					url := parameter.ReplaceAllString(path, "00000000-0000-0000-0000-000000000001")
+					_, pattern := mux.Handler(httptest.NewRequest(method, url, nil))
+					if pattern == "" || pattern == "/" {
+						t.Errorf("%s: missing %s %s", file, method, path)
+					}
+				}
 			}
 		}
-		t.Logf("checked %d reference HTTP operations", len(routes))
 	}
 }

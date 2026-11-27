@@ -12,10 +12,10 @@ import (
 	"time"
 )
 
-func TestPythonHTTP(t *testing.T) {
+func TestFeedbackHTTP(t *testing.T) {
 	cases := os.Getenv("FEEDBACK_HTTP_CASES")
 	if cases == "" {
-		t.Skip("run guarded prompt/RPE comparison")
+		t.Skip("run the feedback-http PostgreSQL checks")
 	}
 	cfg, err := pgxpool.ParseConfig(os.Getenv("PROPOSAL_TEST_DATABASE_URL"))
 	if err != nil || cfg.ConnConfig.Database != "garmin_test" || os.Getenv("APP_MODE") != "test" || !strings.HasPrefix(os.Getenv("PGOPTIONS"), "-csearch_path=go_parity_") {

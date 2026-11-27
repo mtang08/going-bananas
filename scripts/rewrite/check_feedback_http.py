@@ -1,20 +1,18 @@
-"""Compare prompt and RPE responses and database effects in two migrated schemas."""
+"""Check native prompt and RPE responses and their persisted effects."""
 
 import json
 import os
 import subprocess
-import sys
 import tempfile
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
-from unittest.mock import patch
 
 import psycopg
 from sqlalchemy.engine import make_url
 
 from check_assessment_db import conn, id, seed
 from check_completion_http import NOW
-from test_proposal_slice import BACKEND, MODULE, ROOT, migrated_schema
+from test_proposal_slice import MODULE, ROOT, migrated_schema
 
 
 def seed_feedback(env):
@@ -46,73 +44,6 @@ def seed_feedback(env):
             """INSERT INTO activities(id,start_at,original_start,local_date,sport,canonical_revision,resolution_state,field_provenance) VALUES(%s,now(),'synthetic','2026-11-20','cycling',1,'resolved','{}')""",
             (id(498),),
         )
-
-
-def reference():
-    from fastapi.testclient import TestClient
-    from app.api import checkins
-    from app.main import app
-    from app.metrics import refresh
-
-    class Clock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return NOW.astimezone(tz)
-
-    run = f"/activities/{id(21)}/rpe"
-    strength = f"/strength/history/{id(30)}/rpe"
-    cases = [
-        ("GET", "/prompts", ""),
-        ("POST", "/prompts/bad/dismiss", ""),
-        ("POST", f"/prompts/{id(800)}/dismiss", ""),
-        ("POST", f"/prompts/{id(405)}/dismiss", ""),
-        ("POST", f"/prompts/{id(402)}/dismiss", ""),
-        ("POST", f"/prompts/{id(402)}/dismiss", ""),
-        ("POST", f"/prompts/{id(406)}/dismiss", ""),
-        ("GET", "/prompts", ""),
-        ("PUT", "/activities/bad/rpe", '{"rpe":true,"extra":1}'),
-        ("PUT", run, "{"),
-        ("PUT", run, "null"),
-        ("PUT", run, "{}"),
-        ("PUT", run, '{"rpe":null}'),
-        ("PUT", run, '{"rpe":"5.00"}'),
-        ("PUT", run, '{"rpe":10.1}'),
-        ("PUT", run, '{"rpe":"NaN"}'),
-        ("PUT", f"/activities/{id(498)}/rpe", '{"rpe":4}'),
-        ("PUT", f"/strength/history/{id(499)}/rpe", '{"rpe":3}'),
-        ("PUT", run, '{"rpe":"45e-1"}'),
-        ("PUT", run, '{"rpe":4.50}'),
-        ("PUT", run, '{"rpe":0}'),
-        ("PUT", strength, '{"rpe":8}'),
-        ("PUT", strength, '{"rpe":"8"}'),
-    ]
-    results = []
-    with (
-        patch.object(checkins, "datetime", Clock),
-        patch.object(refresh, "clock", lambda _: NOW),
-        TestClient(app) as client,
-    ):
-        for method, path, body in cases:
-            path = "/api/v1" + path
-            response = client.request(
-                method,
-                path,
-                content=body,
-                headers={"Content-Type": "application/json", "X-Local-Request": "1"},
-            )
-            value = response.json()
-            if "error" in value:
-                value["error"].pop("request_id", None)
-            results.append(
-                dict(
-                    method=method,
-                    path=path,
-                    body=body,
-                    status=response.status_code,
-                    response=value,
-                )
-            )
-    return results
 
 
 def state(env):
@@ -153,40 +84,21 @@ def main():
         tempfile.TemporaryDirectory(dir=ROOT / "private") as temp,
     ):
         directory = Path(temp)
-        with (
-            migrated_schema(db, url, directory / "ref", "5173") as py,
-            migrated_schema(db, url, directory / "go", "5173") as go,
-        ):
-            for env in (py, go):
-                seed_feedback(env)
-            corpus = directory / "cases.json"
-            subprocess.run(
-                [sys.executable, __file__, "reference", str(corpus)],
-                env=dict(py, PYTHONPATH=str(BACKEND)),
-                cwd=BACKEND,
-                check=True,
-            )
+        with migrated_schema(db, url, directory / "go", "5173") as go:
+            seed_feedback(go)
+            corpus = MODULE / "internal/feedbackhttp/testdata/feedback.json"
             subprocess.run(
                 ["go", "test", "-race", "-count=1", "./internal/feedbackhttp"],
                 cwd=MODULE,
                 env=dict(go, FEEDBACK_HTTP_CASES=str(corpus)),
                 check=True,
             )
-            left, right = state(py), state(go)
-            for n, (a, b) in enumerate(zip(left, right, strict=True)):
-                if a != b:
-                    if isinstance(a, list):
-                        for x, y in zip(a, b):
-                            if x != y:
-                                raise AssertionError((n, x, y))
-                    raise AssertionError((n, len(a), len(b)))
+            actual = json.loads(json.dumps(state(go), default=str))
+            assert actual == json.loads(corpus.with_suffix(".state.json").read_text())
             print(
                 "PASS prompt ordering and dismissal, activity and strength RPE, retries, revisions, metrics, prompts and exception findings"
             )
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["reference"]:
-        Path(sys.argv[2]).write_text(json.dumps(reference()))
-    else:
-        main()
+    main()

@@ -1,14 +1,14 @@
 # Workstream 1 · Application, training data and integration
 
-The integrated `go/core` candidate registers all 81 reference HTTP operations. The supervisor defaults to Go for demo and test. Real mode defaults to Python until the owner switches it. [Rewrite readiness](go-rewrite-readiness.md) · [Shared specification](go-backend-rewrite.md)
+The Go runtime registers all 81 HTTP operations verified during the port. The API supervisor and operational commands use Go in demo, test and real mode. Python remains available for offline historical Alembic upgrades and non-HTTP references. [Rewrite readiness](go-rewrite-readiness.md) · [Shared specification](go-backend-rewrite.md)
 
-## Integrated in demo and test
+## Synthetic integration evidence
 
-- Native calendar edits, completion, undo, links and decisions share the PostgreSQL writer lock. The source changes, rematches and required derived writes commit together. Focused comparisons cover retries, protected history, competing writers and rollback on a refresh failure. [Calendar comparison](../scripts/rewrite/check_self_reports.py) · [Transaction callbacks](#transaction-bound-metric-refresh)
+- Native calendar edits, completion, undo, links and decisions share the PostgreSQL writer lock. The source changes, rematches and required derived writes commit together. Focused comparisons cover retries, protected history, competing writers and rollback on a refresh failure. [Native self-report tests](../backend-go/internal/calendar/self_report_test.go) · [Transaction callbacks](#transaction-bound-metric-refresh)
 - Native coaching exercised a full Sunday review through Chrome and the Vite proxy. The owner flow saved a pending draft, opened its review, accepted selected changes and advanced the calendar head once. Independent process tests exercised the helper and fake app-server through the actual API executable. [Coaching evidence](go-rewrite-coaching.md)
 - Provider and phone check-in comparisons used synthetic PostgreSQL and loopback fixtures. Recovery checked native backup, restore into a fresh target, cold restart and retained receipts and IDs. Fresh databases bootstrap from the native SQL baseline. An older stamped database upgrades through Alembic. [Provider evidence](go-rewrite-providers.md) · [Operating procedure](operations.md)
 
-## Remaining before real cutover
+## Real workspace deployment
 
 Native demo seeding and same-day replay passed through the standard Make target. The integrated build, generated contract and schema drift checks, race suite, browser workflows and PostgreSQL comparisons passed. Schedule the real switch with the owner. Take and verify a current backup, stop the old supervisor and worker, and run the read-only `going-bananas workspace-preflight` against the selected workspace before startup refresh or worker writes. [Cutover and rollback](go-backend-rewrite.md#data-handoff-and-rollback)
 
@@ -17,11 +17,10 @@ Native demo seeding and same-day replay passed through the standard Make target.
 Call `assessment.Refresh(ctx, tx, sessionUID, now)` inside the completion command's globally locked PostgreSQL transaction, after refreshing the linked activity's interval result. It reads the accepted plan, eligible actual, candidates and coverage; selects or restores the metric result by its source/dependency identity; and updates a derived completion status and data revision when it changes. The caller can roll back both the result and the enclosing completion change. The returned result ID is nil when the subject has disappeared. Unlinked self-reports retain their user-marked status.
 
 ```sh
-uv run --project backend python scripts/rewrite/check_assessment_outcomes.py
-python3 scripts/test-db.py assessment
+(cd backend-go && go test -race ./internal/metrics/assessment ./internal/calendar)
 ```
 
-The comparison runs in independently migrated schemas and checks all stored metric columns except generated UUIDs. It separately verifies stable row IDs on replay and restore, non-UTC session offsets, provenance for FIT, Strong and manual records, and caller rollback on a failing completion update. [Assessment transaction](../backend-go/internal/metrics/assessment/refresh.go) · [PostgreSQL comparison](../scripts/rewrite/check_assessment_db.py)
+The original comparison ran in independently migrated schemas and checked all stored metric columns except generated UUIDs. It separately verified stable row IDs on replay and restore, non-UTC session offsets, provenance for FIT, Strong and manual records, and caller rollback on a failing completion update. [Assessment transaction](../backend-go/internal/metrics/assessment/refresh.go) · [Native assessment package](../backend-go/internal/metrics/assessment)
 
 ### Transaction-bound metric refresh
 

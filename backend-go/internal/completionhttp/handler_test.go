@@ -24,7 +24,7 @@ type fixture struct {
 func TestCompletionHTTP(t *testing.T) {
 	cases := os.Getenv("COMPLETION_HTTP_CASES")
 	if cases == "" {
-		t.Skip("run guarded FastAPI comparison")
+		t.Skip("run the completion-http PostgreSQL checks")
 	}
 	cfg, err := pgxpool.ParseConfig(os.Getenv("PROPOSAL_TEST_DATABASE_URL"))
 	if err != nil || cfg.ConnConfig.Database != "garmin_test" || os.Getenv("APP_MODE") != "test" || !strings.HasPrefix(os.Getenv("PGOPTIONS"), "-csearch_path=go_parity_") {
