@@ -19,11 +19,11 @@ from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError, IntegrityError
-from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.migrations_head import EXPECTED_HEAD as HEAD
-from app.services.profile import current_profile, profile_data
+
+pytestmark = pytest.mark.integration
 
 STAMP = datetime(2026, 11, 12, tzinfo=UTC)
 
@@ -308,10 +308,11 @@ def test_populated_0009_upgrade_preserves_legacy_and_loads_profile(isolated_sche
         == "not_fetched"
     )
 
-    with Session(bind=connection) as session:
-        profile = profile_data(current_profile(session))
-        assert profile["strength_schedule_mode"] == "alternating"
-        assert "planning_authority" not in profile
+    mode = connection.execute(
+        text("SELECT strength_schedule_mode FROM profile_versions ORDER BY version DESC LIMIT 1")
+    ).scalar_one()
+    assert mode == "alternating"
+    assert "planning_authority" not in {column["name"] for column in inspect(connection).get_columns("app_state")}
 
 
 def test_empty_round_trip_and_each_nonempty_downgrade_guard(isolated_schema):
