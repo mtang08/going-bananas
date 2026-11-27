@@ -1,6 +1,6 @@
 # Go backend rewrite specification
 
-**Decision.** Go is the long-term backend for Going Bananas. The first implementation milestone is a working proposal list in Home, served by Go from a synthetic PostgreSQL database. At cutover, Go owns every application write for the normal training week, coaching review, imports and recovery procedures. The rewrite is complete when those paths also run without a Python backend or temporary SDK adapter.
+**Decision.** Go is the long-term backend for Going Bananas. The test and demo supervisors run the Go backend. The operational CLI uses the same Go executable as the HTTP server and worker. At cutover, Go owns every application write for the normal training week, coaching review, imports and recovery procedures. The rewrite is complete when those paths also run without a Python backend or temporary SDK adapter.
 
 The HTTP inventory was verified against published `main` at `de3bdf5`, including the iPhone check-in flow, typed proposal list, native dashboard coach and macOS login preference. The readiness rehearsal used `fc6490c`. Its fixtures cover the first read-only slice. [Implementation readiness report](go-rewrite-readiness.md) · [Current architecture](architecture.md)
 

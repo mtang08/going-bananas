@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -148,52 +149,58 @@ func Reprocess(ctx context.Context, pool *pgxpool.Pool, root string, activity uu
 		if err := db.New(tx).LockGlobalWriter(ctx); err != nil {
 			return err
 		}
-		var raw, id uuid.UUID
-		var path, hash, zipHash string
-		err := tx.QueryRow(ctx, `SELECT f.id,r.id,r.relative_path,r.sha256,f.zip_sha256 FROM fit_files f
-			JOIN activities a ON a.id=f.activity_id JOIN raw_objects r ON r.id=f.raw_object_id
-			WHERE a.id=$1 AND a.fit_status='decoded' AND coalesce(f.decoder_version,0)<$2`, activity, decoderVersion).Scan(&id, &raw, &path, &hash, &zipHash)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		now := time.Now().UTC()
-		var payload []byte
-		if filepath.IsLocal(path) {
-			rootFS, openErr := os.OpenRoot(root)
-			if openErr != nil {
-				return openErr
-			}
-			payload, err = rootFS.ReadFile(path)
-			_ = rootFS.Close()
-		}
-		switch {
-		case !filepath.IsLocal(path):
-			status = "fit_raw_hash_mismatch"
-		case errors.Is(err, os.ErrNotExist):
-			status = "raw_missing"
-		case err != nil || digest(payload) != hash || hash != zipHash:
-			status = "fit_raw_hash_mismatch"
-		}
-		if status != "unchanged" {
-			_, err = tx.Exec(ctx, `UPDATE fit_files SET last_attempt_at=$2,last_error=$3 WHERE id=$1`, id, now, status)
-			return err
-		}
-		f := decodeFile(object{Hash: hash}, payload)
-		changed, failed, err := updateFIT(ctx, tx, activity, raw, f, now, true)
-		if changed {
-			status = "reprocessed"
-			if err == nil {
-				_, err = db.New(tx).BumpDataRevision(ctx)
-			}
-		} else if failed {
-			if err == nil {
-				err = tx.QueryRow(ctx, "SELECT last_error FROM fit_files WHERE id=$1", id).Scan(&status)
-			}
+		var err error
+		status, err = reprocessOne(ctx, tx, root, activity, time.Now().UTC())
+		if err == nil && status == "reprocessed" {
+			_, err = db.New(tx).BumpDataRevision(ctx)
 		}
 		return err
 	})
+	return status, err
+}
+
+func reprocessOne(ctx context.Context, tx pgx.Tx, root string, activity uuid.UUID, now time.Time) (string, error) {
+	status := "unchanged"
+	var raw, id uuid.UUID
+	var path, hash, zipHash string
+	err := tx.QueryRow(ctx, `SELECT f.id,r.id,r.relative_path,r.sha256,f.zip_sha256 FROM fit_files f
+			JOIN activities a ON a.id=f.activity_id JOIN raw_objects r ON r.id=f.raw_object_id
+			WHERE a.id=$1 AND a.fit_status='decoded' AND coalesce(f.decoder_version,0)<$2`, activity, decoderVersion).Scan(&id, &raw, &path, &hash, &zipHash)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "unchanged", nil
+	}
+	if err != nil {
+		return status, err
+	}
+
+	var payload []byte
+	if filepath.IsLocal(path) {
+		rootFS, openErr := os.OpenRoot(root)
+		if openErr == nil {
+			payload, err = rootFS.ReadFile(path)
+			_ = rootFS.Close()
+		} else {
+			err = openErr
+		}
+	}
+	switch {
+	case !filepath.IsLocal(path):
+		status = "fit_raw_hash_mismatch"
+	case errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOTDIR):
+		status = "raw_missing"
+	case err != nil || digest(payload) != hash || hash != zipHash:
+		status = "fit_raw_hash_mismatch"
+	}
+	if status != "unchanged" {
+		_, err = tx.Exec(ctx, `UPDATE fit_files SET last_attempt_at=$2,last_error=$3 WHERE id=$1`, id, now, status)
+		return status, err
+	}
+	f := decodeFile(object{Hash: hash}, payload)
+	changed, failed, err := updateFIT(ctx, tx, activity, raw, f, now, true)
+	if changed {
+		status = "reprocessed"
+	} else if failed && err == nil {
+		err = tx.QueryRow(ctx, "SELECT last_error FROM fit_files WHERE id=$1", id).Scan(&status)
+	}
 	return status, err
 }

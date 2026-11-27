@@ -7,7 +7,7 @@ export GOPATH ?= $(CURDIR)/private/cache/go
 export GOCACHE ?= $(CURDIR)/private/cache/go-build
 export GOLANGCI_LINT_CACHE ?= $(CURDIR)/private/cache/golangci-lint
 API_TYPES := python3 scripts/api-types.py
-BACKUP := cd backend && uv run python -m app.cli backup "$$PRIVATE_DIR/backups/backup-$$(date +%Y%m%d-%H%M%S).tar.gz"
+BACKUP := ./scripts/backend-cli backup "$$PRIVATE_DIR/backups/backup-$$(date +%Y%m%d-%H%M%S).tar.gz"
 TESTS ?= tests/integration tests/test_ingestion_integration.py
 .PHONY: doctor setup db-start db-stop migrate seed-demo dev build start check test-db-start test-db-stop test-integration test-integration-external test-e2e sync backup check-backend check-frontend check-docs complexity
 
@@ -23,12 +23,13 @@ db-start:
 db-stop:
 	$(RUN) python3 scripts/local-db.py stop
 migrate:
-	$(RUN) bash -c 'if [ "$$APP_MODE" = real ]; then ( $(BACKUP) ) || { echo "Backup failed; migration aborted." >&2; exit 1; }; fi; cd backend && uv run alembic upgrade head'
+	$(RUN) bash -c 'if [ "$$APP_MODE" = real ]; then ( $(BACKUP) ) || { echo "Backup failed; migration aborted." >&2; exit 1; }; fi; ./scripts/backend-cli migrate'
 seed-demo:
 	./scripts/with-mode demo bash -c 'cd backend && uv run alembic upgrade head && uv run python -m app.cli seed-demo'
 dev:
 	$(RUN) python3 scripts/serve.py --dev
 build:
+	$(RUN) python3 scripts/serve.py --build
 	$(RUN) bash -c 'cd frontend && npm run build'
 start:
 	$(RUN) python3 scripts/serve.py
@@ -77,7 +78,7 @@ test-integration-external:
 test-e2e:
 	$(RUN) bash -c 'cd frontend && npx playwright test'
 sync:
-	$(RUN) bash -c 'cd backend && uv run python -m app.cli sync'
+	$(RUN) ./scripts/backend-cli sync
 
 backup:
 	$(RUN) bash -c '$(BACKUP)'

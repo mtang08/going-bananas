@@ -30,7 +30,16 @@ _SAFE_ERRORS = {
 
 
 def run_import(settings: Settings, path: Path, *, apply: bool) -> dict:
-    command = ["go", "run", "./cmd/strong-import"]
+    backend = os.environ.get("GOING_BANANAS_BACKEND") or ("python" if settings.app_mode == "real" else "go")
+    if backend == "python":
+        from app.db import SessionLocal
+        from app.services.strong_import import import_strong_csv
+
+        with SessionLocal.begin() as session:
+            return import_strong_csv(session, settings.private_dir, path, apply=apply)
+    if backend != "go":
+        raise ValueError("invalid_backend")
+    command = ["go", "run", "./cmd/going-bananas", "strong-import"]
     if apply:
         command.append("-apply")
     command += ["--", str(path.resolve())]

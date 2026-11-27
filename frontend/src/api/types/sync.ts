@@ -1,41 +1,10 @@
-export interface SyncDataset {
-  dataset: string
-  status: string
-  last_attempt_at: string | null
-  last_success_at: string | null
-  newest_observation_at: string | null
-  requested_start: string | null
-  requested_end: string | null
-  fully_enumerated: boolean | null
-  reason: string | null
-}
-export interface SyncJob {
-  id: string
-  dataset: string
-  status: 'queued' | 'running' | 'retry_wait' | 'complete' | 'partial' | 'failed'
-  next_attempt_at: string | null
-  error_code: string | null
-}
-export interface SyncStatus {
-  datasets: SyncDataset[]
-  active_jobs: SyncJob[]
-  pending_treadmill_runs: PendingTreadmillRun[]
-}
+import type { components } from '../generated/sync'
 
-export interface PendingTreadmillRun {
-  id: string
-  local_date: string
-}
-
-export interface TreadmillReview extends PendingTreadmillRun {
-  preview_token: string
-  title: string | null
-  distance_m: number | null
-  timer_s: number | null
-  intervals: {
-    lap_index: number
-    timer_s: number | null
-    intensity: string | null
-    recorded_pace_seconds_per_mile: number | null
-  }[]
-}
+export type SyncDataset = components['schemas']['SyncDataset']
+export type SyncJob = components['schemas']['SyncJob']
+export type SyncStatus = components['schemas']['SyncStatus']
+export type PendingTreadmillRun = components['schemas']['PendingTreadmillRun']
+export type TreadmillReview = components['schemas']['TreadmillReview']
+export type TreadmillConfirmation = components['schemas']['TreadmillConfirmation']
+export type ActivityReceipt = components['schemas']['ActivityReceipt']
+export type QueuedJobs = components['schemas']['QueuedJobs']

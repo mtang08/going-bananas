@@ -30,6 +30,10 @@ import (
 )
 
 func applicationHandler(pool *pgxpool.Pool, mode api.AppMode, port, vitePort, root, privateDir, dist string, dashboard http.Handler) http.Handler {
+	return httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort, applicationRoutes(pool, mode, root, privateDir, dist, dashboard)...)
+}
+
+func applicationRoutes(pool *pgxpool.Pool, mode api.AppMode, root, privateDir, dist string, dashboard http.Handler) []func(*http.ServeMux) {
 	travel := travelhttp.Handler{Pool: pool, Mode: string(mode), PrivateDir: privateDir, Provider: googlecalendar.New(privateDir)}
 	review := proposalhttp.Handler{Store: drafts.Store{Pool: pool}, KBRoot: filepath.Join(root, "running_coach_kb"), Mode: string(mode)}
 	activities := activityhttp.Handler{Pool: pool, Mode: string(mode)}
@@ -51,7 +55,7 @@ func applicationHandler(pool *pgxpool.Pool, mode api.AppMode, port, vitePort, ro
 	status := health.Handler{Pool: pool, Mode: string(mode)}
 	sync := synchttp.New(pool, string(mode), privateDir)
 	frontend := httpapi.Frontend{Dist: dist}
-	return httpapi.New(proposals.New(pool), goals.New(pool), planning.Reader{Pool: pool}, mode, port, vitePort, travel.Register, review.Register, weekly.Register, registerReturnPlan, activities.Register, calendarHTTP.Register, events.Register, completions.Register, feedback.Register, checkinsHTTP.Register, registerChat, exceptions.Register, login.Register, frontend.Register, status.Register, sync.Register)
+	return []func(*http.ServeMux){travel.Register, review.Register, weekly.Register, registerReturnPlan, activities.Register, calendarHTTP.Register, events.Register, completions.Register, feedback.Register, checkinsHTTP.Register, registerChat, exceptions.Register, login.Register, frontend.Register, status.Register, sync.Register}
 }
 
 func nativeDashboard(ctx context.Context, pool *pgxpool.Pool, mode api.AppMode, port, vitePort, root, privateDir string) (*coachdashboardhttp.Local, error) {

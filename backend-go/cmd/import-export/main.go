@@ -1,49 +1,8 @@
-// Command import-export previews a local Garmin account export and optionally imports it.
 package main
 
 import (
-	"context"
-	"errors"
-	"fmt"
+	"github.com/mtang08/going-bananas/backend-go/internal/exportcommand"
 	"os"
-	"os/signal"
-	"strings"
-	"syscall"
-	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/mtang08/going-bananas/backend-go/internal/exportcli"
-	"github.com/mtang08/going-bananas/backend-go/internal/garmincli"
-	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 )
 
-func run() error {
-	mode := os.Getenv("APP_MODE")
-	if mode != "real" {
-		return errors.New("real_mode_required")
-	}
-	dsn := strings.Replace(os.Getenv("DATABASE_URL"), "postgresql+psycopg://", "postgresql://", 1)
-	cfg, err := pgxpool.ParseConfig(dsn)
-	if err != nil || dsn == "" || !strings.HasSuffix(cfg.ConnConfig.Database, "_real") {
-		return errors.New("invalid_real_database")
-	}
-	dir := os.Getenv("PRIVATE_DIR")
-	if dir == "" {
-		dir = "private"
-	}
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		return errors.New("cannot_open_database")
-	}
-	defer pool.Close()
-	return exportcli.Run(ctx, pool, dir, mode, os.Args[1:], os.Stdout, garmincli.SourceRefresh(time.Now, refresh.Runs))
-}
-
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-}
+func main() { os.Exit(exportcommand.Main(os.Args[1:])) }
