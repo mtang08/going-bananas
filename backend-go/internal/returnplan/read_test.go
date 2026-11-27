@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"reflect"
 	"testing"
 	"time"
@@ -19,15 +18,15 @@ import (
 //go:embed testdata/seed.sql
 var seed string
 
-func TestReturnPlanPythonParity(t *testing.T) {
+func TestReturnPlanHTTP(t *testing.T) {
 	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("requires synthetic dashboard schema")
 	}
 	ctx := t.Context()
-	ref, err := exec.CommandContext(ctx, os.Getenv("DASHBOARD_REFERENCE_PYTHON"), "testdata/reference.py").Output()
+	ref, err := os.ReadFile("testdata/cases.json")
 	if err != nil {
-		t.Fatal("Python return-plan reference failed", err)
+		t.Fatal("read return-plan fixture", err)
 	}
 	var cases []struct {
 		Day      string
@@ -69,7 +68,7 @@ func TestReturnPlanPythonParity(t *testing.T) {
 			t.Fatal(err)
 		}
 		if rec.Code != 200 || response.Mode != "test" || response.Revision != 11 || !reflect.DeepEqual(response.Data, c.Expected) {
-			t.Fatalf("day %s: status %d; Go %v; Python %v", c.Day, rec.Code, response, c.Expected)
+			t.Fatalf("day %s: status %d; got %v; want %v", c.Day, rec.Code, response, c.Expected)
 		}
 	}
 }

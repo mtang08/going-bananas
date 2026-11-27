@@ -1,6 +1,7 @@
 package intervals
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"github.com/mtang08/going-bananas/backend-go/internal/calendarstructure"
@@ -10,15 +11,17 @@ import (
 	"testing"
 )
 
-func TestPythonScoring(t *testing.T) {
-	path := os.Getenv("INTERVAL_SCORING")
-	if path == "" {
-		t.Skip("run check_interval_scoring.py")
-	}
-	raw, err := os.ReadFile(path)
+func TestIntervalScoring(t *testing.T) {
+	file, err := os.Open("testdata/scoring.json.gz")
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer file.Close()
+	fixture, err := gzip.NewReader(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.Close()
 	var cases []struct {
 		Steps []calendarstructure.Step
 		Fit   []recording.FitStep
@@ -38,7 +41,7 @@ func TestPythonScoring(t *testing.T) {
 		Treadmill bool
 		Expected  obj
 	}
-	if err = json.Unmarshal(raw, &cases); err != nil || len(cases) == 0 {
+	if err = json.NewDecoder(fixture).Decode(&cases); err != nil || len(cases) == 0 {
 		t.Fatal(err)
 	}
 	for i, c := range cases {

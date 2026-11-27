@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"reflect"
 	"testing"
 	"time"
@@ -12,15 +11,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func TestProjectionPythonParity(t *testing.T) {
+func TestWeeklyProjection(t *testing.T) {
 	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("requires disposable PostgreSQL runner")
 	}
-	cmd := exec.CommandContext(t.Context(), os.Getenv("DASHBOARD_REFERENCE_PYTHON"), "testdata/reference.py")
-	output, err := cmd.Output()
+	output, err := os.ReadFile("testdata/cases.json")
 	if err != nil {
-		t.Fatalf("weekly projection reference failed: %v", err)
+		t.Fatalf("read projection fixture: %v", err)
 	}
 	var cases []struct {
 		Fixture    string
@@ -31,7 +29,7 @@ func TestProjectionPythonParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(cases) != 5 {
-		t.Fatal("incomplete Python reference")
+		t.Fatal("incomplete projection fixture")
 	}
 	conn, err := pgx.Connect(t.Context(), dsn)
 	if err != nil {
@@ -68,7 +66,7 @@ func TestProjectionPythonParity(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(got, c.Projection) {
-			t.Errorf("%s: Go %+v, Python %+v", c.Now, got, c.Projection)
+			t.Errorf("%s: got %+v, want %+v", c.Now, got, c.Projection)
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package trainingwindows
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -18,12 +19,18 @@ import (
 func TestAerobicWindowsPostgres(t *testing.T) {
 	path := os.Getenv("AEROBIC_CASES")
 	if path == "" {
-		t.Skip("requires Python reference")
+		t.Skip("run scripts/test-db.py aerobic")
 	}
-	data, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer file.Close()
+	fixture, err := gzip.NewReader(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.Close()
 	var ref struct {
 		Query string
 		Cases []struct {
@@ -32,7 +39,7 @@ func TestAerobicWindowsPostgres(t *testing.T) {
 			State              []map[string]any
 		}
 	}
-	if err = json.Unmarshal(data, &ref); err != nil {
+	if err = json.NewDecoder(fixture).Decode(&ref); err != nil {
 		t.Fatal(err)
 	}
 	ctx := t.Context()

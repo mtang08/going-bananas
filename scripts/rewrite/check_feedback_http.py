@@ -10,7 +10,7 @@ from pathlib import Path
 import psycopg
 from sqlalchemy.engine import make_url
 
-from check_assessment_db import conn, id, seed
+from training_fixture import conn, id, seed_assessment as seed
 from check_completion_http import NOW
 from test_proposal_slice import MODULE, ROOT, migrated_schema
 

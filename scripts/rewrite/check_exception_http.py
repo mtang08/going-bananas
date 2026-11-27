@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 import psycopg
-from check_assessment_db import conn, id
+from training_fixture import conn, id
 from check_exception_view import FIXTURES, NOW, populate
 from check_gcal_replay import test_url
 from test_proposal_slice import MODULE, ROOT, migrated_schema

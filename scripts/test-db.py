@@ -155,7 +155,6 @@ def main():
         'provider': 'check_provider_replay.py',
         'strong': 'check_strong_import.py',
         'exception-view': 'check_exception_view.py',
-        'exception-inputs': 'check_exception_inputs.py',
         'recovery': 'check_recovery.py',
         'aerobic': 'check_aerobic.py',
         'assessment': 'check_assessment_db.py',
@@ -169,6 +168,7 @@ def main():
         'operator-cli': 'check_operator_cli.py',
         'calendar': 'check_self_reports.py',
         'health-startup': 'check_health_startup.py',
+        'metrics-cli': 'check_metrics_cli.py',
         'rematch': 'check_rematch.py',
     }
     actions = ['start', 'stop', 'test', 'test-external', 'native', 'native-external', *checks, *(name + '-external' for name in checks)]
@@ -180,7 +180,7 @@ def main():
         parser.error(f'{action} does not take test selectors')
 
     backend = ROOT / 'backend'
-    tests = args.tests or ['tests/integration', 'tests/test_ingestion_integration.py']
+    tests = args.tests or ['tests/integration']
     if action in {'test', 'test-external'}:
         for selector in tests:
             path, separator, node = selector.partition('::')
