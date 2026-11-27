@@ -1,0 +1,1100 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Going Bananas exceptions and login startup",
+    "version": "1.0"
+  },
+  "paths": {
+    "/api/v1/exceptions": {
+      "get": {
+        "operationId": "listExceptions",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionViewEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "active",
+              "type": "string",
+              "enum": [
+                "active",
+                "recent"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/exceptions/{finding_id}/dismiss": {
+      "post": {
+        "operationId": "dismissExceptionFinding",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionFindingEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Entity not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "State conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Local-Request",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissFinding"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exception-patches/{patch_id}/resolve": {
+      "post": {
+        "operationId": "resolveExceptionPatch",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionPatchEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Entity not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "State conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "patch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Local-Request",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolvePatch"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/login-startup": {
+      "get": {
+        "operationId": "getLoginStartup",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginStartupEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setLoginStartup",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginStartupEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "State conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Startup setting unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLoginStartup"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Local-Request",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AppMode": {
+        "type": "string",
+        "enum": [
+          "demo",
+          "real",
+          "test"
+        ],
+        "title": "AppMode"
+      },
+      "SchemaVersion": {
+        "type": "string",
+        "const": "v1"
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationField"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id",
+          "fields"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ValidationField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "ValidationField"
+      },
+      "ExceptionCategory": {
+        "type": "string",
+        "enum": [
+          "symptoms_illness",
+          "training_response",
+          "accumulated_fatigue",
+          "calendar_disruption",
+          "post_event"
+        ]
+      },
+      "ExceptionSeverity": {
+        "type": "string",
+        "enum": [
+          "observe",
+          "caution",
+          "hold",
+          "escalate"
+        ]
+      },
+      "FindingEvidence": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "checkin",
+              "symptom",
+              "activity",
+              "session",
+              "rpe",
+              "recovery_night",
+              "event",
+              "profile",
+              "block"
+            ]
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "at",
+          "detail"
+        ],
+        "additionalProperties": false
+      },
+      "ExceptionFinding": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rule_code": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ExceptionCategory"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/ExceptionSeverity"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "addressed",
+              "reviewed",
+              "resolved",
+              "dismissed",
+              "expired"
+            ]
+          },
+          "entity_key": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FindingEvidence"
+            }
+          },
+          "evidence_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "patch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "is_new_since_last_review": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "rule_code",
+          "category",
+          "severity",
+          "status",
+          "entity_key",
+          "summary",
+          "evidence",
+          "evidence_at",
+          "first_seen_at",
+          "last_seen_at",
+          "patch_id",
+          "version",
+          "is_new_since_last_review"
+        ],
+        "additionalProperties": false
+      },
+      "UnchangedSession": {
+        "type": "object",
+        "properties": {
+          "session_uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_uid",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "ExceptionPatch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calendar_version_number": {
+            "type": "integer"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ExceptionCategory"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/ExceptionSeverity"
+          },
+          "ladder_level": {
+            "type": "string",
+            "enum": [
+              "current_session",
+              "next_session",
+              "next_days",
+              "committed_window",
+              "block"
+            ]
+          },
+          "window_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "window_end": {
+            "type": "string",
+            "format": "date"
+          },
+          "reassess_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "monitor": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "return_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "escalate_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unchanged": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnchangedSession"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "resolved",
+              "escalated",
+              "superseded"
+            ]
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolved_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "coach",
+                  "athlete"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "session_uids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "reassess_due": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "proposal_id",
+          "calendar_version_number",
+          "category",
+          "severity",
+          "ladder_level",
+          "window_start",
+          "window_end",
+          "reassess_on",
+          "monitor",
+          "return_criteria",
+          "escalate_criteria",
+          "unchanged",
+          "status",
+          "resolved_at",
+          "resolved_by",
+          "resolution_note",
+          "created_at",
+          "version",
+          "session_uids",
+          "reassess_due"
+        ],
+        "additionalProperties": false
+      },
+      "ExceptionRecommendation": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "exception_review",
+              "review_training_block",
+              "post_event_review"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "finding_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "reason",
+          "finding_ids",
+          "prompt"
+        ],
+        "additionalProperties": false
+      },
+      "ExceptionView": {
+        "type": "object",
+        "properties": {
+          "rule_version": {
+            "type": "string",
+            "enum": [
+              "exceptions.v1"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExceptionFinding"
+            }
+          },
+          "patches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExceptionPatch"
+            }
+          },
+          "review_recommended": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExceptionRecommendation"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "observe": {
+                "type": "integer"
+              },
+              "caution": {
+                "type": "integer"
+              },
+              "hold": {
+                "type": "integer"
+              },
+              "escalate": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "observe",
+              "caution",
+              "hold",
+              "escalate"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "rule_version",
+          "findings",
+          "patches",
+          "review_recommended",
+          "counts"
+        ],
+        "additionalProperties": false
+      },
+      "DismissFinding": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "additionalProperties": false
+      },
+      "ResolvePatch": {
+        "type": "object",
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "resolved",
+              "escalated"
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expected_version",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "LoginStartup": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "enabled",
+              "disabled",
+              "unsupported",
+              "other_checkout",
+              "unavailable"
+            ]
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "enabled",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "SetLoginStartup": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false
+      },
+      "ExceptionViewEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ExceptionView"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "ExceptionFindingEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ExceptionFinding"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "ExceptionPatchEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ExceptionPatch"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "LoginStartupEnvelope": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/AppMode"
+          },
+          "data_revision": {
+            "type": "integer",
+            "const": 0
+          },
+          "data": {
+            "$ref": "#/components/schemas/LoginStartup"
+          }
+        },
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}
