@@ -3,9 +3,14 @@ package drafts
 import (
 	_ "embed"
 	"encoding/json"
+
 	"github.com/mtang08/going-bananas/backend-go/internal/jsonmodel"
 )
 
+// model.json defines the ordered validation and defaults for native proposal
+// documents and commands. The helper exposes the public document and revision
+// schemas from internal/coaching/protocol.
+//
 //go:embed model.json
 var modelData []byte
 var models = jsonmodel.Load(modelData, modelCheck)
