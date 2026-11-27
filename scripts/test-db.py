@@ -151,6 +151,7 @@ def main():
         'sync-http': 'check_sync_http.py',
         'fit-cli': 'check_fit_cli.py',
         'workspace-migrate': 'check_workspace_migrate.py',
+        'demo-seed': 'check_demo_seed.py',
         'import-export': 'check_import_export.py',
         'backup': 'check_workspace_backup.py',
         'phone-checkins': 'check_phone_checkins.py',
