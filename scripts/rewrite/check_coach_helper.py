@@ -15,9 +15,10 @@ from urllib.request import ProxyHandler, Request, build_opener
 from zoneinfo import ZoneInfo
 
 import psycopg
-from coach_browser_process import available_port, exercise_browser
 from check_finder_launcher import exercise_finder
+from coach_browser_process import available_port, exercise_browser
 from coach_dashboard_process import exercise_chat, install_fake
+from coach_proposal_fixture import synthetic_proposal
 from coach_recovery_process import capture, recover, recovery_source
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
@@ -70,8 +71,6 @@ def native_server(executable, root, env):
 
 
 def exercise(root, env, base):
-    from coach_chat_script import _plan
-
     helper = root / ".codex/skills/going-bananas-coach/scripts/coach_app.py"
 
     def run(*args, read_only=False, expected=0):
@@ -143,7 +142,7 @@ def exercise(root, env, base):
         "query", "calendar_diff", "--from", "0", "--to", str(head), read_only=True
     )
     assert diff["query"] == "calendar_diff" and len(diff["data"]["changes"]) == 5
-    document, duration = _plan(packet)
+    document, duration = synthetic_proposal(packet)
     assert duration == 2100
     source = root / "private/athlete-approved.json"
     source.write_text(json.dumps(document))
@@ -243,7 +242,6 @@ def main():
     url = url.difference_update_query(["search_path"])
     sys.path[:0] = [
         str(ROOT / "backend"),
-        str(ROOT / "backend/tests/fixtures"),
         str(ROOT / "backend-go/internal/coachdashboardhttp/testdata"),
     ]
     from native_fixture import seed
