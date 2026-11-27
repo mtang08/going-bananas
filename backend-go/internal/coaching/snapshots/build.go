@@ -36,7 +36,7 @@ func BuildWithPreparation(ctx context.Context, tx pgx.Tx, operation, asOf string
 	if _, err := time.Parse(time.DateOnly, asOf); err != nil {
 		return nil, err
 	}
-	if !supported(operation) {
+	if !Supported(operation) {
 		return nil, errors.New("unsupported operation")
 	}
 	var packet map[string]any
@@ -60,7 +60,7 @@ func BuildWithPreparation(ctx context.Context, tx pgx.Tx, operation, asOf string
 	return packet, nil
 }
 
-func supported(op string) bool {
+func Supported(op string) bool {
 	switch op {
 	case daily, rolling, quality, blockReview, calibrate, race, exception, postEvent:
 		return true
