@@ -178,7 +178,7 @@ Operational commands:
 - `metrics-refresh-today` refreshes today’s windows and their source metrics and updates prompts using local data.
 - `fit-backfill --since YYYY-MM-DD` fetches available FIT evidence in real mode;
   unavailable or failed items remain explicit and can be inspected.
-- `strong-import PATH` previews a CSV; add `--apply` to import it.
+- Build the native Strong importer with `(cd backend-go && go build -o ../private/strong-import ./cmd/strong-import)`. Run `./scripts/with-mode real private/strong-import PATH` to preview a CSV. Add `--apply` to save the workouts and refresh their metrics. The existing `app.cli strong-import` command uses the same importer.
 
 Metric GET endpoints leave the database unchanged. Metric pages compute missing results and results with
 outdated methods or configs in memory. Some calculations still read stored dependencies: intensity, long-run,

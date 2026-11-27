@@ -209,8 +209,8 @@ For a later export, preview first and apply only after checking the source and
 backup. Repeating identical bytes is idempotent:
 
 ```sh
-./scripts/with-mode real bash -c 'cd backend && uv run python -m app.services.strong_import /absolute/path/to/strong_workouts.csv'
-./scripts/with-mode real bash -c 'cd backend && uv run python -m app.services.strong_import /absolute/path/to/strong_workouts.csv --apply'
+./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli strong-import /absolute/path/to/strong_workouts.csv'
+./scripts/with-mode real bash -c 'cd backend && uv run python -m app.cli strong-import /absolute/path/to/strong_workouts.csv --apply'
 ```
 
 The original CSV and source rows are preserved privately. Source-local timestamps

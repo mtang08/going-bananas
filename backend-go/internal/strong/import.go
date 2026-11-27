@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/db"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 	"github.com/mtang08/going-bananas/backend-go/internal/rawobject"
 )
 
@@ -161,7 +164,16 @@ func Import(ctx context.Context, pool *pgxpool.Pool, root, path string, apply bo
 				conflicts++
 			}
 		}
-		if added+conflicts > 0 {
+		if len(result.Affected) > 0 {
+			scopes := make([]string, 0, len(result.Affected))
+			for id := range result.Affected {
+				scopes = append(scopes, "strength:strong:"+id.String())
+			}
+			slices.Sort(scopes)
+			if err := refresh.Source(ctx, tx, scopes, time.Now().UTC(), refresh.Runs); err != nil {
+				return err
+			}
+
 			if _, err := db.New(tx).BumpDataRevision(ctx); err != nil {
 				return err
 			}

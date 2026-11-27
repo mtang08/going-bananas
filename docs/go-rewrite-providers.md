@@ -88,7 +88,7 @@ Python continues to schedule downloads, hold unconfirmed treadmill runs for revi
 
 ## Strong workout CSV import
 
-Preview a Strong export in a synthetic workspace, then apply the same file. Preview validates every row and compares source identities against PostgreSQL without creating a batch, a raw file, or a workout. The command emits a JSON summary and the IDs and local dates of changed workouts.
+Preview a Strong export in the selected workspace, then apply the same file. The database name must match the explicit mode. Preview validates every row and compares source identities against PostgreSQL without creating a batch, a raw file, or a workout. The command emits a JSON summary and the IDs and local dates of changed workouts.
 
 ```sh
 (cd backend-go && go build -o ../private/strong-import ./cmd/strong-import)
@@ -96,7 +96,7 @@ Preview a Strong export in a synthetic workspace, then apply the same file. Prev
 ./scripts/with-mode demo private/strong-import -apply private/fixtures/strong.csv
 ```
 
-`strong.Import(ctx, pool, privateDir, csvPath, apply)` preserves the exact source strings and set order. Apply retains the immutable CSV before committing its SHA-256, a source record for each distinct workout revision, and the batch outcome in one database transaction. A changed workout stays linked to its original canonical sets and enters revision conflict for review. Manual completions and recorded RPE keep their workout IDs. Repeated files create an import batch while preserving the existing workout and source identities. Timezone, weight units and the dumbbell-weight convention remain unknown. A rollback can leave an unreferenced immutable file, which a retry verifies and reuses.
+`strong.Import(ctx, pool, privateDir, csvPath, apply)` preserves the exact source strings and set order. Apply retains the immutable CSV before committing its SHA-256, a source record for each distinct workout revision, and the batch outcome in one database transaction. A changed workout stays linked to its original canonical sets and enters revision conflict for review. Manual completions and recorded RPE keep their workout IDs. Each changed workout triggers matching, metric recomputation and prompt generation within the import transaction. Repeated files create an import batch while preserving the existing workout and source identities. Timezone, weight units and the dumbbell-weight convention remain unknown. A rollback can leave an unreferenced immutable file, which a retry verifies and reuses.
 
 Run the Python parser reference and the isolated PostgreSQL workflow comparison from the repository root.
 
