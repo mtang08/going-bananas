@@ -198,8 +198,8 @@ calendar, metric, proposal, and migration tables plus private raw objects.
 Once the owner schedules the switch, stop the API, worker, automatic startup and other writers. Finish or reconcile in-flight jobs and verify the final backup. From the repository root, build the command and run it for the selected mode.
 
 ```sh
-(cd backend-go && go build -o ../private/workspace-preflight ./cmd/workspace-preflight)
-./scripts/with-mode real private/workspace-preflight -repo "$PWD"
+(cd backend-go && go build -o ../private/going-bananas ./cmd/going-bananas)
+./scripts/with-mode real private/going-bananas workspace-preflight -repo "$PWD"
 ```
 
 A successful run exits zero and returns JSON with `ready: true`. It reads the profile, accepted calendar, active draft and weekly summary, verifies the migration stamp and expected columns, checks provider checkpoints and hashes the retained raw files. It reports whether provider configuration files are present and private using filesystem metadata. A pending draft that has become stale is reported for review. An absent optional provider credential is reported separately. Failures identify the check without exposing athlete records, filenames or credentials. Correct the reported failure and rerun the command before starting the normal supervisor.

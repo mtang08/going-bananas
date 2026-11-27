@@ -6,7 +6,8 @@
 
 - Chrome exercised the dashboard and Settings through Vite and ran the native Sunday review through pending draft, acceptance and one calendar version advance. Separate subprocess tests exercised the helper, Go server, and a fake app-server. [Coaching handoff](go-rewrite-coaching.md#native-dashboard-handoff)
 - The integrated synthetic backup and restore rehearsal used independent source and target databases, then restarted the Go application and replayed an original receipt. It checked retained calendar, proposal, review and snapshot identities and a raw-object checksum. Fresh databases use the native SQL baseline. Historically stamped versions upgrade through Alembic. [Recovery procedure](operations.md)
-- Native demo seed integration, generated contract and schema drift checks on the final merged tree, and the final integrated checks remain open. The real switch requires the owner’s schedule, a verified current backup, and a passing read-only workspace preflight with the existing writer stopped. [Preflight check](../scripts/rewrite/check_workspace_preflight.py) · [Cutover and rollback](go-backend-rewrite.md#data-handoff-and-rollback)
+- The normal `make seed-demo` entry point migrates and seeds through Go. Fresh and repeat runs matched the reference dashboard and all 183 current metrics. Python also records 34 superseded intermediate metric versions on a fresh seed and five more on replay. These synthetic-only history rows are absent in Go. [Seed comparison](../scripts/rewrite/check_demo_seed.py)
+- The final merged tree still needs its generated contract, schema drift and integrated checks. The real switch requires the owner’s schedule, a verified current backup, and a passing read-only workspace preflight with the existing writer stopped. [Preflight check](../scripts/rewrite/check_workspace_preflight.py) · [Cutover and rollback](go-backend-rewrite.md#data-handoff-and-rollback)
 
 ## Decisions from running the code
 
