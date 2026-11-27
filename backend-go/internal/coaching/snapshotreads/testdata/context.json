@@ -1,0 +1,269 @@
+{
+  "exception_findings": [
+    {
+      "category": "training_response",
+      "entity_key": "event:00000000-0000-0000-0000-00000aa00003",
+      "evidence": [
+        {
+          "synthetic": true
+        }
+      ],
+      "evidence_at": "2026-11-01T03:30:00.125000+00:00",
+      "first_seen_at": "2026-11-01T03:30:00.125000+00:00",
+      "id": "00000000-0000-0000-0000-00000aa0000c",
+      "is_new_since_last_review": false,
+      "last_seen_at": "2026-11-02T03:30:00.125000+00:00",
+      "patch_id": null,
+      "rule_code": "POST_EVENT_REVIEW_DUE",
+      "severity": "observe",
+      "status": "open",
+      "summary": "Synthetic signal",
+      "version": 1
+    },
+    {
+      "category": "training_response",
+      "entity_key": "fixture:3",
+      "evidence": [
+        {
+          "synthetic": true
+        }
+      ],
+      "evidence_at": "2026-11-01T03:30:00.125000+00:00",
+      "first_seen_at": "2026-11-01T03:30:00.125000+00:00",
+      "id": "00000000-0000-0000-0000-00000aa0000d",
+      "is_new_since_last_review": false,
+      "last_seen_at": "2026-11-02T03:30:00.125000+00:00",
+      "patch_id": null,
+      "rule_code": "BLOCK_BENCHMARK_MISSED",
+      "severity": "observe",
+      "status": "open",
+      "summary": "Synthetic signal",
+      "version": 1
+    },
+    {
+      "category": "training_response",
+      "entity_key": "fixture:4",
+      "evidence": [
+        {
+          "synthetic": true
+        }
+      ],
+      "evidence_at": "2026-11-01T03:30:00.125000+00:00",
+      "first_seen_at": "2026-11-01T03:30:00.125000+00:00",
+      "id": "00000000-0000-0000-0000-00000aa0000e",
+      "is_new_since_last_review": false,
+      "last_seen_at": "2026-11-02T03:30:00.125000+00:00",
+      "patch_id": null,
+      "rule_code": "BLOCK_BENCHMARK_COMPLETED",
+      "severity": "observe",
+      "status": "open",
+      "summary": "Synthetic signal",
+      "version": 1
+    },
+    {
+      "category": "training_response",
+      "entity_key": "fixture:5",
+      "evidence": [
+        {
+          "synthetic": true
+        }
+      ],
+      "evidence_at": "2026-10-19T03:30:00.125000+00:00",
+      "first_seen_at": "2026-10-19T03:30:00.125000+00:00",
+      "id": "00000000-0000-0000-0000-00000aa0000f",
+      "is_new_since_last_review": false,
+      "last_seen_at": "2026-11-02T03:30:00.125000+00:00",
+      "patch_id": null,
+      "rule_code": "RECENT_TERMINAL",
+      "severity": "hold",
+      "status": "resolved",
+      "summary": "Synthetic signal",
+      "version": 1
+    },
+    {
+      "category": "training_response",
+      "entity_key": "fixture:0",
+      "evidence": [
+        {
+          "synthetic": true
+        }
+      ],
+      "evidence_at": "2026-10-03T03:30:00.125000+00:00",
+      "first_seen_at": "2026-10-03T03:30:00.125000+00:00",
+      "id": "00000000-0000-0000-0000-00000aa0000a",
+      "is_new_since_last_review": false,
+      "last_seen_at": "2026-11-02T03:30:00.125000+00:00",
+      "patch_id": "00000000-0000-0000-0000-00000aa00004",
+      "rule_code": "SYNTHETIC_CAUTION",
+      "severity": "caution",
+      "status": "open",
+      "summary": "Synthetic signal",
+      "version": 1
+    },
+    {
+      "category": "symptoms_illness",
+      "entity_key": "fixture:1",
+      "evidence": [
+        {
+          "synthetic": true
+        }
+      ],
+      "evidence_at": "2026-10-03T03:30:00.125000+00:00",
+      "first_seen_at": "2026-10-03T03:30:00.125000+00:00",
+      "id": "00000000-0000-0000-0000-00000aa0000b",
+      "is_new_since_last_review": false,
+      "last_seen_at": "2026-11-02T03:30:00.125000+00:00",
+      "patch_id": "00000000-0000-0000-0000-00000aa00004",
+      "rule_code": "SYNTHETIC_ESCALATE",
+      "severity": "escalate",
+      "status": "addressed",
+      "summary": "Synthetic signal",
+      "version": 1
+    }
+  ],
+  "exception_patches": [
+    {
+      "calendar_version_number": 0,
+      "category": "training_response",
+      "created_at": "2026-10-03T03:30:00.125000+00:00",
+      "escalate_criteria": [],
+      "id": "00000000-0000-0000-0000-00000aa00004",
+      "ladder_level": "next_days",
+      "monitor": [
+        "synthetic"
+      ],
+      "proposal_id": "00000000-0000-0000-0000-00000aa00002",
+      "reassess_due": true,
+      "reassess_on": "2026-11-02",
+      "resolution_note": null,
+      "resolved_at": null,
+      "resolved_by": null,
+      "return_criteria": [],
+      "session_uids": [],
+      "severity": "hold",
+      "status": "open",
+      "unchanged": [],
+      "version": 1,
+      "window_end": "2026-10-13",
+      "window_start": "2026-10-03"
+    }
+  ],
+  "review_recommended": [
+    {
+      "finding_ids": [
+        "00000000-0000-0000-0000-00000aa0000a"
+      ],
+      "operation": "exception_review",
+      "prompt": "Use $going-bananas-coach for an exception review. Read the open findings in the app and patch only what they require.",
+      "reason": "Open findings at caution or hold need an exception review"
+    },
+    {
+      "finding_ids": [
+        "00000000-0000-0000-0000-00000aa0000b"
+      ],
+      "operation": "review_training_block",
+      "prompt": "Use $going-bananas-coach for a block review. An exception needs a bigger review.",
+      "reason": "A symptom or illness finding needs a bigger review. Outside evaluation may be needed."
+    },
+    {
+      "finding_ids": [
+        "00000000-0000-0000-0000-00000aa0000c"
+      ],
+      "operation": "post_event_review",
+      "prompt": "Use $going-bananas-coach for a post-race review of Sample Race on 2026-11-01.",
+      "reason": "Race review due for Sample Race on 2026-11-01"
+    },
+    {
+      "finding_ids": [
+        "00000000-0000-0000-0000-00000aa0000e"
+      ],
+      "operation": "review_training_block",
+      "prompt": "Use $going-bananas-coach for a block review. Review the block benchmark.",
+      "reason": "Block benchmark complete — review the block and recalibrate"
+    },
+    {
+      "finding_ids": [
+        "00000000-0000-0000-0000-00000aa0000d"
+      ],
+      "operation": "review_training_block",
+      "prompt": "Use $going-bananas-coach for a block review. Review the block benchmark.",
+      "reason": "Block benchmark missed — review the block to reschedule it or extend the block"
+    },
+    {
+      "finding_ids": [
+        "00000000-0000-0000-0000-00000aa0000a",
+        "00000000-0000-0000-0000-00000aa0000b"
+      ],
+      "operation": "exception_review",
+      "prompt": "Use $going-bananas-coach to reassess the open exception patch.",
+      "reason": "Patch reassessment due"
+    }
+  ],
+  "travel_meta": {
+    "calendar_synced_at": "2026-11-02T03:30:00.125000+00:00",
+    "home_timezone": "America/New_York"
+  },
+  "trips": [
+    {
+      "confidence": "medium",
+      "confirmed": false,
+      "days": [
+        {
+          "availability": "reduced",
+          "date": "2026-11-02"
+        }
+      ],
+      "destination": "Synthetic City",
+      "destination_timezone": "Asia/Tokyo",
+      "end_date": null,
+      "gym_access": "limited",
+      "legs": [
+        {
+          "arrive_local": "2026-11-03T12:30:00.125000+09:00",
+          "arrive_timezone": "Asia/Tokyo",
+          "depart_local": "2026-11-01T22:30:00.125000-05:00",
+          "depart_timezone": "America/New_York",
+          "timezone_basis": "calendar_endpoints"
+        },
+        {
+          "arrive_local": "2026-11-04T12:30:00.125000+09:00",
+          "arrive_timezone": "Asia/Tokyo",
+          "depart_local": "2026-11-03T12:30:00.125000+09:00",
+          "depart_timezone": "Asia/Tokyo",
+          "timezone_basis": "fallback"
+        }
+      ],
+      "running_access": null,
+      "source": "detected",
+      "start_date": "2026-09-26",
+      "status": "pending",
+      "travel_days": [
+        "2026-11-01",
+        "2026-11-03",
+        "2026-11-04"
+      ],
+      "trip_id": "00000000-0000-0000-0000-00000aa0001e"
+    },
+    {
+      "confidence": "medium",
+      "confirmed": true,
+      "days": [
+        {
+          "availability": "reduced",
+          "date": "2026-11-02"
+        }
+      ],
+      "destination": "Synthetic City",
+      "destination_timezone": "Asia/Tokyo",
+      "end_date": "2027-03-03",
+      "gym_access": "limited",
+      "legs": [],
+      "running_access": null,
+      "source": "detected",
+      "start_date": "2027-03-02",
+      "status": "confirmed",
+      "travel_days": [],
+      "trip_id": "00000000-0000-0000-0000-00000aa00020"
+    }
+  ]
+}

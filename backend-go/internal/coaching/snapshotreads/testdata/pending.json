@@ -1,0 +1,41 @@
+{
+  "active_block": {
+    "benchmark": {
+      "kind": "time_trial",
+      "planned_date": "2026-11-01",
+      "protocol": "time_trial_5k"
+    },
+    "benchmark_status": {
+      "activity_id": null,
+      "distance_m": null,
+      "event_id": null,
+      "evidence_at": null,
+      "local_date": null,
+      "match_method": null,
+      "result_s": null,
+      "rpe": null,
+      "scheduled_date": null,
+      "status": "pending"
+    },
+    "block_uid": "00000000-0000-0000-0000-000000015fa4",
+    "build_outline": [],
+    "constraints": {},
+    "early_review_triggers": [],
+    "eligible_recipe_ids": [],
+    "indicators": [],
+    "legacy_text": null,
+    "maintained_qualities": [],
+    "non_goals": [],
+    "objective": "Race benchmark",
+    "objective_status": "unresolved",
+    "progression_dimension": "none",
+    "review_date": "2026-11-04",
+    "start_date": "2026-10-11",
+    "status": "active",
+    "target_event_id": "00000000-0000-0000-0000-000000015f90",
+    "target_event_status": "changed",
+    "version": 1,
+    "version_id": "00000000-0000-0000-0000-000000015fa5",
+    "why": []
+  }
+}

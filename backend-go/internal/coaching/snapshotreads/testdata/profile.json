@@ -1,0 +1,157 @@
+[
+  {
+    "expected": {
+      "anchor_confirmed": false,
+      "calendar_version": 0,
+      "clinical_restriction": null,
+      "cycle_anchor": null,
+      "data_revision": 0,
+      "profile_version": 0,
+      "running_restriction": null,
+      "timezone": "America/New_York"
+    },
+    "facts": null
+  },
+  {
+    "expected": {
+      "anchor_confirmed": true,
+      "calendar_version": 4,
+      "clinical_restriction": "Avoid hills",
+      "cycle_anchor": "2026-11-01",
+      "data_revision": 19,
+      "profile_version": 1,
+      "running_restriction": {
+        "ends_on": null,
+        "max_distance_m": null,
+        "max_duration_s": null,
+        "needs_confirmation": true,
+        "no_quality": true,
+        "pause_running": false,
+        "review_on": "2026-11-01",
+        "source": "Coach",
+        "starts_on": "2026-10-01",
+        "wording": null
+      },
+      "timezone": "America/Denver"
+    },
+    "facts": {
+      "clinical_restriction": "  Avoid hills  ",
+      "clinician_restriction": "unused",
+      "running_restriction": {
+        "no_quality": "yes",
+        "review_on": "2026-11-01",
+        "source": " Coach ",
+        "starts_on": "2026-10-01"
+      }
+    }
+  },
+  {
+    "expected": {
+      "anchor_confirmed": true,
+      "calendar_version": 4,
+      "clinical_restriction": "Easy only",
+      "cycle_anchor": "2026-11-01",
+      "data_revision": 19,
+      "profile_version": 2,
+      "running_restriction": {
+        "ends_on": "2026-10-31",
+        "max_distance_m": null,
+        "max_duration_s": 1200,
+        "needs_confirmation": false,
+        "no_quality": true,
+        "pause_running": false,
+        "review_on": "2026-11-01",
+        "source": "Coach",
+        "starts_on": "2026-10-01",
+        "wording": "Short runs."
+      },
+      "timezone": "America/Denver"
+    },
+    "facts": {
+      "clinical_restriction": "uNkNoWn",
+      "clinical_restriction_active": true,
+      "clinician_restriction": "  Easy only ",
+      "running_restriction": {
+        "ends_on": "2026-10-31",
+        "max_duration_s": 1200,
+        "no_quality": "yes",
+        "review_on": "2026-11-01",
+        "source": " Coach ",
+        "starts_on": "2026-10-01",
+        "wording": " Short runs. "
+      }
+    }
+  },
+  {
+    "expected": {
+      "anchor_confirmed": true,
+      "calendar_version": 4,
+      "clinical_restriction": "restricted",
+      "cycle_anchor": "2026-11-01",
+      "data_revision": 19,
+      "profile_version": 3,
+      "running_restriction": null,
+      "timezone": "America/Denver"
+    },
+    "facts": {
+      "clinical_restriction": "none",
+      "clinical_restriction_active": "present"
+    }
+  },
+  {
+    "expected": {
+      "anchor_confirmed": true,
+      "calendar_version": 4,
+      "clinical_restriction": null,
+      "cycle_anchor": "2026-11-01",
+      "data_revision": 19,
+      "profile_version": 4,
+      "running_restriction": null,
+      "timezone": "America/Denver"
+    },
+    "facts": {
+      "clinical_restriction": false,
+      "clinical_restriction_active": []
+    }
+  },
+  {
+    "expected": {
+      "anchor_confirmed": true,
+      "calendar_version": 4,
+      "clinical_restriction": null,
+      "cycle_anchor": "2026-11-01",
+      "data_revision": 19,
+      "profile_version": 5,
+      "running_restriction": {
+        "ends_on": "2026-11-01",
+        "max_distance_m": 1000,
+        "max_duration_s": null,
+        "needs_confirmation": false,
+        "no_quality": false,
+        "pause_running": false,
+        "review_on": null,
+        "source": "test",
+        "starts_on": "1970-01-01",
+        "wording": null
+      },
+      "timezone": "America/Denver"
+    },
+    "facts": {
+      "running_restriction": {
+        "ends_on": "2026-11-01T00:00:00+01:00",
+        "max_distance_m": 1000,
+        "source": "test",
+        "starts_on": 0
+      }
+    }
+  },
+  {
+    "expected": null,
+    "facts": {
+      "running_restriction": {
+        "source": "test",
+        "starts_on": "2026-10-20"
+      }
+    }
+  }
+]

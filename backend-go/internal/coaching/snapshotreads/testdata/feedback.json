@@ -1,0 +1,146 @@
+{
+  "checkins": [
+    {
+      "activity_id": "00000000-0000-0000-0000-000000000064",
+      "checkin_id": "00000000-0000-0000-0000-0000000000c8",
+      "fatigue": null,
+      "gait_change": null,
+      "hours_after_end": null,
+      "illness": null,
+      "kind": "exception",
+      "local_date": "2026-07-04",
+      "morning_ankle": {
+        "pain": 0,
+        "walking_response": null
+      },
+      "observed_at": "2026-07-05T03:30:00.125000+00:00",
+      "pain_reported": null,
+      "prompt_id": null,
+      "recorded_at": "2026-11-02T03:30:00.125000+00:00",
+      "symptoms": []
+    },
+    {
+      "activity_id": "00000000-0000-0000-0000-000000000064",
+      "checkin_id": "00000000-0000-0000-0000-0000000000c9",
+      "fatigue": 4.5,
+      "gait_change": null,
+      "hours_after_end": 1.2,
+      "illness": null,
+      "kind": "exception",
+      "local_date": "2026-11-01",
+      "morning_ankle": {
+        "pain": 2.5,
+        "walking_response": "eased"
+      },
+      "observed_at": "2026-11-02T03:30:00.125000+00:00",
+      "pain_reported": null,
+      "prompt_id": null,
+      "recorded_at": "2026-11-02T03:30:00.125000+00:00",
+      "symptoms": [
+        {
+          "severity": 2.5,
+          "side": "left",
+          "site": "ankle",
+          "timing": "next_morning"
+        }
+      ]
+    },
+    {
+      "activity_id": null,
+      "checkin_id": "00000000-0000-0000-0000-0000000000ca",
+      "fatigue": null,
+      "gait_change": null,
+      "hours_after_end": null,
+      "illness": null,
+      "kind": "exception",
+      "local_date": "2026-11-01",
+      "observed_at": "2026-11-02T03:30:00.125000+00:00",
+      "pain_reported": null,
+      "prompt_id": null,
+      "recorded_at": "2026-11-02T03:30:00.125000+00:00",
+      "symptoms": [
+        {
+          "severity": 1.0,
+          "side": "left",
+          "site": "ankle",
+          "timing": "next_morning"
+        },
+        {
+          "severity": 3.0,
+          "side": "left",
+          "site": "ankle",
+          "timing": "next_morning"
+        }
+      ]
+    },
+    {
+      "activity_id": null,
+      "checkin_id": "00000000-0000-0000-0000-0000000000cb",
+      "fatigue": null,
+      "gait_change": null,
+      "hours_after_end": null,
+      "illness": null,
+      "kind": "exception",
+      "local_date": "2026-11-01",
+      "observed_at": "2026-11-02T03:30:00.125000+00:00",
+      "pain_reported": null,
+      "prompt_id": null,
+      "recorded_at": "2026-11-02T03:30:00.125000+00:00",
+      "symptoms": [
+        {
+          "severity": 1.0,
+          "side": "left",
+          "site": "ankle",
+          "timing": "next_morning"
+        },
+        {
+          "severity": 2.0,
+          "side": "left",
+          "site": "ankle",
+          "timing": "next_morning"
+        }
+      ]
+    },
+    {
+      "activity_id": null,
+      "checkin_id": "00000000-0000-0000-0000-0000000000cf",
+      "fatigue": null,
+      "gait_change": null,
+      "hours_after_end": null,
+      "illness": null,
+      "kind": "exception",
+      "local_date": "2026-11-01",
+      "observed_at": "2026-11-02T03:30:00.125000+00:00",
+      "pain_reported": null,
+      "prompt_id": null,
+      "recorded_at": "2026-11-02T03:30:00.125000+00:00",
+      "symptoms": []
+    }
+  ],
+  "prompts": [
+    {
+      "activity_id": null,
+      "closes_at": "2026-11-02T03:30:00.125000+00:00",
+      "kind": "delayed_symptom",
+      "opens_at": "2026-07-05T03:30:00.125000+00:00",
+      "prompt_id": "00000000-0000-0000-0000-00000000012c",
+      "status": "expired"
+    },
+    {
+      "activity_id": null,
+      "closes_at": null,
+      "kind": "delayed_symptom",
+      "opens_at": "2026-11-02T03:30:00.125000+00:00",
+      "prompt_id": "00000000-0000-0000-0000-00000000012d",
+      "status": "open"
+    },
+    {
+      "activity_id": null,
+      "closes_at": "2026-11-01T03:30:00.125000+00:00",
+      "kind": "delayed_symptom",
+      "opens_at": "2026-11-02T03:30:00.125000+00:00",
+      "prompt_id": "00000000-0000-0000-0000-00000000012e",
+      "status": "answered"
+    }
+  ]
+}

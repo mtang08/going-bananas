@@ -1,0 +1,602 @@
+{
+  "confirmed": [
+    {
+      "intent": "Strength",
+      "local_date": "2027-03-09"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-03-11"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-03-16"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-03-18"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-03-23"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-03-25"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-03-30"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-04-01"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-04-06"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-04-08"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-04-13"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-04-15"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-04-20"
+    },
+    {
+      "intent": "Strength",
+      "local_date": "2027-04-22"
+    }
+  ],
+  "expected": {
+    "accepted_strength_omissions": [],
+    "active_block": null,
+    "anchor_confirmed": true,
+    "anchors": [],
+    "as_of": "2027-03-14",
+    "benchmark_history": [],
+    "block_decisions": [],
+    "calendar_version": 0,
+    "checkins": [],
+    "clinical_restriction": null,
+    "completions": [],
+    "confirmed_strength_sessions": [
+      {
+        "intent": "Strength",
+        "local_date": "2027-03-09"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-03-11"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-03-16"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-03-18"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-03-23"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-03-25"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-03-30"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-04-01"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-04-06"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-04-08"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-04-13"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-04-15"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-04-20"
+      },
+      {
+        "intent": "Strength",
+        "local_date": "2027-04-22"
+      }
+    ],
+    "coverage": [
+      {
+        "completed_at": null,
+        "dataset": "activities",
+        "end_date": "2027-01-22",
+        "fully_enumerated": true,
+        "reason": null,
+        "start_date": "2026-11-14",
+        "status": "complete"
+      },
+      {
+        "completed_at": null,
+        "dataset": "activities",
+        "end_date": "2027-03-14",
+        "fully_enumerated": true,
+        "reason": null,
+        "start_date": "2027-01-23",
+        "status": "complete"
+      }
+    ],
+    "cycle_anchor": null,
+    "data_revision": 0,
+    "events": [],
+    "exception_findings": [],
+    "exception_patches": [],
+    "goals": [],
+    "metric_results": [],
+    "now": "2027-03-14T14:00:00+00:00",
+    "prompts": [],
+    "proposals": [],
+    "review_recommended": [],
+    "running_interruption": {
+      "activity_history_coverage": "complete",
+      "affected_runs": [],
+      "affected_runs_omitted": 0,
+      "first_run": null,
+      "guidance": "The latest recorded run is context, not proof of a comparable easy dose or complete training history. Affected past runs are review only; propose edits only from today onward and preserve protected records. Omit unreachable runs, preserve confirmed commitments and use the usual running rhythm. The first run is only an eligible candidate for review, not clearance; review before progressing when readiness or coverage is uncertain.",
+      "interruption": {
+        "reason": "schedule",
+        "return_on": null,
+        "review_on": "2027-03-17",
+        "starts_on": "2027-03-13"
+      },
+      "latest_recorded_run": {
+        "activity_id": "20996acc-368b-4d18-843d-a158c0eee444",
+        "distance_m": 3920.0,
+        "local_date": "2027-03-11",
+        "rpe": null,
+        "rpe_source": null,
+        "sport": "running",
+        "timer_s": 1500.0
+      },
+      "phase": "paused",
+      "profile_version": 1,
+      "recorded_return": null,
+      "review_reason": "Confirm the first available day before reviewing a return run. The review date keeps the pause in place.",
+      "today": "2027-03-14"
+    },
+    "running_restriction": null,
+    "runs": [
+      {
+        "activity_id": "20996acc-368b-4d18-843d-a158c0eee444",
+        "distance_m": 3920.0,
+        "local_date": "2027-03-11",
+        "rpe": null,
+        "rpe_source": null,
+        "sport": "running",
+        "start_at": "2027-03-11T14:00:00+00:00",
+        "timer_s": 1500.0
+      }
+    ],
+    "sessions": [],
+    "strength_slots": [],
+    "strong_workouts": [],
+    "timezone": "America/New_York",
+    "travel_meta": {
+      "calendar_synced_at": null,
+      "home_timezone": "America/New_York"
+    },
+    "trips": [],
+    "weekly_digest": [
+      {
+        "activity_coverage_complete": true,
+        "calendar_version": 0,
+        "days_elapsed": 7,
+        "decision_follow_up": null,
+        "plan_available": false,
+        "removed": [],
+        "schema": "weekly_digest.v1",
+        "sessions": [],
+        "timezone": "America/New_York",
+        "today": "2027-03-14",
+        "totals": {
+          "by_kind": {
+            "cross": {
+              "done": 0,
+              "planned": 0,
+              "planned_to_date": 0
+            },
+            "mobility": {
+              "done": 0,
+              "planned": 0,
+              "planned_to_date": 0
+            },
+            "rehab": {
+              "done": 0,
+              "planned": 0,
+              "planned_to_date": 0
+            },
+            "run": {
+              "done": 0,
+              "planned": 0,
+              "planned_to_date": 0
+            },
+            "strength": {
+              "done": 0,
+              "planned": 0,
+              "planned_to_date": 0
+            }
+          },
+          "key_sessions": {
+            "by_outcome": {
+              "completed": 0,
+              "missed": 0,
+              "modified": 0,
+              "moved": 0,
+              "not_recorded": 0,
+              "partial": 0,
+              "planned": 0,
+              "recorded": 0
+            },
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          },
+          "run_distance": {
+            "actual_m": 0,
+            "actual_unknown": 0,
+            "planned_estimated": 0,
+            "planned_m": 0,
+            "planned_to_date_m": 0,
+            "planned_unknown": 0
+          },
+          "sessions": {
+            "by_outcome": {
+              "completed": 0,
+              "missed": 0,
+              "modified": 0,
+              "moved": 0,
+              "not_recorded": 0,
+              "partial": 0,
+              "planned": 0,
+              "recorded": 0
+            },
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0,
+            "removed": 0,
+            "unplanned": 0
+          },
+          "time": {
+            "actual_s": 0,
+            "actual_unknown": 0,
+            "planned_s": 0,
+            "planned_to_date_s": 0,
+            "planned_unknown": 0,
+            "unplanned_s": 0
+          }
+        },
+        "unplanned": [],
+        "week_end": "2027-03-07",
+        "week_start": "2027-03-01"
+      },
+      {
+        "activity_coverage_complete": true,
+        "calendar_version": 0,
+        "days_elapsed": 7,
+        "decision_follow_up": null,
+        "plan_available": false,
+        "removed": [],
+        "schema": "weekly_digest.v1",
+        "sessions": [],
+        "timezone": "America/New_York",
+        "today": "2027-03-14",
+        "totals": {
+          "by_kind": {
+            "cross": {
+              "done": 0,
+              "planned": 0,
+              "planned_to_date": 0
+            },
+            "mobility": {
+              "done": 0,
+              "planned": 0,
+              "planned_to_date": 0
+            },
+            "rehab": {
+              "done": 0,
+              "planned": 0,
+              "planned_to_date": 0
+            },
+            "run": {
+              "done": 0,
+              "planned": 0,
+              "planned_to_date": 0
+            },
+            "strength": {
+              "done": 0,
+              "planned": 0,
+              "planned_to_date": 0
+            }
+          },
+          "key_sessions": {
+            "by_outcome": {
+              "completed": 0,
+              "missed": 0,
+              "modified": 0,
+              "moved": 0,
+              "not_recorded": 0,
+              "partial": 0,
+              "planned": 0,
+              "recorded": 0
+            },
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          },
+          "run_distance": {
+            "actual_m": 3920.0,
+            "actual_unknown": 0,
+            "planned_estimated": 0,
+            "planned_m": 0,
+            "planned_to_date_m": 0,
+            "planned_unknown": 0
+          },
+          "sessions": {
+            "by_outcome": {
+              "completed": 0,
+              "missed": 0,
+              "modified": 0,
+              "moved": 0,
+              "not_recorded": 0,
+              "partial": 0,
+              "planned": 0,
+              "recorded": 0
+            },
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0,
+            "removed": 0,
+            "unplanned": 1
+          },
+          "time": {
+            "actual_s": 1500.0,
+            "actual_unknown": 0,
+            "planned_s": 0,
+            "planned_to_date_s": 0,
+            "planned_unknown": 0,
+            "unplanned_s": 1500.0
+          }
+        },
+        "unplanned": [
+          {
+            "distance_m": 3920.0,
+            "duration_s": 1500.0,
+            "id": "20996acc-368b-4d18-843d-a158c0eee444",
+            "kind": "run",
+            "local_date": "2027-03-11",
+            "subject": "activity"
+          }
+        ],
+        "week_end": "2027-03-14",
+        "week_start": "2027-03-08"
+      }
+    ]
+  },
+  "omissions": [],
+  "weeks": [
+    {
+      "activity_coverage_complete": true,
+      "calendar_version": 0,
+      "days_elapsed": 7,
+      "decision_follow_up": null,
+      "plan_available": false,
+      "removed": [],
+      "schema": "weekly_digest.v1",
+      "sessions": [],
+      "timezone": "America/New_York",
+      "today": "2027-03-14",
+      "totals": {
+        "by_kind": {
+          "cross": {
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          },
+          "mobility": {
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          },
+          "rehab": {
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          },
+          "run": {
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          },
+          "strength": {
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          }
+        },
+        "key_sessions": {
+          "by_outcome": {
+            "completed": 0,
+            "missed": 0,
+            "modified": 0,
+            "moved": 0,
+            "not_recorded": 0,
+            "partial": 0,
+            "planned": 0,
+            "recorded": 0
+          },
+          "done": 0,
+          "planned": 0,
+          "planned_to_date": 0
+        },
+        "run_distance": {
+          "actual_m": 0,
+          "actual_unknown": 0,
+          "planned_estimated": 0,
+          "planned_m": 0,
+          "planned_to_date_m": 0,
+          "planned_unknown": 0
+        },
+        "sessions": {
+          "by_outcome": {
+            "completed": 0,
+            "missed": 0,
+            "modified": 0,
+            "moved": 0,
+            "not_recorded": 0,
+            "partial": 0,
+            "planned": 0,
+            "recorded": 0
+          },
+          "done": 0,
+          "planned": 0,
+          "planned_to_date": 0,
+          "removed": 0,
+          "unplanned": 0
+        },
+        "time": {
+          "actual_s": 0,
+          "actual_unknown": 0,
+          "planned_s": 0,
+          "planned_to_date_s": 0,
+          "planned_unknown": 0,
+          "unplanned_s": 0
+        }
+      },
+      "unplanned": [],
+      "week_end": "2027-03-07",
+      "week_start": "2027-03-01"
+    },
+    {
+      "activity_coverage_complete": true,
+      "calendar_version": 0,
+      "days_elapsed": 7,
+      "decision_follow_up": null,
+      "plan_available": false,
+      "removed": [],
+      "schema": "weekly_digest.v1",
+      "sessions": [],
+      "timezone": "America/New_York",
+      "today": "2027-03-14",
+      "totals": {
+        "by_kind": {
+          "cross": {
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          },
+          "mobility": {
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          },
+          "rehab": {
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          },
+          "run": {
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          },
+          "strength": {
+            "done": 0,
+            "planned": 0,
+            "planned_to_date": 0
+          }
+        },
+        "key_sessions": {
+          "by_outcome": {
+            "completed": 0,
+            "missed": 0,
+            "modified": 0,
+            "moved": 0,
+            "not_recorded": 0,
+            "partial": 0,
+            "planned": 0,
+            "recorded": 0
+          },
+          "done": 0,
+          "planned": 0,
+          "planned_to_date": 0
+        },
+        "run_distance": {
+          "actual_m": 3920.0,
+          "actual_unknown": 0,
+          "planned_estimated": 0,
+          "planned_m": 0,
+          "planned_to_date_m": 0,
+          "planned_unknown": 0
+        },
+        "sessions": {
+          "by_outcome": {
+            "completed": 0,
+            "missed": 0,
+            "modified": 0,
+            "moved": 0,
+            "not_recorded": 0,
+            "partial": 0,
+            "planned": 0,
+            "recorded": 0
+          },
+          "done": 0,
+          "planned": 0,
+          "planned_to_date": 0,
+          "removed": 0,
+          "unplanned": 1
+        },
+        "time": {
+          "actual_s": 1500.0,
+          "actual_unknown": 0,
+          "planned_s": 0,
+          "planned_to_date_s": 0,
+          "planned_unknown": 0,
+          "unplanned_s": 1500.0
+        }
+      },
+      "unplanned": [
+        {
+          "distance_m": 3920.0,
+          "duration_s": 1500.0,
+          "id": "20996acc-368b-4d18-843d-a158c0eee444",
+          "kind": "run",
+          "local_date": "2027-03-11",
+          "subject": "activity"
+        }
+      ],
+      "week_end": "2027-03-14",
+      "week_start": "2027-03-08"
+    }
+  ]
+}

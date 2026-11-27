@@ -1,0 +1,342 @@
+{
+  "active_block": {
+    "benchmark": {
+      "event_id": "00000000-0000-0000-0000-000000015f90",
+      "kind": "event",
+      "planned_date": "2026-11-01",
+      "protocol": "race_5k"
+    },
+    "benchmark_status": {
+      "activity_id": "00000000-0000-0000-0000-000000015f9c",
+      "distance_m": 5300,
+      "event_id": "00000000-0000-0000-0000-000000015f90",
+      "evidence_at": "2026-11-02T03:28:00.123400+00:00",
+      "local_date": "2026-11-01",
+      "match_method": "auto",
+      "result_s": 1100,
+      "rpe": 8.0,
+      "scheduled_date": null,
+      "status": "completed"
+    },
+    "block_uid": "00000000-0000-0000-0000-000000015fa4",
+    "build_outline": [],
+    "constraints": {},
+    "early_review_triggers": [],
+    "eligible_recipe_ids": [],
+    "indicators": [],
+    "legacy_text": null,
+    "maintained_qualities": [],
+    "non_goals": [],
+    "objective": "Race benchmark",
+    "objective_status": "unresolved",
+    "progression_dimension": "none",
+    "review_date": "2026-11-04",
+    "start_date": "2026-10-11",
+    "status": "active",
+    "target_event_id": "00000000-0000-0000-0000-000000015f90",
+    "target_event_status": "changed",
+    "version": 1,
+    "version_id": "00000000-0000-0000-0000-000000015fa5",
+    "why": []
+  },
+  "anchors": [
+    {
+      "anchor_key": "fixture",
+      "calibrated_at": "2026-11-02T03:30:00.123400+00:00",
+      "confidence": "low",
+      "kind": "hr_aerobic_upper",
+      "protocol": "manual",
+      "review_after": "2026-11-11",
+      "status": "provisional",
+      "supersedes_key": null,
+      "unit": "bpm",
+      "valid_from": "2026-11-01",
+      "value_high": null,
+      "value_low": 140.0
+    }
+  ],
+  "benchmark_history": [
+    {
+      "block_uid": "00000000-0000-0000-0000-000000015fa4",
+      "distance_m": 5000,
+      "local_date": "2026-11-01",
+      "objective": "Race benchmark",
+      "outcome": "progress",
+      "protocol": "race_5k",
+      "result_s": 1103
+    }
+  ],
+  "block_decisions": [
+    {
+      "block_uid": "00000000-0000-0000-0000-000000015fa4",
+      "confidence": "moderate",
+      "decided_at": "2026-11-02T03:30:00.123400+00:00",
+      "decision": "start",
+      "from_version": null,
+      "proposal_id": null,
+      "rationale": "Fixture",
+      "to_version": 1
+    }
+  ],
+  "events": [
+    {
+      "distance_m": 5000,
+      "event_date": "2026-10-04",
+      "event_id": "00000000-0000-0000-0000-000000015f92",
+      "goal_pace_s_per_km": 221,
+      "goal_time_s": 1103,
+      "name": "Fixture race 2",
+      "purpose": "benchmark",
+      "rank": null,
+      "result_s": null,
+      "status": "completed"
+    },
+    {
+      "distance_m": 5000,
+      "event_date": "2026-11-01",
+      "event_id": "00000000-0000-0000-0000-000000015f90",
+      "goal_pace_s_per_km": 221,
+      "goal_time_s": 1103,
+      "name": "Fixture race 0",
+      "purpose": "benchmark",
+      "rank": 2,
+      "result_s": 1100,
+      "status": "registered"
+    },
+    {
+      "distance_m": 5000,
+      "event_date": "2026-11-09",
+      "event_id": "00000000-0000-0000-0000-000000015f91",
+      "goal_pace_s_per_km": 221,
+      "goal_time_s": 1103,
+      "name": "Fixture race 1",
+      "purpose": "benchmark",
+      "rank": 1,
+      "result_s": null,
+      "status": "planned"
+    }
+  ],
+  "proposals": [
+    {
+      "changes": [
+        {
+          "after": null,
+          "before": null,
+          "change_id": "C1",
+          "decision": "accepted",
+          "op": "add",
+          "session_uid": null
+        },
+        {
+          "after": null,
+          "before": null,
+          "change_id": "C2",
+          "decision": "accepted",
+          "material_flags": [
+            "strength_omission"
+          ],
+          "op": "add",
+          "reason": "Fixture",
+          "session_uid": null
+        }
+      ],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fcc",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fcb",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fca",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fc9",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fc8",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fc7",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fc6",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fc5",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fc4",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fc3",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fc2",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fc1",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fc0",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fbf",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fbe",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fbd",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fbc",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fbb",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fba",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    },
+    {
+      "changes": [],
+      "decided_at": null,
+      "headline": "Fixture",
+      "next_check": null,
+      "operation": "review_rolling_plan",
+      "proposal_id": "00000000-0000-0000-0000-000000015fb9",
+      "status": "accepted",
+      "submitted_at": "2026-11-02T03:30:00.123400+00:00"
+    }
+  ]
+}

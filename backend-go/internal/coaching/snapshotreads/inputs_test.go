@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"os/exec"
 	"reflect"
 	"testing"
 	"time"
@@ -13,16 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func TestInputsPythonComposition(t *testing.T) {
-	dsn := os.Getenv("DASHBOARD_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("requires disposable dashboard test schema")
-	}
-	cmd := exec.CommandContext(t.Context(), os.Getenv("DASHBOARD_REFERENCE_PYTHON"), "testdata/inputs_reference.py")
-	raw, err := cmd.Output()
-	if err != nil {
-		t.Fatal("Python snapshot composition reference failed:", err)
-	}
+func TestInputsComposition(t *testing.T) {
+	tx, raw := snapshotFixture(t, "inputs")
 	var reference struct {
 		Expected             map[string]any
 		Weeks                []map[string]any
@@ -31,16 +21,6 @@ func TestInputsPythonComposition(t *testing.T) {
 	if err := json.Unmarshal(raw, &reference); err != nil {
 		t.Fatal(err)
 	}
-	conn, err := pgx.Connect(t.Context(), dsn)
-	if err != nil {
-		t.Fatal("open composition fixture")
-	}
-	defer func() { _ = conn.Close(context.Background()) }()
-	tx, err := conn.BeginTx(t.Context(), pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback(context.Background()) }()
 	const date = "2027-03-14"
 	const operation = "review_rolling_plan"
 	now := time.Date(2027, 3, 14, 14, 0, 0, 0, time.UTC)
@@ -80,7 +60,7 @@ func TestInputsPythonComposition(t *testing.T) {
 	}
 	for key, v := range reference.Expected {
 		if !reflect.DeepEqual(actual[key], v) {
-			t.Errorf("%s: Go %#v; Python %#v", key, actual[key], v)
+			t.Errorf("%s: got %#v; want %#v", key, actual[key], v)
 		}
 	}
 	if out.RunningInterruption["activity_history_coverage"] != "complete" || out.RunningInterruption["latest_recorded_run"] == nil || len(out.ConfirmedStrengthSessions) == 0 {

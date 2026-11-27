@@ -1,0 +1,522 @@
+[
+  {
+    "day": "2026-11-01",
+    "expected": {
+      "affected_runs": [],
+      "affected_runs_omitted": 0,
+      "first_run": null,
+      "interruption": null,
+      "phase": null,
+      "profile_version": 4,
+      "recorded_return": null,
+      "review_reason": null,
+      "today": "2026-11-01"
+    },
+    "facts": {}
+  },
+  {
+    "day": "2026-10-31",
+    "expected": {
+      "affected_runs": [
+        {
+          "intent": "Run 0",
+          "local_date": "2026-11-01",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "6ec93a0f-7a8b-f4c0-3876-d97ba61b987d"
+        },
+        {
+          "intent": "Run 5",
+          "local_date": "2026-11-06",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "0a9ce9b5-dd47-f0f2-aff6-114cf95576b5"
+        },
+        {
+          "intent": "Run 6",
+          "local_date": "2026-11-07",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "5e607ec8-97d1-6ef7-54f7-964047bd715c"
+        },
+        {
+          "intent": "Run 7",
+          "local_date": "2026-11-08",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "b3e025c3-23c7-c4f2-ed2a-63f11ae35955"
+        },
+        {
+          "intent": "Run 8",
+          "local_date": "2026-11-09",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "6449ede9-365a-cb1e-f50d-c909b6fc223e"
+        },
+        {
+          "intent": "Run 9",
+          "local_date": "2026-11-10",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "2f2a8034-9d1a-1918-7266-afa0b5ed8200"
+        },
+        {
+          "intent": "Run 10",
+          "local_date": "2026-11-11",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "574490be-4d1e-d4c5-293d-6c17d0d9e298"
+        },
+        {
+          "intent": "Run 11",
+          "local_date": "2026-11-12",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "51b340e5-eebf-5959-a4ff-751e2febd6d0"
+        }
+      ],
+      "affected_runs_omitted": 0,
+      "first_run": {
+        "intent": "Run 15",
+        "local_date": "2026-11-16",
+        "planned_distance_m": null,
+        "planned_duration_s": 3000,
+        "recipe_id": "REC001",
+        "session_uid": "cda32eb1-8890-f529-6964-6e882a90e2c1"
+      },
+      "interruption": {
+        "reason": "travel",
+        "return_on": "2026-11-13",
+        "review_on": null,
+        "starts_on": "2026-11-01"
+      },
+      "phase": "planned",
+      "profile_version": 4,
+      "recorded_return": null,
+      "review_reason": "Review the session and choose an easy return option for 2026-11-13. Review the reduced or unavailable travel day on 2026-11-14 before keeping that run. Confirm running access and availability during the trip on 2026-11-15 before keeping that run.",
+      "today": "2026-10-31"
+    },
+    "facts": {
+      "running_interruption": {
+        "reason": "travel",
+        "return_on": "2026-11-13",
+        "starts_on": "2026-11-01"
+      }
+    }
+  },
+  {
+    "day": "2026-11-06",
+    "expected": {
+      "affected_runs": [
+        {
+          "intent": "Run 0",
+          "local_date": "2026-11-01",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "6ec93a0f-7a8b-f4c0-3876-d97ba61b987d"
+        },
+        {
+          "intent": "Run 5",
+          "local_date": "2026-11-06",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "0a9ce9b5-dd47-f0f2-aff6-114cf95576b5"
+        },
+        {
+          "intent": "Run 6",
+          "local_date": "2026-11-07",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "5e607ec8-97d1-6ef7-54f7-964047bd715c"
+        },
+        {
+          "intent": "Run 7",
+          "local_date": "2026-11-08",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "b3e025c3-23c7-c4f2-ed2a-63f11ae35955"
+        },
+        {
+          "intent": "Run 8",
+          "local_date": "2026-11-09",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "6449ede9-365a-cb1e-f50d-c909b6fc223e"
+        },
+        {
+          "intent": "Run 9",
+          "local_date": "2026-11-10",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "2f2a8034-9d1a-1918-7266-afa0b5ed8200"
+        },
+        {
+          "intent": "Run 10",
+          "local_date": "2026-11-11",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "574490be-4d1e-d4c5-293d-6c17d0d9e298"
+        },
+        {
+          "intent": "Run 11",
+          "local_date": "2026-11-12",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "51b340e5-eebf-5959-a4ff-751e2febd6d0"
+        }
+      ],
+      "affected_runs_omitted": 0,
+      "first_run": {
+        "intent": "Run 19",
+        "local_date": "2026-11-20",
+        "planned_distance_m": null,
+        "planned_duration_s": 1200,
+        "recipe_id": "REC001",
+        "session_uid": "8d127ec1-c9f3-db44-81c9-fe9d5fc4a88c"
+      },
+      "interruption": {
+        "reason": "travel",
+        "return_on": "2026-11-13",
+        "review_on": null,
+        "starts_on": "2026-11-01"
+      },
+      "phase": "paused",
+      "profile_version": 4,
+      "recorded_return": null,
+      "review_reason": "Review the session and choose an easy return option for 2026-11-13. Review the reduced or unavailable travel day on 2026-11-14 before keeping that run. Confirm running access and availability during the trip on 2026-11-15 before keeping that run. Review the run on 2026-11-16 against the recorded running limits. Confirm the planned duration, distance, or workout steps before keeping the run on 2026-11-17.",
+      "today": "2026-11-06"
+    },
+    "facts": {
+      "running_interruption": {
+        "reason": "travel",
+        "return_on": "2026-11-13",
+        "starts_on": "2026-11-01"
+      },
+      "running_restriction": {
+        "ends_on": "2026-11-16",
+        "max_duration_s": 1800,
+        "source": "Athlete",
+        "starts_on": "2026-11-16"
+      }
+    }
+  },
+  {
+    "day": "2026-11-16",
+    "expected": {
+      "affected_runs": [
+        {
+          "intent": "Run 0",
+          "local_date": "2026-11-01",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "6ec93a0f-7a8b-f4c0-3876-d97ba61b987d"
+        },
+        {
+          "intent": "Run 5",
+          "local_date": "2026-11-06",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "0a9ce9b5-dd47-f0f2-aff6-114cf95576b5"
+        },
+        {
+          "intent": "Run 6",
+          "local_date": "2026-11-07",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "5e607ec8-97d1-6ef7-54f7-964047bd715c"
+        },
+        {
+          "intent": "Run 7",
+          "local_date": "2026-11-08",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "b3e025c3-23c7-c4f2-ed2a-63f11ae35955"
+        },
+        {
+          "intent": "Run 8",
+          "local_date": "2026-11-09",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "6449ede9-365a-cb1e-f50d-c909b6fc223e"
+        },
+        {
+          "intent": "Run 9",
+          "local_date": "2026-11-10",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "2f2a8034-9d1a-1918-7266-afa0b5ed8200"
+        },
+        {
+          "intent": "Run 10",
+          "local_date": "2026-11-11",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "574490be-4d1e-d4c5-293d-6c17d0d9e298"
+        },
+        {
+          "intent": "Run 11",
+          "local_date": "2026-11-12",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "51b340e5-eebf-5959-a4ff-751e2febd6d0"
+        }
+      ],
+      "affected_runs_omitted": 0,
+      "first_run": null,
+      "interruption": {
+        "reason": "travel",
+        "return_on": "2026-11-13",
+        "review_on": null,
+        "starts_on": "2026-11-01"
+      },
+      "phase": "returning",
+      "profile_version": 4,
+      "recorded_return": null,
+      "review_reason": "Review the existing running restriction before choosing a return run.",
+      "today": "2026-11-16"
+    },
+    "facts": {
+      "clinical_restriction": "Clinical limit",
+      "running_interruption": {
+        "reason": "travel",
+        "return_on": "2026-11-13",
+        "starts_on": "2026-11-01"
+      }
+    }
+  },
+  {
+    "day": "2026-11-16",
+    "expected": {
+      "affected_runs": [
+        {
+          "intent": "Run 13",
+          "local_date": "2026-11-14",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "799bc200-920d-6ee4-3b4d-2ba9803da1e2"
+        },
+        {
+          "intent": "Run 14",
+          "local_date": "2026-11-15",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "eae61259-c738-4f8b-decd-cee0d87bc9ad"
+        },
+        {
+          "intent": "Run 15",
+          "local_date": "2026-11-16",
+          "planned_distance_m": null,
+          "planned_duration_s": 3000,
+          "recipe_id": "REC001",
+          "session_uid": "cda32eb1-8890-f529-6964-6e882a90e2c1"
+        },
+        {
+          "intent": "Run 16",
+          "local_date": "2026-11-17",
+          "planned_distance_m": null,
+          "planned_duration_s": null,
+          "recipe_id": "REC001",
+          "session_uid": "bcd714ba-c58e-7ee9-368f-7cd05091dab7"
+        },
+        {
+          "intent": "Run 17",
+          "local_date": "2026-11-18",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "4d17a8c4-6c7c-1213-c69b-03a5265a705d"
+        },
+        {
+          "intent": "Run 18",
+          "local_date": "2026-11-19",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "4e73b79f-3e86-0836-67f4-830ea10e6ea5"
+        },
+        {
+          "intent": "Run 19",
+          "local_date": "2026-11-20",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "8d127ec1-c9f3-db44-81c9-fe9d5fc4a88c"
+        },
+        {
+          "intent": "Run 20",
+          "local_date": "2026-11-21",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "94256c6b-00ff-ecb0-5ced-9b242f2aca50"
+        }
+      ],
+      "affected_runs_omitted": 9,
+      "first_run": null,
+      "interruption": {
+        "reason": "other",
+        "return_on": null,
+        "review_on": "2026-11-16",
+        "starts_on": "2026-11-01"
+      },
+      "phase": "review_due",
+      "profile_version": 4,
+      "recorded_return": null,
+      "review_reason": "Confirm the first available day before reviewing a return run. The review date keeps the pause in place.",
+      "today": "2026-11-16"
+    },
+    "facts": {
+      "running_interruption": {
+        "reason": "other",
+        "review_on": "2026-11-16",
+        "starts_on": "2026-11-01"
+      }
+    }
+  },
+  {
+    "day": "2026-11-21",
+    "expected": {
+      "affected_runs": [
+        {
+          "intent": "Run 0",
+          "local_date": "2026-11-01",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "6ec93a0f-7a8b-f4c0-3876-d97ba61b987d"
+        },
+        {
+          "intent": "Run 5",
+          "local_date": "2026-11-06",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "0a9ce9b5-dd47-f0f2-aff6-114cf95576b5"
+        },
+        {
+          "intent": "Run 6",
+          "local_date": "2026-11-07",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "5e607ec8-97d1-6ef7-54f7-964047bd715c"
+        },
+        {
+          "intent": "Run 7",
+          "local_date": "2026-11-08",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "b3e025c3-23c7-c4f2-ed2a-63f11ae35955"
+        },
+        {
+          "intent": "Run 8",
+          "local_date": "2026-11-09",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "6449ede9-365a-cb1e-f50d-c909b6fc223e"
+        },
+        {
+          "intent": "Run 9",
+          "local_date": "2026-11-10",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "2f2a8034-9d1a-1918-7266-afa0b5ed8200"
+        },
+        {
+          "intent": "Run 10",
+          "local_date": "2026-11-11",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "574490be-4d1e-d4c5-293d-6c17d0d9e298"
+        },
+        {
+          "intent": "Run 11",
+          "local_date": "2026-11-12",
+          "planned_distance_m": null,
+          "planned_duration_s": 1200,
+          "recipe_id": "REC001",
+          "session_uid": "51b340e5-eebf-5959-a4ff-751e2febd6d0"
+        }
+      ],
+      "affected_runs_omitted": 0,
+      "first_run": null,
+      "interruption": {
+        "reason": "travel",
+        "return_on": "2026-11-13",
+        "review_on": null,
+        "starts_on": "2026-11-01"
+      },
+      "phase": "returning",
+      "profile_version": 4,
+      "recorded_return": {
+        "activity_id": "5157e3c7-65af-9367-9ea0-7052f30f0a6e",
+        "local_date": "2026-11-21"
+      },
+      "review_reason": "Review your response to the recorded return run and end the interruption when appropriate.",
+      "today": "2026-11-21"
+    },
+    "facts": {
+      "running_interruption": {
+        "reason": "travel",
+        "return_on": "2026-11-13",
+        "starts_on": "2026-11-01"
+      }
+    }
+  },
+  {
+    "day": "2026-12-01",
+    "expected": {
+      "affected_runs": [],
+      "affected_runs_omitted": 0,
+      "first_run": null,
+      "interruption": {
+        "reason": "schedule",
+        "return_on": "2026-12-02",
+        "review_on": null,
+        "starts_on": "2026-12-01"
+      },
+      "phase": "paused",
+      "profile_version": 4,
+      "recorded_return": null,
+      "review_reason": "There are no uncompleted, unlocked accepted runs to review in the next four weeks.",
+      "today": "2026-12-01"
+    },
+    "facts": {
+      "running_interruption": {
+        "reason": "schedule",
+        "return_on": "2026-12-02",
+        "starts_on": "2026-12-01"
+      }
+    }
+  }
+]
