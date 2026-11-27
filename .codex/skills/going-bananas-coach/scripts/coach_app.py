@@ -63,9 +63,9 @@ def repo_root(explicit: Path | None = None) -> Path:
     candidates = ([explicit] if explicit else []) + ([Path(os.environ['GB_REPO'])] if os.getenv('GB_REPO') else [])
     candidates += list(Path(__file__).resolve().parents) + [Path.home() / 'dev/going-bananas']
     for candidate in candidates:
-        if (candidate / 'scripts/with-mode').is_file() and (
-            (candidate / 'backend/app/cli.py').is_file() or (candidate / 'backend-go/go.mod').is_file()
-        ):
+        if all((candidate / path).is_file() for path in (
+            'scripts/with-mode', 'scripts/coach-cli', 'backend-go/go.mod',
+        )):
             return candidate.resolve()
         if explicit:
             break

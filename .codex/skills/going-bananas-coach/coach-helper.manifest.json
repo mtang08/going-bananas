@@ -1,5 +1,5 @@
 {
-  "artifact_version": "going-bananas-coach.MVP-1.7",
+  "artifact_version": "going-bananas-coach.MVP-1.8",
   "protocol": "coach_proposal.v2",
   "required_authority": "calendar",
   "activation": "manual",
@@ -14,7 +14,7 @@
     },
     {
       "path": "references/app-access.md",
-      "sha256": "02ce0efd667df40599dd449b1dbc24da0bacdf373c7c77f45fb526cd0412e839"
+      "sha256": "f2d702f8d96674730b09361323f8cc103cd0a64598507f410f5701aa54b56606"
     },
     {
       "path": "references/coaching-workflows.md",
@@ -34,7 +34,7 @@
     },
     {
       "path": "scripts/coach_app.py",
-      "sha256": "049b8c79a556cdd8682b397260ae5b964ddb27cf026c4590f693e4dac9a3f07a"
+      "sha256": "a804a41ffaeedf6151314f670ec187297ca458345440fdbc303aa98d84425963"
     }
   ]
 }

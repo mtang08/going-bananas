@@ -1,6 +1,6 @@
 # App access
 
-Run the helper with Python 3 and an explicit `--mode real|demo|test`. It locates the repository from its source path, `--repo`, `GB_REPO`, or `~/dev/going-bananas` when installed. `--base-url` defaults to `http://127.0.0.1:8000`; HTTP access permits loopback origins only and checks the response mode.
+Run the helper with Python 3 and an explicit `--mode real|demo|test`. It locates the native Go checkout from its source path, `--repo`, `GB_REPO`, or `~/dev/going-bananas` when installed. `--base-url` defaults to `http://127.0.0.1:8000`; HTTP access permits loopback origins only and checks the response mode.
 
 Commands:
 
@@ -23,7 +23,7 @@ Commands:
 
 Exit codes: 0 success; 1 sanitized runtime failure; 2 invalid input/protocol; 3 stale proposal; 4 unavailable verified research or missing query subject. Read structured errors and apply the bounded retries in SKILL.md. A successful submission must say `pending`; any other successful response is treated as a protocol error.
 
-Schema, snapshot, query, submit, and revise invoke the repository CLI through `scripts/with-mode` using subprocess argument arrays. The helper uses Go by default in demo and test, and Python by default in real mode. The owner can set `GOING_BANANAS_BACKEND=go` to select Go for the explicit mode, or `python` to select Python. `active-proposal`, `exceptions`, `history`, and `proposal` use read-only API GET requests. There is no automatic mode switch, shell command interpolation, direct SQL, accept command, or fallback to `/coach/agent/proposals`. Plans are accepted in the app review page. This package is installed from its verified manifest during the app's calendar-authority cutover.
+Schema, snapshot, query, submit, and revise invoke the native Go CLI in all three modes. The Python helper runs `scripts/with-mode MODE scripts/coach-cli` using subprocess argument arrays to select the workspace database and private directory. `active-proposal`, `exceptions`, `history`, and `proposal` use read-only API GET requests. There is no automatic mode switch, shell command interpolation, direct SQL, accept command, or fallback to `/coach/agent/proposals`. Plans are accepted in the app review page. This package is installed from its verified manifest during the app's calendar-authority cutover.
 
 ## Reusable access without repeated prompts
 
