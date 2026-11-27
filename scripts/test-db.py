@@ -149,6 +149,7 @@ def main():
         'backup': 'check_workspace_backup.py',
         'phone-checkins': 'check_phone_checkins.py',
         'calendar': 'check_self_reports.py',
+        'completion-http': 'check_completion_http.py',
         'rematch': 'check_rematch.py',
         'dashboard': 'check_dashboard.py',
     }
