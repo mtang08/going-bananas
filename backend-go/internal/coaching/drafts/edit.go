@@ -16,13 +16,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching"
+	"github.com/mtang08/going-bananas/backend-go/internal/jsonmodel"
 )
 
-type Issue struct {
-	Code    string `json:"code"`
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
+type Issue jsonmodel.Issue
 
 type CommandError struct {
 	ErrorInfo Error   `json:"error"`

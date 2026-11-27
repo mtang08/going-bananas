@@ -82,7 +82,7 @@ def snapshot(env):
         # Stable source identities replace runtime-specific UUIDs in provenance.
         hashes = dict(rows("SELECT id::text,payload_hash FROM source_records"))
         activities = []
-        for (item,) in rows("SELECT to_jsonb(a) - ARRAY['id','source_account_id','fit_file_id'] FROM activities a ORDER BY garmin_id"):
+        for (item,) in rows("SELECT to_jsonb(a) - ARRAY['id','source_account_id','fit_file_id'] FROM activities a ORDER BY source_identity"):
             for ref in item["field_provenance"].values():
                 if "source_record_id" in ref:
                     ref["source_record_id"] = hashes[ref["source_record_id"]]
@@ -181,6 +181,38 @@ def scenario(binary, directory, api, ref, go, export_first):
         damaged = snapshot(go)
         for key in ("activities", "activity_laps", "activity_workout_steps", "activity_streams", "rpe"):
             assert damaged[key] == good[key]
+    if export_first:
+        # Isolate a two-page strength replay from the prior FIT-reprocessing checks.
+        job = str(uuid4())
+        base = dict(ownerId=777, activityType={"typeKey": "strength_training"},
+                    startTimeGMT="2026-11-15T16:00:00+00:00", distance=0, elapsedDuration=900)
+        def revision(env):
+            with connect(env) as conn:
+                return conn.execute("SELECT data_revision FROM app_state WHERE id=1").fetchone()[0]
+        def apply(rows, index, expected_delta):
+            before = [revision(env) for env in (ref, go)]
+            page = dict(index=index, activities=rows, final=index == 2)
+            result = run(page, reference=False)
+            subprocess.run([sys.executable, __file__, "python", target], env=ref, check=True)
+            assert [revision(env)-old for env, old in zip((ref, go), before, strict=True)] == [expected_delta]*2
+            return result
+        apply([dict(base, activityId=401)], 0, 1)
+        for env in (ref, go):
+            with connect(env) as conn:
+                conn.execute("INSERT INTO manual_sessions(id,version,date,kind) VALUES(gen_random_uuid(),1,'2026-11-15','strength')")
+        new_rows = [dict(base, activityId=402), dict(base)]
+        result = apply(new_rows, 1, 1)
+        for env in (ref, go):
+            with connect(env) as conn:
+                held = dict(conn.execute("SELECT id::text,local_date::text FROM activities WHERE resolution_state='pending'"))
+                assert len(held) == 3
+                if env is go:
+                    assert result["affected_activity_dates"] == held
+                    assert result["affected_dates"] == ["2026-11-15"]
+                assert dict(conn.execute("SELECT kind,count(*) FROM conflicts GROUP BY kind")) == {
+                    "manual_import_overlap": 3, "activity_overlap": 2}
+        repeated = apply(new_rows, 2, 0)
+        assert not repeated["affected_activity_dates"]
     print(f"PASS {'export → API' if export_first else 'API → export'}: source history, ZIP and fields, checkpoint rollback, restart, duplicate, partial page, retained archive repair/error")
 
 

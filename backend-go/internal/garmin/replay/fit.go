@@ -116,9 +116,6 @@ func updateFIT(ctx context.Context, tx pgx.Tx, activity, raw uuid.UUID, f stored
 		_, err = tx.Exec(ctx, `INSERT INTO session_rpe(id,activity_id,rpe,source,collected_at) VALUES(gen_random_uuid(),$1,$2,'garmin_fit',$3)
 			ON CONFLICT(activity_id,source) DO UPDATE SET rpe=excluded.rpe,collected_at=excluded.collected_at`, activity, s.WorkoutRPE, end)
 	}
-	if err == nil {
-		_, err = db.New(tx).BumpDataRevision(ctx)
-	}
 	return true, false, err
 }
 
@@ -188,6 +185,9 @@ func Reprocess(ctx context.Context, pool *pgxpool.Pool, root string, activity uu
 		changed, failed, err := updateFIT(ctx, tx, activity, raw, f, now, true)
 		if changed {
 			status = "reprocessed"
+			if err == nil {
+				_, err = db.New(tx).BumpDataRevision(ctx)
+			}
 		} else if failed {
 			if err == nil {
 				err = tx.QueryRow(ctx, "SELECT last_error FROM fit_files WHERE id=$1", id).Scan(&status)

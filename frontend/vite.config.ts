@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite'
+import { servedByGo } from './goRoutes'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath } from 'node:url'
@@ -27,34 +28,7 @@ const goProxy: Plugin = {
         configure(proxy) {
           server.middlewares.use((req, res, next) => {
             const path = req.url?.split('?', 1)[0] ?? ''
-            if (
-              (req.method === 'GET' &&
-                [
-                  '/api/v1/coach/proposals',
-                  '/api/v1/calendar/versions',
-                  '/api/v1/calendar/weekly-digest',
-                  '/api/v1/calendar/weekly-projection',
-                  '/api/v1/running-interruption',
-                  '/api/v1/goals',
-                  '/api/v1/google-calendar/status',
-                  '/api/v1/google-calendar/events',
-                  '/api/v1/trips',
-                ].includes(path)) ||
-              (req.method === 'POST' &&
-                ['/api/v1/goals', '/api/v1/google-calendar/sync', '/api/v1/trips'].includes(
-                  path,
-                )) ||
-              (req.method === 'GET' &&
-                /^\/api\/v1\/coach\/proposals\/[^/]+(?:\/document|\/revisions\/[^/]+)?$/.test(
-                  path,
-                )) ||
-              (req.method === 'DELETE' && /^\/api\/v1\/coach\/proposals\/[^/]+$/.test(path)) ||
-              (req.method === 'POST' &&
-                /^\/api\/v1\/coach\/proposals\/[^/]+\/revise$/.test(path)) ||
-              (req.method === 'PATCH' &&
-                /^\/api\/v1\/(?:goals|trips|google-calendar\/events)\/[^/]+$/.test(path))
-            )
-              return proxy.web(req, res, { target })
+            if (servedByGo(req.method, path)) return proxy.web(req, res, { target })
             next()
           })
         },

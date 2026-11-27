@@ -73,7 +73,7 @@ func DerivedScopes(ctx context.Context, tx pgx.Tx, scopes []string, now time.Tim
 		}
 		matched = append(matched, ids...)
 	}
-	if err := b.apply(s, matched, includeToday); err != nil {
+	if err := b.scopeMetrics(s, matched, includeToday); err != nil {
 		return err
 	}
 	_, err = prompts.Generate(ctx, tx, now)

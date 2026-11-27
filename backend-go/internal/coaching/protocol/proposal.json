@@ -1,0 +1,1594 @@
+{
+  "$defs": {
+    "AnchorChange": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "value_low": {
+          "title": "Value Low",
+          "type": "number"
+        },
+        "value_high": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value High"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "protocol": {
+          "title": "Protocol",
+          "type": "string"
+        },
+        "confidence": {
+          "title": "Confidence",
+          "type": "string"
+        },
+        "calibrated_at": {
+          "format": "date-time",
+          "title": "Calibrated At",
+          "type": "string"
+        },
+        "source_activity_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Activity Id"
+        },
+        "conditions": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Conditions"
+        },
+        "supersedes_key": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Supersedes Key"
+        }
+      },
+      "required": [
+        "kind",
+        "value_low",
+        "unit",
+        "protocol",
+        "confidence",
+        "calibrated_at"
+      ],
+      "title": "AnchorChange",
+      "type": "object"
+    },
+    "BlockBenchmark": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "time_trial",
+            "event"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Event Id"
+        },
+        "protocol": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Protocol",
+          "type": "string"
+        },
+        "distance_m": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distance M"
+        },
+        "planned_date": {
+          "format": "date",
+          "title": "Planned Date",
+          "type": "string"
+        },
+        "progress_if": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Progress If",
+          "type": "string"
+        },
+        "consolidate_if": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Consolidate If",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "protocol",
+        "planned_date",
+        "progress_if",
+        "consolidate_if"
+      ],
+      "title": "BlockBenchmark",
+      "type": "object"
+    },
+    "BlockChange": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "start",
+            "continue",
+            "extend",
+            "consolidate",
+            "transition",
+            "replace",
+            "end"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "block_uid": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Block Uid"
+        },
+        "version_fields": {
+          "$ref": "#/$defs/BlockVersionFields"
+        }
+      },
+      "required": [
+        "decision",
+        "block_uid",
+        "version_fields"
+      ],
+      "title": "BlockChange",
+      "type": "object"
+    },
+    "BlockConstraint": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "maxLength": 24,
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "BlockConstraint",
+      "type": "object"
+    },
+    "BlockVersionFields": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "draft",
+            "active",
+            "consolidating",
+            "completed",
+            "replaced",
+            "ended"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "objective": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Objective",
+          "type": "string"
+        },
+        "why": {
+          "items": {
+            "$ref": "#/$defs/Why"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Why",
+          "type": "array"
+        },
+        "maintained_qualities": {
+          "items": {
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Maintained Qualities",
+          "type": "array"
+        },
+        "non_goals": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Non Goals",
+          "type": "array"
+        },
+        "eligible_recipe_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Eligible Recipe Ids",
+          "type": "array"
+        },
+        "progression_dimension": {
+          "enum": [
+            "duration",
+            "frequency",
+            "long_run",
+            "quality_volume",
+            "intensity",
+            "none"
+          ],
+          "title": "Progression Dimension",
+          "type": "string"
+        },
+        "constraints": {
+          "items": {
+            "$ref": "#/$defs/BlockConstraint"
+          },
+          "maxItems": 5,
+          "title": "Constraints",
+          "type": "array"
+        },
+        "start_date": {
+          "format": "date",
+          "title": "Start Date",
+          "type": "string"
+        },
+        "review_date": {
+          "format": "date",
+          "title": "Review Date",
+          "type": "string"
+        },
+        "indicators": {
+          "items": {
+            "$ref": "#/$defs/Indicator"
+          },
+          "maxItems": 4,
+          "title": "Indicators",
+          "type": "array"
+        },
+        "early_review_triggers": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 4,
+          "title": "Early Review Triggers",
+          "type": "array"
+        },
+        "objective_status": {
+          "enum": [
+            "unresolved",
+            "partially_achieved",
+            "achieved",
+            "not_achieved"
+          ],
+          "title": "Objective Status",
+          "type": "string"
+        },
+        "benchmark": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BlockBenchmark"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "target_event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Event Id"
+        },
+        "build_outline": {
+          "items": {
+            "$ref": "#/$defs/OutlineStep"
+          },
+          "maxItems": 8,
+          "title": "Build Outline",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "objective",
+        "why",
+        "maintained_qualities",
+        "non_goals",
+        "eligible_recipe_ids",
+        "progression_dimension",
+        "constraints",
+        "start_date",
+        "review_date",
+        "indicators",
+        "early_review_triggers",
+        "objective_status"
+      ],
+      "title": "BlockVersionFields",
+      "type": "object"
+    },
+    "Change": {
+      "additionalProperties": false,
+      "properties": {
+        "change_id": {
+          "pattern": "^c[1-9][0-9]{0,9}$",
+          "title": "Change Id",
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "add",
+            "modify",
+            "move",
+            "delete"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "session_uid": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Uid"
+        },
+        "after": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionFields"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reason": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "material_flags": {
+          "items": {
+            "enum": [
+              "off_cycle_run",
+              "strength_move",
+              "strength_omission"
+            ],
+            "type": "string"
+          },
+          "title": "Material Flags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "change_id",
+        "op",
+        "reason"
+      ],
+      "title": "Change",
+      "type": "object"
+    },
+    "Confidence": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "high",
+            "moderate",
+            "low"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "evidence": {
+          "enum": [
+            "high",
+            "moderate",
+            "low"
+          ],
+          "title": "Evidence",
+          "type": "string"
+        },
+        "data": {
+          "enum": [
+            "high",
+            "moderate",
+            "low"
+          ],
+          "title": "Data",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "evidence",
+        "data"
+      ],
+      "title": "Confidence",
+      "type": "object"
+    },
+    "Effort": {
+      "additionalProperties": false,
+      "properties": {
+        "rpe_low": {
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Rpe Low",
+          "type": "integer"
+        },
+        "rpe_high": {
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Rpe High",
+          "type": "integer"
+        },
+        "feel": {
+          "description": "Plain feel, e.g. 'controlled, conversational'",
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Feel",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rpe_low",
+        "rpe_high",
+        "feel"
+      ],
+      "title": "Effort",
+      "type": "object"
+    },
+    "EventReview": {
+      "additionalProperties": false,
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Event Id"
+        },
+        "activity_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activity Id"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "progress",
+                "consolidate",
+                "recalibrate_only",
+                "inconclusive"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outcome"
+        },
+        "compared_with": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Compared With"
+        },
+        "pacing": {
+          "maxLength": 240,
+          "title": "Pacing",
+          "type": "string"
+        },
+        "effort_and_limiter": {
+          "maxLength": 240,
+          "title": "Effort And Limiter",
+          "type": "string"
+        },
+        "conditions": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Conditions"
+        },
+        "symptoms": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symptoms"
+        },
+        "recovery_observation": {
+          "maxLength": 240,
+          "title": "Recovery Observation",
+          "type": "string"
+        },
+        "recalibration": {
+          "enum": [
+            "none",
+            "propose_anchors",
+            "defer"
+          ],
+          "title": "Recalibration",
+          "type": "string"
+        },
+        "training_implication": {
+          "maxLength": 240,
+          "title": "Training Implication",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pacing",
+        "effort_and_limiter",
+        "recovery_observation",
+        "recalibration",
+        "training_implication"
+      ],
+      "title": "EventReview",
+      "type": "object"
+    },
+    "ExceptionBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Finding Ids",
+          "type": "array"
+        },
+        "category": {
+          "enum": [
+            "symptoms_illness",
+            "training_response",
+            "accumulated_fatigue",
+            "calendar_disruption"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "observe",
+            "caution",
+            "hold",
+            "escalate"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "confidence": {
+          "enum": [
+            "low",
+            "moderate",
+            "high"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "triggering_evidence": {
+          "maxLength": 300,
+          "title": "Triggering Evidence",
+          "type": "string"
+        },
+        "relevant_context": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relevant Context"
+        },
+        "ladder_level": {
+          "enum": [
+            "current_session",
+            "next_session",
+            "next_days",
+            "committed_window",
+            "block"
+          ],
+          "title": "Ladder Level",
+          "type": "string"
+        },
+        "patch_window": {
+          "$ref": "#/$defs/PatchWindow"
+        },
+        "unchanged": {
+          "items": {
+            "$ref": "#/$defs/UnchangedSession"
+          },
+          "maxItems": 14,
+          "title": "Unchanged",
+          "type": "array"
+        },
+        "reassess_on": {
+          "format": "date",
+          "title": "Reassess On",
+          "type": "string"
+        },
+        "monitor": {
+          "items": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Monitor",
+          "type": "array"
+        },
+        "return_criteria": {
+          "items": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Return Criteria",
+          "type": "array"
+        },
+        "escalate_criteria": {
+          "items": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Escalate Criteria",
+          "type": "array"
+        }
+      },
+      "required": [
+        "category",
+        "severity",
+        "confidence",
+        "triggering_evidence",
+        "ladder_level",
+        "patch_window",
+        "reassess_on",
+        "monitor",
+        "return_criteria",
+        "escalate_criteria"
+      ],
+      "title": "ExceptionBlock",
+      "type": "object"
+    },
+    "Indicator": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "quality_progression",
+            "aerobic_efficiency",
+            "key_sessions",
+            "rpe_vs_intent",
+            "other"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "label": {
+          "description": "e.g. 'Tempo reps at the same RPE'",
+          "maxLength": 60,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "progress_when": {
+          "description": "e.g. 'pace 2% faster at RPE 7 or lower'",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Progress When",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "label",
+        "progress_when"
+      ],
+      "title": "Indicator",
+      "type": "object"
+    },
+    "NextCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "on": {
+          "format": "date",
+          "title": "On",
+          "type": "string"
+        },
+        "check": {
+          "description": "What to report or look at, e.g. 'Thu tempo RPE and calf response'",
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Check",
+          "type": "string"
+        }
+      },
+      "required": [
+        "on",
+        "check"
+      ],
+      "title": "NextCheck",
+      "type": "object"
+    },
+    "OutlineStep": {
+      "additionalProperties": false,
+      "properties": {
+        "emphasis": {
+          "maxLength": 60,
+          "minLength": 1,
+          "title": "Emphasis",
+          "type": "string"
+        },
+        "weeks": {
+          "maximum": 8,
+          "minimum": 1,
+          "title": "Weeks",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "emphasis",
+        "weeks"
+      ],
+      "title": "OutlineStep",
+      "type": "object"
+    },
+    "PatchResolution": {
+      "additionalProperties": false,
+      "properties": {
+        "patch_id": {
+          "format": "uuid",
+          "title": "Patch Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "resolved",
+            "escalated"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "maxLength": 160,
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "patch_id",
+        "status",
+        "note"
+      ],
+      "title": "PatchResolution",
+      "type": "object"
+    },
+    "PatchWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "format": "date",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date",
+          "title": "End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "PatchWindow",
+      "type": "object"
+    },
+    "RepeatBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "repeat",
+          "title": "Type",
+          "type": "string"
+        },
+        "count": {
+          "minimum": 2,
+          "title": "Count",
+          "type": "integer"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/StructureStep"
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "count",
+        "steps"
+      ],
+      "title": "RepeatBlock",
+      "type": "object"
+    },
+    "Rule": {
+      "additionalProperties": false,
+      "properties": {
+        "when": {
+          "description": "Observable sign, e.g. 'Thu tempo RPE 8 or higher'",
+          "maxLength": 90,
+          "minLength": 1,
+          "title": "When",
+          "type": "string"
+        },
+        "then": {
+          "description": "Action, e.g. 'swap Sat long run for easy 60 min'",
+          "maxLength": 90,
+          "minLength": 1,
+          "title": "Then",
+          "type": "string"
+        }
+      },
+      "required": [
+        "when",
+        "then"
+      ],
+      "title": "Rule",
+      "type": "object"
+    },
+    "SessionBrief": {
+      "additionalProperties": false,
+      "properties": {
+        "effort": {
+          "$ref": "#/$defs/Effort"
+        },
+        "focus": {
+          "description": "Execution cues not already in the steps",
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 2,
+          "title": "Focus",
+          "type": "array"
+        },
+        "adjust_if": {
+          "items": {
+            "$ref": "#/$defs/Rule"
+          },
+          "maxItems": 2,
+          "title": "Adjust If",
+          "type": "array"
+        },
+        "why": {
+          "description": "This athlete's reason for this session; not research",
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "effort",
+        "why"
+      ],
+      "title": "SessionBrief",
+      "type": "object"
+    },
+    "SessionFields": {
+      "additionalProperties": false,
+      "properties": {
+        "local_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Local Date"
+        },
+        "slot": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slot"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "run",
+                "strength",
+                "cross",
+                "rest",
+                "mobility",
+                "rehab"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "recipe_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recipe Id"
+        },
+        "custom": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Custom"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "locked": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locked"
+        },
+        "intent": {
+          "anyOf": [
+            {
+              "maxLength": 60,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Session purpose, a short label, e.g. 'Threshold control'; not the prescription",
+          "title": "Intent"
+        },
+        "planned_duration_s": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rehab requires a duration; daily rehab sessions must total at most 15 minutes (900 seconds).",
+          "title": "Planned Duration S"
+        },
+        "planned_distance_m": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Planned Distance M"
+        },
+        "structure": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/StructureStep"
+                  },
+                  {
+                    "$ref": "#/$defs/RepeatBlock"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structure"
+        },
+        "strength_slot_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strength Slot Id"
+        },
+        "brief": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionBrief"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "SessionFields",
+      "type": "object"
+    },
+    "StructureStep": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "warmup",
+            "work",
+            "recovery",
+            "cooldown"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "duration_type": {
+          "enum": [
+            "time",
+            "distance"
+          ],
+          "title": "Duration Type",
+          "type": "string"
+        },
+        "duration_value": {
+          "exclusiveMinimum": 0,
+          "title": "Duration Value",
+          "type": "number"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "duration_type",
+        "duration_value"
+      ],
+      "title": "StructureStep",
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "properties": {
+        "modality": {
+          "enum": [
+            "speed",
+            "hr",
+            "effort"
+          ],
+          "title": "Modality",
+          "type": "string"
+        },
+        "low": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Numeric speed/HR lower bound; must be null for effort targets.",
+          "title": "Low"
+        },
+        "high": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Numeric speed/HR upper bound; must be null for effort targets.",
+          "title": "High"
+        },
+        "effort_cue": {
+          "anyOf": [
+            {
+              "maxLength": 60,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required nonblank cue for effort targets; include any RPE range here.",
+          "title": "Effort Cue"
+        }
+      },
+      "required": [
+        "modality"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "UnchangedSession": {
+      "additionalProperties": false,
+      "properties": {
+        "session_uid": {
+          "format": "uuid",
+          "title": "Session Uid",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 120,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_uid",
+        "reason"
+      ],
+      "title": "UnchangedSession",
+      "type": "object"
+    },
+    "Why": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "observation",
+            "research",
+            "inference",
+            "priority"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "description": "One reason. observation = measured or reported data; research = KB evidence or policy (cite its IDs in evidence_ids/policy_ids, never in text); inference = this athlete's reasoning; priority = the athlete's stated goal or constraint.",
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "Why",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "coach_proposal.v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "operation": {
+      "enum": [
+        "proceed_or_modify_today",
+        "review_rolling_plan",
+        "select_quality_session",
+        "review_training_block",
+        "recalibrate_intensity",
+        "handle_goal_or_race_change",
+        "exception_review",
+        "post_event_review"
+      ],
+      "title": "Operation",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "format": "uuid",
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "base_calendar_version": {
+      "minimum": 0,
+      "title": "Base Calendar Version",
+      "type": "integer"
+    },
+    "base_block_version_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Base Block Version Id"
+    },
+    "headline": {
+      "description": "The decision and its purpose, one line",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Headline",
+      "type": "string"
+    },
+    "why": {
+      "items": {
+        "$ref": "#/$defs/Why"
+      },
+      "maxItems": 5,
+      "minItems": 1,
+      "title": "Why",
+      "type": "array"
+    },
+    "uncertainty": {
+      "description": "Main unknowns",
+      "items": {
+        "maxLength": 140,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 2,
+      "title": "Uncertainty",
+      "type": "array"
+    },
+    "change_triggers": {
+      "description": "Feedback that would change this decision",
+      "items": {
+        "$ref": "#/$defs/Rule"
+      },
+      "maxItems": 3,
+      "title": "Change Triggers",
+      "type": "array"
+    },
+    "next_check": {
+      "$ref": "#/$defs/NextCheck"
+    },
+    "coach_note": {
+      "anyOf": [
+        {
+          "maxLength": 400,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional; only what fits no other field",
+      "title": "Coach Note"
+    },
+    "confidence": {
+      "$ref": "#/$defs/Confidence"
+    },
+    "changes": {
+      "items": {
+        "$ref": "#/$defs/Change"
+      },
+      "maxItems": 80,
+      "title": "Changes",
+      "type": "array"
+    },
+    "preserved": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Preserved",
+      "type": "array"
+    },
+    "block_change": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BlockChange"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "anchor_changes": {
+      "items": {
+        "$ref": "#/$defs/AnchorChange"
+      },
+      "title": "Anchor Changes",
+      "type": "array"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "policy_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Policy Ids",
+      "type": "array"
+    },
+    "recipe_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Recipe Ids",
+      "type": "array"
+    },
+    "escalation": {
+      "anyOf": [
+        {
+          "enum": [
+            "proceed_or_modify_today",
+            "review_rolling_plan",
+            "select_quality_session",
+            "review_training_block",
+            "recalibrate_intensity",
+            "handle_goal_or_race_change",
+            "exception_review",
+            "post_event_review"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Escalation"
+    },
+    "exception": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExceptionBlock"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "event_review": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EventReview"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "patch_resolutions": {
+      "items": {
+        "$ref": "#/$defs/PatchResolution"
+      },
+      "maxItems": 10,
+      "title": "Patch Resolutions",
+      "type": "array"
+    },
+    "skill_version": {
+      "const": "running-coach.v1",
+      "title": "Skill Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "operation",
+    "snapshot_id",
+    "base_calendar_version",
+    "base_block_version_id",
+    "headline",
+    "why",
+    "next_check",
+    "confidence",
+    "changes",
+    "evidence_ids",
+    "policy_ids",
+    "recipe_ids",
+    "skill_version"
+  ],
+  "title": "ProposalDoc",
+  "type": "object"
+}

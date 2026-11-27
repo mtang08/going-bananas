@@ -15,10 +15,13 @@ func TestDashboardToolsPostgres(t *testing.T) {
 	pool := workflowPool(t)
 	ctx := t.Context()
 	// A synthetic pending domain makes callback rollback and stable ID visible independently of review state.
-	_, err := pool.Exec(ctx, "CREATE TABLE dashboard_tool_fixture(id uuid PRIMARY KEY,revision integer NOT NULL)")
+	fixtureWrite := func(ctx context.Context, statement string) error {
+		return pgx.BeginTxFunc(ctx, pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error { _, err := tx.Exec(ctx, statement); return err })
+	}
+	err := fixtureWrite(ctx, "CREATE TABLE dashboard_tool_fixture(id uuid PRIMARY KEY,revision integer NOT NULL)")
 	requireOK(t, err)
 	t.Cleanup(func() {
-		_, err := pool.Exec(context.Background(), "DROP TABLE dashboard_tool_fixture")
+		err := fixtureWrite(context.Background(), "DROP TABLE dashboard_tool_fixture")
 		if err != nil {
 			t.Error(err)
 		}
@@ -125,14 +128,14 @@ func TestDashboardToolsPostgres(t *testing.T) {
 	}
 	call(second.ID, "save_pending_proposal", args, "active_proposal_exists")
 	revision := Object{"document": doc, "expected_revision": 1, "reason": "athlete correction", "proposal_id": proposal.String()}
-	_, err = pool.Exec(ctx, "UPDATE dashboard_tool_fixture SET revision=2")
+	err = fixtureWrite(ctx, "UPDATE dashboard_tool_fixture SET revision=2")
 	requireOK(t, err)
 	call(second.ID, "save_pending_proposal", revision, "proposal_revision_conflict")
 	revision["expected_revision"] = 2
 	call(second.ID, "save_pending_proposal", revision, "proposal_revision_conflict")
 	call(second.ID, "active_proposal", Object{}, "")
 	call(second.ID, "save_pending_proposal", revision, "")
-	_, err = pool.Exec(ctx, "DELETE FROM dashboard_tool_fixture")
+	err = fixtureWrite(ctx, "DELETE FROM dashboard_tool_fixture")
 	requireOK(t, err)
 	call(second.ID, "save_pending_proposal", revision, "proposal_decided")
 	_, err = store.Cancel(ctx, Guard{})

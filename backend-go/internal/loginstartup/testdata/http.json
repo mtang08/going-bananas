@@ -1,0 +1,371 @@
+[
+  {
+    "method": "GET",
+    "body": "",
+    "guard": "",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 200,
+    "wire": {
+      "schema_version": "v1",
+      "data_revision": 0,
+      "mode": "test",
+      "data": {
+        "status": "disabled",
+        "enabled": false,
+        "message": null
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "{\"enabled\":true}",
+    "guard": "",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 200,
+    "wire": {
+      "schema_version": "v1",
+      "data_revision": 0,
+      "mode": "test",
+      "data": {
+        "status": "enabled",
+        "enabled": true,
+        "message": null
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "{\"enabled\":false}",
+    "guard": "",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 200,
+    "wire": {
+      "schema_version": "v1",
+      "data_revision": 0,
+      "mode": "test",
+      "data": {
+        "status": "disabled",
+        "enabled": false,
+        "message": null
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "{}",
+    "guard": "",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 422,
+    "wire": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.enabled",
+            "message": "Field required"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "{\"enabled\":\"true\",\"path\":1}",
+    "guard": "",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 422,
+    "wire": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.enabled",
+            "message": "Input should be a valid boolean"
+          },
+          {
+            "field": "body.path",
+            "message": "Extra inputs are not permitted"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "{\"enabled\":null}",
+    "guard": "",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 422,
+    "wire": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.enabled",
+            "message": "Input should be a valid boolean"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "[]",
+    "guard": "",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 422,
+    "wire": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body",
+            "message": "Input should be a valid dictionary or object to extract fields from"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "null",
+    "guard": "",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 422,
+    "wire": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body",
+            "message": "Input should be a valid dictionary or object to extract fields from"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "{",
+    "guard": "",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 422,
+    "wire": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body.1",
+            "message": "JSON decode error"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "",
+    "guard": "",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 422,
+    "wire": {
+      "error": {
+        "code": "validation_error",
+        "message": "Invalid request fields",
+        "retryable": false,
+        "fields": [
+          {
+            "field": "body",
+            "message": "Field required"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "{}",
+    "guard": "csrf",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "peer": "127.0.0.1",
+    "status": 403,
+    "wire": {
+      "error": {
+        "code": "csrf_header_required",
+        "message": "X-Local-Request: 1 required",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "{}",
+    "guard": "type",
+    "headers": {
+      "Content-Type": "text/plain",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 415,
+    "wire": {
+      "error": {
+        "code": "json_required",
+        "message": "JSON body required",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "body": "",
+    "guard": "remote",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "192.0.2.1",
+    "status": 403,
+    "wire": {
+      "error": {
+        "code": "local_login_startup_required",
+        "message": "Local app request required",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "body": "",
+    "guard": "cross",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1",
+      "Sec-Fetch-Site": "cross-site"
+    },
+    "peer": "127.0.0.1",
+    "status": 403,
+    "wire": {
+      "error": {
+        "code": "local_login_startup_required",
+        "message": "Local app request required",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "body": "",
+    "guard": "origin",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1",
+      "Origin": "https://example.invalid"
+    },
+    "peer": "127.0.0.1",
+    "status": 403,
+    "wire": {
+      "error": {
+        "code": "invalid_origin",
+        "message": "Local origin required",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "{\"enabled\":true}",
+    "guard": "unavailable",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 503,
+    "wire": {
+      "error": {
+        "code": "login_startup_unavailable",
+        "message": "Fixture error",
+        "retryable": true,
+        "fields": []
+      }
+    }
+  },
+  {
+    "method": "PUT",
+    "body": "{\"enabled\":true}",
+    "guard": "other_checkout",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Local-Request": "1"
+    },
+    "peer": "127.0.0.1",
+    "status": 409,
+    "wire": {
+      "error": {
+        "code": "login_startup_other_checkout",
+        "message": "Fixture error",
+        "retryable": false,
+        "fields": []
+      }
+    }
+  }
+]

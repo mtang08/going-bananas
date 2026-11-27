@@ -7,8 +7,8 @@ import (
 	"errors"
 	"github.com/google/uuid"
 	"github.com/mtang08/going-bananas/backend-go/api"
-	"github.com/mtang08/going-bananas/backend-go/internal/calendar"
 	"github.com/mtang08/going-bananas/backend-go/internal/coaching/drafts"
+	"github.com/mtang08/going-bananas/backend-go/internal/metrics/refresh"
 	"github.com/mtang08/going-bananas/backend-go/internal/proposals"
 	"io"
 	"net/http"
@@ -20,7 +20,6 @@ import (
 type Handler struct {
 	Store        drafts.Store
 	KBRoot, Mode string
-	Metrics      calendar.PlanMetrics
 	Now          func() time.Time
 }
 
@@ -37,11 +36,8 @@ func (h Handler) Register(mux *http.ServeMux) {
 		"GET " + prefix + "/{id}/revisions/{revision}": "revision",
 		"DELETE " + prefix + "/{id}":                   "discard",
 		"POST " + prefix + "/{id}/revise":              "revise",
-		"POST " + prefix:                               "submit",
 	}
-	if h.Metrics != nil {
-		routes["POST "+prefix+"/{id}/decision"] = "decide"
-	}
+	routes["POST "+prefix+"/{id}/decision"] = "decide"
 	for pattern, method := range routes {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) { h.serve(w, r, method) })
 	}
@@ -173,22 +169,18 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, method string) {
 			return
 		}
 		data, err = h.Store.Discard(ctx, id, n, now)
-	case "submit", "revise":
-		var result drafts.EditResult
-		if method == "submit" {
-			result, err = h.Store.Submit(ctx, body, now, drafts.NewValidator(h.KBRoot))
-		} else {
-			req, fields, e := drafts.ParseRevisionRequest(body)
-			if e != nil {
-				writeError(w, e)
-				return
-			}
-			if len(fields) > 0 {
-				invalid(w, issues(fields))
-				return
-			}
-			result, err = h.Store.Revise(ctx, id, req, now, drafts.NewValidator(h.KBRoot))
+	case "revise":
+		req, fields, e := drafts.ParseRevisionRequest(body)
+		if e != nil {
+			writeError(w, e)
+			return
 		}
+		if len(fields) > 0 {
+			invalid(w, issues(fields))
+			return
+		}
+		var result drafts.EditResult
+		result, err = h.Store.Revise(ctx, id, req, now, drafts.NewValidator(h.KBRoot))
 		data = struct {
 			drafts.Receipt
 			Errors []drafts.Issue `json:"errors"`
@@ -203,7 +195,7 @@ func (h Handler) serve(w http.ResponseWriter, r *http.Request, method string) {
 			invalid(w, issues(fields))
 			return
 		}
-		data, err = h.Store.Decide(ctx, id, req, now, h.KBRoot, h.Metrics)
+		data, err = h.Store.Decide(ctx, id, req, now, h.KBRoot, refresh.PlanMetrics(now, refresh.Runs))
 	}
 	if err == nil && revision < 0 {
 		revision, err = h.Store.DataRevision(ctx)

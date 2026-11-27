@@ -1,11 +1,13 @@
 package snapshotreads
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/mtang08/going-bananas/backend-go/internal/blockbenchmark"
+	"github.com/mtang08/going-bananas/backend-go/internal/canonicaljson"
 )
 
 // Block groups the live block, event, intensity calibration and proposal history projections.
@@ -24,7 +26,33 @@ func LoadBlock(ctx context.Context, tx pgx.Tx, asOf string) (Block, error) {
 		return b, err
 	}
 	err := tx.QueryRow(ctx, blockHistorySQL).Scan(&b.BlockDecisions, &b.BenchmarkHistory, &b.Anchors, &b.Proposals)
+	if err == nil {
+		b.Anchors, err = typedFloatFields(b.Anchors, "value_low", "value_high")
+	}
 	return b, err
+}
+
+// PostgreSQL JSON aggregates render integral float8 values without a decimal
+// point. Restore the ORM column type before hashing the snapshot wire data.
+func typedFloatFields(raw json.RawMessage, keys ...string) (json.RawMessage, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var rows []map[string]any
+	if err := dec.Decode(&rows); err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		for _, k := range keys {
+			if n, ok := r[k].(json.Number); ok {
+				f, err := n.Float64()
+				if err != nil {
+					return nil, err
+				}
+				r[k] = f
+			}
+		}
+	}
+	return canonicaljson.Coaching(rows)
 }
 
 // Python's canonical datetime string uses six fractional digits when there are
@@ -80,13 +108,7 @@ WITH ranks AS (
         s.build_outline,s.block_uid,s.id AS version_id,s.version,
         CASE WHEN s.target_event_id=(SELECT id FROM ranks WHERE rank=1) THEN 'current'
              WHEN s.target_event_id IS NOT NULL THEN 'changed' WHEN EXISTS(SELECT 1 FROM ranks) THEN 'unset' ELSE 'none' END AS target_event_status,
-        jsonb_build_object('status',CASE WHEN s.kind IS NULL THEN 'not_set' WHEN m.id IS NOT NULL THEN 'completed'
-                     WHEN $1::date <= s.review_date+2 THEN 'pending' ELSE 'missed' END,
-          'match_method',m.method,'activity_id',m.id,'event_id',s.event_id,'local_date',(m.start_at AT TIME ZONE zone.name)::date,
-          'distance_m',round(m.distance_m)::bigint,'result_s',COALESCE(m.result_override,round(m.timer_s)::bigint),
-          'rpe',COALESCE((SELECT rpe FROM session_rpe WHERE activity_id=m.id AND source IN ('manual','garmin_fit')
-                    ORDER BY (source='manual') DESC,collected_at DESC,id DESC LIMIT 1),m.workout_rpe),
-          'scheduled_date',(SELECT max(local_date) FROM scheduled),'evidence_at',` + utcISO("COALESCE(m.end_at,m.start_at)") + `) AS benchmark_status
+        ` + blockbenchmark.StatusJSON(utcISO("COALESCE(m.end_at,m.start_at)")) + ` AS benchmark_status
  FROM spec s CROSS JOIN zone LEFT JOIN matched m ON true
 )
 SELECT COALESCE((SELECT to_jsonb(v) FROM view v),'null'::jsonb),

@@ -27,7 +27,12 @@ func TestLocalHTTPExecutablePostgres(t *testing.T) {
 	if dsn == "" {
 		t.Skip("requires disposable PostgreSQL runner")
 	}
-	pool, err := pgxpool.New(t.Context(), dsn)
+	poolCfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		t.Fatal("invalid dashboard test configuration")
+	}
+	poolCfg.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
+	pool, err := pgxpool.NewWithConfig(t.Context(), poolCfg)
 	if err != nil {
 		t.Fatal("connect to dashboard test database")
 	}
