@@ -1,8 +1,8 @@
 # Workstream 3 · Coaching evidence and proposal lifecycle
 
-**Owner:** the third Astra session. **First delivery:** `go/coaching` at `33b2b61`. **Continuation branch:** `go/coaching-lifecycle`. Home's Go proposal-list read is the existing transport reference. Real-mode coaching continues through the Python application. The native dashboard and pending-draft workflow run in demo and test. [Working Go read](../backend-go/internal/proposals) · [Shared specification](go-backend-rewrite.md)
+The coaching lead owns planning, integration and review. The integrated Go candidate serves the dashboard and pending-draft workflow in demo and test. Real mode defaults to Python until the owner selects Go for cutover. The fingerprint package first shipped on `go/coaching` at `33b2b61`, followed by the draft lifecycle work on `go/coaching-lifecycle`. [Working Go read](../backend-go/internal/proposals) · [Shared specification](go-backend-rewrite.md)
 
-## First independent assignment
+## Original fingerprint assignment
 
 Port the **coaching evidence fingerprint used to decide whether an existing draft is current**. Start under `backend-go/internal/coaching/` with typed inputs for source versions and verified knowledge selection. Produce canonical UTF-8 bytes and a SHA-256 digest from those inputs. The package must compute the result from the supplied evidence, including selected record content. The Python implementation and checked-in fixtures define the behavior. [Canonicalization and fingerprint construction](../backend/app/services/decision_inputs.py) · [Coaching hash fixture](../backend/tests/fixtures/canonical-hashes.json) · [Persisted fingerprint fixture](../backend/tests/fixtures/coach-fingerprint.json)
 
@@ -29,26 +29,26 @@ The unchanged draft fixture produces 608 canonical bytes. Changing only the sele
 make check-go
 ```
 
-## Following slices and integration
+## Coaching scope and integration
 
-- Port verified knowledge selection, bounded snapshots, and immutable evidence needed to reproduce freshness. Keep the research library and repo-local skill authoritative. Share one factual read across display and fingerprint calculation while retaining dependencies omitted from the compact display. [Knowledge verification](../backend/app/services/knowledge.py) · [Snapshot implementation](../backend/app/services/snapshot)
-- Port proposal validation, partial selections, revision/retry receipts, stale outcomes, the CLI/helper and native dashboard coaching operations. Preserve stable IDs and draft revisions. A saved draft requires an explicit athlete decision before calendar activation. The dashboard must preserve its private conversation receipts, local-only access and six approved tools. [Proposal services](../backend/app/services/proposals) · [Coaching API scenarios](../backend/tests/integration/test_coach_api.py) · [Dashboard scenarios](https://github.com/mtang08/going-bananas/blob/de3bdf504b8dc6f9b1577d610889349ffd723fb2/backend/tests/integration/test_coach_chat.py)
+- Maintain verified knowledge selection, bounded snapshots, and immutable evidence needed to reproduce freshness. Keep the research library and repo-local skill authoritative. Share one factual read across display and fingerprint calculation while retaining dependencies omitted from the compact display. [Knowledge verification](../backend/app/services/knowledge.py) · [Snapshot implementation](../backend/app/services/snapshot)
+- Maintain proposal validation, partial selections, revision/retry receipts, stale outcomes, the CLI/helper and native dashboard coaching operations. Preserve stable IDs and draft revisions. A saved draft requires an explicit athlete decision before calendar activation. The dashboard must preserve its private conversation receipts, local-only access and six approved tools. [Proposal services](../backend/app/services/proposals) · [Coaching API scenarios](../backend/tests/integration/test_coach_api.py) · [Dashboard scenarios](https://github.com/mtang08/going-bananas/blob/de3bdf504b8dc6f9b1577d610889349ffd723fb2/backend/tests/integration/test_coach_chat.py)
 - Stream 3 owns coaching packages and domain tests. Stream 1 owns calendar/block/anchor mutations, exception detection, shared database migrations, global API/CLI registration and their transaction runner. Hand it the validated selected changes keyed by change ID, expected revisions and idempotency key. Under one locked transaction, recheck freshness, apply accepted changes and persist the receipt. Demonstrate an unchanged Python-created draft can be revised or accepted and a lost response can be retried without a second calendar edit. [Decision scenarios](../backend/tests/integration/test_proposals.py)
 
-## Active assignment · Complete pending-draft lifecycle
+## Original pending-draft assignment
 
-Deliver a runnable synthetic workflow that builds or loads a snapshot, saves a pending proposal, reloads it, revises it under the same ID and discards it. Include a draft originally created by Python. The coaching team owns package-local persistence, knowledge selection and validation. Core owns shared route registration and calendar writes.
+The assignment covered a synthetic workflow that builds or loads a snapshot, saves a pending proposal, reloads it, revises it under the same ID and discards it. It included a draft originally created by Python. The coaching team owns package-local persistence, knowledge selection and validation. Core owns shared route registration and calendar writes.
 
 1. Read persisted draft and snapshot evidence in PostgreSQL, verify the selected knowledge, and check its fingerprint. Cover changed source inputs and changed selected record content.
 2. Port proposal validation and submit/load/revise/discard. Preserve the current draft ID, revision checks, duplicate handling, structured errors and authorization. Produce typed inputs keyed by change ID for a future manual acceptance.
 3. Compare the responses and durable rows from Go and Python on independent synthetic schemas. Exercise a duplicate submission, stale revision, concurrent edits, a failed write with rollback and the unchanged Python-created draft.
-4. Push each verified increment on `go/coaching-lifecycle` and continue through the whole workflow. The runnable entry point and package-local tests can proceed while core owns shared HTTP registration. Manual acceptance remains a separate athlete action.
+4. Verify the full workflow through the runnable entry point and package-local tests. Manual acceptance remains a separate athlete action.
 
 [Proposal lifecycle tests](../backend/tests/integration/test_proposals.py) · [Proposal services](../backend/app/services/proposals)
 
 ## Continuation prompt
 
-> Own the complete pending-draft lifecycle above with your Astra team. Continue from the published fingerprint package on the active continuation branch. Work through evidence, validation, persistence and rollback, publishing each verified increment. Finish by reporting the runnable command, commits and Python-created draft comparison.
+> The existing coaching lead plans, integrates and reviews the work. Assign new or reassigned implementation and verification to workers using `gpt-6.2-sol`. Start from the integrated Go candidate and use the synthetic comparisons below for any changes to evidence, validation, persistence or rollback. Report the commands run, comparison results, commits and any remaining integration work.
 
 ## Native dashboard handoff
 
