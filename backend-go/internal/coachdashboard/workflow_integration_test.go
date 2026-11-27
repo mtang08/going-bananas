@@ -31,6 +31,7 @@ func workflowPool(t *testing.T) *pgxpool.Pool {
 	if cfg.ConnConfig.Database != "garmin_test" || (cfg.ConnConfig.Host != "127.0.0.1" && cfg.ConnConfig.Host != "localhost") {
 		t.Fatal("dashboard tests require a dedicated loopback garmin_test database")
 	}
+	cfg.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
 	pool, err := pgxpool.NewWithConfig(t.Context(), cfg)
 	if err != nil {
 		t.Fatal("open dashboard test database")

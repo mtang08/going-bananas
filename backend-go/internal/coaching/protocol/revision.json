@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "expected_revision": {
+      "minimum": 1,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "reason": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    },
+    "document": {
+      "additionalProperties": true,
+      "title": "Document",
+      "type": "object"
+    }
+  },
+  "required": [
+    "expected_revision",
+    "reason",
+    "document"
+  ],
+  "title": "RevisionRequest",
+  "type": "object"
+}

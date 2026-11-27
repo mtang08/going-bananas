@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/internal/coachdashboard"
+	"github.com/mtang08/going-bananas/backend-go/internal/coaching/protocol"
 )
 
 // Lease an independent migrated calendar. Other HTTP and digest cases can use
@@ -66,6 +67,7 @@ func nativePool(t *testing.T, dsn, python string) *pgxpool.Pool {
 		t.Fatal("native fixture did not initialize", scanner.Err())
 	}
 	cfg.ConnConfig.RuntimeParams["search_path"] = schema
+	cfg.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
 	pool, err := pgxpool.NewWithConfig(t.Context(), cfg)
 	if err != nil {
 		t.Fatal("connect to native fixture")
@@ -182,11 +184,29 @@ func TestNativeHTTPAgreementCreatesOnlyPendingProposal(t *testing.T) {
 		}
 	}
 	s, closeFirst := start()
+	// A damaged KB is a recoverable tool result. Restore the synthetic copy
+	// and continue the same review to verify the transport survived.
+	guide := filepath.Join(root, "running_coach_kb", "COACHING_GUIDE.md")
+	original, err := os.ReadFile(guide)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(guide, []byte("Synthetic unverified KB change."), 0600); err != nil {
+		t.Fatal(err)
+	}
+	call(s, "POST", "/messages", map[string]any{"client_message_id": uuid.NewString(), "text": "Could you review my running?"})
+	failed := wait(s)
+	if len(failed.Messages) != 2 || failed.Messages[1].Text != "Snapshot error: knowledge_unavailable" || failed.ProposalID != nil {
+		t.Fatalf("expected recoverable knowledge error: %+v", failed)
+	}
+	if err := os.WriteFile(guide, original, 0600); err != nil {
+		t.Fatal(err)
+	}
 	discussion := map[string]any{"client_message_id": uuid.NewString(), "text": "Could we add five minutes to my next easy run?"}
 	call(s, "POST", "/messages", discussion)
 	first := wait(s)
 	closeFirst()
-	if first.ID == nil || len(first.Messages) != 2 || !strings.Contains(first.Messages[1].Text, "35 minutes") || first.ProposalID != nil {
+	if first.ID == nil || len(first.Messages) != 4 || !strings.Contains(first.Messages[3].Text, "35 minutes") || first.ProposalID != nil {
 		t.Fatalf("unexpected discussion: %+v", first)
 	}
 	s, closeSecond := start()
@@ -194,11 +214,11 @@ func TestNativeHTTPAgreementCreatesOnlyPendingProposal(t *testing.T) {
 	agreement := map[string]any{"thread_id": *first.ID, "client_message_id": uuid.NewString(), "text": "Yes, please save the 35-minute easy run for my review."}
 	call(s, "POST", "/messages", agreement)
 	pending := wait(s)
-	if pending.ProposalID == nil || pending.ProposalRevision == nil || *pending.ProposalRevision != 1 || len(pending.Messages) != 4 || !strings.Contains(pending.Messages[3].Text, "/#proposal/"+*pending.ProposalID) {
+	if pending.ProposalID == nil || pending.ProposalRevision == nil || *pending.ProposalRevision != 1 || len(pending.Messages) != 6 || !strings.Contains(pending.Messages[5].Text, "/#proposal/"+*pending.ProposalID) {
 		t.Fatalf("expected pending review: %+v", pending)
 	}
 	replay := call(s, "POST", "/messages", agreement)
-	if replay.ProposalID == nil || *replay.ProposalID != *pending.ProposalID || replay.Status != "idle" || len(replay.Messages) != 4 {
+	if replay.ProposalID == nil || *replay.ProposalID != *pending.ProposalID || replay.Status != "idle" || len(replay.Messages) != 6 {
 		t.Fatal("replay repeated agreement")
 	}
 
@@ -231,7 +251,7 @@ func TestNativeProposalSchemaPythonParity(t *testing.T) {
 	if err := json.Unmarshal(expected, &want); err != nil {
 		t.Fatal(err)
 	}
-	if err := json.Unmarshal(proposalSchema, &got); err != nil {
+	if err := json.Unmarshal(protocol.Proposal(), &got); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, want) {

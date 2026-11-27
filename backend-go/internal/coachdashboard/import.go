@@ -30,7 +30,7 @@ func (s *Store) ImportPythonFiles(ctx context.Context, privateDir string) error 
 		return err
 	}
 	defer func() { _ = root.Close() }()
-	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	return pgx.BeginTxFunc(ctx, s.pool, pgx.TxOptions{AccessMode: pgx.ReadWrite}, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, stateLock, s.mode); err != nil {
 			return err
 		}
