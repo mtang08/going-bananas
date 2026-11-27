@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "backend"))
 
 
-def schema(calendar=False):
+def schema(calendar=False, planning=False):
     from app.services.proposals.schema import ProposalDoc
 
     source = ProposalDoc.model_json_schema()
@@ -21,12 +21,22 @@ def schema(calendar=False):
     for command in (RevisionRequest, DecisionRequest):
         models[command.__name__] = command.model_json_schema()
 
-    if calendar:
+    if calendar or planning:
         from app.api.anchors import AnchorInput
         from app.api.calendar import BootstrapInput, EditsInput, RollbackInput
 
+        commands = (BootstrapInput, EditsInput, RollbackInput, AnchorInput)
+        if planning:
+            from app.api.planning import (
+                EventInput,
+                EventPatch,
+                EventOrder,
+                RoutineInput,
+            )
+
+            commands = (EventInput, EventPatch, EventOrder, RoutineInput)
         models = {}
-        for command in (BootstrapInput, EditsInput, RollbackInput, AnchorInput):
+        for command in commands:
             shape = command.model_json_schema()
             models.update(shape.pop("$defs", {}))
             models[command.__name__] = shape
@@ -65,6 +75,7 @@ if __name__ == "__main__":
     for path, text in [
         (ROOT / "backend-go/internal/coaching/drafts/model.json", schema()),
         (ROOT / "backend-go/internal/calendarhttp/model.json", schema(calendar=True)),
+        (ROOT / "backend-go/internal/planninghttp/model.json", schema(planning=True)),
     ]:
         if args.check:
             if path.read_text() != text:
