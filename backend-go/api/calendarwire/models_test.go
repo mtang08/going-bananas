@@ -1,6 +1,7 @@
 package calendarwire
 
 import (
+	_ "embed"
 	"encoding/json"
 	"os"
 	"reflect"
@@ -8,14 +9,17 @@ import (
 	"testing"
 )
 
-func TestPythonCalendarResponses(t *testing.T) {
-	path := os.Getenv("CALENDAR_WIRE_CASES")
-	if path == "" {
-		t.Skip("run migrated calendar view comparison")
-	}
-	corpus, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
+//go:embed testdata/command_responses.json
+var commandResponses []byte
+
+func TestCalendarResponses(t *testing.T) {
+	corpus := commandResponses
+	if path := os.Getenv("CALENDAR_WIRE_CASES"); path != "" {
+		var err error
+		corpus, err = os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	var cases []struct {
 		Path     string
@@ -23,6 +27,9 @@ func TestPythonCalendarResponses(t *testing.T) {
 	}
 	if err := json.Unmarshal(corpus, &cases); err != nil {
 		t.Fatal(err)
+	}
+	if len(cases) == 0 {
+		t.Fatal("missing calendar wire cases")
 	}
 	for _, item := range cases {
 		t.Run(item.Path, func(t *testing.T) {

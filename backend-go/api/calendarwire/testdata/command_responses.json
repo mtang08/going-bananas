@@ -1,0 +1,6 @@
+[
+  {"envelope": {"data": {"kind": "bootstrap", "preserved_session_uids": [], "stale_proposals": [], "version": 1}, "data_revision": 1, "mode": "test", "schema_version": "v1"}, "path": "/bootstrap"},
+  {"envelope": {"data": {"kind": "manual_edit", "preserved_session_uids": [], "stale_proposals": [], "version": 2}, "data_revision": 2, "mode": "test", "schema_version": "v1"}, "path": "/edits"},
+  {"envelope": {"data": {"kind": "rollback", "preserved_session_uids": ["00000000-0000-4000-8000-000000000001"], "stale_proposals": [], "version": 3}, "data_revision": 3, "mode": "test", "schema_version": "v1"}, "path": "/rollback"},
+  {"envelope": {"data": {"kind": "manual_edit", "preserved_session_uids": [], "stale_proposals": [], "version": 4}, "data_revision": 4, "mode": "test", "schema_version": "v1"}, "path": "/edits"}
+]

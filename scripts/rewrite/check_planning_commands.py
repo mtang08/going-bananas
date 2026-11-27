@@ -1,20 +1,14 @@
-"""Compare planning HTTP commands on independently migrated test schemas."""
+"""Replay synthetic planning commands against the Go API in a disposable schema."""
 
 import json
 import os
 import subprocess
-import sys
 import tempfile
-from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import patch
 
 import psycopg
 from sqlalchemy.engine import make_url
 from test_proposal_slice import MODULE, ROOT, migrated_schema
-
-NOW = datetime(2026, 11, 16, 15, tzinfo=UTC)
-
 
 BLOCK = "00000000-0000-4000-8000-000000000001"
 RUN = "00000000-0000-4000-8000-000000000002"
@@ -82,6 +76,36 @@ def seed(env):
         )
 
 
+# Request/response and resulting state captured with synthetic inputs at e5e565d.
+CORPUS = MODULE / "internal/planninghttp/testdata/commands.json"
+STATE_QUERIES = {
+    "events": """
+        SELECT name,event_date,distance_m,purpose,status,goal_time_s,result_s,rank,version
+        FROM events ORDER BY name
+    """,
+    "app_state": "SELECT data_revision,calendar_head_version FROM app_state",
+    "metrics": """
+        SELECT metric_id,subject_key,status,value,
+               CASE WHEN subject_type='window' AND metric_id IN (
+                   'aerobic_efficiency','long_run_exposure','intensity_time_distribution'
+               ) THEN NULL ELSE dependency_hash END,config_hash,timezone
+        FROM metric_results WHERE is_current ORDER BY metric_id,subject_key
+    """,
+    "profile_versions": """
+        SELECT to_jsonb(p)-'id'-'effective_at'-'recorded_at' FROM profile_versions p ORDER BY version
+    """,
+    "strength_slots": """
+        SELECT label,version,default_weekday,active,main_lower_body_lifts
+        FROM strength_routine_slots ORDER BY version,label
+    """,
+    "block_benchmarks": """
+        SELECT block_uid,block_version,activity_id,event_id,outcome,protocol,distance_m,result_s,
+               local_date,match_method
+        FROM block_benchmarks
+    """,
+}
+
+
 def main():
     url = make_url(os.environ["DATABASE_URL"])
     if url.password is None and os.environ.get("PGPASSWORD"):
@@ -92,241 +116,46 @@ def main():
         or url.host not in {"localhost", "127.0.0.1"}
     ):
         raise ValueError("requires synthetic test runner")
+    fixture = json.loads(CORPUS.read_text())
     with (
-        tempfile.TemporaryDirectory(dir=ROOT / "private") as d,
+        tempfile.TemporaryDirectory(dir=ROOT / "private") as tmp,
         psycopg.connect(
             url.set(drivername="postgresql").render_as_string(hide_password=False),
             autocommit=True,
         ) as db,
+        migrated_schema(db, url, Path(tmp) / "go", "5173") as env,
     ):
-        p = Path(d)
-        with (
-            migrated_schema(db, url, p / "ref", "5173") as ref,
-            migrated_schema(db, url, p / "go", "5173") as go,
-        ):
-            for env in (ref, go):
-                seed(env)
-            corpus = p / "commands.json"
-            subprocess.run(
-                [sys.executable, __file__, "reference", str(corpus)],
-                cwd=ROOT,
-                env={**ref, "PYTHONPATH": str(ROOT / "backend")},
-                check=True,
-            )
-            subprocess.run(
-                [
-                    "go",
-                    "test",
-                    "-count=1",
-                    "-run",
-                    "^TestReferencePlanningCommands$",
-                    "./internal/planninghttp",
-                ],
-                cwd=MODULE,
-                env={**go, "PLANNING_COMMAND_CASES": str(corpus)},
-                check=True,
-            )
-
-            def state(env):
-                with psycopg.connect(
-                    env["PROPOSAL_TEST_DATABASE_URL"], options=env["PGOPTIONS"]
-                ) as conn:
-                    return [
-                        conn.execute(query).fetchall()
-                        for query in [
-                            "select name,event_date,distance_m,purpose,status,goal_time_s,result_s,rank,version from events order by name",
-                            "select data_revision,calendar_head_version from app_state",
-                            "select metric_id,subject_key,status,value,case when subject_type='window' and metric_id in ('aerobic_efficiency','long_run_exposure','intensity_time_distribution') then null else dependency_hash end,config_hash,timezone from metric_results where is_current order by metric_id,subject_key",
-                            "select to_jsonb(p)-'id'-'effective_at'-'recorded_at' from profile_versions p order by version",
-                            "select label,version,default_weekday,active,main_lower_body_lifts from strength_routine_slots order by version,label",
-                            "select block_uid,block_version,activity_id,event_id,outcome,protocol,distance_m,result_s,local_date,match_method from block_benchmarks",
-                        ]
-                    ]
-
-            for index, (reference, candidate) in enumerate(
-                zip(state(ref), state(go), strict=True)
-            ):
-                assert reference == candidate, (
-                    index,
-                    [z for z in reference if z not in candidate][:1],
-                    [z for z in candidate if z not in reference][:1],
+        seed(env)
+        subprocess.run(
+            [
+                "go",
+                "test",
+                "-count=1",
+                "-run",
+                "^TestReferencePlanningCommands$",
+                "./internal/planninghttp",
+            ],
+            cwd=MODULE,
+            env={**env, "PLANNING_COMMAND_CASES": str(CORPUS)},
+            check=True,
+        )
+        with psycopg.connect(
+            env["PROPOSAL_TEST_DATABASE_URL"], options=env["PGOPTIONS"]
+        ) as conn:
+            assert fixture["state"].keys() == STATE_QUERIES.keys()
+            for table, query in STATE_QUERIES.items():
+                # Keep SQL dates and UUIDs in the same string form as the synthetic capture.
+                rows = json.loads(
+                    json.dumps(conn.execute(query).fetchall(), default=str)
                 )
-            print(
-                f"Matched {len(json.loads(corpus.read_text()))} planning commands and stored state."
-            )
-
-
-def reference(path):
-    from app.api import core, planning
-    from app.main import app
-    from app.metrics import refresh
-    from app.services import strength_routine
-    from app.services.timezone import athlete_today
-    from fastapi.testclient import TestClient
-
-    cases = []
-    client = TestClient(app)
-
-    def call(method, route, body=None):
-        res = client.request(
-            method, "/api/v1" + route, json=body, headers={"X-Local-Request": "1"}
-        )
-        data = res.json()
-        if "error" in data:
-            data["error"].pop("request_id", None)
-        cases.append(
-            {
-                "method": method,
-                "path": route,
-                "body": json.loads(json.dumps(body)),
-                "status": res.status_code,
-                "expected": data,
-            }
-        )
-        return data.get("data", {})
-
-    with (
-        patch.object(refresh, "clock", return_value=NOW),
-        patch.object(
-            core,
-            "athlete_today",
-            side_effect=lambda session: athlete_today(session, NOW),
-        ),
-        patch.object(planning, "athlete_today", return_value=NOW.date()),
-        patch.object(strength_routine, "date_in_zone", return_value=NOW.date()),
-    ):
-        call("GET", "/events")
-        call("PUT", "/events/order", {"items": []})
-        payload = {
-            "name": " A ",
-            "event_date": "2027-03-01",
-            "purpose": "pr",
-            "distance_m": 10000,
-        }
-        a = call("POST", "/events", payload)["id"]
-        b = call("POST", "/events", dict(payload, name="B", event_date="2027-01-01"))[
-            "id"
-        ]
-        call("POST", "/events", dict(payload, name="  "))
-        call("GET", "/events")
-        order = [{"id": b, "expected_version": 1}, {"id": a, "expected_version": 1}]
-        call("PUT", "/events/order", {"items": order[:1]})
-        call("PUT", "/events/order", {"items": order})
-        call("PUT", "/events/order", {"items": order})
-        for item in order:
-            item["expected_version"] = 2
-        call("PUT", "/events/order", {"items": order})
-        for body in [
-            {"expected_version": 1},
-            {"expected_version": 2, "purpose": None},
-            {"expected_version": 2, "status": "completed", "distance_m": None},
-            {"expected_version": 3},
-        ]:
-            call("PATCH", "/events/" + b, body)
-        call("GET", "/events")
-        call("GET", "/blocks/active")
-        call("GET", "/blocks/benchmarks")
-        call("GET", f"/blocks/{BLOCK}/history")
-        call("GET", f"/blocks/{MISSING}/history")
-        call("GET", f"/events/{EVENT}/blocks")
-        call("GET", f"/events/{MISSING}/blocks")
-        call("PUT", f"/blocks/{MISSING}/benchmark-activity", {"activity_id": None})
-        for activity in [MISSING, RUN, None, None]:
-            call(
-                "PUT", f"/blocks/{BLOCK}/benchmark-activity", {"activity_id": activity}
-            )
-            call("GET", "/blocks/active")
-        call("GET", "/blocks/benchmarks")
-        call("GET", "/strength-routine")
-        slot = {
-            "label": "  Main ",
-            "default_weekday": 1,
-            "lower_body_cost": "moderate",
-            "main_lower_body_lifts": [" Squat "],
-        }
-        for expected, slots in [
-            (0, []),
-            (2, [slot]),
-            (0, [dict(slot, default_weekday=8)]),
-            (0, [slot]),
-            (1, [dict(slot, active=False)]),
-        ]:
-            call(
-                "PUT",
-                "/strength-routine",
-                {"expected_version": expected, "slots": slots},
-            )
-        call("GET", "/strength-routine")
-        current = call("GET", "/profile")["version"]
-        for fields in [
-            {"anchor_confirmed": True},
-            {"timezone": "Mars/Olympus"},
-            {"strength_week_a_days": [1, 1]},
-            {
-                "facts": {
-                    "running_restriction": {
-                        "source": "Clinic",
-                        "starts_on": "2026-11-02",
-                    }
-                }
-            },
-        ]:
-            call("PUT", "/profile", dict(expected_version=current, **fields))
-        fields = {
-            "timezone": "Pacific/Auckland",
-            "facts": {
-                "running_restriction": {
-                    "starts_on": "2026-11-01",
-                    "source": " Clinic ",
-                    "no_quality": True,
-                }
-            },
-            "unknowns": ["race"],
-            "preferences": {"a": 1},
-            "extra_unused": 1,
-        }
-        call("PUT", "/profile", dict(expected_version=current, **fields))
-        call("GET", "/profile")
-        call("PUT", "/profile", {"expected_version": current})
-        call(
-            "PUT",
-            "/running-interruption",
-            {"expected_version": current + 1, "interruption": None},
-        )
-        episode = {
-            "reason": "travel",
-            "starts_on": "2026-11-15",
-            "return_on": "2026-11-20",
-        }
-        call(
-            "PUT",
-            "/running-interruption",
-            {
-                "expected_version": current + 1,
-                "interruption": dict(episode, review_on="2026-11-15"),
-            },
-        )
-        call(
-            "PUT",
-            "/running-interruption",
-            {"expected_version": current + 1, "interruption": episode},
-        )
-        call(
-            "PUT",
-            "/running-interruption",
-            {"expected_version": current + 2, "interruption": episode},
-        )
-        call(
-            "PUT",
-            "/running-interruption",
-            {"expected_version": current + 2, "interruption": None},
-        )
-        call("GET", "/profile")
-    path.write_text(json.dumps(cases))
+                expected = fixture["state"][table]
+                assert rows == expected, (
+                    table,
+                    [row for row in expected if row not in rows][:1],
+                    [row for row in rows if row not in expected][:1],
+                )
+    print(f"Matched {len(fixture['cases'])} planning HTTP commands and stored state.")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        reference(Path(sys.argv[2]))
-    else:
-        main()
+    main()

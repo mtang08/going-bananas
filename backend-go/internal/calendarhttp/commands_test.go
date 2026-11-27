@@ -20,7 +20,7 @@ import (
 func TestReferenceCalendarCommands(t *testing.T) {
 	path := os.Getenv("CALENDAR_COMMAND_CASES")
 	if path == "" {
-		t.Skip("check_calendar_commands.py supplies oracle")
+		t.Skip("check_calendar_commands.py supplies a synthetic database and fixture")
 	}
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, os.Getenv("PROPOSAL_TEST_DATABASE_URL"))
@@ -39,21 +39,26 @@ func TestReferenceCalendarCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var cases []struct {
-		Method, Path string
-		Body         json.RawMessage
-		Status       int
-		Expected     map[string]any
-		Undo         map[string]any
+	var fixture struct {
+		Cases []struct {
+			Method, Path string
+			Body         json.RawMessage
+			Status       int
+			Expected     map[string]any
+			Undo         map[string]any
+		}
 	}
-	if err := json.Unmarshal(raw, &cases); err != nil {
+	if err := json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
+	}
+	if len(fixture.Cases) == 0 {
+		t.Fatal("missing command cases")
 	}
 	now := time.Date(2026, 11, 16, 15, 0, 0, 0, time.UTC)
 	h := Handler{Pool: pool, Mode: "test", Now: func() time.Time { return now }, Metrics: func(context.Context, pgx.Tx, calendar.PlanScope, []uuid.UUID) error { return nil }}
 	mux := http.NewServeMux()
 	h.Register(mux)
-	for i, c := range cases {
+	for i, c := range fixture.Cases {
 		body := string(c.Body)
 		for n, label := range []string{"slot:0", "slot:1"} {
 			if strings.Contains(body, label) {
