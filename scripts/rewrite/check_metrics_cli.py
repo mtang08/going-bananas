@@ -113,4 +113,4 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["reference"]:
         Path(sys.argv[2]).write_text(json.dumps(reference()))
     else:
-        compare(__file__, seed, "./cmd/metrics", "METRICS_CLI_CASES")
+        compare(__file__, seed, "./internal/metriccli", "METRICS_CLI_CASES")

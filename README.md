@@ -271,6 +271,12 @@ sqlc output and works with PostgreSQL stopped. To exercise both compilers, run
 in a temporary copy and checks that both consumers fail to build.
 [Migrated HTTP operations](backend-go/api/openapi.json)
 
+The normal API, worker, coach commands, imports and metric commands share the
+`going-bananas` executable. From an explicit workspace, the CLI wrapper builds
+and runs it while preserving command exit codes, for example
+`./scripts/with-mode demo ./scripts/backend-cli metrics-refresh-today`.
+The phone gateway runs on its separate listener.
+
 The development proxy sends every API request to one local backend. For a
 demo with a migrated database, run `./scripts/with-mode demo make dev`.
 The Go server can also serve the built frontend from the same port.

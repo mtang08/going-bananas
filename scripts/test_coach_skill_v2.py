@@ -103,7 +103,7 @@ class HelperTests(unittest.TestCase):
             root = Path(tmp)
             scripts = root/'scripts'
             scripts.mkdir()
-            for name in ('with-mode', 'env.sh', 'coach-cli'):
+            for name in ('with-mode', 'env.sh', 'coach-cli', 'backend-cli'):
                 shutil.copy2(ROOT/'scripts'/name, scripts/name)
             # Neither stand-in contacts a database. Each reports the resolved
             # destination so the test can assert it survived .env loading.

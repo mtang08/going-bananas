@@ -32,7 +32,7 @@ def fixture_repo(scratch):
     )
     shutil.copytree(ROOT / "running_coach_kb", root / "running_coach_kb")
     (root / "scripts").mkdir()
-    for name in ("with-mode", "env.sh", "coach-cli"):
+    for name in ("with-mode", "env.sh", "coach-cli", "backend-cli"):
         shutil.copy2(ROOT / "scripts" / name, root / "scripts" / name)
     (root / "backend-go").symlink_to(ROOT / "backend-go", target_is_directory=True)
     return root

@@ -1,21 +1,3 @@
 #!/usr/bin/env bash
-# The helper invokes this through with-mode. A current executable preserves
-# domain exit codes (go run maps every nonzero program exit to 1).
 set -euo pipefail
-root="$(cd "$(dirname "$0")/.." && pwd)"
-case "${APP_MODE:-}" in
-  test|demo) default_backend=go ;;
-  real) default_backend=python ;;
-  *) exit 2 ;;
-esac
-case "${GOING_BANANAS_BACKEND:-$default_backend}" in
-  python) exec uv run --directory "$root/backend" python -m app.cli coach "$@" ;;
-  go) ;;
-  *) echo '{"error":"invalid_backend"}' >&2; exit 2 ;;
-esac
-export GB_REPO="$root"
-bin="$root/private/go-tools/bin"
-mkdir -p "$bin"
-export PATH="$bin:$PATH"
-go build -C "$root/backend-go" -o "$bin/going-bananas-coach" ./cmd/going-bananas-coach
-exec "$bin/going-bananas-coach" "$@"
+exec "$(dirname "$0")/backend-cli" coach "$@"
