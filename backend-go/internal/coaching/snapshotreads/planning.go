@@ -22,6 +22,9 @@ func LoadPlanning(ctx context.Context, tx pgx.Tx, asOf string) (Planning, error)
 	var result Planning
 	err := tx.QueryRow(ctx, planningSQL, asOf).Scan(&result.Sessions, &result.Completions,
 		&result.StrengthSlots, &result.StrongWorkouts, &result.Goals)
+	if err == nil {
+		result.StrongWorkouts, err = typedFloatFields(result.StrongWorkouts, "duration_s", "rpe")
+	}
 	return result, err
 }
 

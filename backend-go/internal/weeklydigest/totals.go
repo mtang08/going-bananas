@@ -1,5 +1,7 @@
 package weeklydigest
 
+import "strings"
+
 func tally(group map[string]int, due, done bool) {
 	group["planned"]++
 	if due {
@@ -96,12 +98,6 @@ func totals(rows, planned, inWeek, unplanned, removed []row, today string) row {
 	for _, s := range unplanned {
 		sum(t, "unplanned_s", s["duration_s"])
 	}
-	for k, v := range t {
-		t[k] = rounded(v)
-	}
-	for k, v := range d {
-		d[k] = rounded(v)
-	}
 	g := withOutcomes(sessions, out)
 	n := 0
 	for _, s := range removed {
@@ -110,5 +106,19 @@ func totals(rows, planned, inWeek, unplanned, removed []row, today string) row {
 		}
 	}
 	g["removed"], g["unplanned"] = n, len(unplanned)
-	return row{"sessions": g, "by_kind": kinds, "time": t, "run_distance": d, "key_sessions": withOutcomes(keys, keyOut)}
+	return row{"sessions": g, "by_kind": kinds, "time": measuredTotals(t), "run_distance": measuredTotals(d), "key_sessions": withOutcomes(keys, keyOut)}
+}
+
+// Python's sum starts at integer zero. A missing or zero measurement also
+// contributes integer zero, while positive measurements yield floating totals.
+func measuredTotals(amounts map[string]float64) row {
+	result := row{}
+	for k, v := range amounts {
+		if v != 0 && (strings.HasSuffix(k, "_s") || strings.HasSuffix(k, "_m")) {
+			result[k] = rounded(v)
+		} else {
+			result[k] = int(v)
+		}
+	}
+	return result
 }
