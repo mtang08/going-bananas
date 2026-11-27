@@ -38,7 +38,7 @@ all migrations, the full research library, or private data to orient yourself.
 
 | Task | First files to inspect |
 | --- | --- |
-| Go port, proposal-list HTTP and SQL | `backend-go/cmd/going-bananas/`, `backend-go/api/`, `backend-go/internal/proposals/`, `backend-go/sql/`, [rewrite progress](docs/go-rewrite-readiness.md) |
+| Native HTTP, commands and SQL | `backend-go/cmd/going-bananas/`, `backend-go/api/`, `backend-go/internal/proposals/`, `backend-go/sql/`, [rewrite progress](docs/go-rewrite-readiness.md) |
 | Athlete coaching | [.codex/skills/going-bananas-coach/SKILL.md](.codex/skills/going-bananas-coach/SKILL.md), then its selected workflow/reference |
 | Coaching snapshots, validation, proposals | `backend/app/api/coach.py`, `backend/app/services/snapshot/`, `backend/app/services/decision_inputs.py`, `backend/app/services/proposals/` |
 | Calendar, completion, undo | `backend/app/api/calendar.py`, `backend/app/services/{calendar,matching,weekly_digest}.py` |
@@ -53,8 +53,10 @@ all migrations, the full research library, or private data to orient yourself.
 | Layers, write → refresh lifecycle, metric identity, modes | [docs/architecture.md](docs/architecture.md) |
 | Save an idea for later | `.codex/skills/going-bananas-feature-request/SKILL.md`, `docs/backlog.md` |
 
-The architecture is React/TypeScript/Vite → same-origin FastAPI `/api/v1` →
-SQLAlchemy/PostgreSQL, plus local import/sync workers. Codex supplies coaching
+React/TypeScript/Vite uses the same-origin `/api/v1` backed by PostgreSQL,
+with a separate local sync worker. Demo and test select Go by default. Real
+mode uses FastAPI and SQLAlchemy until the owner selects Go. Use Alembic for
+historically stamped schema upgrades. Codex supplies coaching
 reasoning through the skill/helper; ordinary app requests, metrics, imports, and
 calendar expansion do not call a model. Strong remains the lifting workflow.
 
@@ -113,7 +115,7 @@ is managed by `make db-start` / `make db-stop`. `make dev` starts API, worker, a
 Vite; `make build` then `make start` serves the built app. Do not run both servers
 at once. Runtime details and full setup are in [README.md](README.md).
 
-- `make check` runs the docs, backend, and frontend checks. Run them individually with `make check-docs`, `make check-backend`, or `make check-frontend`. `make complexity` reports functions above McCabe 15.
+- `make check` runs the docs, Python, frontend, and Go checks. Run them individually with `make check-docs`, `make check-backend`, `make check-frontend`, or `make check-go`. `make complexity` reports functions above McCabe 15.
 - `make test-integration` migrates and tests the isolated PostgreSQL test DB. To run one file, use `make test-integration TESTS=tests/integration/test_proposals.py`.
 - `python3 scripts/test_coach_skill_v2.py`: current helper contract/manifest checks.
 - `make test-e2e`: Playwright; requires the appropriate demo server/seed. See

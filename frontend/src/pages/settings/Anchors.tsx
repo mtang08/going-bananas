@@ -1,7 +1,8 @@
+import { createAnchor } from '../../api/planning'
 import { Button, Input } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, post } from '../../api/client'
+import { api } from '../../api/client'
 import { qk, invalidateKeys } from '../../api/queryKeys'
 import {
   validDate,
@@ -97,7 +98,8 @@ export function Anchors({
             b.valid_from.localeCompare(a.valid_from) ||
             b.calibrated_at.localeCompare(a.calibrated_at),
         )[0]
-      return post('/anchors', {
+      if (value_low === null) throw new Error('Enter an anchor value.')
+      return createAnchor({
         kind,
         value_low,
         value_high: null,

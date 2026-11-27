@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Home } from '../src/pages/Home'
 import type { ProposalSummary } from '../src/api/types/coach'
 import { addDays } from '../src/lib/format'
-import type { BlockVersion, TargetEvent } from '../src/api/types/blocks'
+import type { ActiveBlock, TargetEvent } from '../src/api/types/blocks'
 import type { CalendarView, DigestRow, SessionState, WeeklyDigest } from '../src/api/types/calendar'
 
 const emptyInterruption = (): RunningInterruptionView => ({
@@ -87,7 +87,7 @@ const BM = {
   progress_if: 'Faster than 21:40',
   consolidate_if: 'Within 20 s of 21:40',
 }
-const activeBlock = (planned: string | null): BlockVersion => ({
+const activeBlock = (planned: string | null): ActiveBlock => ({
   id: 'v1',
   block_uid: 'b1',
   version: 1,
@@ -107,6 +107,11 @@ const activeBlock = (planned: string | null): BlockVersion => ({
   created_at: '2026-11-01T12:00:00Z',
   proposal_id: 'p1',
   legacy_text: null,
+  target_event_id: null,
+  target_event: null,
+  target_event_status: 'none',
+  build_outline: [],
+  sources: [],
   benchmark: planned ? { ...BM, planned_date: planned } : null,
   benchmark_status: {
     status: 'pending',
@@ -229,7 +234,7 @@ let proposalItems: ProposalSummary[]
 let promptItems: unknown[]
 let calendar: CalendarView
 let exceptionsData: ExceptionsView
-let blockData: BlockVersion | null
+let blockData: ActiveBlock | null
 let error = false
 let digestFail = false
 let digestSessions: DigestRow[]
@@ -258,6 +263,7 @@ beforeEach(() => {
   interruption = emptyInterruption()
   interruptionWriteError = null
   calendar = {
+    versions: [],
     today: '2026-11-11',
     timezone: 'America/New_York',
     start: '2026-11-04',
@@ -534,7 +540,11 @@ describe('training home', () => {
   })
 
   it('shows setup without a calendar', async () => {
-    calendar = { ...calendar, head: 0, sessions: [] }
+    calendar = {
+      ...calendar,
+      head: 0,
+      sessions: [],
+    }
     mount()
     expect(await screen.findByText('No calendar yet.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open setup' })).toHaveAttribute('href', '#settings')

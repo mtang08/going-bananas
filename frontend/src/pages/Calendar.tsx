@@ -1,7 +1,16 @@
 import { Badge, Button, Card, Disclosure, Input, NativeSelect, Textarea } from '../components/ui'
 import { useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, api, post, put, query } from '../api/client'
+import {
+  ApiError,
+  api,
+  editCalendar,
+  rollbackCalendar,
+  getCalendarWeek,
+  getCalendarDiff,
+  put,
+  query,
+} from '../api/client'
 import { RUN_SPORTS } from '../api/types/blocks'
 import { REASON_LABELS } from '../api/types/checkins'
 import {
@@ -10,8 +19,6 @@ import {
   type CalendarEditsRequest,
   type CalendarRollbackRequest,
   type CalendarVersion,
-  type CalendarView,
-  type CalendarWriteResult,
   type Completion,
   type CompletionPut,
   type SessionFields,
@@ -66,9 +73,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
     queryKey: qk.calendarWeek(requested ?? 'current', viewVersion ?? 'head'),
     placeholderData: keepPreviousData,
     queryFn: () =>
-      api<CalendarView>(
-        `/calendar/week${query({ start: requested ?? undefined, version: viewVersion ?? undefined })}`,
-      ),
+      getCalendarWeek({ start: requested ?? undefined, version: viewVersion ?? undefined }),
   })
   const versions = useQuery({
     queryKey: qk.calendarVersions,
@@ -77,8 +82,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
   const diff = useQuery({
     queryKey: qk.calendarDiff((viewVersion ?? 1) - 1, viewVersion ?? 1),
     enabled: viewVersion !== null && viewVersion > 1,
-    queryFn: () =>
-      api<CalendarDiff>(`/calendar/diff${query({ from: viewVersion! - 1, to: viewVersion! })}`),
+    queryFn: () => getCalendarDiff({ from: viewVersion! - 1, to: viewVersion! }),
   })
   const data = view.data?.data
   const trips = useQuery({
@@ -105,7 +109,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
       ),
   })
   const edits = useMutation({
-    mutationFn: (body: CalendarEditsRequest) => post<CalendarWriteResult>('/calendar/edits', body),
+    mutationFn: (body: CalendarEditsRequest) => editCalendar(body),
     onSuccess: (response) => {
       invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.proposals])
       setEditor(null)
@@ -122,8 +126,7 @@ export function Calendar({ unit, weekStart = null }: { unit: Unit; weekStart?: s
     onError: (error) => setWriteError(error),
   })
   const rollback = useMutation({
-    mutationFn: (body: CalendarRollbackRequest) =>
-      post<CalendarWriteResult>('/calendar/rollback', body),
+    mutationFn: (body: CalendarRollbackRequest) => rollbackCalendar(body),
     onSuccess: (response, body) => {
       invalidateKeys(qc, [qk.calendar, qk.metrics, qk.prompts, qk.proposals])
       setConfirmRestore(null)

@@ -15,9 +15,9 @@ class SupervisorSelection(unittest.TestCase):
     def test_mode_and_worker(self):
         cases = [
             ("test", "", ["going-bananas", "npm"]),
-            ("demo", "python", ["going-bananas", "npm"]),
+            ("demo", "python", ["uv", "npm"]),
             ("real", "", ["uv", "uv", "npm"]),
-            ("real", "go", ["going-bananas", "garmin-worker", "npm"]),
+            ("real", "go", ["going-bananas", "going-bananas", "npm"]),
         ]
         for mode, selection, expected in cases:
             with self.subTest(mode=mode, selection=selection), ExitStack() as stack:

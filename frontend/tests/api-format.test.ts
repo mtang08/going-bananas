@@ -40,6 +40,8 @@ const calendarView = (value: unknown): value is CalendarView =>
   typeof value.timezone === 'string' &&
   Array.isArray(value.sessions) &&
   Array.isArray(value.completions) &&
+  Array.isArray(value.versions) &&
+  Array.isArray(value.recorded_runs) &&
   (value.undo === null || (record(value.undo) && Array.isArray(value.undo.protected_session_uids)))
 const profile = (value: unknown): value is Profile =>
   record(value) &&

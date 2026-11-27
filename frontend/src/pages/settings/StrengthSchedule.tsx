@@ -1,7 +1,7 @@
+import { saveProfile } from '../../api/planning'
 import { Button, Input, NativeSelect } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { put } from '../../api/client'
 import { qk, invalidateKeys } from '../../api/queryKeys'
 import { validDate } from '../../lib/format'
 import type { Profile } from '../../api/types/profile'
@@ -73,7 +73,7 @@ export function StrengthSchedule({ profile }: { profile: Profile }) {
   }
   const save = useMutation({
     mutationFn: () =>
-      put('/profile', {
+      saveProfile({
         ...profileBody(profile),
         cycle_anchor: anchor === null ? profile.cycle_anchor : anchor || null,
         anchor_confirmed: confirmAnchor ?? profile.anchor_confirmed,

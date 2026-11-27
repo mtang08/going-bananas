@@ -1,3 +1,4 @@
+import { linkBenchmark } from '../api/planning'
 import { INDICATOR_LABELS, LegacyText, SourceChips, WhyList } from '../components/CoachText'
 import {
   Button,
@@ -19,9 +20,9 @@ import {
   type BlockVersion,
 } from '../api/types/blocks'
 import { addDays, dateLabel, fmtDistance, fmtDuration, fmtRpe, type Unit } from '../lib/format'
-import { api, put, query } from '../api/client'
+import { getCalendar, api, query } from '../api/client'
 import { invalidateKeys, qk } from '../api/queryKeys'
-import { RECIPE_LABELS, type CalendarView } from '../api/types/calendar'
+import { RECIPE_LABELS } from '../api/types/calendar'
 import type { Activity } from '../api/types/activity'
 import { benchmarkStatusLabel, OUTCOME_LABELS } from '../coachLabels'
 import { QueryState } from '../components/QueryState'
@@ -34,9 +35,10 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
   })
   const calendar = useQuery({
     queryKey: qk.calendarView('head'),
-    queryFn: () => api<CalendarView>('/calendar'),
+    queryFn: () => getCalendar(),
   })
   const block = active.data?.data
+  const constraints = Array.isArray(block?.constraints) ? block.constraints : []
   const history = useQuery({
     queryKey: qk.blockHistory(block?.block_uid),
     enabled: !!block,
@@ -71,7 +73,7 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
   const runOptions = (runs.data?.data?.items ?? []).filter((a) => RUN_SPORTS.includes(a.sport))
   const choose = useMutation({
     mutationFn: (activityId: string | null) =>
-      put<unknown>(`/blocks/${encodeURIComponent(block!.block_uid)}/benchmark-activity`, {
+      linkBenchmark(block!.block_uid, {
         activity_id: activityId,
       }),
     onSuccess: () => invalidateKeys(qc, [qk.blocks, qk.exceptions]),
@@ -181,14 +183,14 @@ export function Block({ unit = 'mi' }: { unit?: Unit }) {
                   <SourceChips sources={block.sources} />
                 </Disclosure>
               )}
-              {(block.constraints.length > 0 || block.non_goals.length > 0) && (
+              {(constraints.length > 0 || block.non_goals.length > 0) && (
                 <Disclosure className="training-disclosure">
                   <summary>Constraints and out of scope</summary>
-                  {block.constraints.length > 0 && (
+                  {constraints.length > 0 && (
                     <>
                       <h3>Constraints</h3>
                       <ul>
-                        {block.constraints.map((constraint, index) => (
+                        {constraints.map((constraint, index) => (
                           <li key={index}>{constraint.text}</li>
                         ))}
                       </ul>

@@ -11,11 +11,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	baseline "github.com/mtang08/going-bananas/backend-go/sql"
 )
 
 func TestHeadTracksAlembic(t *testing.T) {
 	reference, err := os.ReadFile("../../../backend/app/migrations_head.py")
-	if err != nil || !strings.Contains(string(reference), "EXPECTED_HEAD = "+strconv.Quote(expectedHead)) {
+	if err != nil || !strings.Contains(string(reference), "EXPECTED_HEAD = "+strconv.Quote(baseline.Head())) {
 		t.Fatal("update native readiness for the current migration head", err)
 	}
 }

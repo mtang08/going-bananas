@@ -1,7 +1,7 @@
+import { saveRoutine } from '../../api/planning'
 import { Button, Card, Input } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { put } from '../../api/client'
 import { qk, invalidateKeys } from '../../api/queryKeys'
 import {
   WEEKDAY_LABELS,
@@ -154,7 +154,7 @@ export function Routine({ routine, onSaved }: { routine: StrengthRoutine; onSave
   const save = useMutation({
     mutationFn: () => {
       checkSlots(slots)
-      return put('/strength-routine', {
+      return saveRoutine({
         expected_version: routine.version,
         slots: cleanSlots(slots),
       })

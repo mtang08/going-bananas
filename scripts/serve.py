@@ -14,7 +14,10 @@ private = root / "private"
 mode = os.environ.get("APP_MODE", "demo")
 if mode not in {"test", "demo", "real"}:
     raise SystemExit("APP_MODE must be test, demo or real.")
-native = mode != "real" or os.environ.get("GOING_BANANAS_BACKEND") == "go"
+backend = os.environ.get("GOING_BANANAS_BACKEND") or ("python" if mode == "real" else "go")
+if backend not in {"go", "python"}:
+    raise SystemExit("Unknown GOING_BANANAS_BACKEND.")
+native = backend == "go"
 os.environ.setdefault("APP_MODE", mode)
 bin_dir = private / "bin"
 
@@ -33,9 +36,8 @@ def build_backend():
                 "go",
                 "build",
                 "-o",
-                str(bin_dir) + "/",
+                str(bin_dir / "going-bananas"),
                 "./cmd/going-bananas",
-                "./cmd/garmin-worker",
             ],
             cwd=root / "backend-go",
             env=env,
@@ -97,7 +99,7 @@ if native:
         )
     ]
     if mode == "real":
-        commands.append(([str(bin_dir / "garmin-worker"), "worker"], root))
+        commands.append(([str(bin_dir / "going-bananas"), "worker"], root))
 else:
     commands = [
         (
@@ -113,8 +115,9 @@ else:
             ],
             root / "backend",
         ),
-        (["uv", "run", "python", "-m", "app.cli", "worker"], root / "backend"),
     ]
+    if mode == "real":
+        commands.append((["uv", "run", "python", "-m", "app.cli", "worker"], root / "backend"))
     startup = subprocess.run(
         ["uv", "run", "python", "-m", "app.cli", "metrics-refresh-today"],
         cwd=root / "backend",

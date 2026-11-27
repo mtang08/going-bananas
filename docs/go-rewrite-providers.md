@@ -181,3 +181,18 @@ The main server supplies the local Host, Origin and write guards to all three re
 | `synchttp.New(pool, mode, privateDir).Register(mux)` | Sync status, job lookup, enqueue, treadmill preview and confirmation. Confirmation persists the reviewed summary, FIT and lap paces with its queue and metric updates. | `python3 scripts/test-db.py sync-http` |
 | `httpapi.ExceptionRoutes{Pool: pool, Mode: mode}.Register(mux)` | Reading findings runs detection. Dismissal and patch resolution validate the expected version and update linked findings in the same transaction. For a read-only projection, call `exceptions.View(ctx, tx, now, include)`. | `python3 scripts/test-db.py exception-http` and `python3 scripts/test-db.py exception-view` |
 | `loginstartup.Local(absoluteRepoRoot, mode).Register(mux)` | Read or update the macOS login-startup preference. The OS adapter checks the current checkout's launch agent and writes its plist atomically. | From `backend-go`, run `go test -race ./internal/loginstartup` for the Python HTTP and simulated launchd cases. |
+
+The browser reads the same wire types described by the native route fragments. The sync contract includes nullable provider dates, job checkpoints and counters, reviewed laps and confirmation receipts. The check-in and exception contracts describe duplicate receipts, historical reads, versioned actions and request guard failures. [Sync](../backend-go/api/sync.openapi.json) · [Check-ins and phone](../backend-go/api/checkins.openapi.json) · [Exceptions and login startup](../backend-go/api/exception-startup.openapi.json)
+
+### Fresh synthetic dashboard
+
+From the repository root, initialize the selected demo database and run the fixture through the native commands.
+
+```sh
+./scripts/with-mode demo bash -c 'cd backend-go && go run ./cmd/workspace-migrate --backend-dir ../backend'
+./scripts/with-mode demo bash -c 'cd backend-go && go run ./cmd/seed-demo'
+```
+
+The seed command takes no arguments and requires demo mode, a database name ending in `_demo` and a private directory that resolves to a directory named `demo`. It creates synthetic activity history, recovery observations, training plans, check-ins and travel events in one transaction and prints table counts. The central CLI can dispatch to `demoseed.Run(ctx, args, out)` with an empty argument list. [Seed command](../backend-go/cmd/seed-demo/main.go)
+
+Run `python3 scripts/test-db.py demo-seed` to compare the fresh dashboard and same-day replay against Python. The comparison matched all 183 current metric results. Python stored 34 superseded rows during the fresh seed and five more during the same-day replay, from intermediate states within its seed transactions. Go stores the resulting current rows. [Synthetic comparison](../scripts/rewrite/check_demo_seed.py)

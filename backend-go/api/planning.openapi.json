@@ -1,0 +1,3755 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Going Bananas planning configuration",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/profile": {
+      "get": {
+        "operationId": "getProfile",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Profile"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateProfile",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Profile"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LocalWrite"
+          }
+        ]
+      }
+    },
+    "/api/v1/running-interruption": {
+      "get": {
+        "operationId": "getRunningInterruption",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RunningInterruptionView"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateRunningInterruption",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RunningInterruptionView"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunningInterruptionInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LocalWrite"
+          }
+        ]
+      }
+    },
+    "/api/v1/strength-routine": {
+      "get": {
+        "operationId": "getStrengthRoutine",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StrengthRoutine"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateStrengthRoutine",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StrengthRoutine"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutineInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LocalWrite"
+          }
+        ]
+      }
+    },
+    "/api/v1/anchors": {
+      "get": {
+        "operationId": "listAnchors",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AnchorList"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAnchor",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IntensityAnchor"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnchorInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LocalWrite"
+          }
+        ]
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "operationId": "listEvents",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EventList"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createEvent",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RaceEvent"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LocalWrite"
+          }
+        ]
+      }
+    },
+    "/api/v1/events/{event_id}": {
+      "patch": {
+        "operationId": "updateEvent",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RaceEvent"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventPatch"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/LocalWrite"
+          }
+        ]
+      }
+    },
+    "/api/v1/events/order": {
+      "put": {
+        "operationId": "reorderEvents",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EventList"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventOrder"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LocalWrite"
+          }
+        ]
+      }
+    },
+    "/api/v1/events/{event_id}/blocks": {
+      "get": {
+        "operationId": "listEventBlocks",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EventBlocks"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/blocks/active": {
+      "get": {
+        "operationId": "getActiveBlock",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/ActiveBlock"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/blocks/benchmarks": {
+      "get": {
+        "operationId": "listBenchmarks",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/BenchmarkList"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/blocks/{block_uid}/history": {
+      "get": {
+        "operationId": "listBlockHistory",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/BlockHistory"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "block_uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/blocks/{block_uid}/benchmark-activity": {
+      "put": {
+        "operationId": "setBenchmarkActivity",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "v1"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "test",
+                        "demo",
+                        "real"
+                      ]
+                    },
+                    "data_revision": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/BenchmarkActivityResult"
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "mode",
+                    "data_revision",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Write conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BenchmarkActivityInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "block_uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/LocalWrite"
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnchorInput": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hr_aerobic_upper",
+              "hr_threshold_lower",
+              "speed_aerobic_upper",
+              "speed_threshold_lower",
+              "performance_5k",
+              "performance_1mile",
+              "performance_3min",
+              "performance_20_30min"
+            ]
+          },
+          "value_low": {
+            "title": "Value Low",
+            "type": "number"
+          },
+          "value_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value High"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "bpm",
+              "mps",
+              "s",
+              "m"
+            ]
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "race_5k",
+              "time_trial_5k",
+              "time_trial_1mile",
+              "time_trial_3min",
+              "time_trial_20_30min",
+              "workout_derived",
+              "lab_test",
+              "manual"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "moderate",
+              "low",
+              "insufficient"
+            ]
+          },
+          "calibrated_at": {
+            "format": "date-time",
+            "title": "Calibrated At",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "review_after": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review After"
+          },
+          "source_activity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Activity Id"
+          },
+          "source_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Event Id"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Id"
+          },
+          "conditions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conditions"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "supersedes_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Key"
+          }
+        },
+        "required": [
+          "kind",
+          "value_low",
+          "unit",
+          "protocol",
+          "confidence",
+          "calibrated_at",
+          "valid_from"
+        ],
+        "title": "AnchorInput",
+        "type": "object"
+      },
+      "ProfileInput": {
+        "properties": {
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "cycle_anchor": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle Anchor"
+          },
+          "anchor_confirmed": {
+            "title": "Anchor Confirmed",
+            "type": "boolean"
+          },
+          "strength_days_confirmed": {
+            "title": "Strength Days Confirmed",
+            "type": "boolean"
+          },
+          "scheduled_strength_days": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Scheduled Strength Days",
+            "type": "array"
+          },
+          "strength_schedule_mode": {
+            "enum": [
+              "weekly",
+              "alternating"
+            ],
+            "title": "Strength Schedule Mode",
+            "type": "string"
+          },
+          "strength_week_a_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strength Week A Start"
+          },
+          "strength_week_a_days": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Strength Week A Days",
+            "type": "array"
+          },
+          "strength_week_b_days": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Strength Week B Days",
+            "type": "array"
+          },
+          "mobility_week_a_days": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Mobility Week A Days",
+            "type": "array"
+          },
+          "mobility_week_b_days": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Mobility Week B Days",
+            "type": "array"
+          },
+          "mobility_optional_days": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Mobility Optional Days",
+            "type": "array"
+          },
+          "facts": {
+            "additionalProperties": true,
+            "title": "Facts",
+            "type": "object"
+          },
+          "preferences": {
+            "additionalProperties": true,
+            "title": "Preferences",
+            "type": "object"
+          },
+          "unknowns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unknowns",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "ProfileInput",
+        "type": "object"
+      },
+      "RunningInterruption": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "enum": [
+              "schedule",
+              "travel",
+              "illness",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          },
+          "return_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return On"
+          },
+          "review_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review On"
+          }
+        },
+        "required": [
+          "reason",
+          "starts_on"
+        ],
+        "title": "RunningInterruption",
+        "type": "object"
+      },
+      "RunningInterruptionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "interruption": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunningInterruption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expected_version",
+          "interruption"
+        ],
+        "title": "RunningInterruptionInput",
+        "type": "object"
+      },
+      "SlotInput": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "default_weekday": {
+            "title": "Default Weekday",
+            "type": "integer"
+          },
+          "lower_body_cost": {
+            "enum": [
+              "low",
+              "moderate",
+              "high"
+            ],
+            "title": "Lower Body Cost",
+            "type": "string"
+          },
+          "typical_duration_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typical Duration S"
+          },
+          "main_lower_body_lifts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Main Lower Body Lifts",
+            "type": "array"
+          },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "label",
+          "default_weekday",
+          "lower_body_cost"
+        ],
+        "title": "SlotInput",
+        "type": "object"
+      },
+      "RoutineInput": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/SlotInput"
+            },
+            "title": "Slots",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_version",
+          "slots"
+        ],
+        "title": "RoutineInput",
+        "type": "object"
+      },
+      "EventInput": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "event_date": {
+            "format": "date",
+            "title": "Event Date",
+            "type": "string"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "purpose": {
+            "enum": [
+              "pr",
+              "benchmark",
+              "training"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "goal_time_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal Time S"
+          },
+          "status": {
+            "enum": [
+              "planned",
+              "registered",
+              "completed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "result_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result S"
+          }
+        },
+        "required": [
+          "name",
+          "event_date",
+          "purpose"
+        ],
+        "title": "EventInput",
+        "type": "object"
+      },
+      "EventPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "event_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Date"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pr",
+                  "benchmark",
+                  "training"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "goal_time_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal Time S"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "planned",
+                  "registered",
+                  "completed",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "result_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result S"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "EventPatch",
+        "type": "object"
+      },
+      "EventOrderItem": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "expected_version"
+        ],
+        "title": "EventOrderItem",
+        "type": "object"
+      },
+      "EventOrder": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventOrderItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EventOrder",
+        "type": "object"
+      },
+      "BenchmarkActivityInput": {
+        "additionalProperties": false,
+        "properties": {
+          "activity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Id"
+          }
+        },
+        "required": [
+          "activity_id"
+        ],
+        "title": "BenchmarkActivityInput",
+        "type": "object"
+      },
+      "IntensityAnchor": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "anchor_key": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hr_aerobic_upper",
+              "hr_threshold_lower",
+              "speed_aerobic_upper",
+              "speed_threshold_lower",
+              "performance_5k",
+              "performance_1mile",
+              "performance_3min",
+              "performance_20_30min"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "bpm",
+              "mps",
+              "s",
+              "m"
+            ]
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "race_5k",
+              "time_trial_5k",
+              "time_trial_1mile",
+              "time_trial_3min",
+              "time_trial_20_30min",
+              "workout_derived",
+              "lab_test",
+              "manual"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "moderate",
+              "low",
+              "insufficient"
+            ]
+          },
+          "value_low": {
+            "type": "number"
+          },
+          "value_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "provisional",
+              "active",
+              "expired",
+              "invalid"
+            ]
+          },
+          "calibrated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date"
+          },
+          "review_after": {
+            "type": "string",
+            "format": "date"
+          },
+          "source_activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conditions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supersedes_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "content_hash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "anchor_key",
+          "kind",
+          "unit",
+          "protocol",
+          "confidence",
+          "value_low",
+          "value_high",
+          "status",
+          "calibrated_at",
+          "valid_from",
+          "review_after",
+          "source_activity_id",
+          "source_event_id",
+          "proposal_id",
+          "conditions",
+          "notes",
+          "supersedes_key",
+          "content_hash"
+        ]
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "cycle_anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchor_confirmed": {
+            "type": "boolean"
+          },
+          "strength_days_confirmed": {
+            "type": "boolean"
+          },
+          "scheduled_strength_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "strength_schedule_mode": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "alternating"
+            ]
+          },
+          "strength_week_a_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strength_week_a_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "strength_week_b_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "mobility_week_a_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "mobility_week_b_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "mobility_optional_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "facts": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "preferences": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "unknowns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "timezone",
+          "cycle_anchor",
+          "anchor_confirmed",
+          "strength_days_confirmed",
+          "scheduled_strength_days",
+          "strength_schedule_mode",
+          "strength_week_a_start",
+          "strength_week_a_days",
+          "strength_week_b_days",
+          "mobility_week_a_days",
+          "mobility_week_b_days",
+          "mobility_optional_days",
+          "facts",
+          "preferences",
+          "unknowns"
+        ]
+      },
+      "StrengthRoutineSlot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "default_weekday": {
+            "type": "integer"
+          },
+          "lower_body_cost": {
+            "type": "string",
+            "enum": [
+              "low",
+              "moderate",
+              "high"
+            ]
+          },
+          "typical_duration_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "main_lower_body_lifts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "default_weekday",
+          "lower_body_cost",
+          "typical_duration_s",
+          "main_lower_body_lifts",
+          "active",
+          "version"
+        ]
+      },
+      "ConfirmedSchedule": {
+        "type": "object",
+        "properties": {
+          "strength_days_confirmed": {
+            "type": "boolean"
+          },
+          "scheduled_strength_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "strength_schedule_mode": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "alternating"
+            ]
+          },
+          "strength_week_a_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strength_week_a_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "strength_week_b_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "mobility_week_a_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "mobility_week_b_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "mobility_optional_days": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "strength_days_confirmed",
+          "scheduled_strength_days",
+          "strength_schedule_mode",
+          "strength_week_a_start",
+          "strength_week_a_days",
+          "strength_week_b_days",
+          "mobility_week_a_days",
+          "mobility_week_b_days",
+          "mobility_optional_days"
+        ]
+      },
+      "StrengthRoutine": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer"
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StrengthRoutineSlot"
+            }
+          },
+          "suggested": {
+            "type": "boolean"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/ConfirmedSchedule"
+          }
+        },
+        "required": [
+          "version",
+          "slots",
+          "suggested",
+          "schedule"
+        ]
+      },
+      "InterruptionRun": {
+        "type": "object",
+        "properties": {
+          "session_uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "intent": {
+            "type": "string"
+          },
+          "recipe_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planned_duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planned_distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "session_uid",
+          "local_date",
+          "intent",
+          "recipe_id",
+          "planned_duration_s",
+          "planned_distance_m"
+        ]
+      },
+      "InterruptionViewEpisode": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "enum": [
+              "schedule",
+              "travel",
+              "illness",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          },
+          "return_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return On"
+          },
+          "review_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review On"
+          }
+        },
+        "required": [
+          "reason",
+          "starts_on",
+          "return_on",
+          "review_on"
+        ],
+        "title": "RunningInterruption",
+        "type": "object"
+      },
+      "RunningInterruptionView": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": "string",
+            "format": "date"
+          },
+          "profile_version": {
+            "type": "integer"
+          },
+          "interruption": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InterruptionViewEpisode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "planned",
+                  "paused",
+                  "review_due",
+                  "returning"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "affected_runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterruptionRun"
+            }
+          },
+          "affected_runs_omitted": {
+            "type": "integer"
+          },
+          "first_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InterruptionRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recorded_return": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "activity_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "local_date": {
+                    "type": "string",
+                    "format": "date"
+                  }
+                },
+                "required": [
+                  "activity_id",
+                  "local_date"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "today",
+          "profile_version",
+          "interruption",
+          "phase",
+          "affected_runs",
+          "affected_runs_omitted",
+          "first_run",
+          "recorded_return",
+          "review_reason"
+        ]
+      },
+      "RaceEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "event_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "pr",
+              "benchmark",
+              "training"
+            ]
+          },
+          "goal_time_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "registered",
+              "completed",
+              "cancelled"
+            ]
+          },
+          "result_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "event_date",
+          "distance_m",
+          "purpose",
+          "goal_time_s",
+          "rank",
+          "status",
+          "result_s",
+          "version"
+        ]
+      },
+      "BlockBenchmark": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "time_trial",
+              "event"
+            ]
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planned_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "progress_if": {
+            "type": "string"
+          },
+          "consolidate_if": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "protocol",
+          "planned_date"
+        ]
+      },
+      "BenchmarkStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_set",
+              "pending",
+              "completed",
+              "missed"
+            ]
+          },
+          "match_method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "manual"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "local_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rpe": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scheduled_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "match_method",
+          "activity_id",
+          "event_id",
+          "local_date",
+          "distance_m",
+          "result_s",
+          "rpe",
+          "scheduled_date",
+          "evidence_at"
+        ]
+      },
+      "OutlineStep": {
+        "type": "object",
+        "properties": {
+          "emphasis": {
+            "type": "string"
+          },
+          "weeks": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "emphasis",
+          "weeks"
+        ]
+      },
+      "EventBlock": {
+        "type": "object",
+        "properties": {
+          "block_uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "consolidating",
+              "completed",
+              "replaced",
+              "ended"
+            ]
+          },
+          "objective": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "review_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "benchmark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlockBenchmark"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "build_outline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutlineStep"
+            }
+          }
+        },
+        "required": [
+          "block_uid",
+          "version",
+          "status",
+          "objective",
+          "start_date",
+          "review_date",
+          "benchmark",
+          "build_outline"
+        ]
+      },
+      "Indicator": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "quality_progression",
+              "aerobic_efficiency",
+              "key_sessions",
+              "rpe_vs_intent",
+              "other"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "progress_when": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "label",
+          "progress_when"
+        ]
+      },
+      "BlockVersion": {
+        "type": "object",
+        "properties": {
+          "block_uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "consolidating",
+              "completed",
+              "replaced",
+              "ended"
+            ]
+          },
+          "objective": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "review_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "benchmark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlockBenchmark"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "build_outline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutlineStep"
+            }
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "why": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "observation",
+                    "research",
+                    "inference",
+                    "priority"
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "text"
+              ]
+            }
+          },
+          "maintained_qualities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "non_goals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "eligible_recipe_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "progression_dimension": {
+            "type": "string"
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "text"
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          },
+          "indicators": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Indicator"
+            }
+          },
+          "early_review_triggers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "legacy_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "objective_status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "proposal_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "block_uid",
+          "version",
+          "status",
+          "objective",
+          "start_date",
+          "review_date",
+          "benchmark",
+          "build_outline",
+          "id",
+          "why",
+          "maintained_qualities",
+          "non_goals",
+          "eligible_recipe_ids",
+          "progression_dimension",
+          "constraints",
+          "indicators",
+          "early_review_triggers",
+          "legacy_text",
+          "objective_status",
+          "created_at",
+          "proposal_id",
+          "target_event_id"
+        ]
+      },
+      "TargetEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "event_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "pr",
+              "benchmark",
+              "training"
+            ]
+          },
+          "goal_time_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "event_date",
+          "distance_m",
+          "purpose",
+          "goal_time_s",
+          "rank"
+        ]
+      },
+      "ActiveBlock": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BlockVersion"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "benchmark_status": {
+                "$ref": "#/components/schemas/BenchmarkStatus"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "policy",
+                        "evidence"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "papers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "title",
+                    "papers"
+                  ]
+                }
+              },
+              "target_event": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TargetEvent"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "target_event_status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "changed",
+                  "unset",
+                  "none"
+                ]
+              }
+            },
+            "required": [
+              "benchmark_status",
+              "sources",
+              "target_event",
+              "target_event_status"
+            ]
+          }
+        ]
+      },
+      "BenchmarkRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "block_uid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "block_version": {
+            "type": "integer"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "local_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "progress",
+              "consolidate",
+              "recalibrate_only",
+              "inconclusive"
+            ]
+          },
+          "compared_with": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "match_method": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "manual"
+            ]
+          },
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "block_uid",
+          "block_version",
+          "objective",
+          "protocol",
+          "distance_m",
+          "local_date",
+          "result_s",
+          "outcome",
+          "compared_with",
+          "match_method",
+          "activity_id",
+          "event_id"
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationField"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "request_id",
+          "fields"
+        ]
+      },
+      "ValidationField": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "ValidationField"
+      },
+      "AnchorList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntensityAnchor"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "EventList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RaceEvent"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "EventBlocks": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventBlock"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "BenchmarkList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BenchmarkRecord"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "BlockHistory": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockVersion"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "BenchmarkActivityResult": {
+        "type": "object",
+        "properties": {
+          "benchmark": {
+            "$ref": "#/components/schemas/BlockBenchmark"
+          },
+          "benchmark_status": {
+            "$ref": "#/components/schemas/BenchmarkStatus"
+          }
+        },
+        "required": [
+          "benchmark",
+          "benchmark_status"
+        ]
+      }
+    },
+    "parameters": {
+      "LocalWrite": {
+        "name": "X-Local-Request",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "const": "1"
+        }
+      }
+    }
+  }
+}

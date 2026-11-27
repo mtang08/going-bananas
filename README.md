@@ -255,6 +255,7 @@ make check                 # docs, Python, Go and frontend checks
 make check-go              # generated code, build, lint, and race-enabled tests
 make check-go-vuln         # check the Go module against the current vulnerability database
 make generate-api-types    # regenerate Go and React HTTP types and sqlc queries
+make api-schema            # print the bundled OpenAPI contract
 make test-proposal-go      # compare Python and Go with PostgreSQL, Home and Settings
 make test-integration      # provision the isolated database and run PostgreSQL integration tests
 make test-integration TESTS=tests/integration/test_proposals.py
@@ -266,7 +267,14 @@ compile against its request and response types. `make check-api-types` also chec
 sqlc output and works with PostgreSQL stopped. To exercise both compilers, run
 `python3 scripts/rewrite/check_contract_rename.py`. It renames a proposal field
 in a temporary copy and checks that both consumers fail to build.
-[Migrated HTTP operations](backend-go/api/openapi.json)
+The bundle collects the [checked-in HTTP contracts](backend-go/api) into one
+OpenAPI document.
+
+The normal API, worker, coach commands, imports and metric commands share the
+`going-bananas` executable. From an explicit workspace, the CLI wrapper builds
+and runs it while preserving command exit codes, for example
+`./scripts/with-mode demo ./scripts/backend-cli metrics-refresh-today`.
+The phone gateway runs on its separate listener.
 
 The development proxy sends every API request to one local backend. For a
 demo with a migrated database, run `./scripts/with-mode demo make dev`.
@@ -299,9 +307,9 @@ Browser acceptance uses an isolated demo database and built frontend on port
 18000. Use a disposable demo environment, never real credentials or data:
 
 ```sh
-./scripts/with-mode demo bash -c 'cd backend && uv run alembic upgrade head && uv run python -m app.cli seed-demo'
-make build
-APP_PORT=18000 ./scripts/with-mode demo bash -c 'cd backend && uv run uvicorn app.main:app --host 127.0.0.1 --port 18000'
+make seed-demo
+./scripts/with-mode demo make build
+APP_PORT=18000 ./scripts/with-mode demo make start
 # In another terminal:
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:18000 make test-e2e
 ```

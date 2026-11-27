@@ -80,7 +80,13 @@ def reference():
     from sqlalchemy import text
 
     result = []
-    for change in ["", "", CHANGE]:
+    for change in [
+        "",
+        "",
+        CHANGE,
+        """UPDATE source_records SET fields='{"device_generation": 3}' WHERE source_kind='recovery'""",
+        """UPDATE source_records SET fields='{"device_generation": false}' WHERE source_kind='recovery'""",
+    ]:
         with SessionLocal.begin() as s:
             engine.ensure_configs(s)
             for sql in filter(None, change.split(";")):

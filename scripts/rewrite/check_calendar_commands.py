@@ -99,6 +99,7 @@ def main():
                 env={**go, "CALENDAR_COMMAND_CASES": str(corpus)},
                 check=True,
             )
+            subprocess.run(["go","test","-count=1","./api/calendarwire"],cwd=MODULE,env={**go,"CALENDAR_WIRE_CASES":str(p/"wire.json")},check=True)
             query = """SELECT revision,calendar_version_number,deleted,local_date,slot,kind,recipe_id,custom,locked,legacy_unstructured,legacy_payload,placeholder,intent,certainty,planned_duration_s,planned_distance_m,structure,strength_slot_id,notes,brief FROM calendar_session_revisions ORDER BY calendar_version_number,local_date,slot,intent,revision"""
 
             def state(env):
@@ -129,6 +130,7 @@ def reference(path):
 
     today = NOW.date()
     cases = []
+    envelopes = []
     client = TestClient(app)
     roots = {
         "anchor_date": str(today),
@@ -142,6 +144,8 @@ def reference(path):
             method, "/api/v1" + route, json=body, headers={"X-Local-Request": "1"}
         )
         data = res.json()
+        if route.startswith("/calendar/") and res.status_code == 201:
+            envelopes.append({"path": route.removeprefix("/calendar"),"envelope":res.json()})
         comparable(route, data)
         if source:
             for edit in body["edits"]:
@@ -292,6 +296,7 @@ def reference(path):
             == 200
         )
         assert call("/anchors").status_code == 200
+    Path(path).with_name("wire.json").write_text(json.dumps(envelopes))
     path.write_text(json.dumps(cases))
 
 

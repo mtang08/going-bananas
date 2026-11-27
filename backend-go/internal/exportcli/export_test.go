@@ -62,3 +62,29 @@ func TestExportFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCommandExitAndErrors(t *testing.T) {
+	invalidPath := filepath.Join(t.TempDir(), "missing.zip")
+	for _, tc := range []struct {
+		name string
+		mode string
+		args []string
+		err  string
+	}{
+		{"missing archive", "test", nil, usage + "\ngoing-bananas import-export: error: the following arguments are required: archive\n"},
+		{"unrecognized flag", "test", []string{"fixture.zip", "--bogus"}, usage + "\ngoing-bananas import-export: error: unrecognized arguments: --bogus\n"},
+		{"extra positional", "test", []string{"fixture.zip", "extra"}, usage + "\ngoing-bananas import-export: error: unrecognized arguments: extra\n"},
+		{"mode guard", "test", []string{"fixture.zip"}, "{\"error\":\"real_mode_required\"}\n"},
+		{"invalid path", "real", []string{invalidPath}, "{\"error\":\"invalid_export_archive\"}\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("APP_MODE", tc.mode)
+			t.Setenv("DATABASE_URL", "postgresql://fixture@127.0.0.1:1/synthetic_"+tc.mode)
+			var stdout, stderr bytes.Buffer
+			if code := Command(t.Context(), tc.args, &stdout, &stderr, nil); code != 2 ||
+				stdout.Len() != 0 || stderr.String() != tc.err {
+				t.Fatalf("status %d, stdout %q, stderr %q", code, stdout.String(), stderr.String())
+			}
+		})
+	}
+}

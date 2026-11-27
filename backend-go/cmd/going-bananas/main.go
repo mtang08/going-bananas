@@ -18,7 +18,18 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mtang08/going-bananas/backend-go/api"
+	"github.com/mtang08/going-bananas/backend-go/internal/backupcli"
+	"github.com/mtang08/going-bananas/backend-go/internal/calendarcli"
+	"github.com/mtang08/going-bananas/backend-go/internal/coachcli"
+	"github.com/mtang08/going-bananas/backend-go/internal/demoseed"
+	"github.com/mtang08/going-bananas/backend-go/internal/exportcommand"
+	"github.com/mtang08/going-bananas/backend-go/internal/fitcommand"
 	"github.com/mtang08/going-bananas/backend-go/internal/health"
+	"github.com/mtang08/going-bananas/backend-go/internal/metriccli"
+	"github.com/mtang08/going-bananas/backend-go/internal/migratecli"
+	"github.com/mtang08/going-bananas/backend-go/internal/preflight"
+	"github.com/mtang08/going-bananas/backend-go/internal/strongcli"
+	"github.com/mtang08/going-bananas/backend-go/internal/workercommand"
 	"github.com/oapi-codegen/runtime"
 )
 
@@ -134,10 +145,41 @@ type compactJSON struct{ runtime.StdJSONCodec }
 
 func main() {
 	runtime.SetJSONCodec(compactJSON{})
-	if len(os.Args) < 2 || os.Args[1] != "serve" {
-		log.Fatal("usage: going-bananas serve [-listen 127.0.0.1:8011]")
+	if len(os.Args) < 2 {
+		log.Fatal("usage: going-bananas COMMAND [arguments]")
 	}
-	if err := serve(os.Args[2:]); err != nil {
-		log.Fatal(err)
+	args := os.Args[1:]
+	switch args[0] {
+	case "serve":
+		if err := serve(args[1:]); err != nil {
+			log.Fatal(err)
+		}
+	case "seed-demo":
+		if err := demoseed.Run(context.Background(), args[1:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	case "worker", "sync":
+		os.Exit(workercommand.Main(args))
+	case "fit-backfill", "fit-reprocess":
+		os.Exit(fitcommand.Main(args))
+	case "calendar-connect", "calendar-probe":
+		os.Exit(calendarcli.Main(args))
+	case "backup", "restore":
+		os.Exit(backupcli.Main(args))
+	case "migrate":
+		os.Exit(migratecli.Main(args[1:]))
+	case "workspace-preflight":
+		os.Exit(preflight.Main(args[1:]))
+	case "strong-import":
+		os.Exit(strongcli.Main(args[1:]))
+	case "import-export":
+		os.Exit(exportcommand.Main(args[1:]))
+	case "metrics-recompute", "metrics-assess-session", "metrics-refresh-today":
+		os.Exit(metriccli.Main(args))
+	case "coach":
+		os.Exit(coachcli.Main(args[1:]))
+	default:
+		log.Fatal("unknown command")
 	}
 }

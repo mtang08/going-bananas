@@ -550,8 +550,8 @@ describe('Trends', () => {
       distance_m: number,
       local_date: string,
       result_s: number,
-      outcome: BenchmarkRecord['outcome'],
-    ): BenchmarkRecord => ({
+      outcome: BenchmarkRecord['outcome'] | null,
+    ) => ({
       id,
       distance_m,
       local_date,

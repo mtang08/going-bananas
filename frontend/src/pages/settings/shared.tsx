@@ -3,27 +3,8 @@ import { ApiError } from '../../api/client'
 import type { Profile } from '../../api/types/profile'
 
 export function profileBody(profile: Profile) {
-  const keys = [
-    'timezone',
-    'cycle_anchor',
-    'anchor_confirmed',
-    'strength_days_confirmed',
-    'scheduled_strength_days',
-    'strength_schedule_mode',
-    'strength_week_a_start',
-    'strength_week_a_days',
-    'strength_week_b_days',
-    'mobility_week_a_days',
-    'mobility_week_b_days',
-    'mobility_optional_days',
-    'facts',
-    'preferences',
-    'unknowns',
-  ] as const
-  return {
-    ...Object.fromEntries(keys.map((key) => [key, profile[key]])),
-    expected_version: profile.version,
-  }
+  const { version, ...fields } = profile
+  return { ...fields, expected_version: version }
 }
 export function ErrorText({ error }: { error: Error | null }) {
   if (!error) return null

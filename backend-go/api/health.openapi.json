@@ -1,0 +1,212 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Going Bananas health probes",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/health/live": {
+      "get": {
+        "operationId": "healthLive",
+        "responses": {
+          "200": {
+            "description": "Server is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local origin or host guard rejected the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./openapi.json#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "operationId": "healthReady",
+        "responses": {
+          "200": {
+            "description": "Database is ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local origin or host guard rejected the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./openapi.json#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable or schema requires migration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnavailableEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Liveness": {
+        "type": "object",
+        "required": [
+          "status",
+          "dashboard_coach"
+        ],
+        "properties": {
+          "status": {
+            "const": "ok"
+          },
+          "dashboard_coach": {
+            "const": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Ready": {
+        "type": "object",
+        "required": [
+          "status",
+          "database"
+        ],
+        "properties": {
+          "status": {
+            "const": "ok"
+          },
+          "database": {
+            "const": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Unavailable": {
+        "type": "object",
+        "required": [
+          "status",
+          "database"
+        ],
+        "properties": {
+          "status": {
+            "const": "unavailable"
+          },
+          "database": {
+            "const": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "LivenessEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "v1"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "real",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Liveness"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReadyEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "v1"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "real",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Ready"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnavailableEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "mode",
+          "data_revision",
+          "data"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": "v1"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "demo",
+              "real",
+              "test"
+            ]
+          },
+          "data_revision": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Unavailable"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

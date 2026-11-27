@@ -1,7 +1,7 @@
+import { saveProfile } from '../../api/planning'
 import { Button, Card, Input } from '../../components/ui'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { put } from '../../api/client'
 import { qk, invalidateKeys } from '../../api/queryKeys'
 import { WEEKDAY_LABELS } from '../../api/types/blocks'
 import type { Profile } from '../../api/types/profile'
@@ -18,7 +18,7 @@ export function ReviewDay({ profile }: { profile: Profile }) {
   )
   const save = useMutation({
     mutationFn: () =>
-      put('/profile', {
+      saveProfile({
         ...profileBody(profile),
         preferences: { ...profile.preferences, weekly_review_weekday: day },
       }),
@@ -59,7 +59,7 @@ export function Preferences({
   const qc = useQueryClient(),
     [timezone, setTimezone] = useState(profile.timezone)
   const save = useMutation({
-    mutationFn: () => put('/profile', { ...profileBody(profile), timezone: timezone.trim() }),
+    mutationFn: () => saveProfile({ ...profileBody(profile), timezone: timezone.trim() }),
     onSuccess: () => invalidateKeys(qc, [qk.profile]),
   })
   return (

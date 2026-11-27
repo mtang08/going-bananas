@@ -30,7 +30,16 @@ _SAFE_ERRORS = {
 
 
 def run_import(settings: Settings, path: Path, *, apply: bool) -> dict:
-    command = ["go", "run", "./cmd/strong-import"]
+    backend = os.environ.get("GOING_BANANAS_BACKEND") or ("python" if settings.app_mode == "real" else "go")
+    if backend == "python":
+        from app.db import SessionLocal
+        from app.services.strong_import import import_strong_csv
+
+        with SessionLocal.begin() as session:
+            return import_strong_csv(session, settings.private_dir, path, apply=apply)
+    if backend != "go":
+        raise ValueError("invalid_backend")
+    command = ["go", "run", "./cmd/going-bananas", "strong-import"]
     if apply:
         command.append("-apply")
     command += ["--", str(path.resolve())]
@@ -52,8 +61,15 @@ def run_import(settings: Settings, path: Path, *, apply: bool) -> dict:
     except OSError as exc:
         raise ValueError("strong_import_unavailable") from exc
     if process.returncode:
-        # Go emits one safe code for input and source conflicts. Other stderr
-        # may include local paths or database details and stays private.
-        code = next((s for s in process.stderr.splitlines() if s in _SAFE_ERRORS), None)
-        raise ValueError(code or "strong_import_failed")
-    return json.loads(process.stdout)["summary"]
+        # go run appends an exit-status line, so read only the binary's JSON receipt.
+        for line in process.stderr.splitlines():
+            if not line.startswith("{"):
+                continue
+            try:
+                error = json.loads(line).get("error")
+            except (ValueError, AttributeError):
+                continue
+            if isinstance(error, str) and error in _SAFE_ERRORS:
+                raise ValueError(error)
+        raise ValueError("strong_import_failed")
+    return json.loads(process.stdout)
