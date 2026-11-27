@@ -152,10 +152,7 @@ The source skill is `.codex/skills/going-bananas-coach`; its manifest pins every
 artifact hash, protocol `coach_proposal.v2`, manual activation, and required
 calendar authority. The installed skill must match that reviewed artifact.
 
-Do not reset or reseed the real database. Legacy planning history stays in its
-original tables (`plan_versions`, `planned_sessions`, `completion_links`,
-`checkins`, `weekly_snapshots`, and `coach_*`) as a read-only archive. The app
-no longer reads that history. Back up before any real schema change.
+Keep the real database and its historical tables when changing backends. The frozen planning and coaching tables are listed in [history_models.py](../backend/app/history_models.py). Current snapshots, proposals, decisions and dashboard receipts use the tables listed in [coach_v2_models.py](../backend/app/coach_v2_models.py). Back up before any real schema change.
 
 Real coaching uses Python until the owner selects Go. At the scheduled switch, stop the running dashboard, keep a backup, and run the migrations for the selected workspace. Set `GOING_BANANAS_BACKEND=go` in the checkout’s private `.env` and run `make build` before reopening **Going Bananas.command**. The supervisor and helper both read this selection. A temporary shell override applies only to processes that inherit it. The first native launch imports the prior review and receipts for that mode. Open **Coach** and check the existing conversation and pending draft before sending a new message. [Native coaching rehearsal](go-rewrite-coaching.md#native-dashboard-handoff)
 

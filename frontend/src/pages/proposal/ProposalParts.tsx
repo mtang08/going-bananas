@@ -123,7 +123,7 @@ export function ExceptionCard({
         {LADDER_LABELS[exc.ladder_level]} · {shortDate(exc.patch_window.start)}–
         {shortDate(exc.patch_window.end)}
       </p>
-      {exc.unchanged.length > 0 && (
+      {exc.unchanged && exc.unchanged.length > 0 && (
         <>
           <h4>Unchanged</h4>
           <ul>
@@ -156,7 +156,7 @@ export function EventReviewCard({
   review: ProposalEventReview
   operation: string
 }) {
-  const rows: [string, string | null][] = [
+  const rows: [string, string | null | undefined][] = [
     ['Outcome', review.outcome ? OUTCOME_LABELS[review.outcome] : null],
     ['Compared with', review.compared_with],
     ['Pacing', review.pacing],

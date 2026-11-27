@@ -891,6 +891,15 @@ it('separates discard from reject and drops the legacy link', async () => {
   expect(screen.queryByText('Planning upgrade required')).toBeNull()
 })
 
+it('renders an authored exception with no unchanged sessions field', async () => {
+  proposal.exception = { ...EXCEPTION }
+  delete proposal.exception.unchanged
+  mount()
+  const card = await screen.findByTestId('proposal-exception')
+  expect(within(card).getByText('Morning fatigue')).toBeInTheDocument()
+  expect(within(card).queryByText('Unchanged')).toBeNull()
+})
+
 it('shows the exception card after the intro', async () => {
   proposal.exception = EXCEPTION
   mount()

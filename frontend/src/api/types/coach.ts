@@ -1,5 +1,5 @@
 import type { ProposalListResponse } from '../client'
-import type { CitedSource, Rule, Why } from './coachText'
+import type { components } from '../generated/coachProposals'
 import type {
   Patch,
   ProposalEventReview,
@@ -7,6 +7,8 @@ import type {
   ProposalPatchResolution,
 } from './exceptions'
 import type { RunningInterruption, InterruptionRun } from './runningInterruption'
+
+type Schemas = components['schemas']
 
 export interface ProposalInterruption {
   today: string
@@ -16,13 +18,7 @@ export interface ProposalInterruption {
 }
 export type ProposalSummary = ProposalListResponse['data']['items'][number]
 export type ProposalStatus = ProposalSummary['status']
-export interface ProposalRevision {
-  revision: number
-  saved_at: string
-  reason: string
-  changed_change_ids: string[]
-  changed_fields: string[]
-}
+export type ProposalRevision = Schemas['RevisionSummary']
 export type ProposalSession = Partial<import('./calendar').SessionFields> & {
   legacy_unstructured?: boolean
   legacy_payload?: Record<string, unknown> | null
@@ -49,24 +45,22 @@ export interface AnchorChange {
   calibrated_at: string
   supersedes_key: string | null
 }
-export interface ProposalDetail extends Omit<ProposalSummary, 'change_count'> {
-  revisions: ProposalRevision[]
-  decision_result: ProposalDecisionResult | null
-  snapshot_id: string
+// The review components share domain renderers for calendar, interruption, and
+// exception records. The remaining fields follow the generated HTTP contract.
+export interface ProposalDetail extends Omit<
+  Schemas['ProposalDetail'],
+  | 'running_interruption'
+  | 'confidence'
+  | 'block_change'
+  | 'anchor_changes'
+  | 'changes'
+  | 'exception'
+  | 'event_review'
+  | 'patch_resolutions'
+  | 'patch'
+> {
   running_interruption: ProposalInterruption | null
-  why: Why[]
-  uncertainty: string[]
-  change_triggers: Rule[]
-  next_check: { on: string; check: string } | null
-  coach_note: string | null
-  legacy_text: string | null
-  sources: CitedSource[]
   confidence: Record<string, string>
-  evidence_ids: string[]
-  policy_ids: string[]
-  recipe_ids: string[]
-  escalation: string | null
-  base_block_version_id: string | null
   block_change: {
     decision: string
     block_uid: string | null
@@ -74,34 +68,12 @@ export interface ProposalDetail extends Omit<ProposalSummary, 'change_count'> {
   } | null
   anchor_changes: AnchorChange[]
   changes: ProposalChange[]
-  validation_errors: { code: string; path: string; message: string }[] | null
-  skill_version: string
-  head: number
-  is_current: boolean
   exception: ProposalException | null
   event_review: ProposalEventReview | null
   patch_resolutions: ProposalPatchResolution[]
   patch: Omit<Patch, 'session_uids' | 'reassess_due'> | null
 }
-export interface ProposalDecision {
-  idempotency_key: string
-  expected_head: number
-  expected_revision: number
-  accept_change_ids: string[]
-  reject_change_ids: string[]
-  accept_block_change: boolean
-  accept_anchor_changes: string[]
-}
-export interface ProposalDecisionResult {
-  proposal_id: string
-  status: ProposalStatus
-  calendar_version: number | null
-  block_version_id: string | null
-  anchor_keys: string[]
-  stale_proposals: string[]
-}
-export interface ProposalDiscardResult {
-  proposal_id: string
-  revision: number
-  status: 'discarded'
-}
+// The review UI always submits every selection explicitly.
+export type ProposalDecision = Required<Schemas['DecisionRequest']>
+export type ProposalDecisionResult = Schemas['DecisionResult']
+export type ProposalDiscardResult = Schemas['DiscardResult']

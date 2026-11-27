@@ -64,6 +64,9 @@ def main() -> None:
     for source, target in sources:
         command = ['node_modules/.bin/openapi-typescript', str(MODULE / source),
                    '-o', f'src/api/generated/{target}']
+        if target == 'coachProposals.ts':
+            # Saved documents omit defaults the athlete or coach never authored.
+            command.extend(['--default-non-nullable', 'false'])
         if args.check:
             command.append('--check')
         subprocess.run(command, cwd=ROOT / 'frontend', check=True)
