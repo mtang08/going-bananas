@@ -5,7 +5,10 @@ const getRoutes = new Set([
   '/calendar/versions',
   '/calendar/weekly-digest',
   '/calendar/weekly-projection',
+  '/coach/chat',
+  '/coach/chat/auth',
   '/coach/proposals',
+  '/events',
   '/goals',
   '/google-calendar/events',
   '/google-calendar/status',
@@ -19,6 +22,12 @@ const postRoutes = new Set([
   '/calendar/bootstrap',
   '/calendar/edits',
   '/calendar/rollback',
+  '/coach/chat/messages',
+  '/coach/chat/cancel',
+  '/coach/chat/new',
+  '/coach/chat/auth/start',
+  '/coach/chat/auth/cancel',
+  '/events',
   '/goals',
   '/google-calendar/sync',
   '/trips',
@@ -39,9 +48,9 @@ export function servedByGo(method: string | undefined, path: string): boolean {
     case 'POST':
       return postRoutes.has(route) || /^\/coach\/proposals\/[^/]+\/(?:revise|decision)$/.test(route)
     case 'PATCH':
-      return /^\/(?:goals|trips|google-calendar\/events|v2\/checkins)\/[^/]+$/.test(route)
+      return /^\/(?:events|goals|trips|google-calendar\/events|v2\/checkins)\/[^/]+$/.test(route)
     case 'PUT':
-      return /^\/phone\/checkins\/[^/]+$/.test(route)
+      return route === '/events/order' || /^\/phone\/checkins\/[^/]+$/.test(route)
     case 'DELETE':
       return /^\/coach\/proposals\/[^/]+$/.test(route)
     default:

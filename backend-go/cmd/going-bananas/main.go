@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -89,10 +91,28 @@ func serve(args []string) error {
 			root = filepath.Dir(root)
 		}
 	}
-	h := applicationHandler(pool, mode, port, vitePort, root, os.Getenv("PRIVATE_DIR"))
+	privateDir := os.Getenv("PRIVATE_DIR")
+	dashboard, err := nativeDashboard(ctx, pool, mode, port, vitePort, root, privateDir)
+	if err != nil {
+		return fmt.Errorf("initialize coaching dashboard: %w", err)
+	}
+	h := applicationHandler(pool, mode, port, vitePort, root, privateDir, dashboard)
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second}
 	fmt.Println(l.Addr())
-	return srv.Serve(l)
+	shutdown, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	done := make(chan error, 1)
+	go func() { done <- srv.Serve(l) }()
+	select {
+	case err = <-done:
+	case <-shutdown.Done():
+		closing, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err = srv.Shutdown(closing)
+		cancel()
+	}
+	drain, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return errors.Join(err, dashboard.Shutdown(drain))
 }
 
 // Match the compact FastAPI JSON body for generated responses.

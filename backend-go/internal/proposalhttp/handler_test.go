@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestReferenceViews(t *testing.T) {
@@ -114,6 +115,16 @@ func TestReferenceCommands(t *testing.T) {
 	h.Register(mux)
 	id := ""
 	for i, c := range cases {
+		// The coach CLI creates the pending draft. The public API only revises
+		// or reviews an existing draft.
+		if c.Path == "" {
+			res, err := h.Store.Submit(context.Background(), c.Body, time.Now().UTC(), drafts.NewValidator(h.KBRoot))
+			if err != nil {
+				t.Fatal(err)
+			}
+			id = res.Receipt.ID.String()
+			continue
+		}
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(c.Method, prefix+strings.ReplaceAll(c.Path, "ID", id), strings.NewReader(string(c.Body)))
 		mux.ServeHTTP(w, req)
