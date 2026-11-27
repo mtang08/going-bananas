@@ -1,4 +1,4 @@
-"""Compare calendar reads on a populated, shared, disposable PostgreSQL history."""
+"""Check native calendar reads on a populated, disposable PostgreSQL history."""
 
 from datetime import date, timedelta
 from http.client import HTTPConnection
@@ -10,7 +10,7 @@ import tempfile
 import psycopg
 
 
-def compare_calendar_views(env, ports):
+def check_calendar_views(env, port):
     corpus = []
     def request(port, path):
         conn = HTTPConnection("127.0.0.1", int(port), timeout=15)
@@ -24,24 +24,23 @@ def compare_calendar_views(env, ports):
         finally:
             conn.close()
 
-    def compare(path, status=200):
-        reference, candidate = [request(p, path) for p in ports]
-        assert reference == candidate, (path, reference, candidate)
-        assert reference[0] == status, (path, reference)
+    def check(path, status=200):
+        actual, response = request(port, path)
+        assert actual == status, (path, actual, response)
         if status == 200:
-            corpus.append({"path": path, "envelope": reference[1]})
-        return reference[1].get("data")
+            corpus.append({"path": path, "envelope": response})
+        return response.get("data")
 
-    assert compare("")["last_planned_date"] is None
-    compare("/week")
-    compare("/weekly-digest")
-    compare("/weekly-projection")
+    assert check("")["last_planned_date"] is None
+    check("/week")
+    check("/weekly-digest")
+    check("/weekly-projection")
     for query, status in [
         ("/diff", 422), ("/diff?from=no&to=", 422), ("/week?start=2026-03-03", 422),
         ("?version=9999999999", 404), ("?start=bad&end=bad&version=bad", 422),
         ("?start=2030-01-02&end=2030-01-01", 422),
     ]:
-        compare(query, status)
+        check(query, status)
 
     with psycopg.connect(env["PROPOSAL_TEST_DATABASE_URL"], options=env["PGOPTIONS"], autocommit=True) as db:
         assert db.execute("SELECT current_database(),current_schema()").fetchone()[1].startswith("go_parity_")
@@ -80,18 +79,18 @@ def compare_calendar_views(env, ports):
                    'user_marked','2026-03-02T00:00:00Z')""")
         bounds = f"?start={day}&end={day+timedelta(days=5)}"
         for version in (0,1,2,3):
-            compare(bounds + f"&version=invalid&version={version}.0")
-        view=compare(bounds)
+            check(bounds + f"&version=invalid&version={version}.0")
+        view=check(bounds)
         assert [r["intent"] for r in view["sessions"]] == ["protected","shorter"]
         assert all(r.get("running_restriction_conflict") for r in view["sessions"])
         assert len(view["recorded_runs"]) == 1 and len(view["completions"]) == 2
-        assert compare("/diff?from=1&to=2")["changes"]
+        assert check("/diff?from=1&to=2")["changes"]
         for pair in ("0&to=3","3&to=0","2&to=3","3&to=3"):
-            compare("/diff?from="+pair)
-        compare("/diff?from=-1&to=3",404)
-        compare("/weekly-projection")
-        compare("/weekly-digest?week_start="+(day-timedelta(days=day.weekday())).isoformat())
-        compare("/week?start="+(day-timedelta(days=day.weekday())).isoformat())
+            check("/diff?from="+pair)
+        check("/diff?from=-1&to=3",404)
+        check("/weekly-projection")
+        check("/weekly-digest?week_start="+(day-timedelta(days=day.weekday())).isoformat())
+        check("/week?start="+(day-timedelta(days=day.weekday())).isoformat())
     root = Path(__file__).resolve().parents[2]
     with tempfile.TemporaryDirectory(dir=root / "private") as temp:
         fixture = Path(temp) / "calendar-wire.json"

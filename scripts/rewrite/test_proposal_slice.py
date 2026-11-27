@@ -1,29 +1,24 @@
-"""Compare migrated Go routes to FastAPI and exercise their UI through Vite."""
+"""Exercise native proposal, planning and calendar HTTP routes through Vite and PostgreSQL."""
 
-import json
 import os
 import selectors
 import socket
 import subprocess
-import sys
 import tempfile
-import time
-from contextlib import ExitStack, contextmanager
-from http.client import HTTPConnection
+from contextlib import contextmanager
 from pathlib import Path
-from urllib.parse import urlsplit
 from uuid import uuid4
 
 import psycopg
 from psycopg import sql
 from sqlalchemy.engine import make_url
-from compare_goals import compare_goals
-from compare_proposals import read_response
+from check_goal_commands import check_goals
+from check_proposal_list import check_list, read_response
+from schema_fixture import check_native_schema
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / 'backend'
 MODULE = ROOT / 'backend-go'
-HTTP_METHODS = {'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'}
 
 
 @contextmanager
@@ -43,23 +38,7 @@ def listener(*args, **kwargs):
             process.stdout.close()
 
 
-def wait_ready(port, process):
-    deadline = time.monotonic() + 20
-    while time.monotonic() < deadline and process.poll() is None:
-        client = HTTPConnection('127.0.0.1', port, timeout=0.5)
-        try:
-            client.request('GET', '/api/v1/health/ready')
-            if client.getresponse().status == 200:
-                return
-        except OSError:
-            pass
-        finally:
-            client.close()
-        time.sleep(0.05)
-    raise SystemExit('Python reference API did not become ready')
-
-
-def check_open_states(env, ports):
+def check_open_states(env, port):
     with psycopg.connect(env['PROPOSAL_TEST_DATABASE_URL'], options=env['PGOPTIONS'], autocommit=True) as fixture:
         for state in ('stale', 'invalid', 'pending'):
             updated = fixture.execute(
@@ -68,27 +47,27 @@ def check_open_states(env, ports):
             )
             if updated.rowcount != 1:
                 raise SystemExit('Expected the single synthetic draft')
-            python, go = (read_response(int(port), '?status=open') for port in ports)
-            if python != go or go[0] != 200 or [row['status'] for row in go[1]['data']['items']] != [state]:
+            status, response = read_response(int(port), '?status=open')
+            if status != 200 or [row['status'] for row in response['data']['items']] != [state]:
                 raise SystemExit(f'Open filter omitted or misreported the {state} draft')
-            active = [read_response(int(port), '', '/api/v1/coach/proposals/active') for port in ports]
-            assert active[0] == active[1] and active[1][1]['data']['proposal']['status'] == state
+            status, active = read_response(int(port), '', '/api/v1/coach/proposals/active')
+            assert status == 200 and active['data']['proposal']['status'] == state
             print(f'PASS proposal list and active lookup include {state}', flush=True)
 
 
-def check_planning_lists(env, ports):
-    def compare(path, query, expected):
-        python, go = (read_response(int(port), query, path) for port in ports)
-        if python != go:
-            raise AssertionError(f'{path}{query} differs: {python!r} vs {go!r}')
-        if expected is None:
-            assert go[0] == 422
-        else:
-            assert go[0] == 200 and len(go[1]['data']['items']) == expected
+def check_planning_lists(env, port):
+    def check(path, query, count):
+        status, response = read_response(int(port), query, path)
+        if count is None:
+            assert status == 422 and response['error']['fields'][0]['field'] == 'query.limit'
+            return None
+        items = response['data']['items']
+        assert status == 200 and len(items) == count
+        return items
 
     versions = '/api/v1/calendar/versions'
-    compare(versions, '', 0)
-    compare('/api/v1/goals', '', 0)
+    check(versions, '', 0)
+    check('/api/v1/goals', '', 0)
     with psycopg.connect(env['PROPOSAL_TEST_DATABASE_URL'], options=env['PGOPTIONS'], autocommit=True) as fixture:
         fixture.execute("""
             INSERT INTO calendar_versions (id, number, parent_number, kind, actor, reason,
@@ -103,7 +82,12 @@ def check_planning_lists(env, ports):
                                 ('?limit=51', None), ('?limit=', None), ('?limit=bad', None),
                                 ('?limit=2.0', 2), ('?limit=1_0', 10), ('?limit=bad&limit=3', 3),
                                 ('?limit=3&limit=bad', None)]:
-            compare(versions, query, expected)
+            items = check(versions, query, expected)
+            if items:
+                assert [item['number'] for item in items] == list(range(51, 51 - expected, -1))
+                assert items[0]['proposal_id'] == '00000000-0000-0000-0000-000000000033'
+                assert items[0]['block_version_id'] is None
+                assert items[0]['created_at'].endswith('.123400+05:45')
         fixture.execute("DELETE FROM calendar_versions WHERE reason = 'synthetic edit' OR number = 1")
         fixture.execute("""
             INSERT INTO goals (id, text, horizon, priority, status, version) VALUES
@@ -111,41 +95,32 @@ def check_planning_lists(env, ports):
               (md5('g2')::uuid, 'history two', 'long_term', 2, 'active', 1),
               (md5('g3')::uuid, 'history three', 'season', 1, 'done', 2)
         """)
-        compare('/api/v1/goals', '', 3)
+        assert [goal['text'] for goal in check('/api/v1/goals', '', 3)] == [
+            'history three', 'history one', 'history two',
+        ]
         fixture.execute("DELETE FROM goals WHERE id IN (md5('g1')::uuid, md5('g2')::uuid, md5('g3')::uuid)")
     print('PASS calendar history limits, nulls, timestamps, validation and goal list ordering', flush=True)
 
 
 @contextmanager
-def servers(python_env, go_env, app_binary):
-    with ExitStack() as stack:
-        sock = stack.enter_context(socket.socket())
-        sock.bind(('127.0.0.1', 0))
-        sock.listen()
-        python_port = str(sock.getsockname()[1])
-        py = stack.enter_context(listener(
-            [sys.executable, '-m', 'uvicorn', 'app.main:app', '--fd', str(sock.fileno()),
-             '--no-access-log', '--log-level', 'error'],
-            env={**python_env, 'APP_PORT': python_port}, cwd=BACKEND, pass_fds=(sock.fileno(),),
-        ))
-        wait_ready(int(python_port), py)
-        go = stack.enter_context(listener(
-            [app_binary, 'serve', '-listen', '127.0.0.1:0'], env=go_env,
-            stdout=subprocess.PIPE, text=True,
-        ))
+def native_server(env, app_binary):
+    with listener(
+        [app_binary, 'serve', '-repo', ROOT, '-listen', '127.0.0.1:0'],
+        env=env, stdout=subprocess.PIPE, text=True,
+    ) as process:
         with selectors.DefaultSelector() as selector:
-            selector.register(go.stdout, selectors.EVENT_READ)
+            selector.register(process.stdout, selectors.EVENT_READ)
             if not selector.select(timeout=15):
                 raise SystemExit('Go listener did not start in time')
-            address = go.stdout.readline().strip()
-        host, _, go_port = address.partition(':')
-        if host != '127.0.0.1' or not go_port.isdigit():
+            address = process.stdout.readline().strip()
+        host, _, port = address.partition(':')
+        if host != '127.0.0.1' or not port.isdigit():
             raise SystemExit('Go listener did not report its local port')
-        yield python_port, go_port
+        yield port
 
 
 @contextmanager
-def migrated_schema(db, url, directory, vite_port):
+def migrated_schema(db, url, directory, vite_port, *, app_binary=None):
     schema = 'go_parity_' + uuid4().hex
     pg_url = url.set(drivername='postgresql').render_as_string(hide_password=False)
     env = dict(
@@ -158,67 +133,41 @@ def migrated_schema(db, url, directory, vite_port):
     directory.mkdir()
     db.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
     try:
-        subprocess.run([sys.executable, '-m', 'alembic', 'upgrade', 'head'], cwd=BACKEND, env=env, check=True)
+        command = [app_binary] if app_binary else ['go', 'run', './cmd/going-bananas']
+        subprocess.run([*command, 'migrate'], cwd=MODULE, env=env, check=True)
         yield env
     finally:
         db.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))
 
 
-def schema_routes(schema):
-    routes = set()
-    for path, item in schema['paths'].items():
-        for method in item.keys() & HTTP_METHODS:
-            servers = item[method].get('servers', item.get('servers', schema.get('servers')))
-            for server in servers or [{'url': '/'}]:
-                prefix = urlsplit(server['url']).path.rstrip('/')
-                routes.add((method.upper(), prefix + path))
-    return routes
-
-
-def check_route_inventory(reference_schema, routes_file):
-    reference = {route for route in schema_routes(reference_schema) if route[1] == '/api/v1' or route[1].startswith('/api/v1/')}
-    exported = json.loads(subprocess.check_output(['make', '--no-print-directory', 'api-schema'], cwd=ROOT))
-    actual = schema_routes(exported)
-    if actual != reference:
-        differences = [f'missing {method} {path}' for method, path in sorted(reference - actual)]
-        differences.extend(f'extra {method} {path}' for method, path in sorted(actual - reference))
-        raise AssertionError('Bundled OpenAPI differs from FastAPI:\n' + '\n'.join(differences))
-
-    routes_file.write_text(json.dumps(sorted(reference)))
-    subprocess.run(['go', 'test', '-count=1', './cmd/going-bananas', '-run', 'TestApplicationRoutes'],
-                   cwd=MODULE, env={**os.environ, 'REFERENCE_HTTP_ROUTES': str(routes_file.resolve())}, check=True)
-    print(f'PASS bundled OpenAPI and Go router match {len(reference)} FastAPI operations', flush=True)
-
-
 def exercise(db, url, scratch):
-    from compare_calendar_views import compare_calendar_views
-    sys.path.insert(0, str(BACKEND))
-    from app.main import app
-    check_route_inventory(app.openapi(), scratch / 'routes.json')
+    from check_calendar_views import check_calendar_views
+
+    subprocess.run(['go', 'test', '-count=1', './cmd/going-bananas', '-run', 'TestApplicationRoutes'],
+                   cwd=MODULE, check=True)
     app_binary = scratch / 'going-bananas'
     subprocess.run(['go', 'build', '-o', app_binary, './cmd/going-bananas'], cwd=MODULE, check=True)
     with socket.socket() as reservation:
         reservation.bind(('127.0.0.1', 0))
         vite_port = str(reservation.getsockname()[1])
-        with migrated_schema(db, url, scratch / 'ui', vite_port) as env:
-            subprocess.run([sys.executable, 'sql/snapshot.py', '--check'], cwd=MODULE, env=env, check=True)
+        with migrated_schema(db, url, scratch / 'ui', vite_port, app_binary=app_binary) as env:
+            schema = env['PGOPTIONS'].split()[0].removeprefix('-csearch_path=')
+            check_native_schema(MODULE, schema, env)
             subprocess.run(['psql', '-Xq', '-1', '-v', 'ON_ERROR_STOP=1', '-f',
                             BACKEND / 'tests/fixtures/proposal-list.sql'], env=env, check=True)
             subprocess.run(['go', 'test', '-count=1', '-race', './internal/proposals', './internal/goals'],
                            cwd=MODULE, env=env, check=True)
-            with servers(env, env, app_binary) as ports:
-                subprocess.run([sys.executable, ROOT / 'scripts/rewrite/compare_proposals.py', *ports], check=True)
-                check_open_states(env, ports)
-                check_planning_lists(env, ports)
+            with native_server(env, app_binary) as port:
+                check_list(int(port))
+                check_open_states(env, port)
+                check_planning_lists(env, port)
                 reservation.close()
-                subprocess.run(['node', ROOT / 'scripts/rewrite/proposal-home.mjs', *ports], cwd=ROOT, env=env, check=True)
-                compare_calendar_views(env, ports)
+                subprocess.run(['node', ROOT / 'scripts/rewrite/proposal-home.mjs', port], cwd=ROOT, env=env, check=True)
+                check_calendar_views(env, port)
 
-    # Each implementation must apply the same command against its own starting state.
-    with migrated_schema(db, url, scratch / 'reference', vite_port) as reference, \
-            migrated_schema(db, url, scratch / 'candidate', vite_port) as candidate:
-        with servers(reference, candidate, app_binary) as ports:
-            compare_goals(*ports, reference, candidate)
+    with migrated_schema(db, url, scratch / 'goals', vite_port, app_binary=app_binary) as env:
+        with native_server(env, app_binary) as port:
+            check_goals(port, env)
 
 
 def main():
