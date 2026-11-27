@@ -1,5 +1,6 @@
 """Compare migrated Go routes to FastAPI and exercise their UI through Vite."""
 
+import json
 import os
 import selectors
 import socket
@@ -10,6 +11,7 @@ import time
 from contextlib import ExitStack, contextmanager
 from http.client import HTTPConnection
 from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import psycopg
@@ -21,6 +23,7 @@ from compare_proposals import read_response
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / 'backend'
 MODULE = ROOT / 'backend-go'
+HTTP_METHODS = {'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'}
 
 
 @contextmanager
@@ -161,18 +164,37 @@ def migrated_schema(db, url, directory, vite_port):
         db.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))
 
 
+def schema_routes(schema):
+    routes = set()
+    for path, item in schema['paths'].items():
+        for method in item.keys() & HTTP_METHODS:
+            servers = item[method].get('servers', item.get('servers', schema.get('servers')))
+            for server in servers or [{'url': '/'}]:
+                prefix = urlsplit(server['url']).path.rstrip('/')
+                routes.add((method.upper(), prefix + path))
+    return routes
+
+
+def check_route_inventory(reference_schema, routes_file):
+    reference = {route for route in schema_routes(reference_schema) if route[1] == '/api/v1' or route[1].startswith('/api/v1/')}
+    exported = json.loads(subprocess.check_output(['make', '--no-print-directory', 'api-schema'], cwd=ROOT))
+    actual = schema_routes(exported)
+    if actual != reference:
+        differences = [f'missing {method} {path}' for method, path in sorted(reference - actual)]
+        differences.extend(f'extra {method} {path}' for method, path in sorted(actual - reference))
+        raise AssertionError('Bundled OpenAPI differs from FastAPI:\n' + '\n'.join(differences))
+
+    routes_file.write_text(json.dumps(sorted(reference)))
+    subprocess.run(['go', 'test', '-count=1', './cmd/going-bananas', '-run', 'TestApplicationRoutes'],
+                   cwd=MODULE, env={**os.environ, 'REFERENCE_HTTP_ROUTES': str(routes_file.resolve())}, check=True)
+    print(f'PASS bundled OpenAPI and Go router match {len(reference)} FastAPI operations', flush=True)
+
+
 def exercise(db, url, scratch):
     from compare_calendar_views import compare_calendar_views
     sys.path.insert(0, str(BACKEND))
     from app.main import app
-    import json
-    routes_file = scratch / "routes.json"
-    routes_file.write_text(json.dumps([
-        [method.upper(), path] for path, methods in app.openapi()["paths"].items()
-        for method in methods if method in {"get", "post", "patch", "put", "delete"}
-    ]))
-    subprocess.run(["go", "test", "-count=1", "./cmd/going-bananas", "-run", "TestApplicationRoutes"],
-                   cwd=MODULE, env={**os.environ, "REFERENCE_HTTP_ROUTES": str(routes_file)}, check=True)
+    check_route_inventory(app.openapi(), scratch / 'routes.json')
     app_binary = scratch / 'going-bananas'
     subprocess.run(['go', 'build', '-o', app_binary, './cmd/going-bananas'], cwd=MODULE, check=True)
     with socket.socket() as reservation:

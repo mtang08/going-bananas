@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from posixpath import normpath
 from urllib.parse import quote, unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,13 +35,25 @@ def component_name(source: Path, name: str) -> str:
     return f'{source.stem}.{name}'
 
 
+def external_schema_name(source: Path) -> str:
+    return '.'.join(source.with_suffix('').parts)
+
+
 def rewrite_pointer(reference: str, source: Path, documents: dict) -> str:
     uri = urlsplit(reference)
-    target = source.parent / unquote(uri.path) if uri.path else source
-    if uri.scheme or uri.netloc or uri.query or target not in documents:
+    target = Path(normpath(source.parent / unquote(uri.path))) if uri.path else source
+    if uri.scheme or uri.netloc or uri.query or target.is_absolute() or '..' in target.parts:
         raise ValueError(f'{source}: cannot bundle reference {reference!r}')
+    if target not in documents:
+        filename = (MODULE / target).resolve()
+        if target.suffix != '.json' or not filename.is_relative_to(MODULE) or not filename.is_file():
+            raise ValueError(f'{source}: cannot bundle reference {reference!r}')
+        document = json.loads(filename.read_text())
+        if 'openapi' in document:
+            raise ValueError(f'{source}: OpenAPI reference {reference!r} is outside the discovered contracts')
+        documents[target] = document
     fragment = unquote(uri.fragment)
-    if not fragment.startswith('/'):
+    if fragment and not fragment.startswith('/'):
         raise ValueError(f'{source}: expected a JSON pointer in {reference!r}')
     tokens = fragment.split('/')[1:]
     node = documents[target]
@@ -50,11 +63,13 @@ def rewrite_pointer(reference: str, source: Path, documents: dict) -> str:
             node = node[int(key)] if isinstance(node, list) else node[key]
     except (KeyError, TypeError, ValueError, IndexError) as error:
         raise ValueError(f'{source}: unresolved reference {reference!r}') from error
-    if len(tokens) >= 3 and tokens[0] == 'components':
+    if 'openapi' not in documents[target]:
+        tokens = ['components', 'schemas', external_schema_name(target), *tokens]
+    elif len(tokens) >= 3 and tokens[0] == 'components':
         tokens[2] = component_name(target, tokens[2])
-    elif tokens[0] != 'paths':
+    elif not tokens or tokens[0] != 'paths':
         raise ValueError(f'{source}: cannot bundle reference {reference!r}')
-    return '#/' + quote('/'.join(tokens), safe='/~')
+    return '#/' + quote('/'.join(tokens), safe='/~$')
 
 
 def rewrite_references(node, source: Path, documents: dict):
@@ -80,7 +95,7 @@ def rewrite_references(node, source: Path, documents: dict):
             }
         else:
             properties[key] = rewrite_references(value, source, documents)
-    if documents[source]['openapi'].startswith('3.0.'):
+    if documents[source].get('openapi', '').startswith('3.0.'):
         if isinstance(properties.get('nullable'), bool) and isinstance(properties.get('type'), str):
             if properties.pop('nullable'):
                 properties['type'] = [properties['type'], 'null']
@@ -93,11 +108,15 @@ def rewrite_references(node, source: Path, documents: dict):
 
 
 def bundle_schema(documents: dict[Path, dict]) -> dict:
+    documents = dict(documents)
     base = documents[CONTRACT]
     paths = {}
     components = {}
     operations = {}
-    for source, document in documents.items():
+    contracts = {source for source, document in documents.items() if 'openapi' in document}
+    for source, document in list(documents.items()):
+        if source not in contracts:
+            continue
         for route, path_item in document['paths'].items():
             combined = paths.setdefault(route, {})
             for key, value in rewrite_references(path_item, source, documents).items():
@@ -116,6 +135,15 @@ def bundle_schema(documents: dict[Path, dict]) -> dict:
                 if scoped in combined:
                     raise ValueError(f'{source}: duplicate component {group}/{scoped}')
                 combined[scoped] = rewrite_references(definition, source, documents)
+    bundled = set(contracts)
+    while pending := sorted(documents.keys() - bundled):
+        schemas = components.setdefault('schemas', {})
+        for source in pending:
+            scoped = external_schema_name(source)
+            if scoped in schemas:
+                raise ValueError(f'{source}: duplicate schema {scoped}')
+            schemas[scoped] = rewrite_references(documents[source], source, documents)
+        bundled.update(pending)
     return {**base, 'paths': paths, 'components': components}
 
 
