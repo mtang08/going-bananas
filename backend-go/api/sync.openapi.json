@@ -19,6 +19,16 @@
               }
             }
           },
+          "403": {
+            "description": "Local request guard rejected the host, origin or write header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal failure",
             "content": {
@@ -42,6 +52,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SyncJobEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the host, origin or write header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }
@@ -105,7 +125,7 @@
             }
           },
           "403": {
-            "description": "Local request guard",
+            "description": "Local request guard rejected the host, origin or write header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -116,6 +136,16 @@
           },
           "409": {
             "description": "Mode or state conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "A JSON request body is required.",
             "content": {
               "application/json": {
                 "schema": {
@@ -154,7 +184,18 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          }
+        ]
       }
     },
     "/api/v1/sync/treadmill-review/{remote_id}": {
@@ -167,6 +208,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TreadmillReviewEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Local request guard rejected the host, origin or write header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }
@@ -191,8 +242,8 @@
               }
             }
           },
-          "502": {
-            "description": "Provider unavailable",
+          "500": {
+            "description": "Internal failure",
             "content": {
               "application/json": {
                 "schema": {
@@ -201,8 +252,8 @@
               }
             }
           },
-          "500": {
-            "description": "Internal failure",
+          "502": {
+            "description": "Provider unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -237,7 +288,7 @@
             }
           },
           "403": {
-            "description": "Local request guard",
+            "description": "Local request guard rejected the host, origin or write header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -258,6 +309,16 @@
           },
           "409": {
             "description": "Mode or state conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "A JSON request body is required.",
             "content": {
               "application/json": {
                 "schema": {
@@ -304,6 +365,15 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Local-Request",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "1"
             }
           }
         ]

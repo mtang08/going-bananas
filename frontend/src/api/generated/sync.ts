@@ -241,6 +241,15 @@ export interface operations {
                     "application/json": components["schemas"]["SyncStatusEnvelope"];
                 };
             };
+            /** @description Local request guard rejected the host, origin or write header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Internal failure */
             500: {
                 headers: {
@@ -270,6 +279,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SyncJobEnvelope"];
+                };
+            };
+            /** @description Local request guard rejected the host, origin or write header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Resource missing */
@@ -304,7 +322,9 @@ export interface operations {
     queueSync: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Local-Request": "1";
+            };
             path?: never;
             cookie?: never;
         };
@@ -323,7 +343,7 @@ export interface operations {
                     "application/json": components["schemas"]["QueuedJobsEnvelope"];
                 };
             };
-            /** @description Local request guard */
+            /** @description Local request guard rejected the host, origin or write header. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -334,6 +354,15 @@ export interface operations {
             };
             /** @description Mode or state conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A JSON request body is required. */
+            415: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -381,6 +410,15 @@ export interface operations {
                     "application/json": components["schemas"]["TreadmillReviewEnvelope"];
                 };
             };
+            /** @description Local request guard rejected the host, origin or write header. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Resource missing */
             404: {
                 headers: {
@@ -422,7 +460,9 @@ export interface operations {
     confirmTreadmillReview: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "X-Local-Request": "1";
+            };
             path: {
                 remote_id: string;
             };
@@ -443,7 +483,7 @@ export interface operations {
                     "application/json": components["schemas"]["ActivityReceiptEnvelope"];
                 };
             };
-            /** @description Local request guard */
+            /** @description Local request guard rejected the host, origin or write header. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -463,6 +503,15 @@ export interface operations {
             };
             /** @description Mode or state conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A JSON request body is required. */
+            415: {
                 headers: {
                     [name: string]: unknown;
                 };
